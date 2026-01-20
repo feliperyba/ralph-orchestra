@@ -1,0 +1,251 @@
+{
+  "project": "threejs-examples",
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-19",
+  "quality": "production",
+  "description": "Three.js game inspired by Bruno Simon's folio-2025, built with React Three Fiber and TypeScript",
+  "feedbackLoops": {
+    "typescript": {
+      "command": "npm run type-check",
+      "required": true,
+      "description": "TypeScript compilation must pass with no errors"
+    },
+    "lint": {
+      "command": "npm run lint",
+      "required": true,
+      "description": "ESLint must pass with zero warnings"
+    },
+    "test": {
+      "command": "npm run test",
+      "required": true,
+      "description": "All unit tests must pass"
+    },
+    "build": {
+      "command": "npm run build",
+      "required": true,
+      "description": "Production build must succeed"
+    }
+  },
+  "qualityStandards": {
+    "typeSafety": "strict - no 'any' types without justification",
+    "testCoverage": "80% minimum for new code",
+    "documentation": "Required for complex shaders, game logic, and public APIs",
+    "commitStyle": "Conventional commits with Ralph prefix",
+    "codeReview": "All code must pass feedback loops before QA"
+  },
+  "items": [
+    {
+      "id": "feat-001",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Vehicle Physics Integration",
+      "description": "Implement player vehicle using @react-three/rapier with realistic physics controls",
+      "acceptanceCriteria": [
+        "Vehicle spawns at origin on game start",
+        "WASD keys control vehicle movement",
+        "Physics simulation runs smoothly at 60fps",
+        "Vehicle stays within floor boundaries",
+        "No console errors during gameplay"
+      ],
+      "verificationSteps": [
+        "Start dev server: npm run dev",
+        "Verify vehicle appears on screen at origin",
+        "Press W to move forward, S for reverse",
+        "Test all direction keys (WASD)",
+        "Check browser console for errors"
+      ],
+      "files": [
+        "src/components/game/player/Vehicle.tsx",
+        "src/hooks/useKeyboard.ts"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core gameplay mechanic - highest priority"
+    },
+    {
+      "id": "feat-002",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Camera Follow System",
+      "description": "Implement smooth camera that follows player vehicle with appropriate offset and damping",
+      "acceptanceCriteria": [
+        "Camera follows vehicle position",
+        "Smooth damping on movement (no jittering)",
+        "Camera maintains playable angle",
+        "Camera respects scene bounds"
+      ],
+      "verificationSteps": [
+        "Move vehicle around the scene",
+        "Verify camera tracks smoothly",
+        "Check for visual artifacts or stuttering"
+      ],
+      "files": [
+        "src/components/game/camera/PlayerCamera.tsx"
+      ],
+      "agent": "developer",
+      "dependencies": ["feat-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Depends on Vehicle existing"
+    },
+    {
+      "id": "feat-003",
+      "category": "functional",
+      "priority": "medium",
+      "title": "Loading Screen with Progress",
+      "description": "Create loading screen that shows asset loading progress",
+      "acceptanceCriteria": [
+        "Loading screen appears on app start",
+        "Progress bar updates as assets load",
+        "Screen fades out when loading complete",
+        "Handles loading errors gracefully"
+      ],
+      "verificationSteps": [
+        "Start app with cleared cache",
+        "Observe loading screen",
+        "Verify progress updates",
+        "Confirm smooth transition to game"
+      ],
+      "files": [
+        "src/components/LoadingScreen.tsx",
+        "src/hooks/useAssetLoader.ts"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
+    },
+    {
+      "id": "feat-004",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Phase-Based Game Loop",
+      "description": "Implement game loop with phase counter (0-999) inspired by Bruno Simon's pattern",
+      "acceptanceCriteria": [
+        "Phase counter increments at 60Hz",
+        "Game state updates on specific phases",
+        "Systems can subscribe to phase updates",
+        "Phase transitions logged for debugging"
+      ],
+      "verificationSteps": [
+        "Check Leva debug panel for phase value",
+        "Verify phase increments smoothly",
+        "Test phase-based callbacks fire correctly"
+      ],
+      "files": [
+        "src/components/game/GameLoop.tsx",
+        "src/store/gameStore.ts"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
+    },
+    {
+      "id": "feat-005",
+      "category": "functional",
+      "priority": "medium",
+      "title": "Debug Panel with Leva",
+      "description": "Integrate Leva debug panel for runtime parameter tuning",
+      "acceptanceCriteria": [
+        "Leva panel visible in development",
+        "Key game parameters exposed",
+        "Changes reflect in real-time",
+        "Panel hidden in production"
+      ],
+      "verificationSteps": [
+        "Start dev server",
+        "Verify Leva panel appears",
+        "Adjust a parameter and verify effect"
+      ],
+      "files": [
+        "src/components/DebugPanel.tsx"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
+    },
+    {
+      "id": "test-001",
+      "category": "integration",
+      "priority": "high",
+      "title": "E2E Test Suite Setup",
+      "description": "Set up Playwright E2E tests for core game functionality",
+      "acceptanceCriteria": [
+        "Playwright configured for Three.js canvas",
+        "Test for canvas rendering passes",
+        "Test for no console errors passes",
+        "Tests can run in CI/CD pipeline"
+      ],
+      "verificationSteps": [
+        "Run: npm run test:e2e",
+        "Verify all tests pass",
+        "Check coverage report"
+      ],
+      "files": [
+        "tests/e2e/canvas.spec.ts",
+        "tests/e2e/console.spec.ts",
+        "playwright.config.ts"
+      ],
+      "agent": "qa",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "Foundation for validation feedback loop"
+    },
+    {
+      "id": "test-002",
+      "category": "functional",
+      "priority": "medium",
+      "title": "Unit Tests for Game Store",
+      "description": "Add Vitest unit tests for Zustand game store",
+      "acceptanceCriteria": [
+        "State actions tested",
+        "State persistence tested",
+        "Reset functionality tested",
+        "Coverage > 80%"
+      ],
+      "verificationSteps": [
+        "Run: npm run test",
+        "Check coverage for store files",
+        "Verify all edge cases covered"
+      ],
+      "files": [
+        "src/store/gameStore.test.ts"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
+    },
+    {
+      "id": "feat-006",
+      "category": "functional",
+      "priority": "low",
+      "title": "Environment with Floor",
+      "description": "Create game environment with floor and basic lighting",
+      "acceptanceCriteria": [
+        "Floor renders at correct position",
+        "Lighting provides good visibility",
+        "Materials use appropriate colors",
+        "Performance acceptable"
+      ],
+      "verificationSteps": [
+        "Start dev server",
+        "Verify floor renders",
+        "Check lighting quality"
+      ],
+      "files": [
+        "src/components/game/environment/Floor.tsx",
+        "src/components/game/environment/Lighting.tsx"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
+    }
+  ]
+}

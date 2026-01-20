@@ -1,0 +1,65 @@
+# Ralph Session Progress
+
+Session: {{SESSION_NAME}}
+Started: {{START_TIME}}
+Iteration: {{CURRENT_ITERATION}}/{{MAX_ITERATIONS}}
+
+## Completed Tasks
+
+### [{{TIMESTAMP}}] {{PRD_ID}}: {{TASK_TITLE}} by {{AGENT}}
+Files changed:
+- {{FILE_1}}
+- {{FILE_2}}
+Commit: {{COMMIT_HASH}}
+
+QA Result: {{PASSED/FAILED}}
+
+## Current Task
+
+**PRD Item**: {{PRD_ID}}
+**Agent**: {{CURRENT_AGENT}}
+**Status**: {{STATUS}}
+
+### Description
+{{TASK_DESCRIPTION}}
+
+### Acceptance Criteria
+- [ ] {{CRITERION_1}}
+- [ ] {{CRITERION_2}}
+- [ ] {{CRITERION_3}}
+
+## Blockers
+{{BLOCKERS_LIST_OR_NONE}}
+
+## Decisions Made
+
+- {{DECISION_1}}
+- {{DECISION_2}}
+
+## Next Steps
+
+{{NEXT_STEPS}}
+
+## Session Notes
+
+{{ANY_NOTES_FOR_NEXT_ITERATION}}
+
+---
+
+## Validation Results for {{PRD_ID}}
+
+| Check | Result |
+|-------|--------|
+| TypeScript | {{PASS/FAIL}} |
+| Lint | {{PASS/FAIL}} |
+| Tests | {{PASS/FAIL}} |
+| Build | {{PASS/FAIL}} |
+| Manual | {{PASS/FAIL}} |
+
+## Progress Summary
+
+- Total Tasks: {{TOTAL_TASKS}}
+- Completed: {{COMPLETED_COUNT}}
+- In Progress: {{IN_PROGRESS_COUNT}}
+- Pending: {{PENDING_COUNT}}
+- Failed: {{FAILED_COUNT}}

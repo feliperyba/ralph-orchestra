@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__zread__get_repo_structure",
+      "mcp__web-reader__webReader",
+      "mcp__zread__read_file",
+      "mcp__web-search-prime__webSearchPrime",
+      "Bash(npm install:*)",
+      "Bash(npm run dev)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status)",
+      "Bash(git log:*)",
+      "Bash(git pull)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_console_messages",
+      "mcp__zread__search_doc",
+      "Read(.claude/session/**)",
+      "Write(.claude/session/**)",
+      "Write(progress.txt)",
+      "Write(prd.json)",
+      "Bash(du:*)",
+      "Skill(ralph-coordinator)",
+      "Skill(ralph-coordinator:*)",
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(npx tsc:*)",
+      "Bash(powershell:*)",
+      "Bash(timeout 5 npm run start:*)"
+    ]
+  }
+}

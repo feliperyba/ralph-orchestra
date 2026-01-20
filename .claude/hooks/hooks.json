@@ -1,0 +1,23 @@
+{
+  "stopHook": ".claude/hooks/stop-hook.sh",
+  "stopHookWindows": ".claude/hooks/stop-hook.ps1",
+  "environment": {
+    "RALPH_COMPLETION_PROMISE": "RALPH_COMPLETE",
+    "RALPH_CONTEXT_RESET_PROMISE": "CONTEXT_RESET",
+    "RALPH_MAX_ITERATIONS": "200",
+    "RALPH_FORCE_RESTART": "true",
+
+    "RALPH_IDLE_TIMEOUT": "60",
+    "RALPH_HEARTBEAT_INTERVAL": "30",
+    "RALPH_STALE_THRESHOLD": "90",
+
+    "RALPH_CONTEXT_THRESHOLD": "70",
+    "RALPH_POLL_INTERVAL_MS": "500",
+    "RALPH_RESTART_DELAY": "2",
+    "RALPH_MAX_RESTART_ATTEMPTS": "3",
+
+    "RALPH_LOCK_TIMEOUT_MS": "5000",
+    "RALPH_LOCK_RETRY_MS": "100"
+  },
+  "description": "Ralph Wiggum autonomous loop configuration. Environment variables control all timing and behavior. RALPH_IDLE_TIMEOUT: seconds of no output before restart. RALPH_STALE_THRESHOLD: seconds before agent considered stale. RALPH_HEARTBEAT_INTERVAL: how often agents should update heartbeat. CLI mode (agent-loop.ps1) is recommended for true AFK operation with automatic idle detection and context reset."
+}
