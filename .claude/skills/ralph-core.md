@@ -12,6 +12,23 @@ Agent-specific docs (`agents/*/AGENT.md`) should reference these rules, not dupl
 
 ---
 
+## Shared Skills Index
+
+The following shared skills contain detailed instructions for all agents:
+
+| Skill | Purpose |
+|-------|---------|
+| [polling-protocol.md](polling-protocol.md) | Core polling rules, exit conditions |
+| [polling-loop.md](polling-loop.md) | Main loop architecture, restart detection |
+| [context-management.md](context-management.md) | Context window auto-reset procedures |
+| [file-permissions.md](file-permissions.md) | File read/write permissions |
+| [auxiliary-scripts.md](auxiliary-scripts.md) | Script management rules |
+| [atomic-updates.md](atomic-updates.md) | File update atomicity patterns |
+
+Agent-specific AGENT.md files should reference these shared skills instead of duplicating content.
+
+---
+
 ## AFK Mode Support
 
 Ralph is designed for **fully autonomous operation** (AFK mode). The system will:
@@ -71,16 +88,15 @@ All state files are stored in `.claude/session/`:
 
 ```
 .claude/session/
-├── coordinator-state.json    # Main session state
+├── coordinator-state.json    # Main session state (includes all heartbeats)
 ├── current-task.json          # Active task details
 ├── handoff-log.json           # Task handoff history
 ├── continue-loop.flag         # Restart signal
 ├── work-in-progress.json      # Saved state for resume after restart
-├── agent-pm.json              # PM agent heartbeat (per-agent file)
-├── agent-developer.json       # Developer agent heartbeat
-├── agent-qa.json              # QA agent heartbeat
 └── coordinator-progress.txt   # Human-readable log
 ```
+
+**Note**: All heartbeats are stored in `coordinator-state.json` under `agents.{role}.lastSeen`. Per-agent heartbeat files (agent-pm.json, etc.) are NOT used.
 
 ## Heartbeat Format
 

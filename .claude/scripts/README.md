@@ -233,7 +233,7 @@ Send-AgentMessage -From "pm" -To "developer" -Type "task_assign" -Payload @{...}
 # Get pending messages
 Get-PendingMessages -Agent "developer"
 
-# Acknowledge a message (move to archive)
+# Acknowledge a message (deletes it)
 Invoke-AcknowledgeMessage -MessageId "msg-xxx"
 ```
 
@@ -398,7 +398,7 @@ function Get-RalphPaths {
 │   ├── pm/                  # PM inbox
 │   ├── developer/           # Developer inbox
 │   ├── qa/                  # QA inbox
-│   └── archive/             # Processed messages
+│   └── watchdog/            # Watchdog inbox
 └── logs/
     ├── pm.log               # PM agent output
     ├── pm-runner.ps1        # PM runner script

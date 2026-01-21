@@ -301,6 +301,7 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
 - **Parallel work** - Other agents are working at the same time
 - **Git worktrees** - Developer can use worktrees for parallel tasks
+- **ALWAYS delete pending file after processing** - After you finish processing ALL messages, delete the file: `Remove-Item ".claude/session/pending-messages-$arguments.agent.json" -Force -ErrorAction SilentlyContinue`
 
 ---
 

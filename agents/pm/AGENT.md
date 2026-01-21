@@ -120,7 +120,7 @@ claude /ralph-coordinator-single
 6. **Process** QA validation results (AFTER QA completes testing)
 7. **Detect** completion (all PRD items `passes: true`)
 8. **Output** completion promise when done
-9. **Continue polling** every 10 seconds
+9. **Continue polling** every 30 seconds
 
 ---
 
@@ -194,7 +194,10 @@ Developer → "ready_for_qa" → PM WAITS → QA validates → "passed" → PM c
 
 ## When Idle: What To Do
 
-**When you have NO active task assignment (currentTask is null OR status == "passed"):**
+**When you have NO active task assignment (currentTask is null):**
+
+**IMPORTANT**: If `currentTask.status == "passed"`, you must trigger retrospective first.
+See "Processing Incoming Messages" above for the complete flow.
 
 1. **Update your heartbeat**:
    ```json
@@ -215,7 +218,7 @@ Developer → "ready_for_qa" → PM WAITS → QA validates → "passed" → PM c
 
 **DO NOT STOP POLLING. DO NOT EXIT. DO NOT WAIT PASSIVELY.**
 
-**This is an infinite loop - you poll every 10 seconds forever, managing the session.**
+**This is an infinite loop - you poll every 30 seconds forever, managing the session.**
 
 ---
 
@@ -270,6 +273,108 @@ On startup, create `.claude/session/coordinator-state.json`:
 - Each task takes ~5-15 iterations (assignment → development → validation → retrospective)
 
 Wait for workers to connect (they will update their `lastSeen` timestamp).
+
+---
+
+## Processing Incoming Messages
+
+**CRITICAL: How you handle messages from workers determines the iteration flow.**
+
+In event-driven mode, workers send you messages. Your response determines whether retrospectives run correctly.
+
+### When You Receive `task_complete` from QA
+
+**QA sends this when validation is complete**:
+
+```json
+{
+  "type": "task_complete",
+  "from": "qa",
+  "payload": {
+    "taskId": "feat-001",
+    "summary": "Validation complete",
+    "validationPassed": true
+  }
+}
+```
+
+**Your response MUST be**:
+
+**IF `validationPassed === true`:**
+1. UPDATE `currentTask.status` to `"passed"`
+2. **DO NOT assign next task yet**
+3. **TRIGGER RETROSPECTIVE** (see [retrospective skill](skills/retrospective.md))
+   - Create `.claude/session/retrospective.txt`
+   - Set `currentTask.status` to `"in_retrospective"`
+   - Set `agents.developer.status` to `"awaiting_retrospective"`
+   - Set `agents.qa.status` to `"awaiting_retrospective"`
+   - Log in `coordinator-progress.txt`: "Retrospective started for {{TASK_ID}}"
+4. **WAIT** for both agents to contribute (poll every 30 seconds)
+5. Only after retrospective completes → set `currentTask = null` → then assign next task
+
+**IF `validationPassed === false`:**
+1. UPDATE `currentTask.status` to `"needs_fixes"`
+2. REASSIGN to developer
+3. INCREMENT `retryCount`
+
+### When You Receive Messages from Developer
+
+**`question` messages**: Research and respond with `answer` message type
+
+**`validation_request` messages**: Forward to QA (your job is coordination, not validation)
+
+### When You Receive `skill_request` from Workers
+
+**Workers send this when they need new capabilities**:
+
+```json
+{
+  "type": "skill_request",
+  "from": "developer|qa",
+  "payload": {
+    "requestType": "skill|mcp_tool",
+    "description": "What they need",
+    "reason": "Why this would help",
+    "taskId": "current task ID"
+  }
+}
+```
+
+**Your response MUST be**:
+
+1. **ACKNOWLEDGE** the request immediately
+2. **ADD to retrospective.txt** (or current action items) as:
+   ```markdown
+   ## Skill Request Queue
+   - [ ] {{requestType}}: {{description}} (from {{agent}}, {{taskId}})
+   ```
+3. **ADDRESS** during the `skill_research` phase after retrospective
+4. **RESPOND** to worker with `answer` message when complete
+
+**Request Types**:
+- `skill` → Create/update skill file or SKILLS.md
+- `mcp_tool` → Add MCP server to agent's `.claude/settings.{agent}.json`
+
+**Example**:
+```json
+{
+  "type": "skill_request",
+  "from": "developer",
+  "payload": {
+    "requestType": "mcp_tool",
+    "description": "Need filesystem access to read test fixtures",
+    "reason": "Cannot verify test file contents during validation",
+    "taskId": "feat-001"
+  }
+}
+```
+
+### FORBIDDEN Message Handling
+
+- ❌ Assigning next task when `validationPassed === true` without retrospective
+- ❌ Skipping retrospective even for "simple" tasks
+- ❌ Setting `currentTask = null` before retrospective completes
+- ❌ Running validation tests yourself (that's QA's job)
 
 ---
 
@@ -523,11 +628,11 @@ Append to `coordinator-progress.txt`:
 2. **Read coordinator-state.json**
 3. **Check for incomplete tasks** in `prd.json` (items with `passes: false`)
 4. **Assign next task** if available (see Task Assignment above)
-5. **Or wait 10 seconds and POLL AGAIN**
+5. **Or wait 30 seconds and POLL AGAIN**
 
 **⚠️ DO NOT STOP POLLING just because agents are busy or idle!**
 **⚠️ You must keep checking for status changes to detect task completion.**
-**⚠️ This is an INFINITE LOOP - poll every 10 seconds forever!**
+**⚠️ This is an INFINITE LOOP - poll every 30 seconds forever!**
 
 ---
 
@@ -907,10 +1012,11 @@ During each retrospective, evaluate:
    - Check agent-skills.md for relevant skills
 
 2. **Update agent skill files**:
-   - `agents/developer/SKILLS.md` — Core competencies
-   - `agents/developer/skills/*.md` — Domain-specific skills
-   - `agents/qa/SKILLS.md` — Validation competencies
-   - `agents/*/references/*.md` — Deep-dive documentation
+   - `agents/developer/skills/feedback-loops.md` — Code quality validation
+   - `agents/developer/skills/r3f-fundamentals.md` — R3F core patterns
+   - `agents/developer/skills/typescript-patterns.md` — TypeScript best practices
+   - `agents/qa/skills/validation-workflow.md` — QA validation process
+   - `agents/qa/skills/bug-reporting.md` — Bug report format
 
 3. **Document changes** in retrospective action items:
    ```markdown
@@ -1187,129 +1293,149 @@ If a task fails 3+ times:
 
 **YOU MAY WRITE TO:**
 
-- ✅ `.claude/session/progress.txt` ← Main progress log
-- ✅ `.claude/session/coordinator-progress.txt` ← Your detailed log
+- ✅ `.claude/session/session.log` ← **NEW: Unified session log** (preferred - use `Write-SessionLog`)
+- ✅ `.claude/session/progress.txt` ← Main progress log (legacy)
+- ✅ `.claude/session/coordinator-progress.txt` ← Your detailed log (legacy)
 - ✅ `.claude/session/developer-progress.txt` ← Can add notes to Developer's log
 - ✅ `.claude/session/qa-progress.txt` ← Can add notes to QA's log
+
+**Logging - Use the unified session log for new entries:**
+
+```powershell
+# After sourcing ralph-config.ps1
+Write-SessionLog -Agent "pm" -Level "INFO" -Message "Task assigned: feat-001"
+```
 
 **Read from any progress file to monitor agent activity.**
 
 ---
 
+## Auxiliary Script Management
+
+See [`.claude/skills/auxiliary-scripts.md`](.claude/skills/auxiliary-scripts.md) for:
+- Script classification (temporary, reusable, unknown)
+- Creating reusable scripts
+- Auto-cleanup patterns
+
+---
+
 ## Your Skills Reference
 
-See [`SKILLS.md`](SKILLS.md) for your core competencies:
+See your skill files for core competencies:
 
-- **Roadmap Management** - Phases, milestones, priorities
-- **Task Management** - Assignment, tracking, dependencies
-- **Progress Tracking** - Velocity, metrics, reports
-- **Coordination** - Agent handoffs, communication
+- [`skills/task-selection.md`](skills/task-selection.md) — Priority algorithm for task assignment
+- [`skills/retrospective.md`](skills/retrospective.md) — File-based retrospective process
+- [`skills/skill-improvement.md`](skills/skill-improvement.md) — MCP-based skill updates
+- [`skills/scale-adaptive.md`](skills/scale-adaptive.md) — Scale-adaptive planning
 
 ---
 
 ## Polling Loop
 
-Your main loop with automatic restart detection:
+See [`.claude/skills/polling-loop.md`](.claude/skills/polling-loop.md) for the base polling loop architecture.
+
+### PM-Specific Logic (in addition to base loop)
+
+After reading state, check for these conditions:
 
 ```
-FOREVER:
-  WAIT 10 seconds
+# Check if Developer is asking for clarification
+IF agents.developer.status == "awaiting_pm":
+  READ question from current-task.json
+  RESEARCH if needed (WebSearch, read existing code)
+  PROVIDE clarification in current-task.json
+  UPDATE PRD task description if needed
+  RESET developer status to "working"
+  LOG clarification in coordinator-progress.txt
+  CONTINUE
 
-  # SELF-MONITOR: Check if context is full and trigger restart
-  RUN: python scripts/restart-agent.py --agent pm --once --threshold 70
-  IF exit code == 0 (restart triggered):
-    COMPLETE current task assignment if any
-    UPDATE coordinator-state.json with current state
-    UPDATE coordinator-progress.txt with current status
-    COMMIT any pending changes
-    WAIT 5 seconds  # Give new terminal time to start
-    EXIT  # New terminal already launched with your command
+IF currentTask == null:
+  SELECT next task
+  IF task available:
+    ASSIGN to developer
+    UPDATE state
+    LOG in coordinator-progress.txt
+  CONTINUE
 
-  # CHECK FOR EXTERNAL RESTART SIGNAL (from monitor terminal)
-  RUN: python scripts/restart-agent.py --agent pm --check
-  IF exit code == 0 (signal detected):
-    COMPLETE current task assignment if any
-    UPDATE coordinator-state.json with current state
-    UPDATE coordinator-progress.txt with current status
-    COMMIT any pending changes
-    DELETE .claude/session/restart-flag-pm.json
-    WAIT 5 seconds
-    EXIT  # New terminal already launched with your command
+IF currentTask.status == "passed":
+  # CRITICAL: RUN FILE-BASED RETROSPECTIVE BEFORE ASSIGNING NEXT TASK
+  CREATE .claude/session/retrospective.txt with template
+  SET currentTask.status to "in_retrospective"
+  SET agents.developer.status to "awaiting_retrospective"
+  SET agents.qa.status to "awaiting_retrospective"
+  LOG in coordinator-progress.txt: "Retrospective started for {{TASK_ID}}"
+  CONTINUE  # POLL AGAIN - wait for agents to contribute
 
-  READ coordinator-state.json
-  READ prd.json
+IF currentTask.status == "in_retrospective":
+  # CHECK retrospective.txt for agent contributions
+  READ .claude/session/retrospective.txt
+  CHECK if Developer contributed (content beyond "WAITING" comment)
+  CHECK if QA contributed (content beyond "WAITING" comment)
+  UPDATE completion checkboxes in retrospective.txt
 
-  CHECK completion promise
-  CHECK max iterations
-  CHECK termination flag
-  IF any triggered:
-    COMPLETE session
-    EXIT
+  IF both Developer AND QA have contributed:
+    # TIME TO SYNTHESIZE
+    ADD PM Synthesis section covering:
+      - Summary of what was accomplished
+      - Quality assessment combining all perspectives
+      - Risk identification
+      - Iteration estimation
+    ADD Action Items section
+    UPDATE completion status to "COMPLETE"
+    DOCUMENT summary in coordinator-progress.txt
+    DELETE .claude/session/retrospective.txt
 
-  CHECK worker heartbeats
-  LOG warnings for unresponsive workers
+    # CRITICAL: MANDATORY SKILL IMPROVEMENT RESEARCH
+    # After every retrospective, PM must research and improve agent effectiveness
+    SET currentTask.status to "skill_research"
+    SET agents.pm.status to "researching"
+    LOG in coordinator-progress.txt: "Starting mandatory skill improvement research"
+    CONTINUE  # POLL AGAIN - will enter skill research loop
 
-  # Check if Developer is asking for clarification
-  IF agents.developer.status == "awaiting_pm":
-    READ question from current-task.json
-    RESEARCH if needed (WebSearch, read existing code)
-    PROVIDE clarification in current-task.json
-    UPDATE PRD task description if needed
-    RESET developer status to "working"
-    LOG clarification in coordinator-progress.txt
-    CONTINUE
+  # Not all agents contributed yet - wait and poll again
+  WAIT 30 seconds
+  CONTINUE
 
-  IF currentTask == null:
-    SELECT next task
-    IF task available:
-      ASSIGN to developer
-      UPDATE state
-      LOG in coordinator-progress.txt
-    CONTINUE
+IF currentTask.status == "skill_research":
+  # MANDATORY: PM self-assigns research task to improve agents after every retrospective
+  # See [skill-improvement.md](skills/skill-improvement.md) for full process
 
-  IF currentTask.status == "passed":
-    # CRITICAL: RUN FILE-BASED RETROSPECTIVE BEFORE ASSIGNING NEXT TASK
-    CREATE .claude/session/retrospective.txt with template
-    SET currentTask.status to "in_retrospective"
-    SET agents.developer.status to "awaiting_retrospective"
-    SET agents.qa.status to "awaiting_retrospective"
-    LOG in coordinator-progress.txt: "Retrospective started for {{TASK_ID}}"
-    CONTINUE  # POLL AGAIN - wait for agents to contribute
+  # RESEARCH using MCP tools from these sources:
+  # - https://github.com/bmad-code-org/BMAD-METHOD
+  # - https://agents.md/
+  # - https://agent-skills.md/
+  # - WebSearch for relevant patterns
 
-  IF currentTask.status == "in_retrospective":
-    # CHECK retrospective.txt for agent contributions
-    READ .claude/session/retrospective.txt
-    CHECK if Developer contributed (content beyond "WAITING" comment)
-    CHECK if QA contributed (content beyond "WAITING" comment)
-    UPDATE completion checkboxes in retrospective.txt
+  # IDENTIFY improvement areas from retrospective:
+  # - Knowledge gaps mentioned by Developer or QA
+  # - Process issues encountered
+  # - Repeated anti-patterns
+  # - Tool access needs (MCP servers)
 
-    IF both Developer AND QA have contributed:
-      # TIME TO SYNTHESIZE
-      ADD PM Synthesis section covering:
-        - Summary of what was accomplished
-        - Quality assessment combining all perspectives
-        - Risk identification
-        - Iteration estimation
-      ADD Action Items section
-      UPDATE completion status to "COMPLETE"
-      DOCUMENT summary in coordinator-progress.txt
-      DELETE .claude/session/retrospective.txt
-      SET currentTask = null
-      SET all agents to "idle" status
-      LOG: "Retrospective complete for {{TASK_ID}}"
-      CONTINUE  # POLL AGAIN - will assign next task on next iteration
+  # UPDATE at least one file per retrospective:
+  # - agents/*/AGENT.md (process improvement)
+  # - agents/*/skills/*.md (knowledge addition)
+  # - agents/*/SKILLS.md (core competencies)
+  # - .claude/settings.*.json (MCP tool configuration)
 
-    # Not all agents contributed yet - wait and poll again
-    WAIT 30 seconds
-    CONTINUE
+  # COMMIT improvements with format:
+  # [ralph] [pm] skill-improvement: {{description}}
+  # - Updated {{file}} with {{improvement}}
+  # Research: {{source URL if applicable}}
+  # Agent: pm | Retrospective: {{TASK_ID}}
 
-  IF currentTask.status == "needs_fixes":
-    REASSIGN to developer
-    INCREMENT retryCount
-    LOG in handoff-log.json
-    CONTINUE
+  SET currentTask = null
+  SET agents.pm.status to "idle"
+  LOG in coordinator-progress.txt: "Skill improvement research complete"
+  CONTINUE  # POLL AGAIN - will assign next task on next iteration
 
-  UPDATE lastSeen timestamp
+IF currentTask.status == "needs_fixes":
+  REASSIGN to developer
+  INCREMENT retryCount
+  LOG in handoff-log.json
+  CONTINUE
+
+UPDATE lastSeen timestamp
 ```
 
 ---
@@ -1318,101 +1444,10 @@ FOREVER:
 
 **CRITICAL: Your context will fill up after many iterations. Use automation to manage it.**
 
-### Automatic Context Reset
-
-**USE THE AUTOMATION SCRIPT** to automatically restart your session when context is full:
-
-```bash
-# Option 1: Run the Python script in a background terminal
-python scripts/restart-agent.py --agent pm --monitor --threshold 70
-
-# Option 2: Run the PowerShell script in a background terminal
-powershell -File scripts/monitor-context.ps1 -AgentName pm -ContextThreshold 70
-```
-
-These scripts will:
-
-1. Monitor your context usage every 30 seconds
-2. Automatically launch a new terminal when threshold is reached
-3. Signal you to save your state and exit
-4. The new session will automatically resume from state files
-
-### Manual Restart (If Automation Fails)
-
-If you need to manually restart:
-
-```bash
-# PowerShell
-.\scripts\restart-agent.ps1 -AgentName pm
-
-# Python
-python scripts/restart-agent.py --agent pm
-```
-
-This will:
-
-1. Save a restart flag in `.claude/session/restart-flag-pm.json`
-2. Launch a new terminal window
-3. Run `/ralph-coordinator` in the new terminal
-4. You can close the old terminal after the new one starts
-
-### Before Restarting (Manual or Automatic)
-
-Ensure your state is synchronized:
-
-1. All tasks have updated status in `prd.json`
-2. `coordinator-progress.txt` has current summary
-3. `coordinator-state.json` is current
-4. No task is mid-assignment (complete or defer pending assignments)
-
-### After Restart
-
-The new session will automatically reload essential state:
-
-```bash
-READ .claude/session/coordinator-state.json
-READ .claude/session/coordinator-progress.txt
-READ prd.json
-```
-
-**Note**: The new session will use the same command as the original (including `--max-iterations`), which is stored in `originalCommand` field of the coordinator state. The `iteration` counter continues from where it left off, so the max iterations limit is properly preserved across restarts.
-
-Continue polling and task assignment from where you left off.
-
-### What You Need to Resume
-
-You only need these files to resume:
-
-- `prd.json` - Task list and status
-- `coordinator-state.json` - Session state
-- `coordinator-progress.txt` - Recent history
-
-### What You Can Forget
-
-After restart, you can safely forget:
-
-- Past task implementation details
-- Past retrospective discussions
-- Old decision rationale
-- File contents you've read (unless needed for current task)
-- Completed task specifications
-
-The automation scripts enable you to keep running indefinitely without manual intervention.
-
-### Minimal Context Footprint
-
-**Keep**:
-
-- PRD structure (task items, dependencies)
-- Current task assignment
-- Session state (iteration, stats)
-- Quality over speed principles
-
-**Don't keep**:
-
-- Completed task implementation details
-- Past discussion transcripts
-- File contents not relevant to current task
+See [`.claude/skills/context-management.md`](.claude/skills/context-management.md) for:
+- Automatic context reset procedures
+- Manual restart instructions
+- What to keep vs forget across resets
 
 ---
 
@@ -1449,3 +1484,20 @@ Iterations: {{TOTAL_ITERATIONS}}
 
 {{RECOMMENDATIONS}}
 ```
+
+---
+
+## Shared Behavior Reference
+
+All Ralph agents share these core behaviors:
+
+| Shared Skill | Purpose |
+|--------------|---------|
+| [ralph-core.md](.claude/skills/ralph-core.md) | Heartbeat format, session structure, exit conditions |
+| [polling-protocol.md](.claude/skills/polling-protocol.md) | Core polling rules, never stop polling |
+| [polling-loop.md](.claude/skills/polling-loop.md) | Main loop architecture, restart detection |
+| [context-management.md](.claude/skills/context-management.md) | Context window auto-reset |
+| [file-permissions.md](.claude/skills/file-permissions.md) | What you can read/write |
+| [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) | Script management rules |
+| [atomic-updates.md](.claude/skills/atomic-updates.md) | Safe file update patterns |
+| [worker-retrospective.md](.claude/skills/worker-retrospective.md) | Worker retrospective format (for reference) |

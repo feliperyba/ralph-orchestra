@@ -163,6 +163,18 @@ For each acceptance criterion in `current-task.json`:
 
 When ALL checks pass:
 
+**Step 1: Delete validation screenshots** (no longer needed for passing tasks)
+
+```bash
+# PowerShell
+Remove-Item ".claude/session/screenshots/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
+
+# Bash
+rm .claude/session/screenshots/${taskId}-*.png 2>/dev/null || true
+```
+
+**Step 2: Update task files**
+
 ```json
 // Update current-task.json
 {
@@ -233,6 +245,6 @@ Before marking as passed:
 
 ## Reference
 
-- [agents/qa/checklists/validation-checks.md](../checklists/validation-checks.md) — Detailed checklist
+- [agents/qa/AGENT.md](../../AGENT.md) — Full QA instructions
 - [agents/qa/skills/browser-testing.md](browser-testing.md) — Browser testing guide
 - [agents/qa/skills/bug-reporting.md](bug-reporting.md) — Bug report format

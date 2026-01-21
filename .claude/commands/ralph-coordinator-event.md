@@ -212,6 +212,78 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 
 ## Startup Sequence
 
+### Priority 1: Check for Consolidation Mode
+
+On startup, you may be in **consolidation mode** if the system restarted with pending messages.
+
+**Check for consolidation mode:**
+
+```powershell
+$consolidationModeFile = ".claude/session/consolidation-mode.json"
+if (Test-Path $consolidationModeFile) {
+    $consolidationMode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
+    if ($consolidationMode.mode -eq "pending_consolidation") {
+        Write-Host "=== CONSOLIDATION MODE ACTIVE ===" -ForegroundColor Yellow
+        Write-Host "You must review all pending messages before workers can start."
+    }
+}
+```
+
+### Priority 2: Global Message State Review (If Consolidating)
+
+If in consolidation mode, review **all pending messages across all agents**:
+
+```powershell
+# Check all agent inboxes for pending messages
+$agentInboxes = @("pm", "developer", "qa")
+foreach ($agent in $agentInboxes) {
+    $inboxPath = ".claude/session/messages/$agent"
+    if (Test-Path $inboxPath) {
+        $messages = Get-ChildItem -Path $inboxPath -Filter "*.json"
+        if ($messages.Count -gt 0) {
+            Write-Host "$agent has $($messages.Count) pending message(s):" -ForegroundColor Cyan
+            foreach ($msgFile in $messages) {
+                $msg = Get-Content $msgFile.FullName -Raw | ConvertFrom-Json
+                Write-Host "  - [$($msg.type)] from $($msg.from): $($msg.payload.taskId ?? $msg.payload.summary ?? '(no summary)')"
+            }
+        }
+    }
+}
+```
+
+### Priority 3: Consolidation Decision
+
+After reviewing all pending messages, make decisions:
+
+1. **Prioritize** - Which messages should be delivered first?
+2. **Re-route** - Any messages that should go to different agents?
+3. **Combine** - Can multiple messages be combined into one assignment?
+4. **Hold** - Any messages that should wait?
+
+### Priority 4: Signal Consolidation Complete
+
+When you've reviewed and decided on all pending messages, signal consolidation complete:
+
+```powershell
+# Signal consolidation complete
+@{
+    mode = "normal"
+    timestamp = (Get-Date).ToUniversalTime().ToString("o")
+    reason = "pm_consolidated"
+    pmAssignments = @{
+        developer = @("feat-001", "feat-003")  # Tasks assigned to developer
+        qa = @("feat-002-validation")           # Tasks assigned to QA
+    }
+} | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/consolidation-mode.json" -Encoding UTF8
+
+Write-Host "=== CONSOLIDATION COMPLETE ===" -ForegroundColor Green
+Write-Host "Workers will now start with your assignments."
+```
+
+### Normal Startup (No Consolidation)
+
+If NOT in consolidation mode:
+
 1. Check pending messages file first
 2. Read coordinator-state.json for current state
 3. Read PRD for task list
@@ -277,3 +349,4 @@ This tells the watchdog you're ready for more work. Without this signal, the wat
 - **PM decides priorities** - Bug reports come to you first
 - **Parallel work** - Developer might be coding while you research
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
+- **ALWAYS delete pending file after processing** - After you finish processing ALL messages, delete the file: `Remove-Item ".claude/session/pending-messages-pm.json" -Force -ErrorAction SilentlyContinue`

@@ -22,7 +22,6 @@
 # ============================================================================
 
 $Script:MessageQueueDir = $null
-$Script:MessageArchiveDir = $null
 $Script:MessageQueueSilent = $false  # Set to $true to suppress console output
 
 function Set-MessageQueueSilent {
@@ -35,18 +34,14 @@ function Initialize-MessageQueue {
         [Parameter(Mandatory=$true)]
         [string]$SessionDir
     )
-    
+
     $Script:MessageQueueDir = Join-Path $SessionDir "messages"
-    $Script:MessageArchiveDir = Join-Path $SessionDir "messages\archive"
-    
-    # Create directories
+
+    # Create base directory
     if (-not (Test-Path $Script:MessageQueueDir)) {
         New-Item -ItemType Directory -Path $Script:MessageQueueDir -Force | Out-Null
     }
-    if (-not (Test-Path $Script:MessageArchiveDir)) {
-        New-Item -ItemType Directory -Path $Script:MessageArchiveDir -Force | Out-Null
-    }
-    
+
     # Create inbox folders for each agent
     foreach ($agent in @("pm", "developer", "qa", "watchdog")) {
         $inbox = Join-Path $Script:MessageQueueDir $agent
@@ -54,7 +49,10 @@ function Initialize-MessageQueue {
             New-Item -ItemType Directory -Path $inbox -Force | Out-Null
         }
     }
-    
+
+    # Initialize consolidation mode
+    Initialize-ConsolidationMode -SessionDir $SessionDir
+
     # Silent - no console output
 }
 
@@ -297,13 +295,7 @@ function Get-MessageById {
             return $content
         }
     }
-    
-    # Also check archive
-    $archivePath = Join-Path $Script:MessageArchiveDir "$MessageId.json"
-    if (Test-Path $archivePath) {
-        return Get-Content $archivePath -Raw | ConvertFrom-Json
-    }
-    
+
     return $null
 }
 
@@ -315,27 +307,24 @@ function Set-MessageStatus {
     param(
         [Parameter(Mandatory=$true)]
         [string]$MessageId,
-        
+
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pending", "processing", "completed", "failed", "archived")]
+        [ValidateSet("pending", "processing", "completed", "failed")]
         [string]$Status,
-        
+
         [string]$Agent = $null
     )
-    
+
     $message = Get-MessageById -MessageId $MessageId -Agent $Agent
     if (-not $message) {
         # Silent - message not found
         return $false
     }
-    
+
     $message.status = $Status
-    
-    if ($Status -eq "archived" -or $Status -eq "completed") {
-        # Move to archive
-        $archivePath = Join-Path $Script:MessageArchiveDir "$MessageId.json"
-        $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $archivePath -Encoding UTF8
-        
+
+    if ($Status -eq "completed") {
+        # Delete immediately - no archiving
         if ($message._filePath -and (Test-Path $message._filePath)) {
             Remove-Item $message._filePath -Force
         }
@@ -346,47 +335,55 @@ function Set-MessageStatus {
             $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $message._filePath -Encoding UTF8
         }
     }
-    
+
     return $true
 }
 
 function Invoke-AcknowledgeMessage {
     <#
     .SYNOPSIS
-    Mark a message as processed (completed) and archive it
+    Mark a message as processed (completed) and delete it
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$MessageId,
-        
+
         [string]$Agent = $null,
-        
+
         [hashtable]$Result = @{}
     )
-    
+
     $message = Get-MessageById -MessageId $MessageId -Agent $Agent
     if (-not $message) {
         return $false
     }
-    
-    # Add result to message
+
+    # Store file path for deletion
+    $filePath = $message._filePath
+
+    # Add result and completion timestamp
     $message | Add-Member -NotePropertyName "result" -NotePropertyValue $Result -Force
     $message | Add-Member -NotePropertyName "completedAt" -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
     $message.status = "completed"
-    
-    # Archive
-    $archivePath = Join-Path $Script:MessageArchiveDir "$MessageId.json"
-    
-    # Remove internal property before saving
-    $filePath = $message._filePath
-    $message.PSObject.Properties.Remove('_filePath')
-    
-    $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $archivePath -Encoding UTF8
-    
+
+    # Log to session messages.log before deletion (optional audit trail)
+    $sessionDir = Split-Path $Script:MessageQueueDir -Parent
+    $messageLogFile = Join-Path $sessionDir "messages.log"
+    $logEntry = @{
+        timestamp = [DateTime]::UtcNow.ToString("o")
+        messageId = $message.id
+        type = $message.type
+        from = $message.from
+        to = $message.to
+        completedAt = $message.completedAt
+    } | ConvertTo-Json -Compress
+    $logEntry | Out-File -FilePath $messageLogFile -Append -Encoding utf8 -ErrorAction SilentlyContinue
+
+    # Delete immediately - message is processed
     if ($filePath -and (Test-Path $filePath)) {
         Remove-Item $filePath -Force
     }
-    
+
     # Silent - acknowledgment logged by caller
     return $true
 }
@@ -419,78 +416,18 @@ function Clear-MessageQueue {
     .SYNOPSIS
     Clear all messages (for testing/reset)
     #>
-    param(
-        [switch]$IncludeArchive = $false
-    )
-    
+    param()
+
     if (-not $Script:MessageQueueDir) { return }
-    
+
     foreach ($agent in @("pm", "developer", "qa", "watchdog")) {
         $inbox = Join-Path $Script:MessageQueueDir $agent
         if (Test-Path $inbox) {
             Get-ChildItem -Path $inbox -Filter "*.json" | Remove-Item -Force
         }
     }
-    
-    if ($IncludeArchive -and (Test-Path $Script:MessageArchiveDir)) {
-        Get-ChildItem -Path $Script:MessageArchiveDir -Filter "*.json" | Remove-Item -Force
-    }
-    
-    # Silent - clear logged by caller
-}
 
-function Clear-OldArchives {
-    <#
-    .SYNOPSIS
-    Remove archived messages older than MaxAgeHours to prevent disk exhaustion.
-    Call periodically from watchdog.
-    
-    .PARAMETER MaxAgeHours
-    Maximum age of archive files in hours. Defaults to config value.
-    
-    .RETURNS
-    Number of files removed.
-    #>
-    param(
-        [int]$MaxAgeHours = 0
-    )
-    
-    if (-not $Script:MessageArchiveDir -or -not (Test-Path $Script:MessageArchiveDir)) { 
-        return 0 
-    }
-    
-    # Use config default if not specified
-    if ($MaxAgeHours -le 0) {
-        $config = Get-RalphConfig
-        $MaxAgeHours = if ($config.MaxArchiveAgeHours) { $config.MaxArchiveAgeHours } else { 24 }
-    }
-    
-    $cutoff = [DateTime]::UtcNow.AddHours(-$MaxAgeHours)
-    $removed = 0
-    
-    Get-ChildItem -Path $Script:MessageArchiveDir -Filter "*.json" -ErrorAction SilentlyContinue | 
-        Where-Object { $_.LastWriteTimeUtc -lt $cutoff } |
-        ForEach-Object {
-            try {
-                Remove-Item $_.FullName -Force
-                $removed++
-            } catch {}
-        }
-    
-    # Also clean quarantine folder
-    $quarantine = Join-Path $Script:MessageQueueDir "quarantine"
-    if (Test-Path $quarantine) {
-        Get-ChildItem -Path $quarantine -Filter "*.json" -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTimeUtc -lt $cutoff } |
-            ForEach-Object {
-                try {
-                    Remove-Item $_.FullName -Force
-                    $removed++
-                } catch {}
-            }
-    }
-    
-    return $removed
+    # Silent - clear logged by caller
 }
 
 # ============================================================================
@@ -658,6 +595,221 @@ function Send-StatusUpdate {
     }
     
     return Send-AgentMessage -From $From -To "watchdog" -Type "status_update" -Payload $payload -Priority "low"
+}
+
+# ============================================================================
+# CONSOLIDATION MODE
+# ============================================================================
+# Consolidation mode allows PM to review all pending messages on startup/restart
+# before any workers begin processing. This ensures PM is the source of truth.
+
+$Script:ConsolidationModeFile = $null
+
+function Initialize-ConsolidationMode {
+    <#
+    .SYNOPSIS
+    Initialize consolidation mode file path.
+
+    .PARAMETER SessionDir
+    The session directory path.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SessionDir
+    )
+
+    $Script:ConsolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
+}
+
+function Test-ConsolidationRequired {
+    <#
+    .SYNOPSIS
+    Check if consolidation is required (startup/restart scenario).
+
+    Returns $true if:
+    - Consolidation mode file exists and mode is "pending_consolidation"
+    - OR there are pending messages in worker inboxes and this is startup
+
+    .RETURNS
+    $true if consolidation is required, $false otherwise.
+    #>
+    param()
+
+    if (-not $Script:ConsolidationModeFile) {
+        return $false
+    }
+
+    # Check if consolidation mode file exists
+    if (Test-Path $Script:ConsolidationModeFile) {
+        try {
+            $mode = Get-Content $Script:ConsolidationModeFile -Raw | ConvertFrom-Json
+            if ($mode.mode -eq "pending_consolidation") {
+                return $true
+            }
+        } catch {
+            # File corrupt - treat as requiring consolidation
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Set-ConsolidationMode {
+    <#
+    .SYNOPSIS
+    Set the consolidation mode state.
+
+    .PARAMETER Mode
+    The consolidation mode: "pending_consolidation", "normal", or "completed"
+
+    .PARAMETER Reason
+    The reason for the mode change (startup, restart, pm_consolidated, etc.)
+
+    .PARAMETER Assignments
+    Optional PM assignments dictionary (for mode "normal")
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pending_consolidation", "normal", "completed")]
+        [string]$Mode,
+
+        [string]$Reason = "",
+
+        [hashtable]$Assignments = $null
+    )
+
+    if (-not $Script:ConsolidationModeFile) {
+        throw "Consolidation mode not initialized. Call Initialize-ConsolidationMode first."
+    }
+
+    $state = @{
+        mode = $Mode
+        timestamp = [DateTime]::UtcNow.ToString("o")
+        reason = $Reason
+    }
+
+    if ($Assignments) {
+        $state.pmAssignments = $Assignments
+    }
+
+    $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:ConsolidationModeFile -Encoding UTF8
+}
+
+function Get-ConsolidationMode {
+    <#
+    .SYNOPSIS
+    Get the current consolidation mode state.
+
+    .RETURNS
+    The consolidation mode object, or $null if file doesn't exist.
+    #>
+    param()
+
+    if (-not $Script:ConsolidationModeFile -or -not (Test-Path $Script:ConsolidationModeFile)) {
+        return $null
+    }
+
+    try {
+        $mode = Get-Content $Script:ConsolidationModeFile -Raw | ConvertFrom-Json
+        return $mode
+    } catch {
+        return $null
+    }
+}
+
+function Get-GlobalMessageState {
+    <#
+    .SYNOPSIS
+    Get a consolidated view of all pending messages across all agents.
+    This is used by PM on startup to understand the global state.
+
+    .RETURNS
+    A hashtable with:
+    - totalMessages: Total count of pending messages
+    - byAgent: Messages grouped by recipient agent
+    - allMessages: All messages sorted by priority (high to low), then timestamp (oldest first)
+    #>
+    param()
+
+    if (-not $Script:MessageQueueDir) {
+        throw "Message queue not initialized. Call Initialize-MessageQueue first."
+    }
+
+    $priorityOrder = @{ "low" = 0; "normal" = 1; "high" = 2; "urgent" = 3 }
+
+    $allMessages = @()
+    $byAgent = @{
+        pm = @()
+        developer = @()
+        qa = @()
+        watchdog = @()
+    }
+
+    foreach ($agent in @("pm", "developer", "qa", "watchdog")) {
+        $inbox = Join-Path $Script:MessageQueueDir $agent
+        if (-not (Test-Path $inbox)) { continue }
+
+        Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue | ForEach-Object {
+            try {
+                $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
+                if ($content.status -eq "pending") {
+                    # Add file path for potential operations
+                    $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $_.FullName -Force
+
+                    $allMessages += $content
+                    $byAgent[$agent] += $content
+                }
+            } catch {
+                # Skip corrupt messages
+            }
+        }
+    }
+
+    # Sort by priority (highest first), then by timestamp (oldest first)
+    $allMessages = $allMessages | Sort-Object -Property @(
+        @{ Expression = { $priorityOrder[$_.priority] }; Descending = $true },
+        @{ Expression = { $_.timestamp }; Descending = $false }
+    )
+
+    return @{
+        totalMessages = $allMessages.Count
+        byAgent = $byAgent
+        allMessages = $allMessages
+    }
+}
+
+function Initialize-ConsolidationForStartup {
+    <#
+    .SYNOPSIS
+    Initialize consolidation mode on watchdog startup if there are pending messages.
+    This should be called by watchdog before starting any agents.
+
+    .RETURNS
+    $true if consolidation was initialized, $false if not needed.
+    #>
+    param()
+
+    if (-not $Script:MessageQueueDir -or -not $Script:ConsolidationModeFile) {
+        return $false
+    }
+
+    # Check if there are any pending messages
+    $counts = Get-MessageCount
+    $totalPending = ($counts.Values | Measure-Object -Sum).Sum
+
+    if ($totalPending -eq 0) {
+        # No pending messages, no consolidation needed
+        Set-ConsolidationMode -Mode "normal" -Reason "no_pending_messages"
+        return $false
+    }
+
+    # There are pending messages - set consolidation mode
+    Set-ConsolidationMode -Mode "pending_consolidation" -Reason "startup" -Assignments @{
+        messageCounts = $counts
+    }
+
+    return $true
 }
 
 # ============================================================================

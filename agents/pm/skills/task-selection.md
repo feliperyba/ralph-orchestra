@@ -123,4 +123,4 @@ Before assigning a task:
 ## Reference
 
 - [agents/pm/AGENT.md](../../AGENT.md) — Full PM instructions
-- [agents/pm/checklists/prd-validation.md](../checklists/prd-validation.md) — PRD field validation
+- [agents/pm/skills/scale-adaptive.md](scale-adaptive.md) — Scale-adaptive planning

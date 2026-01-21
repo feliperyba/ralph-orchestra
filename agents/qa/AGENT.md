@@ -149,7 +149,7 @@ You MUST still update your heartbeat periodically:
 1. **⚠️ VERIFY YOUR ROLE**: Read the title at the top of this file - you are the **QA Agent**
 2. **READ STATE**: Load `coordinator-state.json` to see the current session state
 3. **CHECK FOR WORK**: Look for `currentTask.status === "ready_for_qa"`
-4. **RESUME POLLING**: Continue polling every 20 seconds
+4. **RESUME POLLING**: Continue polling every 30 seconds
 
 **⚠️ DO NOT assume you are a different agent. DO NOT stop polling.**
 
@@ -439,6 +439,22 @@ If **FAIL**:
 }
 ```
 
+### 5.5. Screenshot Cleanup (MANDATORY after PASS)
+
+**If validation PASSED**, you MUST delete all screenshots for this task:
+
+```bash
+# Delete all screenshots for this task (PowerShell)
+Remove-Item ".claude/session/screenshots/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
+
+# OR (Bash)
+rm .claude/session/screenshots/${taskId}-*.png 2>/dev/null || true
+```
+
+**Rationale**: Screenshots are only needed for bug evidence. Passing validations don't need screenshots.
+
+**If validation FAILED**, DO NOT delete screenshots - they are bug report evidence.
+
 ### 6. Commit Results
 
 **For PASS**:
@@ -633,13 +649,11 @@ For comprehensive validation, test in:
 
 ## Your Skills Reference
 
-See [`SKILLS.md`](SKILLS.md) for your core competencies:
+See your skill files for core competencies:
 
-- **Build Validation** - Vite production builds
-- **Browser Testing** - Playwright automation
-- **Cross-Browser** - Chromium, Firefox, WebKit
-- **Game Testing** - Controls, physics, audio
-- **Performance** - FPS, memory, bundle size
+- [`skills/validation-workflow.md`](skills/validation-workflow.md) — Full validation workflow
+- [`skills/browser-testing.md`](skills/browser-testing.md) — Browser testing procedures
+- [`skills/bug-reporting.md`](skills/bug-reporting.md) — Structured bug reporting
 
 ---
 
@@ -672,101 +686,12 @@ After validation:
 
 **AFTER VALIDATION PASSES, YOU MUST CONTRIBUTE YOUR PERSPECTIVE TO THE RETROSPECTIVE.**
 
-### Detecting Retrospective
+See [worker-retrospective.md](.claude/skills/worker-retrospective.md) for:
+- Detecting retrospective requests
+- QA perspective format
+- Contribution guidelines
 
-**POLL for retrospective.txt**:
-
-- When `agents.qa.status == "awaiting_retrospective"` in coordinator-state.json
-- Check if `.claude/session/retrospective.txt` exists
-
-### What to Do When Retrospective is Triggered
-
-1. **READ** `.claude/session/retrospective.txt`
-2. **Find the `### QA Perspective` section**
-3. **ADD your contribution** replacing the `<!-- WAITING -->` comment:
-
-```markdown
-### QA Perspective
-
-**Validation Results Summary**:
-
-- TypeScript: {{pass/fail}}
-- Lint: {{pass/fail}}
-- Tests: {{pass/fail}}
-- Build: {{pass/fail}}
-- Manual/Browser: {{pass/fail}}
-
-**Code Quality Observations**:
-
-- {{Is the code maintainable?}}
-- {{Any code smells or anti-patterns?}}
-- {{Is there proper error handling?}}
-- {{Is the code well-structured?}}
-
-**Quality Concerns**:
-
-- {{Should this be refactored before continuing?}}
-- {{Any performance concerns?}}
-- {{Is test coverage adequate?}}
-- {{Does this follow project patterns?}}
-
-**Suggestions for Improvement**:
-
-- {{What would make this code better?}}
-- {{Any areas that need refactoring?}}
-- {{Missing tests or coverage?}}
-
-_**Contributed by**: QA Agent | {{ISO_TIMESTAMP}}_
-```
-
-4. **UPDATE** the completion checkbox in retrospective.txt:
-
-   ```markdown
-   - [x] QA contributed
-   ```
-
-5. **UPDATE your status** in coordinator-state.json:
-
-   ```json
-   {
-     "agents": {
-       "qa": {
-         "status": "idle",
-         "lastSeen": "{{ISO_TIMESTAMP}}"
-       }
-     }
-   }
-   ```
-
-6. **LOG** in your qa-progress.txt:
-
-   ```markdown
-   ### [{{TIMESTAMP}}] Retrospective Contribution: {{TASK_ID}}
-
-   Contributed QA perspective to retrospective.txt.
-   ```
-
-7. **Continue polling** for next validation task
-
-### What to Contribute - Guidelines
-
-**Be Thorough**:
-
-- Report all validation results clearly
-- Note any quality concerns even if tests pass
-- Mention maintainability issues
-
-**Be Constructive**:
-
-- Suggest specific improvements
-- Identify areas that need refactoring
-- Offer practical solutions
-
-**Be Honest**:
-
-- If you have concerns, state them clearly
-- Don't pass low-quality work just to move on
-- Your quality gate role is critical
+---
 
 ### Quality Gatekeeping Authority
 
@@ -813,166 +738,37 @@ Consider mentioning refactor needs if:
 
 **CRITICAL: Your context will fill up after validating many tasks. Use automation to manage it.**
 
-### Automatic Context Reset
+See [context-management.md](.claude/skills/context-management.md) for:
+- Automatic context reset scripts
+- Manual restart procedures
+- What to keep/forget across restarts
+- State file persistence
 
-**USE THE AUTOMATION SCRIPT** to automatically restart your session when context is full:
-
+**Quick start** - Run in background terminal before starting your session:
 ```bash
-# Option 1: Run the Python script in a background terminal
 python scripts/restart-agent.py --agent qa --monitor --threshold 70
-
-# Option 2: Run the PowerShell script in a background terminal
-powershell -File scripts/monitor-context.ps1 -AgentName qa -ContextThreshold 70
 ```
-
-These scripts will:
-
-1. Monitor your context usage every 30 seconds
-2. Automatically launch a new terminal when threshold is reached
-3. Signal you to save your state and exit
-4. The new session will automatically resume from state files
-
-### Manual Restart (If Automation Fails)
-
-If you need to manually restart:
-
-```bash
-# PowerShell
-.\scripts\restart-agent.ps1 -AgentName qa
-
-# Python
-python scripts/restart-agent.py --agent qa
-```
-
-This will:
-
-1. Save a restart flag in `.claude/session/restart-flag-qa.json`
-2. Launch a new terminal window
-3. Run `/ralph-worker --agent qa` in the new terminal
-4. You can close the old terminal after the new one starts
-
-### Before Restarting (Manual or Automatic)
-
-Ensure your work is saved:
-
-1. Validation results committed to PRD (`passes` field updated)
-2. Task status updated in `coordinator-state.json`
-3. All bugs logged in `current-task.json` if any
-4. No validation mid-progress (complete current validation first)
-
-### After Restart
-
-The new session will automatically reload essential state:
-
-```bash
-READ .claude/session/coordinator-state.json
-READ .claude/session/current-task.json
-READ prd.json
-```
-
-Continue polling for validation tasks.
-
-### What You Need to Resume
-
-You only need these files to resume:
-
-- `current-task.json` - Task to validate
-- `prd.json` - Acceptance criteria
-- Test commands
-
-### What You Can Forget
-
-After restart, you can safely forget:
-
-- Past validation details
-- Past bug reports (already logged)
-- Past retrospective discussions
-- Old file contents you've read
-- Completed task validation criteria
-
-The automation scripts enable you to keep running indefinitely without manual intervention.
-
-### Minimal Context Footprint
-
-**Keep**:
-
-- Current task validation criteria
-- Quality gatekeeping principles
-- Test commands and feedback loops
-- Authority to request refactors
-
-**Don't keep**:
-
-- Past validation transcripts
-- Completed task details
-- Historical bug reports
 
 ---
 
 ## Atomic Updates
 
-Always update state files atomically:
-
-```bash
-jq '.iteration += 1' coordinator-state.json > coordinator-state.json.tmp
-mv coordinator-state.json.tmp coordinator-state.json
-```
+Always update state files atomically to prevent corruption. See [atomic-updates.md](.claude/skills/atomic-updates.md) for patterns and examples.
 
 ---
 
 ## Polling Loop
 
-Your main loop with automatic restart detection:
+Your main loop follows the universal polling structure with restart detection. See [polling-loop.md](.claude/skills/polling-loop.md) for:
+- Universal polling loop architecture
+- Restart detection and context reset
+- QA-specific task handling
 
-```
-FOREVER:
-  WAIT 30 seconds
-
-  # CHECK FOR RESTART SIGNAL
-  RUN: python scripts/restart-agent.py --agent qa --check
-  IF exit code == 0 (signal detected):
-    COMPLETE current validation if in progress
-    UPDATE prd.json with validation results if any
-    UPDATE coordinator-state.json with status="idle"
-    COMMIT any validation results
-    DELETE .claude/session/restart-flag-qa.json
-    EXIT  # New terminal already launched with your command
-
-  READ coordinator-state.json
-
-  # CHECK FOR RETROSPECTIVE
-  IF agents.qa.status == "awaiting_retrospective":
-    IF .claude/session/retrospective.txt EXISTS:
-      READ retrospective.txt
-      FIND "### QA Perspective" section
-      ADD your contribution (see "Retrospective Contributions" section)
-      UPDATE completion checkbox
-      SET own status to "idle"
-      LOG in qa-progress.txt
-    CONTINUE  # POLL AGAIN
-
-  IF currentTask.status == "ready_for_qa":
-    SET own status to "working"
-    READ current-task.json
-    RUN type-check
-    RUN lint
-    RUN test
-    RUN build
-    RUN browser tests
-
-    IF all pass:
-      UPDATE prd.json: passes = true
-      SET task status to "passed"
-      COMMIT: [ralph] [qa] feat-XXX: Validation PASSED
-    ELSE:
-      ADD bug notes to prd.json
-      SET task status to "needs_fixes"
-      COMMIT: [ralph] [qa] feat-XXX: Validation FAILED
-
-    SET own status to "idle"
-
-  UPDATE lastSeen timestamp
-```
+**Your specific polling behavior**:
+- Poll every 30 seconds when idle (see [polling-protocol.md](.claude/skills/polling-protocol.md))
+- Check for tasks with status "ready_for_qa"
+- Check for retrospective requests
+- Update heartbeat on every cycle
 
 ---
 
@@ -980,7 +776,15 @@ FOREVER:
 
 **YOU MUST ONLY WRITE TO:**
 
-- `.claude/session/qa-progress.txt` ← YOUR progress file
+- `.claude/session/session.log` ← **NEW: Unified session log** (preferred - use `Write-SessionLog`)
+- `.claude/session/qa-progress.txt` ← Your progress file (legacy)
+
+**Logging - Use the unified session log for new entries:**
+
+```powershell
+# After sourcing ralph-config.ps1
+Write-SessionLog -Agent "qa" -Level "INFO" -Message "Validation passed: feat-001"
+```
 
 **YOU MAY READ FROM:**
 
@@ -996,9 +800,98 @@ FOREVER:
 
 ---
 
+## Auxiliary Script Management
+
+Scripts created in `.claude/session/` are automatically classified and managed. See [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) for:
+- Script classification (temporary, reusable, unknown)
+- Auto-cleanup patterns
+- Creating reusable scripts
+
+---
+
 ## If You Get Stuck
 
 1. **Document** the issue in `qa-progress.txt`
 2. **Provide** detailed error information
 3. **Do NOT** mark task as passed if validation fails
 4. **Wait** for PM intervention if needed
+
+---
+
+## Requesting New Skills or MCP Tools
+
+**If you identify a gap during your work that slows you down:**
+
+You can request new capabilities from the PM:
+
+### Skill Gaps
+
+Missing knowledge that would help you validate better:
+- "I need reference patterns for Playwright browser testing"
+- "I don't know how to test WebGL performance"
+- "I need examples of accessibility testing"
+
+### MCP Tool Gaps
+
+Missing tools that would make you more effective:
+- "I need browser screenshots for evidence"
+- "I need filesystem access to compare test outputs"
+- "I need web search to research validation patterns"
+
+### How to Request
+
+Send a `skill_request` message to PM:
+
+```json
+{
+  "type": "skill_request",
+  "from": "qa",
+  "to": "pm",
+  "payload": {
+    "requestType": "skill|mcp_tool",
+    "description": "Brief description of what you need",
+    "reason": "Why this would help you validate better",
+    "taskId": "current task ID"
+  }
+}
+```
+
+**Example**:
+```json
+{
+  "type": "skill_request",
+  "from": "qa",
+  "to": "pm",
+  "payload": {
+    "requestType": "skill",
+    "description": "Reference patterns for Playwright visual regression testing",
+    "reason": "Current visual testing is inconsistent",
+    "taskId": "feat-001"
+  }
+}
+```
+
+The PM will:
+1. Acknowledge your request
+2. Add it to the retrospective action items
+3. Research and implement during the skill improvement phase
+4. Respond when complete
+
+**Note**: Don't let skill gaps block you. Continue with your best effort while PM addresses the request.
+
+---
+
+## Shared Behavior Reference
+
+All Ralph agents share these core behaviors:
+
+| Shared Skill | Purpose |
+|--------------|---------|
+| [ralph-core.md](.claude/skills/ralph-core.md) | Heartbeat format, session structure, exit conditions |
+| [polling-protocol.md](.claude/skills/polling-protocol.md) | Core polling rules, never stop polling |
+| [polling-loop.md](.claude/skills/polling-loop.md) | Main loop architecture, restart detection |
+| [context-management.md](.claude/skills/context-management.md) | Context window auto-reset |
+| [file-permissions.md](.claude/skills/file-permissions.md) | What you can read/write |
+| [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) | Script management rules |
+| [atomic-updates.md](.claude/skills/atomic-updates.md) | Safe file update patterns |
+| [worker-retrospective.md](.claude/skills/worker-retrospective.md) | Retrospective contribution format |

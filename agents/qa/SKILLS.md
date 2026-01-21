@@ -21,13 +21,10 @@ This agent's capabilities are organized into modular skill files:
 - [skills/browser-testing.md](skills/browser-testing.md) — Playwright MCP browser testing
 - [skills/bug-reporting.md](skills/bug-reporting.md) — Bug report format for failed validations
 
-### Checklists
-
-- [checklists/validation-checks.md](checklists/validation-checks.md) — Comprehensive validation checklist
-
 ### References
 
-- [references/browser-testing-patterns.md](references/browser-testing-patterns.md) — Playwright code patterns
+- [../../.claude/skills/ralph-core.md](../../.claude/skills/ralph-core.md) — Shared core instructions
+- [AGENT.md](AGENT.md) — Full QA agent instructions
 
 ## Core Competencies
 

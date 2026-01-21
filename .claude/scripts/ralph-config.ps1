@@ -156,12 +156,99 @@ $Script:RalphConfig = @{
     MaxLogSizeMB         = Get-EnvInt -Name "RALPH_MAX_LOG_SIZE_MB" -Default 50 -Min 10 -Max 500
     MaxArchiveAgeHours   = Get-EnvInt -Name "RALPH_MAX_ARCHIVE_AGE_HOURS" -Default 24 -Min 1 -Max 168
     MaxMessageQueueSize  = Get-EnvInt -Name "RALPH_MAX_MESSAGE_QUEUE_SIZE" -Default 1000 -Min 100 -Max 10000
-    
+
     # Timing constants (centralized from hardcoded values)
     WindowCloseDelaySeconds    = Get-EnvInt -Name "RALPH_WINDOW_CLOSE_DELAY" -Default 30 -Min 5 -Max 120
     ProcessStartGraceSeconds   = Get-EnvInt -Name "RALPH_PROCESS_START_GRACE" -Default 5 -Min 1 -Max 30
     AgentStaggerDelaySeconds   = Get-EnvInt -Name "RALPH_AGENT_STAGGER_DELAY" -Default 3 -Min 1 -Max 10
     DeliveryGraceSeconds       = Get-EnvInt -Name "RALPH_DELIVERY_GRACE" -Default 10 -Min 5 -Max 60
+
+    # Consolidation mode (PM reviews pending messages on startup/restart)
+    ConsolidationTimeoutSeconds = Get-EnvInt -Name "RALPH_CONSOLIDATION_TIMEOUT" -Default 300 -Min 60 -Max 900
+
+    # Auxiliary script cleanup (for session scripts created by agents)
+    TempScriptMaxAgeHours = Get-EnvInt -Name "RALPH_TEMP_SCRIPT_MAX_AGE_HOURS" -Default 1 -Min 1 -Max 24
+}
+
+# ============================================================================
+# AUXILIARY SCRIPT CLASSIFICATION
+# ============================================================================
+# Scripts created in session folder are classified as temporary or reusable
+# Temporary scripts are auto-deleted after TempScriptMaxAgeHours
+# Reusable scripts should be documented in AGENT.md files
+
+$Script:AuxiliaryScripts = @{
+    # Temporary scripts - auto-deleted after use
+    # These patterns match scripts that are created for one-time use
+    Temporary = @(
+        "*-runner.ps1",           # Agent runner scripts (created by watchdog)
+        "pending-messages-*.json", # Message delivery files
+        "*.exit",                 # Agent exit status files
+        "restart-flag-*.json",    # Restart signal files
+        "*.tmp",                  # Temporary files
+        "*-temp.ps1"              # Any temp PowerShell scripts
+    )
+    # Reusable scripts - persist and should be documented in AGENT.md
+    # Add scripts here that provide value across multiple sessions
+    Reusable = @(
+        # Currently none - add future reusable scripts here with descriptive names
+        # Example: "qa-browser-test-helper.ps1" - Would be documented in QA AGENT.md
+    )
+}
+
+function Get-ScriptType {
+    <#
+    .SYNOPSIS
+    Classifies a script file as Temporary, Reusable, or Unknown based on its filename.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$FileName
+    )
+
+    foreach ($pattern in $Script:AuxiliaryScripts.Temporary) {
+        if ($FileName -like $pattern) { return "Temporary" }
+    }
+    foreach ($pattern in $Script:AuxiliaryScripts.Reusable) {
+        if ($FileName -like $pattern) { return "Reusable" }
+    }
+    return "Unknown"
+}
+
+function Invoke-TempScriptCleanup {
+    <#
+    .SYNOPSIS
+    Removes temporary scripts from the session directory that are older than the configured threshold.
+    #>
+    param(
+        [string]$SessionDir = (Join-Path (Get-Location).Path ".claude/session"),
+        [int]$MaxAgeHours = 0
+    )
+
+    if (-not (Test-Path $SessionDir)) { return 0 }
+
+    if ($MaxAgeHours -le 0) {
+        $MaxAgeHours = $Script:RalphConfig.TempScriptMaxAgeHours
+    }
+
+    $cutoff = [DateTime]::UtcNow.AddHours(-$MaxAgeHours)
+    $removed = 0
+
+    Get-ChildItem -Path $SessionDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $scriptType = Get-ScriptType -FileName $_.Name
+        if ($scriptType -eq "Temporary") {
+            if ($_.LastWriteTimeUtc -lt $cutoff) {
+                try {
+                    Remove-Item $_.FullName -Force
+                    $removed++
+                } catch {
+                    Write-RalphLog "Failed to remove temp script $($_.Name): $_" -Level "WARN" -Color Yellow
+                }
+            }
+        }
+    }
+
+    return $removed
 }
 
 # ============================================================================
@@ -261,6 +348,58 @@ function Get-Timestamp {
 
 function Get-TimestampLocal {
     return Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+}
+
+function Write-SessionLog {
+    <#
+    .SYNOPSIS
+    Write to unified session log file with agent identification.
+
+    .DESCRIPTION
+    Writes log entries to the unified session.log file in the session directory.
+    This consolidates logging from all agents into a single file instead of
+    scattered progress files.
+
+    .PARAMETER Message
+    The log message.
+
+    .PARAMETER Agent
+    The agent writing the log (pm, developer, qa, watchdog).
+
+    .PARAMETER Level
+    Log level (INFO, WARNING, ERROR, DEBUG).
+
+    .PARAMETER ProjectRoot
+    Project root path. Defaults to current location.
+
+    .EXAMPLE
+    Write-SessionLog -Agent "qa" -Level "INFO" -Message "Validation passed for feat-001"
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Message,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pm", "developer", "qa", "watchdog")]
+        [string]$Agent,
+
+        [ValidateSet("INFO", "WARNING", "ERROR", "DEBUG")]
+        [string]$Level = "INFO",
+
+        [string]$ProjectRoot = (Get-Location).Path
+    )
+
+    $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
+    $logFile = Join-Path $paths.SessionDir "session.log"
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Agent] [$Level] $Message"
+
+    try {
+        $logEntry | Out-File -FilePath $logFile -Append -Encoding utf8
+    } catch {
+        # Silently fail if log cannot be written
+    }
 }
 
 # ============================================================================

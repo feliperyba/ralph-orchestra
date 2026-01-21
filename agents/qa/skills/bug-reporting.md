@@ -209,5 +209,5 @@ Before submitting bug report:
 
 ## Reference
 
+- [agents/qa/AGENT.md](../../AGENT.md) — Full QA instructions
 - [agents/qa/skills/validation-workflow.md](validation-workflow.md) — Full workflow
-- [agents/qa/checklists/validation-checks.md](../checklists/validation-checks.md) — What to check

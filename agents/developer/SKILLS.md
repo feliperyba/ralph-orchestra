@@ -27,14 +27,10 @@ This agent's capabilities are organized into modular skill files:
 - [skills/feedback-loops.md](skills/feedback-loops.md) — Type-check, lint, test, build validation
 - [skills/typescript-patterns.md](skills/typescript-patterns.md) — TypeScript best practices
 
-### Checklists
-
-- [checklists/pre-commit.md](checklists/pre-commit.md) — Pre-commit validation checklist
-- [checklists/code-quality.md](checklists/code-quality.md) — Code quality standards
-
 ### References
 
-- [references/code-patterns.md](references/code-patterns.md) — Reusable code templates
+- [../../.claude/skills/ralph-core.md](../../.claude/skills/ralph-core.md) — Shared core instructions
+- [AGENT.md](AGENT.md) — Full Developer agent instructions
 
 ### Skill Routers
 

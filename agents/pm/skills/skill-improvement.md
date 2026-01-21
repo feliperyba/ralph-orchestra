@@ -9,6 +9,28 @@ depends-on: [retrospective]
 
 > "Continuous learning – improve agent capabilities based on real-world experience."
 
+## MANDATORY: Skill Improvement After Every Retrospective
+
+**This is NOT optional.** After synthesizing every retrospective, you MUST:
+
+1. **ALWAYS** set `currentTask.status` to `"skill_research"`
+2. **RESEARCH** using MCP tools from these sources:
+   - https://github.com/bmad-code-org/BMAD-METHOD
+   - https://agents.md/
+   - https://agent-skills.md/
+   - WebSearch for relevant patterns
+3. **UPDATE** at least one file per retrospective:
+   - `agents/*/AGENT.md` (process improvement)
+   - `agents/*/skills/*.md` (knowledge addition)
+   - `agents/*/SKILLS.md` (core competencies)
+   - `.claude/settings.*.json` (MCP tool configuration)
+4. **COMMIT** the improvements
+5. **ONLY THEN** set `currentTask = null` and assign next task
+
+**Minimum per retrospective**: At least one meaningful improvement to agent instructions, skill documentation, or tool configuration.
+
+---
+
 ## When to Use This Skill
 
 Use during retrospective phase when:

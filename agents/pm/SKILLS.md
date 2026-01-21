@@ -22,14 +22,10 @@ This agent's capabilities are organized into modular skill files:
 - [skills/skill-improvement.md](skills/skill-improvement.md) — MCP-based skill updates during retrospective
 - [skills/scale-adaptive.md](skills/scale-adaptive.md) — Adjust planning depth based on PRD size
 
-### Checklists
-
-- [checklists/prd-validation.md](checklists/prd-validation.md) — PRD field validation before assignment
-- [checklists/task-handoff.md](checklists/task-handoff.md) — Handoff protocol between agents
-
 ### References
 
-- [references/state-files.md](references/state-files.md) — State file structure and ownership
+- [../../.claude/skills/ralph-core.md](../../.claude/skills/ralph-core.md) — Shared core instructions
+- [AGENT.md](AGENT.md) — Full PM agent instructions
 
 ## CRITICAL: PM Agent MUST NOT CODE
 

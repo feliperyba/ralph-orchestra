@@ -246,4 +246,4 @@ For each validation:
 
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 - [agents/qa/skills/validation-workflow.md](validation-workflow.md) — Full workflow
-- [agents/qa/checklists/validation-checks.md](../checklists/validation-checks.md) — Checklist
+- [agents/qa/AGENT.md](../AGENT.md) — Full QA instructions

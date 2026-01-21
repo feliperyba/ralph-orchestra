@@ -31,7 +31,7 @@ $scriptsDir = Join-Path $ProjectRoot ".claude\scripts"
 
 # Create directories
 $directories = @($sessionDir, $messagesDir, $logsDir)
-$directories += @("pm", "developer", "qa", "watchdog", "archive") | ForEach-Object { Join-Path $messagesDir $_ }
+$directories += @("pm", "developer", "qa", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
 
 foreach ($dir in $directories) {
     if (-not (Test-Path $dir)) {

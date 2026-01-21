@@ -41,11 +41,11 @@ This document defines the message-based communication protocol for event-driven 
 │   └── msg-xxx.json
 ├── qa/                 # QA's inbox
 │   └── msg-xxx.json
-├── watchdog/           # Watchdog's inbox
-│   └── msg-xxx.json
-└── archive/            # Processed messages
+└── watchdog/           # Watchdog's inbox
     └── msg-xxx.json
 ```
+
+**Note**: Processed messages are deleted immediately after processing, not archived. An audit log is written to `.claude/session/messages.log` for tracking.
 
 ## Message Format
 
@@ -85,13 +85,14 @@ This document defines the message-based communication protocol for event-driven 
 
 ### PM Sends
 
-| Type                 | To           | Payload                                                           |
-| -------------------- | ------------ | ----------------------------------------------------------------- |
-| `task_assign`        | developer    | `{ taskId, title, description, acceptanceCriteria[], worktree? }` |
-| `priority_response`  | developer/qa | `{ decision, reasoning }`                                         |
-| `prd_update`         | developer/qa | `{ taskId, changes }`                                             |
-| `regression_request` | qa           | `{ scope, focus }`                                                |
-| `answer`             | any          | `{ answer }`                                                      |
+| Type                    | To              | Payload                                                           |
+| ----------------------- | --------------- | ----------------------------------------------------------------- |
+| `task_assign`           | developer       | `{ taskId, title, description, acceptanceCriteria[], worktree? }` |
+| `retrospective_initiate`| developer/qa    | `{ taskId, retrospectiveFile }`                                    |
+| `priority_response`     | developer/qa    | `{ decision, reasoning }`                                         |
+| `prd_update`            | developer/qa    | `{ taskId, changes }`                                             |
+| `regression_request`    | qa              | `{ scope, focus }`                                                |
+| `answer`                | any             | `{ answer }`                                                      |
 
 ### Developer Sends
 
@@ -99,6 +100,7 @@ This document defines the message-based communication protocol for event-driven 
 | -------------------- | -------- | -------------------------------------------- |
 | `validation_request` | qa       | `{ taskId, description, branch, worktree? }` |
 | `question`           | pm       | `{ question, context, taskId }`              |
+| `skill_request`      | pm       | `{ requestType, description, reason, taskId }` |
 | `status_update`      | watchdog | `{ status, currentTask, details }`           |
 
 ### QA Sends
@@ -108,6 +110,7 @@ This document defines the message-based communication protocol for event-driven 
 | `task_complete` | pm       | `{ taskId, summary, validationPassed }`           |
 | `bug_report`    | pm       | `{ taskId, bugs[], severity, recommendedAction }` |
 | `question`      | pm       | `{ question, context, taskId }`                   |
+| `skill_request` | pm       | `{ requestType, description, reason, taskId }`     |
 | `status_update` | watchdog | `{ status, currentTask, details }`                |
 
 ### Any Agent Sends
@@ -135,7 +138,7 @@ This document defines the message-based communication protocol for event-driven 
 
 ## Workflow Patterns
 
-### Task Completion Flow
+### Task Completion Flow (with Retrospective)
 
 ```
 PM                    Developer               QA
@@ -145,8 +148,27 @@ PM                    Developer               QA
  │                        ├──validation_request────►│
  │                        │                    │
  │◄─────────────────────────────task_complete──┤
- │                        │                    │
+ │     (validationPassed=true)                   │
+ │                                                │
+ │ [PM triggers retrospective]                    │
+ │ ├──creates retrospective.txt─────────────────►│
+ │ └────────────────────────────────────────────►│
+ │                                                │
+ │◄────[Developer contribution]──────────────────┤
+ │◄────[QA contribution]──────────────────────────┤
+ │                                                │
+ │ [PM synthesizes, completes retrospective]      │
+ │                                                │
+ │──task_assign──────────►│ (next task)          │
+ │                                                │
 ```
+
+**CRITICAL**: PM must NOT assign the next task until retrospective completes. The flow is:
+1. QA sends `task_complete` with `validationPassed: true`
+2. PM creates `retrospective.txt` and waits for contributions
+3. Developer and QA contribute their perspectives
+4. PM synthesizes and completes retrospective
+5. Only THEN does PM assign the next task
 
 ### Bug Fix Flow
 
@@ -231,7 +253,7 @@ PM can request regression testing while developer works:
 
 1. **Priority First**: Process urgent messages before normal
 2. **FIFO within Priority**: Older messages before newer
-3. **Acknowledge After Processing**: Move to archive or update status
+3. **Acknowledge After Processing**: Delete immediately after processing (do not archive)
 4. **PM Decides Priorities**: Bug reports go to PM, not directly to developer
 
 ## Session Lifecycle
@@ -288,4 +310,4 @@ For critical signals, use files instead of messages:
 2. **Include Context**: TaskId, references in payload
 3. **Use replyTo**: Link responses to questions
 4. **Status Updates**: Send periodically so watchdog knows you're alive
-5. **Archive Promptly**: Move processed messages to avoid reprocessing
+5. **Delete Promptly**: Remove processed messages immediately to avoid reprocessing
