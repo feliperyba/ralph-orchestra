@@ -12,6 +12,12 @@ if (Test-Path $safeIoModule) {
     . $safeIoModule
 }
 
+# Source message-state-manager for idempotency tracking
+$stateManagerModule = Join-Path $PSScriptRoot "message-state-manager.ps1"
+if (Test-Path $stateManagerModule) {
+    . $stateManagerModule
+}
+
 # ============================================================================
 # MESSAGE TYPES
 # ============================================================================
@@ -469,6 +475,134 @@ function Invoke-AcknowledgeMessage {
 
     # Silent - acknowledgment logged by caller
     return $true
+}
+
+# ============================================================================
+# SAFE MESSAGE FUNCTIONS (WITH IDEMPOTENCY)
+# ============================================================================
+
+function Send-AgentMessageSafe {
+    <#
+    .SYNOPSIS
+    Send a message with idempotency checks.
+    Returns $null if message/task was already processed, preventing duplicates.
+
+    .PARAMETER From
+    Sender agent name (pm, developer, qa)
+
+    .PARAMETER To
+    Recipient agent name (pm, developer, qa, watchdog)
+
+    .PARAMETER Type
+    Message type
+
+    .PARAMETER Payload
+    Hashtable with message-specific data
+
+    .PARAMETER Priority
+    Message priority (default: normal)
+
+    .PARAMETER ReplyTo
+    Optional message ID this is replying to
+
+    .RETURNS
+    Message ID if sent, $null if skipped (already processed)
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pm", "developer", "qa", "watchdog")]
+        [string]$From,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pm", "developer", "qa", "watchdog")]
+        [string]$To,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateSet(
+            "task_assign", "validation_request", "bug_report", "task_complete",
+            "question", "answer", "research_update", "regression_request",
+            "prd_update", "status_update", "priority_review", "agent_ready",
+            "work_complete", "error", "shutdown",
+            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
+            "retrospective_initiate", "retrospective_contribution", "research_request", "research_response"
+        )]
+        [string]$Type,
+
+        [Parameter(Mandatory=$true)]
+        [hashtable]$Payload,
+
+        [ValidateSet("low", "normal", "high", "urgent")]
+        [string]$Priority = "normal",
+
+        [string]$ReplyTo = $null
+    )
+
+    # Check if this exact message was already processed (reply-to deduplication)
+    if ($ReplyTo -and (Get-Command Test-MessageProcessed -ErrorAction SilentlyContinue)) {
+        # For reply messages, check if we already replied to this message
+        $existingReply = Get-ProcessedMessage -MessageId $ReplyTo
+        if ($existingReply -and $existingReply.result -and $existingReply.result.replied) {
+            # Already replied to this message - skip
+            return $null
+        }
+    }
+
+    # Check if task is already completed (task deduplication)
+    $taskId = $Payload.taskId
+    if ($taskId -and (Get-Command Test-TaskCompleted -ErrorAction SilentlyContinue)) {
+        $taskCompleted = Test-TaskCompleted -TaskId $taskId
+        if ($taskCompleted) {
+            # Task already completed - skip sending this message
+            # Unless this is a bug_report or quality_concern (which can happen after completion)
+            if ($Type -notin @("bug_report", "quality_concern", "question")) {
+                return $null
+            }
+        }
+    }
+
+    # Send the message
+    $actualMessageId = Send-AgentMessage -From $From -To $To -Type $Type -Payload $Payload -Priority $Priority -ReplyTo $ReplyTo
+
+    return $actualMessageId
+}
+
+function Invoke-AcknowledgeMessageSafe {
+    <#
+    .SYNOPSIS
+    Acknowledge a message and record in state (idempotent).
+    Safe to call multiple times for the same message.
+
+    .PARAMETER MessageId
+    The message ID to acknowledge
+
+    .PARAMETER Agent
+    The agent acknowledging (optional)
+
+    .PARAMETER Result
+    Result data to attach
+
+    .RETURNS
+    $true if newly marked, $false if already existed
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$MessageId,
+
+        [string]$Agent = $null,
+
+        [hashtable]$Result = @{}
+    )
+
+    # Mark as processed in state first (idempotent)
+    $newlyMarked = $false
+    if (Get-Command Set-MessageProcessed -ErrorAction SilentlyContinue) {
+        $newlyMarked = Set-MessageProcessed -MessageId $MessageId -Result $Result -FromAgent $Agent
+    }
+
+    # Delete the message file
+    Invoke-AcknowledgeMessage -MessageId $MessageId -Agent $Agent -Result $Result | Out-Null
+
+    return $newlyMarked
 }
 
 function Get-MessageCount {

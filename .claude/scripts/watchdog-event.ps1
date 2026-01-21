@@ -30,6 +30,7 @@ if (-not $ProjectRoot) {
 # Source configuration and message queue
 . "$PSScriptRoot\ralph-config.ps1"
 . "$PSScriptRoot\message-queue.ps1"
+# Message-state-manager is already sourced by message-queue.ps1
 
 $config = Get-RalphConfig
 $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
@@ -43,6 +44,9 @@ if (-not (Test-Path $Script:LogDir)) {
 
 # Initialize message queue
 Initialize-MessageQueue -SessionDir $paths.SessionDir
+
+# Initialize message state manager for idempotency tracking
+Initialize-MessageStateManager -SessionDir $paths.SessionDir
 
 # FIX: Clear stale consolidation mode on fresh watchdog startup
 # This prevents getting stuck in consolidation mode from previous sessions
@@ -568,8 +572,8 @@ function Invoke-ProcessWatchdogMessages {
             }
         }
         
-        # Acknowledge message
-        $null = Invoke-AcknowledgeMessage -MessageId $msg.id -Agent "watchdog"
+        # Acknowledge message (with state tracking for idempotency)
+        $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent "watchdog"
     }
 }
 
@@ -636,9 +640,9 @@ function Invoke-DeliverPendingMessages {
             $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
 
             if ($agentStarted) {
-                # Agent started successfully - acknowledge messages
+                # Agent started successfully - acknowledge messages (with state tracking)
                 foreach ($msg in $pendingMessages) {
-                    $null = Invoke-AcknowledgeMessage -MessageId $msg.id -Agent $agentName
+                    $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
                 }
 
                 # Track delivery time to enforce grace period
@@ -701,39 +705,94 @@ function Invoke-ResourceCleanup {
     <#
     .SYNOPSIS
     Periodic cleanup of archives, temp files, and stale resources.
-    
+
     .PARAMETER Force
     Force cleanup even if recently done.
     #>
     param([switch]$Force)
-    
+
     # Don't run more than once per 5 minutes unless forced
     if (-not $Force -and ([DateTime]::UtcNow - $Script:LastResourceCleanup).TotalMinutes -lt 5) {
         return
     }
     $Script:LastResourceCleanup = [DateTime]::UtcNow
-    
+
     try {
-        # Clean old message archives
+        # Clean old message archives using state manager
         $removed = Clear-OldArchives
         if ($removed -gt 0) {
             Write-WatchdogLog "Cleaned $removed old archive files" -Color DarkGray
         }
-        
+
         # Clean stale runner scripts from log directory
         Get-ChildItem -Path $Script:LogDir -Filter "*-runner.ps1" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddHours(-1) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-        
+
         # Clean stale pending-messages files
         Get-ChildItem -Path $Script:SessionDir -Filter "pending-messages-*.json" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddMinutes(-30) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-            
+
     } catch {
         # Resource cleanup failure is non-critical
         Write-WatchdogLog "Resource cleanup error: $_" -Color Yellow
     }
+}
+
+function Clear-OldArchives {
+    <#
+    .SYNOPSIS
+    Clean up message files that have been processed.
+
+    Uses the message state manager to determine which messages were already
+    processed, and removes those message files from the queue.
+
+    .RETURNS
+    Number of message files removed.
+    #>
+    param()
+
+    if (-not $Script:MessageQueueDir) {
+        return 0
+    }
+
+    $removed = 0
+
+    # Check each agent's inbox
+    foreach ($agent in @("pm", "developer", "qa", "watchdog")) {
+        $inbox = Join-Path $Script:MessageQueueDir $agent
+        if (-not (Test-Path $inbox)) { continue }
+
+        Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue | ForEach-Object {
+            $msgFile = $_
+
+            try {
+                # Read message to get its ID
+                $content = Get-Content $msgFile.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+
+                # Check if this message was already processed
+                $wasProcessed = Test-MessageProcessed -MessageId $content.id
+                if ($wasProcessed) {
+                    # Message was processed - safe to delete
+                    Remove-Item $msgFile.FullName -Force -ErrorAction SilentlyContinue
+                    $removed++
+                }
+            } catch {
+                # Corrupt or unreadable message file - quarantine it
+                $quarantine = Join-Path $Script:MessageQueueDir "quarantine"
+                if (-not (Test-Path $quarantine)) {
+                    New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
+                }
+                Move-Item -Path $msgFile.FullName -Destination (Join-Path $quarantine $msgFile.Name) -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # Also run state cleanup to remove old processed message entries (from memory)
+    Invoke-StateCleanup -OlderThan (Get-Date).AddHours(-24) | Out-Null
+
+    return $removed
 }
 
 # ============================================================================

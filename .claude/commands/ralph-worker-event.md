@@ -6,12 +6,25 @@ arguments:
 allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Bash Command, Computer, mcp__gitkraken
 ---
 
-# 🚀 EVENT-DRIVEN MODE - $arguments.agent Worker
+# EVENT-DRIVEN MODE - $arguments.agent Worker
 
 You are the **$arguments.agent** in **EVENT-DRIVEN MULTI-AGENT** mode.
 All agents (PM, Developer, QA) run in parallel. You communicate via message queue.
 
 **KEY BEHAVIOR: Watchdog delivers messages by restarting you with context.**
+
+---
+
+## IMPORTANT: Use Claude Tools, Not Shell Commands
+
+**DO NOT use PowerShell or bash commands for file operations.**
+
+Instead, use Claude's built-in tools:
+- **Read tool** - to read session files, state, messages
+- **Write tool** - to write message files, update state
+- **Bash tool** - only for git commands, running tests, builds
+
+This works in ALL environments (bash, PowerShell, Windows, Linux, macOS).
 
 ---
 
@@ -28,9 +41,62 @@ If messages exist, process them according to their type before doing anything el
 
 ---
 
+## CRITICAL: Check Message Idempotency Before Processing
+
+**Before processing ANY message, verify it wasn't already processed:**
+
+```
+# Read tool to check message-state.json
+Read: .claude/session/message-state.json
+
+# Check each pending message ID against processedMessages
+# If messageId exists in processedMessages → SKIP that message (already done)
+```
+
+**Why this matters:**
+- If the agent crashed and restarted, you might receive the same message again
+- Processing duplicate messages wastes tokens and causes flow confusion
+- Always check state before taking action
+
+**Example workflow:**
+1. Read `pending-messages-$arguments.agent.json`
+2. For each message in the array:
+   a. Check if `message.id` exists in `message-state.json` → `processedMessages`
+   b. If yes → Skip (already processed)
+   c. If no → Process the message
+   d. After processing, the watchdog will automatically mark it as processed
+
+---
+
+
+
 ## Sending Messages
 
-Write a message JSON file to the recipient's inbox. The watchdog will deliver it:
+To send a message, use the **Write tool** to create a JSON file at:
+`.claude/session/messages/{recipient}/{message-id}.json`
+
+**Message ID format**: `msg-{type}-{timestamp}-{random}`
+**Timestamp format**: Use UTC ISO 8601: `2026-01-21T12:00:00Z`
+
+**Example:**
+```
+File: .claude/session/messages/watchdog/msg-status-20260121-120000.json
+Content:
+{
+  "id": "msg-status-20260121-120000",
+  "from": "developer",
+  "to": "watchdog",
+  "type": "status_update",
+  "priority": "low",
+  "payload": {
+    "status": "working",
+    "currentTask": "feat-001",
+    "details": "Implementing feature"
+  },
+  "timestamp": "2026-01-21T12:00:00Z",
+  "status": "pending"
+}
+```
 
 ---
 
@@ -42,50 +108,46 @@ Write a message JSON file to the recipient's inbox. The watchdog will deliver it
 
 Send `status: "working"` immediately when you begin processing:
 
-```powershell
-$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "$arguments.agent"
-    to = "watchdog"
-    type = "status_update"
-    priority = "low"
-    payload = @{
-        status = "working"
-        currentTask = "feat-001"
-        details = "Implementing user authentication"
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+Content:
+{
+  "id": "msg-status-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "watchdog",
+  "type": "status_update",
+  "priority": "low",
+  "payload": {
+    "status": "working",
+    "currentTask": "{taskId}",
+    "details": "{brief description of what you're doing}"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
 ```
 
 ### When You FINISH a Task
 
 Send `status: "ready"` when complete and ready for next assignment:
 
-```powershell
-$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "$arguments.agent"
-    to = "watchdog"
-    type = "status_update"
-    priority = "low"
-    payload = @{
-        status = "ready"
-        currentTask = $null
-        details = "Task complete, ready for next assignment"
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+Content:
+{
+  "id": "msg-status-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "watchdog",
+  "type": "status_update",
+  "priority": "low",
+  "payload": {
+    "status": "ready",
+    "currentTask": null,
+    "details": "Task complete, ready for next assignment"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
 ```
 
 **Remember**:
@@ -127,54 +189,49 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 5. Commit changes: `git add -A && git commit -m "feat: ..."`
 6. Send `validation_request` to QA
 
-### Sending Validation Request (PowerShell)
+### Sending Validation Request
 
-```powershell
-$taskId = "feat-001"
-$msgId = "msg-val-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "developer"
-    to = "qa"
-    type = "validation_request"
-    priority = "normal"
-    payload = @{
-        taskId = $taskId
-        description = "Implementation complete - please validate"
-        branch = "main"
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/qa/msg-val-{timestamp}.json
+Content:
+{
+  "id": "msg-val-{timestamp}",
+  "from": "developer",
+  "to": "qa",
+  "type": "validation_request",
+  "priority": "normal",
+  "payload": {
+    "taskId": "{taskId}",
+    "description": "Implementation complete - please validate",
+    "branch": "main"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/qa/$msgId.json" -Encoding UTF8
 ```
 
 ### Requesting Research from PM
 
 When you need documentation, code examples, or research, ask PM instead of searching yourself:
 
-```powershell
-$msgId = "msg-research-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "developer"
-    to = "pm"
-    type = "research_request"
-    priority = "normal"
-    payload = @{
-        topic = "How to implement OAuth2 with Vite"
-        context = "Working on feat-001 authentication"
-        needCodeExamples = $true
-        preferredSources = @("official docs", "github")
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/pm/msg-research-{timestamp}.json
+Content:
+{
+  "id": "msg-research-{timestamp}",
+  "from": "developer",
+  "to": "pm",
+  "type": "research_request",
+  "priority": "normal",
+  "payload": {
+    "topic": "How to implement OAuth2 with Vite",
+    "context": "Working on feat-001 authentication",
+    "needCodeExamples": true,
+    "preferredSources": ["official docs", "github"]
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
 ```
 
 PM has MCP tools (Fetch, WebSearch, GitHub) to research and will send you a `research_response`.
@@ -212,63 +269,57 @@ PM has MCP tools (Fetch, WebSearch, GitHub) to research and will send you a `res
 4. If PASS → Send `task_complete` to PM
 5. If FAIL → Send `bug_report` to PM (NOT directly to developer)
 
-### Sending Task Complete (PowerShell)
+### Sending Task Complete
 
-```powershell
-$taskId = "feat-001"
-$msgId = "msg-complete-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "qa"
-    to = "pm"
-    type = "task_complete"
-    priority = "normal"
-    payload = @{
-        taskId = $taskId
-        summary = "All tests pass, acceptance criteria met"
-        validationPassed = $true
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/pm/msg-complete-{timestamp}.json
+Content:
+{
+  "id": "msg-complete-{timestamp}",
+  "from": "qa",
+  "to": "pm",
+  "type": "task_complete",
+  "priority": "normal",
+  "payload": {
+    "taskId": "{taskId}",
+    "summary": "All tests pass, acceptance criteria met",
+    "validationPassed": true
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
 ```
 
 ### Sending Bug Report (to PM for prioritization)
 
-```powershell
-$taskId = "feat-001"
-$msgId = "msg-bug-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "qa"
-    to = "pm"
-    type = "bug_report"
-    priority = "high"
-    payload = @{
-        taskId = $taskId
-        bugs = @(
-            "Button click does not trigger action",
-            "Missing validation on email field"
-        )
-        severity = "high"
-        recommendedAction = "fix_required"
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/pm/msg-bug-{timestamp}.json
+Content:
+{
+  "id": "msg-bug-{timestamp}",
+  "from": "qa",
+  "to": "pm",
+  "type": "bug_report",
+  "priority": "high",
+  "payload": {
+    "taskId": "{taskId}",
+    "bugs": [
+      "Button click does not trigger action",
+      "Missing validation on email field"
+    ],
+    "severity": "high",
+    "recommendedAction": "fix_required"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
 ```
 
 ### Regression Testing
 
 When PM sends `regression_request`, run full test suite:
 
-```powershell
+```bash
 npm run test
 npm run build
 # Run any E2E tests
@@ -280,25 +331,23 @@ Report results via `task_complete`.
 
 When you need test patterns, documentation, or best practices:
 
-```powershell
-$msgId = "msg-research-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "qa"
-    to = "pm"
-    type = "research_request"
-    priority = "normal"
-    payload = @{
-        topic = "Best practices for testing Vite applications"
-        context = "Setting up E2E tests for feat-001"
-        needCodeExamples = $true
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/pm/msg-research-{timestamp}.json
+Content:
+{
+  "id": "msg-research-{timestamp}",
+  "from": "qa",
+  "to": "pm",
+  "type": "research_request",
+  "priority": "normal",
+  "payload": {
+    "topic": "Best practices for testing Vite applications",
+    "context": "Setting up E2E tests for feat-001",
+    "needCodeExamples": true
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
 ```
 
 ---
@@ -313,15 +362,13 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 4. Send result message
 5. If no pending messages, do idle work (research, refactoring, etc.)
 
-```powershell
-# Initial state check
-Get-Content ".claude/session/pending-messages-$arguments.agent.json" -ErrorAction SilentlyContinue
-Get-Content ".claude/session/coordinator-state.json" -ErrorAction SilentlyContinue
-```
+Use the **Read tool** to check initial state:
+- Read `.claude/session/pending-messages-$arguments.agent.json`
+- Read `.claude/session/coordinator-state.json`
 
 ---
 
-## ⚠️ CRITICAL: Handling `retrospective_initiate` Messages
+## CRITICAL: Handling `retrospective_initiate` Messages
 
 **When you receive a `retrospective_initiate` message from PM, you MUST contribute to the retrospective. This is NOT optional - retrospectives are mandatory after every task completion.**
 
@@ -344,10 +391,7 @@ Get-Content ".claude/session/coordinator-state.json" -ErrorAction SilentlyContin
 
 **Step 1: Read the retrospective file**
 
-```powershell
-$retroFile = ".claude/session/retrospective.txt"
-$retro = Get-Content $retroFile -Raw
-```
+Use the **Read tool** to read `.claude/session/retrospective.txt`
 
 **Step 2: Add your contribution**
 
@@ -368,7 +412,7 @@ $retro = Get-Content $retroFile -Raw
 
 ---
 
-_**Contributed by**: Developer Agent | $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")_
+_**Contributed by**: Developer Agent | {UTC-timestamp}_
 ```
 
 **If you are QA** - Find the `### QA Perspective` section and replace `<!-- WAITING -->` with:
@@ -390,113 +434,101 @@ _**Contributed by**: Developer Agent | $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
 
 ---
 
-_**Contributed by**: QA Agent | $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")_
+_**Contributed by**: QA Agent | {UTC-timestamp}_
 ```
 
-**Step 3: Update the retrospective file** - Write your contribution back to the file
+**Step 3: Update the retrospective file**
 
-**Step 4: Update your status** in `coordinator-state.json`:
+Use the **Write tool** to write your contribution back to `.claude/session/retrospective.txt`
 
-```powershell
-$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
-$state.agents.$arguments.agent.status = "idle"
-$state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+**Step 4: Update your status in coordinator-state.json**
+
+First read the file using the **Read tool**, then use **Write tool** to update:
+```json
+{
+  "agents": {
+    "$arguments.agent": {
+      "status": "idle"
+    }
+  }
+}
 ```
 
 **Step 5 (CRITICAL): Send retrospective_contribution to PM**
 
-**You MUST notify PM that you've completed your contribution. This is NOT optional - PM needs explicit notification to finalize the retrospective.**
+You MUST notify PM that you've completed your contribution.
 
-```powershell
-# Save the taskId from the original message for use in subsequent steps
-$taskId = $message.payload.taskId
-
-# Send retrospective_contribution to PM (CRITICAL - notifies PM worker is done)
-$msgId = "msg-retro-contrib-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$((Get-Random).ToString().Substring(0,4))"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$contributionMessage = @{
-    id = $msgId
-    from = "$arguments.agent"
-    to = "pm"
-    type = "retrospective_contribution"
-    priority = "normal"
-    payload = @{
-        taskId = $taskId
-        retrospectiveFile = ".claude/session/retrospective.txt"
-        contributedAt = $timestamp
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/pm/msg-retro-contrib-{timestamp}.json
+Content:
+{
+  "id": "msg-retro-contrib-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "pm",
+  "type": "retrospective_contribution",
+  "priority": "normal",
+  "payload": {
+    "taskId": "{taskId from original message}",
+    "retrospectiveFile": ".claude/session/retrospective.txt",
+    "contributedAt": "{UTC-timestamp}"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$contributionMessage | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
-
-Write-Host "=== SENT RETROSPECTIVE CONTRIBUTION TO PM ===" -ForegroundColor Green
 ```
 
-**Step 6: Update your status** in `coordinator-state.json`:
+**Step 6: Delete pending messages file**
 
-```powershell
-$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
-$state.agents.$arguments.agent.status = "idle"
-$state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+Use the Bash tool:
+```bash
+rm -f .claude/session/pending-messages-$arguments.agent.json
 ```
 
-**Step 7: Delete pending messages file**:
+**Step 7: Send status_update to watchdog**
 
-```powershell
-Remove-Item ".claude/session/pending-messages-$arguments.agent.json" -Force -ErrorAction SilentlyContinue
 ```
-
-**Step 8: Send status_update to watchdog** (for dashboard visibility):
-
-```powershell
-$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = $arguments.agent
-    to = "watchdog"
-    type = "status_update"
-    priority = "low"
-    payload = @{
-        status = "ready"
-        currentPhase = "retrospective_contributed"
-        retrospectiveTask = $taskId
-        notifiedPm = $true
-    }
-    timestamp = $timestamp
-    status = "pending"
+File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+Content:
+{
+  "id": "msg-status-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "watchdog",
+  "type": "status_update",
+  "priority": "low",
+  "payload": {
+    "status": "ready",
+    "currentPhase": "retrospective_contributed",
+    "retrospectiveTask": "{taskId}",
+    "notifiedPm": true
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
 ```
 
 **IMPORTANT**: After contributing, DO NOT start new work. Wait for the next task assignment message from PM.
 
 ---
 
-### Asking Questions (PowerShell)
+### Asking Questions
 
-```powershell
-$msgId = "msg-q-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "$arguments.agent"
-    to = "pm"
-    type = "question"
-    priority = "high"
-    payload = @{
-        question = "What authentication method should we use?"
-        context = "Implementing feat-001"
-        taskId = "feat-001"
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/pm/msg-q-{timestamp}.json
+Content:
+{
+  "id": "msg-q-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "pm",
+  "type": "question",
+  "priority": "high",
+  "payload": {
+    "question": "What authentication method should we use?",
+    "context": "Implementing feat-001",
+    "taskId": "feat-001"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
 ```
 
 ---
@@ -507,7 +539,7 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 - **PM handles priorities** - Bug reports go to PM, not directly to developer
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
 - **Parallel work** - Other agents are working at the same time
-- **ALWAYS delete pending file after processing** - After you finish processing ALL messages, delete the file: `Remove-Item ".claude/session/pending-messages-$arguments.agent.json" -Force -ErrorAction SilentlyContinue`
+- **ALWAYS delete pending file after processing** - Use Bash tool: `rm -f .claude/session/pending-messages-$arguments.agent.json`
 
 ---
 
@@ -515,24 +547,22 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 
 **IMPORTANT**: When you finish processing a message and are ready for more work, signal the watchdog:
 
-```powershell
-$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-$message = @{
-    id = $msgId
-    from = "$arguments.agent"
-    to = "watchdog"
-    type = "status_update"
-    priority = "low"
-    payload = @{
-        status = "ready"  # ready = finished, can receive more messages
-        lastTask = "feat-001"
-    }
-    timestamp = $timestamp
-    status = "pending"
+```
+File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+Content:
+{
+  "id": "msg-status-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "watchdog",
+  "type": "status_update",
+  "priority": "low",
+  "payload": {
+    "status": "ready",
+    "lastTask": "{taskId}"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
 }
-$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
 ```
 
 This tells the watchdog you're ready for more work. Without this signal, the watchdog will assume you're still working and won't deliver new messages.
