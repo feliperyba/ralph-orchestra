@@ -89,12 +89,15 @@ This document defines the message-based communication protocol for event-driven 
 
 | Type                    | To              | Payload                                                           |
 | ----------------------- | --------------- | ----------------------------------------------------------------- |
-| `task_assign`           | developer       | `{ taskId, title, description, acceptanceCriteria[], worktree? }` |
+| `task_assign`           | developer       | `{ taskId, title, description, acceptanceCriteria[], testPlan?, worktree? }` |
 | `retrospective_initiate`| developer/qa/gamedesigner | `{ taskId, retrospectiveFile }`          |
+| `playtest_request`      | gamedesigner    | `{ taskId, focus, scope }`                                        |
+| `test_plan_request`     | qa/gamedesigner | `{ taskId, title, description, acceptanceCriteria[] }`           |
+| `prd_reorganized`       | developer/qa/gamedesigner | `{ newTasks, updatedTasks, gddVersion }`   |
+| `skill_improvements`    | watchdog        | `{ improvements, agents, timestamp }`                             |
 | `priority_response`     | developer/qa/gamedesigner | `{ decision, reasoning }`               |
 | `prd_update`            | developer/qa/gamedesigner | `{ taskId, changes }`                  |
 | `regression_request`    | qa              | `{ scope, focus }`                                                |
-| `playtest_request`      | gamedesigner    | `{ taskId, focus, scope }`                                        |
 | `design_guidance_request`| gamedesigner   | `{ topic, context, taskId }`                                      |
 | `answer`                | any             | `{ answer }`                                                      |
 
@@ -110,26 +113,28 @@ This document defines the message-based communication protocol for event-driven 
 
 ### QA Sends
 
-| Type            | To       | Payload                                           |
-| --------------- | -------- | ------------------------------------------------- |
-| `task_complete` | pm       | `{ taskId, summary, validationPassed }`           |
-| `bug_report`    | pm       | `{ taskId, bugs[], severity, recommendedAction }` |
-| `question`      | pm       | `{ question, context, taskId }`                   |
-| `skill_request` | pm       | `{ requestType, description, reason, taskId }`     |
-| `status_update` | watchdog | `{ status, currentTask, details }`                |
+| Type                    | To       | Payload                                           |
+| ----------------------- | -------- | ------------------------------------------------- |
+| `task_complete`         | pm       | `{ taskId, summary, validationPassed }`           |
+| `bug_report`            | pm       | `{ taskId, bugs[], severity, recommendedAction }` |
+| `test_plan_contribution`| pm       | `{ taskId, testCases[], edgeCases[], validationApproach, additionalConsiderations[] }` |
+| `question`              | pm       | `{ question, context, taskId }`                   |
+| `skill_request`         | pm       | `{ requestType, description, reason, taskId }`     |
+| `status_update`         | watchdog | `{ status, currentTask, details }`                |
 
 ### Game Designer Sends
 
-| Type               | To             | Payload                                                        |
-| ------------------ | -------------- | -------------------------------------------------------------- |
-| `gdd_ready`        | pm             | `{ version, sections, artifacts }`                             |
-| `gdd_update`       | pm/developer/qa| `{ taskId, changes, section }`                                |
-| `design_answer`    | pm/developer   | `{ answer, questionId, context, taskId }`                      |
-| `playtest_report`  | pm             | `{ taskId, gddCompliance, deviations, issues, screenshots, recommendations, overall }` |
-| `mechanic_proposal`| pm             | `{ mechanic, description, rationale, validationNeeds }`        |
-| `design_guidance`  | pm             | `{ taskId, guidance, constraints }`                            |
-| `design_question`  | pm             | `{ question, context, feature, taskId }`                       |
-| `status_update`    | watchdog       | `{ status, currentTask, details }`                             |
+| Type                    | To             | Payload                                                        |
+| ----------------------- | -------------- | -------------------------------------------------------------- |
+| `gdd_ready`             | pm             | `{ version, sections, artifacts }`                             |
+| `gdd_update`            | pm/developer/qa| `{ taskId, changes, section }`                                |
+| `design_answer`         | pm/developer   | `{ answer, questionId, context, taskId }`                      |
+| `playtest_report`       | pm             | `{ taskId, gddCompliance, deviations, issues, screenshots, recommendations, overall }` |
+| `test_plan_contribution`| pm             | `{ taskId, designValidation[], playtestScenarios[], uxConsiderations[] }` |
+| `mechanic_proposal`     | pm             | `{ mechanic, description, rationale, validationNeeds }`        |
+| `design_guidance`       | pm             | `{ taskId, guidance, constraints }`                            |
+| `design_question`       | pm             | `{ question, context, feature, taskId }`                       |
+| `status_update`         | watchdog       | `{ status, currentTask, details }`                             |
 
 ### Any Agent Sends
 
@@ -179,6 +184,11 @@ Quick reference of WHEN to send each message type:
 | Quality concern (non-blocking) | `quality_concern` | qa | pm | normal |
 | **Coordination** |
 | Retrospective ready | `retrospective_initiate` | pm | all | normal |
+| Playtest needed | `playtest_request` | pm | gamedesigner | normal |
+| Test plan needed | `test_plan_request` | pm | qa/gamedesigner | normal |
+| Test plan input ready | `test_plan_contribution` | qa/gamedesigner | pm | normal |
+| PRD reorganized | `prd_reorganized` | pm | all | normal |
+| Skills improved | `skill_improvements` | pm | watchdog | low |
 | Skill improvement needed | `skill_request` | worker | pm | normal |
 | PM decision made | `answer` / `priority_response` | pm | requester | high |
 
@@ -240,12 +250,12 @@ Update BOTH when state changes:
 
 ## Workflow Patterns
 
-### Task Completion Flow (with Retrospective)
+### Task Completion Flow (with Retrospective and Test Planning)
 
 ```
 PM                    Developer               QA               GameDesigner
  │                        │                    │                     │
- ├──task_assign──────────►│                    │                     │
+ │──task_assign──────────►│ (with test plan)  │                     │
  │                        │                    │                     │
  │                        ├──validation_request────►│                    │
  │                        │                    │                     │
@@ -253,25 +263,48 @@ PM                    Developer               QA               GameDesigner
  │     (validationPassed=true)                   │                     │
  │                                                │                     │
  │ [PM triggers retrospective]                    │                     │
- │ ├──creates retrospective.txt─────────────────►│                     │
- │ └────────────────────────────────────────────►│──playtest_request──►│
+ │ ├──retrospective_initiate────────────────────►│────────────────────►│
+ │ │                                              │                     │
+ │ │                                              │  ┌──playtest_request──►│
+ │ │                                              │  │                   │
+ │◄────[Developer contribution]──────────────────┤◄────playtest_report┤
+ │◄────[QA contribution]──────────────────────────┤◄─[GD design contribution]┤
  │                                                │                     │
- │◄────[Developer contribution]──────────────────┤                     │
- │◄────[QA contribution]──────────────────────────┤◄────playtest_report┤
+ │ [PM synthesizes]                               │                     │
+ │ [PM runs prd_analysis phase]                   │                     │
+ │ ├──prd_reorganized────────────────────────────►│                     │
+ │ └────────────────────────────────────────────►│──prd_reorganized───►│
  │                                                │                     │
- │ [PM synthesizes, completes retrospective]      │                     │
+ │ [PM runs skill_research phase]                 │                     │
+ │ ├──skill_improvements───────────────────────►watchdog──────────────►│
  │                                                │                     │
- │──task_assign──────────►│ (next task)          │                     │
+ │ [PM completes retrospective]                   │                     │
+ │                                                │                     │
+ │ [PM starts test_planning for NEXT task]        │                     │
+ │ ├──test_plan_request──────────────────────────►│──test_plan_request─►│
+ │                                                │                     │
+ │◄────[QA test plan contribution]───────────────┤◄─[GD validation input]│
+ │                                                │                     │
+ │ [PM synthesizes test plan]                     │                     │
+ │──task_assign──────────►│ (with test plan)     │                     │
  │                                                │                     │
 ```
 
-**CRITICAL**: PM must NOT assign the next task until retrospective completes. The flow is:
+**CRITICAL**: PM must NOT assign the next task until BOTH retrospective completes AND test planning finishes. The flow is:
 1. QA sends `task_complete` with `validationPassed: true`
 2. PM creates `retrospective.txt` and waits for contributions
 3. Developer, QA, and Game Designer contribute their perspectives
 4. Game Designer plays game via Playwright and sends `playtest_report`
-5. PM synthesizes and completes retrospective
-6. Only THEN does PM assign the next task
+5. PM synthesizes findings
+6. PM runs `prd_analysis` phase: extracts tasks from GDD, reorganizes PRD
+7. PM sends `prd_reorganized` to workers
+8. PM runs `skill_research` phase: improves skills for ALL FOUR agents (PM, Dev, QA, GD)
+9. PM sends `skill_improvements` to watchdog
+10. PM completes retrospective and enters `test_planning` for NEXT task
+11. PM sends `test_plan_request` to QA and Game Designer
+12. QA and Game Designer provide test plan input
+13. PM synthesizes into comprehensive test plan
+14. PM assigns task to Developer with test plan attached
 
 ### Bug Fix Flow
 

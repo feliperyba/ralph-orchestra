@@ -134,11 +134,20 @@ if (Test-Path $pendingFile) {
 | `work_blocked` | developer/qa | Assess severity, provide guidance |
 | `task_abandoned` | developer/qa | Reassign or escalate |
 | `skill_request` | developer/qa | Add to retrospective action items |
-| `gdd_ready` | gamedesigner | Review GDD, acknowledge, inform workers |
-| `gdd_update` | gamedesigner | Forward relevant updates to workers |
+| `gdd_ready` | gamedesigner | Review GDD, acknowledge, trigger PRD reorganization |
+| `gdd_update` | gamedesigner | Forward relevant updates to workers, reorganize PRD |
 | `playtest_report` | gamedesigner | Review findings, add issues to PRD if needed |
 | `design_question` | gamedesigner | Clarify requirements, update PRD |
 | `mechanic_proposal` | gamedesigner | Review, approve/request changes |
+
+### Message Types You Send
+
+| Type | To | Purpose |
+|------|------|-----------------|
+| `playtest_request` | gamedesigner | Request playtest validation for retrospective |
+| `test_plan_request` | qa/gamedesigner | Request test plan input for next task |
+| `prd_reorganized` | developer/qa/gamedesigner | Notify workers of PRD changes |
+| `skill_improvements` | watchdog | Summary of skills improved |
 
 ---
 
@@ -147,21 +156,38 @@ if (Test-Path $pendingFile) {
 ### Task Status Flow (CRITICAL - Never Skip Phases)
 
 ```
-assign → implement → ready_for_qa → validate → passed
-                                                    ↓
-                                          in_retrospective
-                                                    ↓
-                                          skill_research
-                                                    ↓
-                                          (next task)
+  (session start)
+         ↓
+     test_planning ◄────────────────────────┐
+         ↓                                 │
+      assigned                              │
+         ↓                                 │
+      working                               │
+         ↓                                 │
+   ready_for_qa                             │
+         ↓                                 │
+      passed ───────────────────────────────┘
+         ↓
+   in_retrospective
+         ↓
+     prd_analysis
+         ↓
+   skill_research
+         ↓
+     completed
+         │
+         └──────────► (back to test_planning for next task)
 ```
 
 **⚠️ CRITICAL RULES:**
 
-1. **WAIT for QA** - When `status === "ready_for_qa"`, do NOT assign next task. Wait for QA validation.
-2. **RUN retrospective** - When `status === "passed"`, ALWAYS run retrospective before next task.
-3. **SKILL_RESEARCH is mandatory** - After retrospective, always research skill improvements before next task.
-4. **NEVER mark task complete without QA validation** - Only QA can set `passes: true`.
+1. **TEST_PLANNING first** - When `currentTask === null` or after `completed`, ALWAYS run `test_planning` before `assigned`.
+2. **WAIT for QA** - When `status === "ready_for_qa"`, do NOT assign next task. Wait for QA validation.
+3. **RUN retrospective** - When `status === "passed"`, ALWAYS run retrospective before next task.
+4. **WAIT for ALL THREE agents** - Developer, QA, AND Game Designer must contribute before retrospective synthesis.
+5. **PRD_ANALYSIS is mandatory** - After retrospective synthesis, always analyze GDD and findings to reorganize PRD.
+6. **SKILL_RESEARCH is mandatory** - After prd_analysis, always research skill improvements for ALL FOUR agents (PM included).
+7. **NEVER mark task complete without QA validation** - Only QA can set `passes: true`.
 
 ### Event Loop
 
@@ -172,13 +198,18 @@ assign → implement → ready_for_qa → validate → passed
 │  3. Check currentTask status:                               │
 │                                                             │
 │     ┌─────────────────────────────────────────────────┐    │
-│     │ IF null → SELECT next task → ASSIGN to developer │    │
+│     │ IF null → SELECT next task → test_planning      │    │
+│     │ IF test_planning → REQUEST test plan from QA+GD │    │
+│     │ IF completed → SELECT next task → test_planning  │    │
+│     │ IF assigned → WAIT for developer to start       │    │
 │     │ IF working → CONTINUE monitoring                 │    │
 │     │ IF ready_for_qa → WAIT for QA (do NOT assign)   │    │
-│     │ IF passed → RUN retrospective → skill_research   │    │
+│     │ IF passed → RUN retrospective → prd_analysis →   │    │
+│     │             skill_research → completed           │    │
 │     │ IF needs_fixes → REASSIGN to developer           │    │
-│     │ IF in_retrospective → POLL for contributions     │    │
-│     │ IF skill_research → IMPROVE skills               │    │
+│     │ IF in_retrospective → POLL for 3 contributions   │    │
+│     │ IF prd_analysis → EXTRACT tasks, reorganize PRD  │    │
+│     │ IF skill_research → IMPROVE ALL 4 agents' skills │    │
 │     └─────────────────────────────────────────────────┘    │
 │                                                             │
 │  4. Update heartbeat (every 30s)                            │
@@ -213,13 +244,17 @@ const next = sorted[0];
 
 | Current State | Action | Next State |
 |---------------|--------|------------|
-| `null` | Select and assign task | `assigned` |
-| `assigned` | Monitor - wait for worker | (wait) |
+| `null` | Select next task, start test planning | `test_planning` |
+| `test_planning` | Request test plan from QA + Game Designer | (wait for contributions) |
+| `test_planning` | After contributions, synthesize and assign | `assigned` |
+| `assigned` | Monitor - wait for worker to start | (wait) |
 | `working` | Monitor - wait for worker | (wait) |
 | `ready_for_qa` | **WAIT** - do NOT assign | (wait for QA) |
 | `passed` | Trigger retrospective | `in_retrospective` |
-| `in_retrospective` | Poll for agent contributions | (wait) |
-| `skill_research` | Research and update skills | `null` |
+| `in_retrospective` | Poll for 3 agent contributions (Dev, QA, GD) | (wait) |
+| `prd_analysis` | Extract GDD tasks, reorganize PRD | `skill_research` |
+| `skill_research` | Improve ALL 4 agents' skills | `completed` |
+| `completed` | Delete retrospective, select next task | `test_planning` |
 | `needs_fixes` | Reassign to developer | `assigned` |
 
 ### Game Designer Collaboration
@@ -309,8 +344,11 @@ if (allComplete) {
 | Skill | Purpose |
 |-------|---------|
 | [`skills/task-selection.md`](skills/task-selection.md) | Priority algorithm for selecting next PRD task |
-| [`skills/retrospective.md`](skills/retrospective.md) | File-based retrospective facilitation |
-| [`skills/skill-improvement.md`](skills/skill-improvement.md) | MCP-based skill research and updates |
+| [`skills/test-planning.md`](skills/test-planning.md) | Collaborative test planning with QA and Game Designer |
+| [`skills/retrospective.md`](skills/retrospective.md) | File-based retrospective facilitation with 4 agents |
+| [`skills/prd-reorganization.md`](skills/prd-reorganization.md) | GDD-to-PRD task extraction and reorganization |
+| [`skills/skill-improvement.md`](skills/skill-improvement.md) | Multi-agent skill research and updates (ALL 4 agents) |
+| [`skills/pm-self-improvement.md`](skills/pm-self-improvement.md) | PM-specific skill improvement areas |
 | [`skills/scale-adaptive.md`](skills/scale-adaptive.md) | Adjust planning depth based on PRD size |
 
 ### Shared Behaviors

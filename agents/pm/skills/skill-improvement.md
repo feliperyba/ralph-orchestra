@@ -7,7 +7,7 @@ depends-on: [retrospective]
 
 # Skill Improvement Skill
 
-> "Continuous learning – improve agent capabilities based on real-world experience."
+> "Continuous learning – improve ALL agent capabilities based on real-world experience."
 
 ## MANDATORY: Skill Improvement After Every Retrospective
 
@@ -19,7 +19,7 @@ depends-on: [retrospective]
    - https://agents.md/
    - https://agent-skills.md/
    - WebSearch for relevant patterns
-3. **UPDATE** at least one file per agent per retrospective:
+3. **UPDATE** at least ONE skill file for EACH agent (PM, Developer, QA, Game Designer):
    - `agents/*/AGENT.md` (process improvement)
    - `agents/*/skills/*.md` (knowledge addition)
    - `agents/*/SKILLS.md` (core competencies)
@@ -27,29 +27,44 @@ depends-on: [retrospective]
 4. **COMMIT** the improvements
 5. **ONLY THEN** set `currentTask = null` and assign next task
 
-**Minimum per retrospective**: At least one meaningful improvement to agent instructions, skill documentation, or tool configuration.
+**Minimum per retrospective**: At least **FOUR** skill files updated (one per agent: PM, Developer, QA, Game Designer).
+
+**PM Self-Improvement**: The PM MUST also improve at least ONE of its OWN skills each retrospective. See [pm-self-improvement.md](./pm-self-improvement.md).
 
 ---
 
 ## When to Use This Skill
 
-Use during retrospective phase when:
+Use during `skill_research` phase when:
 
-- A task revealed knowledge gaps in Developer or QA skills
+- A task revealed knowledge gaps in ANY agent's skills
 - New patterns or anti-patterns were discovered
 - External references could improve success rate
-- Agent struggled with a specific domain (R3F, physics, shaders)
+- Agent struggled with a specific domain (R3F, physics, shaders, design)
+- PM coordination needs improvement
 
 ## Quick Start
 
 ```markdown
 ## Retrospective: Skill Improvement Check
 
-1. Identify skill gaps from task experience
+1. Identify skill gaps for ALL FOUR agents (PM, Developer, QA, Game Designer)
 2. Use MCP (WebSearch, fetch) to research best practices
-3. Update relevant SKILLS.md or skill files
-4. Document changes in action items
+3. Update at least ONE skill file per agent
+4. PM must improve at least ONE of its own skills
+5. Document changes in action items
 ```
+
+## Agent Skill Priority Matrix
+
+Use this matrix to identify which skills to improve for each agent:
+
+| Agent | Skill Areas to Improve | When to Trigger |
+|-------|------------------------|-----------------|
+| **PM** | task-selection.md, retrospective.md, prd-reorganization.md, pm-self-improvement.md, AGENT.md | Task assignment issues, retrospective gaps, PRD not reorganized |
+| **Developer** | r3f-fundamentals.md, feedback-loops.md, typescript-patterns.md, r3f-physics.md, AGENT.md | Code quality issues, failed builds, type errors |
+| **QA** | validation-workflow.md, browser-testing.md, bug-reporting.md, AGENT.md | Missed bugs, incomplete validation, test failures |
+| **Game Designer** | gdd-creation.md, thermite-integration.md, playtest-validation.md, AGENT.md | GDD unclear, playtest issues, design violations |
 
 ## Decision Framework
 
@@ -60,25 +75,42 @@ Use during retrospective phase when:
 | Performance issues discovered       | Research and add optimization skill         |
 | New library/API used                | Create reference doc in agent's references/ |
 | Anti-pattern repeated               | Add explicit anti-pattern section           |
+| PM task assignment struggled        | Improve PM task-selection.md                |
+| PRD not reorganized                 | Improve PM prd-reorganization.md            |
+| GDD gaps in implementation          | Improve Game Designer gdd-creation.md       |
 
 ## Progressive Guide
 
 ### Level 1: Identify Skill Gaps
 
-During retrospective synthesis, identify gaps:
+During retrospective synthesis, identify gaps for ALL FOUR agents:
 
 ```markdown
 ### Skill Gap Analysis
+
+**PM Gaps**:
+
+- [ ] Missing: PRD reorganization after GDD updates
+- [ ] Unclear: Task prioritization algorithms
+- [ ] Missing: Risk assessment procedures
 
 **Developer Gaps**:
 
 - [ ] Missing: R3F instancing patterns
 - [ ] Unclear: Shader uniform management
+- [ ] Missing: TypeScript error patterns
 
 **QA Gaps**:
 
 - [ ] Missing: WebGL performance profiling
 - [ ] Unclear: Mobile device testing
+- [ ] Missing: Browser compatibility patterns
+
+**Game Designer Gaps**:
+
+- [ ] Missing: Playtest validation procedures
+- [ ] Unclear: GDD-to-PRD task extraction
+- [ ] Missing: Thermite editor integration patterns
 
 **Domain Gaps**:
 
@@ -111,13 +143,36 @@ Use available MCP tools to research:
 
 Create or update skill files based on research:
 
-**Files to Update:**
+**Files to Update (PICK AT LEAST ONE PER AGENT):**
 
-- `agents/developer/SKILLS.md` — Core developer competencies
-- `agents/developer/skills/*.md` — Domain-specific skills
-- `agents/developer/references/*.md` — Deep-dive documentation
-- `agents/qa/SKILLS.md` — Core QA competencies
-- `.claude/skills/*.md` — Shared skills
+**PM Agent** (MUST improve at least one):
+- `agents/pm/AGENT.md` — Core PM behavior
+- `agents/pm/skills/task-selection.md` — Task assignment
+- `agents/pm/skills/retrospective.md` — Retrospective process
+- `agents/pm/skills/prd-reorganization.md` — GDD-to-PRD extraction
+- `agents/pm/skills/pm-self-improvement.md` — PM self-improvement
+
+**Developer Agent**:
+- `agents/developer/AGENT.md` — Core developer behavior
+- `agents/developer/skills/r3f-fundamentals.md` — R3F patterns
+- `agents/developer/skills/feedback-loops.md` — Development workflow
+- `agents/developer/skills/typescript-patterns.md` — TypeScript best practices
+- `agents/developer/skills/r3f-physics.md` — Physics integration
+
+**QA Agent**:
+- `agents/qa/AGENT.md` — Core QA behavior
+- `agents/qa/skills/validation-workflow.md` — Testing process
+- `agents/qa/skills/browser-testing.md` — Browser validation
+- `agents/qa/skills/bug-reporting.md` — Bug documentation
+
+**Game Designer Agent**:
+- `agents/gamedesigner/AGENT.md` — Core Game Designer behavior
+- `agents/gamedesigner/skills/gdd-creation.md` — GDD writing
+- `agents/gamedesigner/skills/thermite-integration.md` — Thermite editor
+- `agents/gamedesigner/skills/playtest-validation.md` — Playtest process
+
+**Shared Skills**:
+- `.claude/skills/*.md` — Orchestration skills
 
 **Update Template:**
 
@@ -165,6 +220,9 @@ Adjust skill depth based on PRD complexity:
 ❌ **DON'T:**
 
 - Skip skill improvement even if task passed
+- Only improve one agent's skills
+- Forget to improve PM's own skills
+- Skip Game Designer skill improvements
 - Update skills without verifying information
 - Add duplicate content already in skills
 - Create skills for one-off edge cases
@@ -172,20 +230,23 @@ Adjust skill depth based on PRD complexity:
 ✅ **DO:**
 
 - Research before updating
+- Improve skills for ALL FOUR agents
+- Always improve at least one PM skill
 - Verify patterns work in practice
 - Cross-reference multiple sources
 - Focus on reusable patterns
 
-## Checklist
+## Minimum Requirements Checklist
 
-During retrospective, check:
+During `skill_research` phase, verify:
 
-- [ ] Any knowledge gaps identified?
-- [ ] Any anti-patterns repeated?
-- [ ] Any new domain encountered?
-- [ ] MCP research completed?
-- [ ] Skill files updated?
-- [ ] Changes documented in action items?
+- [ ] At least ONE PM skill file updated (MANDATORY)
+- [ ] At least ONE Developer skill file updated
+- [ ] At least ONE QA skill file updated
+- [ ] At least ONE Game Designer skill file updated
+- [ ] Total: At least FOUR skill files improved
+- [ ] All improvements committed to git
+- [ ] Changes documented in action items
 
 ## Reference URLs for Research
 
@@ -212,4 +273,6 @@ During retrospective, check:
 ## Reference
 
 - [agents/pm/skills/retrospective.md](retrospective.md) — Retrospective process
+- [agents/pm/skills/prd-reorganization.md](prd-reorganization.md) — PRD reorganization
+- [agents/pm/skills/pm-self-improvement.md](pm-self-improvement.md) — PM self-improvement
 - [agents/pm/skills/scale-adaptive.md](scale-adaptive.md) — Scale-adaptive planning

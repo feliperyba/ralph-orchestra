@@ -111,6 +111,28 @@ if (Test-Path $pendingFile) {
             "regression_request" { # PM requests regression testing }
             "priority_response" { # PM answered your question }
             "retrospective_initiate" { # PM triggers retrospective }
+            "test_plan_request" { # PM requests test plan input for upcoming task
+                # Provide test cases, edge cases, validation approach
+                $contribution = @{
+                    taskId = $msg.payload.taskId
+                    testCases = @(
+                        # Test cases for each acceptance criterion
+                    )
+                    edgeCases = @(
+                        # Edge cases and boundary conditions
+                    )
+                    validationApproach = @{
+                        unit = @()      # Unit test approach
+                        integration = @() # Integration test approach
+                        e2e = @()        # E2E test scenarios
+                        manual = @()     # Manual testing areas
+                    }
+                    additionalConsiderations = @(
+                        # Browser compatibility, performance, security
+                    )
+                }
+                Send-AgentMessage -From "qa" -To "pm" -Type "test_plan_contribution" -Payload $contribution
+            }
             "design_answer" { # Game Designer answered design question }
             "answer" { # Response to your question }
         }

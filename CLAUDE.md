@@ -31,161 +31,28 @@
 
 ### Documentation
 
-| Document                                               | Purpose                           |
-| ------------------------------------------------------ | --------------------------------- |
-| [README.md](README.md)                                 | Full project documentation        |
-| [.claude/scripts/README.md](.claude/scripts/README.md) | Script reference                  |
-| [agents/\*/AGENT.md](agents/)                          | Per-agent behavior instructions   |
-| [agents/\*/skills/](agents/)                           | Modular skills (YAML frontmatter) |
-| [.claude/skills/](/.claude/skills/)                    | Orchestration skills & routers    |
+| Document | Purpose |
+|----------|---------|
+| [README.md](README.md) | Project overview and quick start |
+| [docs/getting-started.md](docs/getting-started.md) | Installation, prerequisites, first run |
+| [docs/orchestration-modes.md](docs/orchestration-modes.md) | All 4 orchestration modes explained |
+| [docs/architecture.md](docs/architecture.md) | System architecture, agent roles, message flow |
+| [docs/configuration.md](docs/configuration.md) | PRD format, agent settings, watchdog config |
+| [docs/extending.md](docs/extending.md) | Adding custom agents, skills, routing |
+| [docs/monitoring.md](docs/monitoring.md) | Dashboard, logs, troubleshooting |
+| [.claude/scripts/README.md](.claude/scripts/README.md) | Script reference |
+| [agents/\*/AGENT.md](agents/) | Per-agent behavior instructions |
+| [agents/\*/skills/](agents/) | Modular skills (YAML frontmatter) |
+| [.claude/skills/](.claude/skills/) | Orchestration skills & routers |
 
 ---
 
-## Project Overview
+## Agent Roles
 
-This is a Three.js game inspired by Bruno Simon's portfolio (folio-2025), adapted to use React Three Fiber with TypeScript and Vite.
-
-**Tech Stack:**
-
-- **Three.js** - 3D rendering engine
-- **React Three Fiber** (@react-three/fiber) - React renderer for Three.js
-- **@react-three/drei** - Helper components and abstractions
-- **@react-three/rapier** - Physics integration
-- **Colyseus.js** - Multiplayer SDK Framework
-- **TypeScript** - Type-safe development
-- **Vite** - Fast build tool and dev server
-- **Zustand** - State management
-- **Leva** - Debug GUI controls
-
-**Agent System (Modular Skills):**
-
-- **PM Agent** - [skills/](agents/pm/skills/) - Task selection, scale-adaptive planning, retrospectives, skill improvement
-- **Developer Agent** - [skills/](agents/developer/skills/) - R3F fundamentals, materials, physics, performance, feedback loops
-- **QA Agent** - [skills/](agents/qa/skills/) - Validation workflow, browser testing, bug reporting
-
-## Project Structure
-
-```
-src/
-├── components/      # React components
-│   ├── game/       # Game-specific components
-│   ├── shaders/    # Custom shader materials
-│   ├── effects/    # Post-processing effects
-│   └── utils/      # Utility components
-├── store/          # Zustand stores
-├── hooks/          # Custom React hooks
-├── utils/          # Utility functions
-└── styles/         # CSS styles
-```
-
-## Development Workflow
-
-### Start Development Server
-
-```bash
-npm run dev
-```
-
-Opens at `http://localhost:3000`
-
-### Build for Production
-
-```bash
-npm run build
-```
-
-### Run Tests
-
-```bash
-npm run test          # Unit tests with Vitest
-npm run test:e2e      # E2E tests with Playwright
-```
-
-### Lint and Format
-
-```bash
-npm run lint          # Check code quality
-npm run lint:fix      # Fix lint issues
-npm run format        # Format code with Prettier
-```
-
-## Key Architecture Patterns
-
-### Game Loop with useFrame
-
-Unlike vanilla Three.js with `requestAnimationFrame`, R3F uses the `useFrame` hook:
-
-```tsx
-import { useFrame } from '@react-three/fiber';
-
-function MyComponent() {
-  useFrame((state, delta) => {
-    // state.clock - elapsed time
-    // delta - time since last frame
-    // Runs at monitor refresh rate (typically 60Hz)
-  });
-}
-```
-
-### ECS System using Tick-Knock
-
-### State Management with Zustand
-
-```tsx
-import { useGameStore } from '@/store/gameStore';
-
-function MyComponent() {
-  const { phase, setPhase, playerPosition } = useGameStore();
-}
-```
-
-### Debug Controls with Leva
-
-```tsx
-import { useControls } from 'leva';
-
-const debug = useControls({
-  gravity: { value: -9.8, min: -20, max: 0 },
-  speed: { value: 5, min: 0, max: 20 },
-});
-```
-
-## Common Tasks
-
-### Adding a New Game Component
-
-1. Create component in `src/components/game/`
-2. Use `useFrame` for animation
-3. Use `useGameStore` for state access
-4. Add to `Experience.tsx`
-
-### Creating a Custom Shader
-
-1. Create GLSL file in `src/components/shaders/chunks/`
-2. Create shader component in `src/components/shaders/`
-3. Use `<shaderMaterial>` from R3F
-
-### Adding Physics
-
-1. Create physics body with `@react-three/rapier`
-2. Use `<Physics>` provider in scene
-3. Use `<RigidBody>` and collider components
-4. See [`agents/developer/skills/r3f-physics.md`](agents/developer/skills/r3f-physics.md) for patterns
-
-## Performance Guidelines
-
-- Use instancing for repeated objects (trees, grass)
-- Limit shadow map resolution
-- Use `dpr={[1, 2]}` for pixel ratio limiting
-- Enable `powerPreference: 'high-performance'` in Canvas
-- Use Suspense for async asset loading
-
-## Asset Optimization
-
-- **Models**: Use GLTF/GLB with Draco compression
-- **Textures**: Use WebP or basis universal
-- **Audio**: Use compressed formats (MP3/OGG)
-- Place all assets in `public/assets/`
+- **PM Agent** ([`agents/pm/AGENT.md`](agents/pm/AGENT.md)) - Coordinator that selects tasks, assigns work, runs retrospectives
+- **Developer Agent** ([`agents/developer/AGENT.md`](agents/developer/AGENT.md)) - Implements features with domain-specific skills
+- **QA Agent** ([`agents/qa/AGENT.md`](agents/qa/AGENT.md)) - Validates implementations with tests and browser checks
+- **Game Designer Agent** ([`agents/gamedesigner/AGENT.md`](agents/gamedesigner/AGENT.md)) - Creates GDDs, answers design questions, playtests
 
 ## MCP Server Configuration
 
@@ -194,6 +61,7 @@ Each agent has specific MCP servers configured:
 - **Developer Agent** - GitHub, filesystem, web-search, brave-search
 - **QA Agent** - Playwright, filesystem, GitHub
 - **PM Agent** - GitHub, web-search, filesystem
+- **Game Designer Agent** - GitHub, filesystem, web-search
 
 See [`.claude/settings.{agent}.json`](.claude/) for details.
 
@@ -393,45 +261,9 @@ All Ralph work follows production standards:
 
 ---
 
-## Troubleshooting
+## See Also
 
-### Scene not rendering
-
-- Check browser console for errors
-- Verify Canvas has dimensions
-- Check if Suspense boundary is needed
-
-### Performance issues
-
-- Enable Leva debug panel
-- Check FPS counter
-- Use Chrome DevTools Performance tab
-
-### TypeScript errors
-
-- Run `npm run type-check`
-- Check `tsconfig.json` paths are correct
-- Verify `three` types are installed
-
-## Resources
-
-### R3F & Three.js
-
-- [R3F Documentation](https://r3f.docs.pmnd.rs/)
-- [Drei Helpers](https://drei.docs.pmnd.rs/)
-- [Three.js Docs](https://threejs.org/docs/)
-- [Rapier Physics](https://rapier.rs/)
-
-### Agent Skills Reference
-
-- [R3F Fundamentals](agents/developer/skills/r3f-fundamentals.md)
-- [R3F Performance](agents/developer/skills/r3f-performance.md)
-- [R3F Physics](agents/developer/skills/r3f-physics.md)
-- [Validation Workflow](agents/qa/skills/validation-workflow.md)
-- [Scale-Adaptive Planning](agents/pm/skills/scale-adaptive.md)
-
-### Inspiration
-
-- [Bruno Simon's Portfolio](https://bruno-simon.com/)
-- [Three.js Journey](https://threejs-journey.com/)
-- [folio-2025 repository](https://github.com/brunosimon/folio-2025)
+- [README.md](README.md) - Full project documentation with orchestration modes
+- [docs/](docs/) - Detailed documentation on getting started, architecture, configuration, and more
+- [.claude/scripts/README.md](.claude/scripts/README.md) - Script reference and mode selection guide
+- [Claude CLI Documentation](https://docs.anthropic.com/en/docs/claude-cli)

@@ -121,7 +121,7 @@ function Send-AgentMessage {
             "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
             "gdd_ready", "gdd_update", "design_question", "design_answer",
             "playtest_request", "playtest_report", "mechanic_proposal", "design_guidance",
-            "design_guidance_request"
+            "design_guidance_request", "test_plan_request", "test_plan_contribution"
         )]
         [string]$Type,
         

@@ -62,9 +62,14 @@ if (Test-Path $pendingFile) {
                 } -Priority "high"
             }
             "playtest_request" {
-                # PM requests playtest validation
+                # PM requests playtest validation (during retrospective)
                 $report = Invoke-PlaytestViaPlaywright -TaskId $msg.payload.taskId
                 Send-AgentMessage -From "gamedesigner" -To "pm" -Type "playtest_report" -Payload $report
+            }
+            "test_plan_request" {
+                # PM requests test plan input for upcoming task
+                $contribution = Invoke-TestPlanContribution -TaskId $msg.payload.taskId -Title $msg.payload.title -Description $msg.payload.description -AcceptanceCriteria $msg.payload.acceptanceCriteria
+                Send-AgentMessage -From "gamedesigner" -To "pm" -Type "test_plan_contribution" -Payload $contribution
             }
             "retrospective_initiate" {
                 # PM triggers retrospective
@@ -274,7 +279,8 @@ This enables:
 | Type | From | Action |
 |------|------|--------|
 | `design_question` | pm/developer | Research and answer |
-| `playtest_request` | pm | Play game, validate vs GDD |
+| `playtest_request` | pm | Play game, validate vs GDD (during retrospective) |
+| `test_plan_request` | pm | Provide test plan input for upcoming task |
 | `retrospective_initiate` | pm | Contribute design perspective |
 | `gdd_feedback` | any | Review and update GDD |
 | `design_iteration` | self | Process and iterate |
