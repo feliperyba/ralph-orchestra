@@ -18,8 +18,7 @@ The following shared skills contain detailed instructions for all agents:
 
 | Skill | Purpose |
 |-------|---------|
-| [polling-protocol.md](polling-protocol.md) | Core polling rules, exit conditions |
-| [polling-loop.md](polling-loop.md) | Main loop architecture, restart detection |
+| [ralph-event-protocol.md](ralph-event-protocol.md) | Event-driven messaging protocol |
 | [context-management.md](context-management.md) | Context window auto-reset procedures |
 | [process-lifecycle.md](process-lifecycle.md) | Process lifecycle management, cleanup |
 | [file-permissions.md](file-permissions.md) | File read/write permissions |

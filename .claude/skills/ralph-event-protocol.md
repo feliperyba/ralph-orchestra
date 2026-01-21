@@ -136,6 +136,90 @@ This document defines the message-based communication protocol for event-driven 
 | `high`   | Needs attention            | Questions, bug reports                |
 | `urgent` | Immediate action           | Critical bugs, shutdown commands      |
 
+## Message Trigger Reference
+
+Quick reference of WHEN to send each message type:
+
+| Trigger | Message | From | To | Priority |
+|---------|---------|------|-----|----------|
+| **Lifecycle** |
+| Agent starts | `agent_ready` | agent | watchdog | low |
+| Agent changes status | `status_update` | agent | watchdog | low |
+| Agent crashes | `error` | watchdog | pm | urgent |
+| Session complete | `work_complete` | pm | watchdog | normal |
+| **Development Flow** |
+| Task assigned | (state file only) | pm | developer | — |
+| Developer starts work | `status_update:working` | developer | watchdog | low |
+| Developer finishes | `implementation_complete` | developer | qa | high |
+| QA starts validation | `status_update:working` | qa | watchdog | low |
+| QA validation passes | `task_complete` | qa | pm | normal |
+| QA validation fails | `bug_report` | qa | pm | high |
+| **Issues & Blocking** |
+| Needs clarification | `question` | any | pm | high |
+| Work blocked | `work_blocked` | worker | pm | urgent |
+| Giving up on task | `task_abandoned` | worker | pm | urgent |
+| Quality concern (non-blocking) | `quality_concern` | qa | pm | normal |
+| **Coordination** |
+| Retrospective ready | `retrospective_initiate` | pm | all | normal |
+| Skill improvement needed | `skill_request` | worker | pm | normal |
+| PM decision made | `answer` / `priority_response` | pm | requester | high |
+
+## State vs Message Coordination
+
+### When to Use State Files (coordinator-state.json)
+
+| Action | File | Reason |
+|--------|-----|-------|
+| Heartbeat updates | `coordinator-state.json` | Polling-based health check |
+| Task status changes | `coordinator-state.json` | Persistent state for recovery |
+| Completion tracking | `prd.json` | PRD task completion status |
+
+**State files are the source of truth** - they survive restarts and enable recovery.
+
+### When to Use Messages
+
+| Action | Message Type | Reason |
+|--------|--------------|-------|
+| Announce work complete | `implementation_complete` | Trigger QA to start |
+| Report blocker | `work_blocked` | Immediate PM attention |
+| Ask question | `question` | Asynchronous communication |
+| Session completion | `work_complete` | Signal watchdog to shutdown |
+
+**Messages are event notifications** - they trigger immediate action in other agents.
+
+### Key Principle
+
+**State files = Persistent truth** (survives restarts)
+**Messages = Event notifications** (triggers immediate action)
+
+Update BOTH when state changes:
+
+1. **Update coordinator-state.json** (persistent record)
+   ```powershell
+   $state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+   $state.agents.developer.status = "working"
+   $state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
+   ```
+
+2. **Send message** (notify other agents)
+   ```powershell
+   Send-AgentMessage -From "developer" -To "qa" -Type "implementation_complete" -Payload @{
+       taskId = "feat-001"
+       commit = "abc123"
+       summary = "Implemented feature"
+   } -Priority "high"
+   ```
+
+### Why Both Are Required
+
+| Scenario | State File Only | Message Only | Both |
+|----------|----------------|--------------|------|
+| Agent crash during work | ✅ Can recover | ❌ Lost notification | ✅ Best of both |
+| Real-time coordination | ❌ Requires polling | ✅ Immediate trigger | ✅ Best of both |
+| Session restart | ✅ State preserved | ❌ Messages deleted | ✅ Best of both |
+
+**Best Practice**: Always update state file AND send message when significant events occur.
+
 ## Workflow Patterns
 
 ### Task Completion Flow (with Retrospective)

@@ -212,25 +212,32 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 # Option 2: Sequential (Token-Efficient)
 .\.claude\scripts\ralph-single-session.ps1
 
-# Option 3: Manual Terminal Setup (Polling Mode)
+# Option 3: Manual Terminal Setup
+
+# Event-Driven Mode (parallel agents):
 # Terminal 1: PM Agent (Coordinator)
-/ralph-coordinator
+/ralph-coordinator-event
 
 # Terminal 2: Developer Agent (Worker)
-/ralph-worker --agent developer
+/ralph-worker-event --agent developer
 
 # Terminal 3: QA Agent (Worker)
-/ralph-worker --agent qa
+/ralph-worker-event --agent qa
+
+# OR Sequential Mode (token-efficient, one agent at a time):
+/ralph-coordinator-single
+/ralph-worker-single --agent developer
+/ralph-worker-single --agent qa
 ```
 
 ### Commands
 
 | Command                     | Purpose                                      |
 | --------------------------- | -------------------------------------------- |
-| `/ralph-coordinator`        | Start PM agent in polling mode               |
+| `/ralph-coordinator-event`  | Start PM agent in event-driven mode          |
 | `/ralph-coordinator-single` | Start PM agent in sequential mode            |
-| `/ralph-worker --agent X`   | Start worker agent (developer/qa) in polling |
-| `/ralph-worker-single`      | Start worker agent in sequential mode        |
+| `/ralph-worker-event --agent X` | Start worker agent (developer/qa) in event-driven |
+| `/ralph-worker-single --agent X` | Start worker agent (developer/qa) in sequential |
 | `/ralph-hitl`               | Single iteration mode for learning           |
 | `/cancel-ralph`             | Cancel active loop                           |
 

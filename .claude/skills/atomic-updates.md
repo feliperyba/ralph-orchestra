@@ -98,4 +98,3 @@ If it fails twice, log the conflict and continue polling.
 ## Reference
 
 - [file-permissions.md](file-permissions.md) — Who can write to what
-- [polling-loop.md](polling-loop.md) — Polling loop with state updates

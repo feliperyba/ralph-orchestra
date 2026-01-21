@@ -2,7 +2,7 @@
 name: worker-retrospective
 description: Retrospective contribution format for Developer and QA worker agents
 category: orchestration
-depends-on: [polling-loop]
+depends-on: [ralph-core]
 ---
 
 # Worker Retrospective Contributions
@@ -139,5 +139,5 @@ _**Contributed by**: QA Agent | {{ISO_TIMESTAMP}}_
 
 ## Reference
 
-- [polling-loop.md](polling-loop.md) — Main polling loop with retrospective detection
 - [ralph-core.md](ralph-core.md) — Session structure and state management
+- [ralph-event-protocol.md](ralph-event-protocol.md) — Event-driven messaging protocol

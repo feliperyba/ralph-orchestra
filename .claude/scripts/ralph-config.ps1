@@ -166,6 +166,18 @@ $Script:RalphConfig = @{
     # Consolidation mode (PM reviews pending messages on startup/restart)
     ConsolidationTimeoutSeconds = Get-EnvInt -Name "RALPH_CONSOLIDATION_TIMEOUT" -Default 300 -Min 60 -Max 900
 
+    # Timeout configuration (prevents watchdog freeze on slow I/O)
+    FileReadTimeoutMs              = Get-EnvInt -Name "RALPH_FILE_READ_TIMEOUT" -Default 500 -Min 100 -Max 5000
+    FileEnumTimeoutMs              = Get-EnvInt -Name "RALPH_FILE_ENUM_TIMEOUT" -Default 300 -Min 100 -Max 5000
+
+    # RESILIENCE: Circuit breaker configuration
+    CircuitBreakerEnabled          = Get-EnvString -Name "RALPH_CIRCUIT_BREAKER_ENABLED" -Default "true"
+    CircuitBreakerMaxFailures      = Get-EnvInt -Name "RALPH_CIRCUIT_BREAKER_MAX_FAILURES" -Default 3 -Min 1 -Max 10
+    CircuitBreakerCooldownSeconds   = Get-EnvInt -Name "RALPH_CIRCUIT_BREAKER_COOLDOWN" -Default 60 -Min 10 -Max 600
+
+    # Message processing timeout (prevents watchdog freeze on large queues)
+    MessageProcessingTimeoutMs      = Get-EnvInt -Name "RALPH_MESSAGE_PROCESSING_TIMEOUT" -Default 300 -Min 100 -Max 5000
+
     # Auxiliary script cleanup (for session scripts created by agents)
     TempScriptMaxAgeHours = Get-EnvInt -Name "RALPH_TEMP_SCRIPT_MAX_AGE_HOURS" -Default 1 -Min 1 -Max 24
 }
@@ -297,19 +309,19 @@ function Get-RalphPaths {
 $Script:AgentConfig = @{
     "pm" = @{
         Type = "coordinator"
-        Command = "/ralph-coordinator"
+        Command = "/ralph-coordinator-event"
         DisplayName = "PM (Coordinator)"
         Color = "Magenta"
     }
     "developer" = @{
         Type = "worker"
-        Command = "/ralph-worker --agent developer"
+        Command = "/ralph-worker-event --agent developer"
         DisplayName = "Developer"
         Color = "Cyan"
     }
     "qa" = @{
         Type = "worker"
-        Command = "/ralph-worker --agent qa"
+        Command = "/ralph-worker-event --agent qa"
         DisplayName = "QA"
         Color = "Yellow"
     }

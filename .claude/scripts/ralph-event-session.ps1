@@ -53,9 +53,9 @@ Write-Host ""
 $cleanSession = $true
 if (Test-Path (Join-Path $sessionDir "coordinator-state.json")) {
     Write-Host "Existing session found." -ForegroundColor Yellow
-    $response = Read-Host "Clear old session data? (y/n, default: y)"
-    if ($response -eq "n") {
-        $cleanSession = $false
+    $response = Read-Host "Clear old session data? (y/n, default: n)"
+    if ($response -eq "y") {
+        $cleanSession = $true
     }
 }
 

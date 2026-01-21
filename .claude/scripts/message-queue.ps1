@@ -3,6 +3,16 @@
 # All messages go through this queue, watchdog routes them
 
 # ============================================================================
+# DEPENDENCIES
+# ============================================================================
+
+# Source safe-file-io module for timeout-protected file I/O
+$safeIoModule = Join-Path $PSScriptRoot "safe-file-io.ps1"
+if (Test-Path $safeIoModule) {
+    . $safeIoModule
+}
+
+# ============================================================================
 # MESSAGE TYPES
 # ============================================================================
 # task_assign        - PM assigns task to Developer
@@ -101,7 +111,8 @@ function Send-AgentMessage {
             "task_assign", "validation_request", "bug_report", "task_complete",
             "question", "answer", "research_update", "regression_request",
             "prd_update", "status_update", "priority_review", "agent_ready",
-            "work_complete", "error", "shutdown"
+            "work_complete", "error", "shutdown",
+            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern"
         )]
         [string]$Type,
         
@@ -155,61 +166,93 @@ function Send-AgentMessage {
 function Get-PendingMessages {
     <#
     .SYNOPSIS
-    Get all pending messages for an agent
-    
+    Get all pending messages for an agent with timeout protection.
+
     .PARAMETER Agent
     Agent name to get messages for
-    
+
     .PARAMETER Type
     Optional filter by message type
-    
+
     .PARAMETER Priority
     Optional filter by priority (returns this and higher)
+
+    .PARAMETER TimeoutMs
+    Maximum time to spend processing messages (default: 300ms).
+    After timeout, returns whatever messages were processed.
     #>
     param(
         [Parameter(Mandatory=$true)]
         [ValidateSet("pm", "developer", "qa", "watchdog")]
         [string]$Agent,
-        
+
         [string]$Type = $null,
-        
+
         [ValidateSet("low", "normal", "high", "urgent")]
-        [string]$MinPriority = "low"
+        [string]$MinPriority = "low",
+
+        [int]$TimeoutMs = 300
     )
-    
+
     if (-not $Script:MessageQueueDir) {
         throw "Message queue not initialized."
     }
-    
+
     $inbox = Join-Path $Script:MessageQueueDir $Agent
     if (-not (Test-Path $inbox)) { return @() }
-    
+
+    # RESILIENCE FIX: Use timeout-protected file enumeration if available
+    # This prevents watchdog freeze when message directories are large
+    # FIXED: Use Get-Command to check if function exists (Test-Path function: is unreliable)
+    if (Get-Command Get-ChildItemWithTimeout -ErrorAction SilentlyContinue) {
+        $allFiles = Get-ChildItemWithTimeout -Path $inbox -Filter "*.json" -TimeoutMs 2000 -DefaultValue @()
+    } else {
+        $allFiles = Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue
+    }
+
+    # Start timeout stopwatch
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
     # Migration: cleanup any orphaned .tmp files from failed atomic writes
-    Get-ChildItem -Path $inbox -Filter "*.json.tmp" -ErrorAction SilentlyContinue | ForEach-Object {
-        $age = ([DateTime]::UtcNow - $_.LastWriteTimeUtc).TotalSeconds
-        if ($age -gt 30) {
-            # Stale temp file - remove it
-            Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+    # Only do this occasionally (every 10th call) to reduce overhead
+    if ($Agent -eq "pm" -or (Get-Random -Maximum 10) -eq 0) {
+        $allFiles | Where-Object { $_.Name -match '\.tmp$' } | ForEach-Object {
+            $age = ([DateTime]::UtcNow - $_.LastWriteTimeUtc).TotalSeconds
+            if ($age -gt 30) {
+                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+            }
         }
     }
-    
+
     $priorityOrder = @{ "low" = 0; "normal" = 1; "high" = 2; "urgent" = 3 }
     $minPriorityValue = $priorityOrder[$MinPriority]
-    
+
     $messages = @()
     $corruptFiles = @()
-    
-    Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue | ForEach-Object {
+
+    # Process files with timeout protection
+    foreach ($fileInfo in $allFiles) {
+        # TIMEOUT CHECK: Abort if we've exceeded our time budget
+        if ($stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
+            # Return what we have rather than blocking watchdog
+            break
+        }
+
         # Skip temp files (shouldn't match *.json but be safe)
-        if ($_.Name -match '\.tmp$') { return }
-        
+        if ($fileInfo.Name -match '\.tmp$') { continue }
+
         try {
-            # Read with retry for race condition safety
+            # Read with retry for race condition safety - but with timeout check
             $retries = 3
             $content = $null
             for ($i = 0; $i -lt $retries; $i++) {
+                # Check timeout inside retry loop too
+                if ($stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
+                    break
+                }
+
                 try {
-                    $rawContent = Get-Content $_.FullName -Raw -ErrorAction Stop
+                    $rawContent = Get-Content $fileInfo.FullName -Raw -ErrorAction Stop
                     if ([string]::IsNullOrWhiteSpace($rawContent)) {
                         # File may be in middle of write - wait and retry
                         Start-Sleep -Milliseconds 50
@@ -221,49 +264,56 @@ function Get-PendingMessages {
                     if ($i -lt $retries - 1) { Start-Sleep -Milliseconds 50 }
                 }
             }
-            
+
             if (-not $content) {
-                $corruptFiles += $_.FullName
-                return
+                $corruptFiles += $fileInfo.FullName
+                continue
             }
-            
+
             # Filter by status
-            if ($content.status -ne "pending") { return }
-            
+            if ($content.status -ne "pending") { continue }
+
             # Filter by type if specified
-            if ($Type -and $content.type -ne $Type) { return }
-            
+            if ($Type -and $content.type -ne $Type) { continue }
+
             # Filter by priority
             $msgPriority = $priorityOrder[$content.priority]
-            if ($msgPriority -lt $minPriorityValue) { return }
-            
+            if ($msgPriority -lt $minPriorityValue) { continue }
+
             # Add file path for acknowledgment
-            $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $_.FullName -Force
-            
+            $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $fileInfo.FullName -Force
+
             $messages += $content
         } catch {
-            $corruptFiles += $_.FullName
+            $corruptFiles += $fileInfo.FullName
         }
     }
-    
-    # Move corrupt files to quarantine for debugging
+
+    $stopwatch.Stop()
+
+    # Move corrupt files to quarantine for debugging (async to not block)
     if ($corruptFiles.Count -gt 0) {
         $quarantine = Join-Path $Script:MessageQueueDir "quarantine"
         if (-not (Test-Path $quarantine)) {
             New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
         }
-        foreach ($file in $corruptFiles) {
-            $dest = Join-Path $quarantine (Split-Path $file -Leaf)
-            Move-Item -Path $file -Destination $dest -Force -ErrorAction SilentlyContinue
-        }
+
+        # Use async job for quarantine to avoid blocking
+        Start-Job -ScriptBlock {
+            param($files, $quarantine)
+            foreach ($file in $files) {
+                $dest = Join-Path $quarantine (Split-Path $file -Leaf)
+                Move-Item -Path $file -Destination $dest -Force -ErrorAction SilentlyContinue
+            }
+        } -ArgumentList $corruptFiles, $quarantine -ErrorAction SilentlyContinue | Out-Null
     }
-    
+
     # Sort by priority (highest first), then by timestamp (oldest first)
     $messages = $messages | Sort-Object -Property @(
         @{ Expression = { $priorityOrder[$_.priority] }; Descending = $true },
         @{ Expression = { $_.timestamp }; Descending = $false }
     )
-    
+
     return $messages
 }
 
@@ -424,23 +474,32 @@ function Invoke-AcknowledgeMessage {
 function Get-MessageCount {
     <#
     .SYNOPSIS
-    Get count of pending messages per agent
+    Get count of pending messages per agent with timeout protection.
     #>
     param()
-    
+
     if (-not $Script:MessageQueueDir) { return @{} }
-    
+
     $counts = @{}
-    
+    $useTimeoutProtection = Get-Command Get-FileCountWithTimeout -ErrorAction SilentlyContinue
+
     foreach ($agent in @("pm", "developer", "qa", "watchdog")) {
         $inbox = Join-Path $Script:MessageQueueDir $agent
-        if (Test-Path $inbox) {
-            $counts[$agent] = (Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue | Measure-Object).Count
-        } else {
+
+        if (-not (Test-Path $inbox)) {
             $counts[$agent] = 0
+            continue
+        }
+
+        # Use timeout-protected enumeration if available (prevents watchdog freeze)
+        if ($useTimeoutProtection) {
+            $counts[$agent] = Get-FileCountWithTimeout -Path $inbox -Filter "*.json" -TimeoutMs 2000 -DefaultValue 0
+        } else {
+            # Fallback to synchronous count
+            $counts[$agent] = (Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue | Measure-Object).Count
         }
     }
-    
+
     return $counts
 }
 
@@ -611,23 +670,215 @@ function Send-StatusUpdate {
     param(
         [Parameter(Mandatory=$true)]
         [string]$From,
-        
+
         [Parameter(Mandatory=$true)]
         [ValidateSet("idle", "working", "waiting", "error", "completed")]
         [string]$Status,
-        
+
         [string]$CurrentTask = $null,
-        
+
         [string]$Details = ""
     )
-    
+
     $payload = @{
         status = $Status
         currentTask = $CurrentTask
         details = $Details
     }
-    
+
     return Send-AgentMessage -From $From -To "watchdog" -Type "status_update" -Payload $payload -Priority "low"
+}
+
+# ============================================================================
+# NEW MESSAGE TYPES - Event-Driven Coordination
+# ============================================================================
+
+function Send-ImplementationComplete {
+    <#
+    .SYNOPSIS
+    Developer sends this to QA when implementation is complete and ready for validation.
+
+    .PARAMETER TaskId
+    The PRD task ID
+
+    .PARAMETER Commit
+    The git commit hash of the implementation
+
+    .PARAMETER Summary
+    Brief summary of changes
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Commit,
+
+        [string]$Summary = ""
+    )
+
+    $payload = @{
+        taskId = $TaskId
+        commit = $Commit
+        summary = $Summary
+    }
+
+    return Send-AgentMessage -From "developer" -To "qa" -Type "implementation_complete" -Payload $payload -Priority "high"
+}
+
+function Send-WorkBlocked {
+    <#
+    .SYNOPSIS
+    Send when work cannot proceed due to blocker.
+
+    .PARAMETER TaskId
+    The PRD task ID
+
+    .PARAMETER Blocker
+    Description of what's blocking progress
+
+    .PARAMETER Details
+    Additional context about the blocker
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Blocker,
+
+        [string]$Details = ""
+    )
+
+    $payload = @{
+        taskId = $TaskId
+        blocker = $Blocker
+        details = $Details
+        timestamp = [DateTime]::UtcNow.ToString("o")
+    }
+
+    return Send-AgentMessage -From "developer" -To "pm" -Type "work_blocked" -Payload $payload -Priority "urgent"
+}
+
+function Send-TaskAbandoned {
+    <#
+    .SYNOPSIS
+    Send when giving up on a task after multiple attempts.
+
+    .PARAMETER TaskId
+    The PRD task ID
+
+    .PARAMETER Reason
+    Why the task is being abandoned
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Reason
+    )
+
+    $payload = @{
+        taskId = $TaskId
+        reason = $Reason
+    }
+
+    return Send-AgentMessage -From "developer" -To "pm" -Type "task_abandoned" -Payload $payload -Priority "urgent"
+}
+
+function Send-QualityConcern {
+    <#
+    .SYNOPSIS
+    QA sends this to PM for non-blocking quality concerns.
+
+    .PARAMETER TaskId
+    The PRD task ID
+
+    .PARAMETER Concern
+    Description of the quality concern
+
+    .PARAMETER Severity
+    Severity level (low, medium, high)
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Concern,
+
+        [ValidateSet("low", "medium", "high")]
+        [string]$Severity = "medium"
+    )
+
+    $payload = @{
+        taskId = $TaskId
+        concern = $Concern
+        severity = $Severity
+    }
+
+    return Send-AgentMessage -From "qa" -To "pm" -Type "quality_concern" -Payload $payload -Priority "normal"
+}
+
+function Get-AgentMessages {
+    <#
+    .SYNOPSIS
+    Alias for Get-PendingMessages for clarity in agent code.
+
+    .PARAMETER Agent
+    Agent name to get messages for
+
+    .PARAMETER Type
+    Optional filter by message type
+
+    .PARAMETER MinPriority
+    Minimum priority to return
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pm", "developer", "qa", "watchdog")]
+        [string]$Agent,
+
+        [string]$Type = $null,
+
+        [ValidateSet("low", "normal", "high", "urgent")]
+        [string]$MinPriority = "low"
+    )
+
+    return Get-PendingMessages -Agent $Agent -Type $Type -MinPriority $MinPriority
+}
+
+function Remove-AgentMessage {
+    <#
+    .SYNOPSIS
+    Delete a processed message from agent's inbox.
+
+    .PARAMETER Agent
+    The agent whose inbox contains the message
+
+    .PARAMETER MessageId
+    The message ID to delete
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pm", "developer", "qa", "watchdog")]
+        [string]$Agent,
+
+        [Parameter(Mandatory=$true)]
+        [string]$MessageId
+    )
+
+    if (-not $Script:MessageQueueDir) {
+        throw "Message queue not initialized."
+    }
+
+    $inbox = Join-Path $Script:MessageQueueDir $Agent
+    $filePath = Join-Path $inbox "$MessageId.json"
+
+    if (Test-Path $filePath) {
+        Remove-Item $filePath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ============================================================================
@@ -925,32 +1176,34 @@ function Set-ConsolidationMode {
 
     $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:ConsolidationModeFile -Encoding UTF8
 
-    # AUTOMATIC PERSISTENCE: Also save to persistent state location for context reset recovery
-    # This ensures consolidation mode survives PM agent context resets
-    try {
-        $sessionDir = Split-Path $Script:ConsolidationModeFile -Parent
-        $persistentStateDir = Join-Path $sessionDir "persistent-state"
-        if (-not (Test-Path $persistentStateDir)) {
-            New-Item -ItemType Directory -Path $persistentStateDir -Force | Out-Null
-        }
-        $persistentFile = Join-Path $persistentStateDir "consolidation-mode.json"
-        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $persistentFile -Encoding UTF8
-    } catch {
-        # Log but don't fail - main file was written successfully
-    }
+    # REMOVED: Persistent-state save functionality
+    # Consolidation mode now only lives in memory. If watchdog crashes,
+    # the stale state cleanup in watchdog-event.ps1 will clear the mode
+    # and PM will re-consolidate on next startup.
+    # This prevents getting stuck in consolidation mode from crashed sessions.
 }
 
 function Get-ConsolidationMode {
     <#
     .SYNOPSIS
-    Get the current consolidation mode state.
+    Get the current consolidation mode state with timeout protection.
 
     .RETURNS
     The consolidation mode object, or $null if file doesn't exist.
     #>
     param()
 
-    if (-not $Script:ConsolidationModeFile -or -not (Test-Path $Script:ConsolidationModeFile)) {
+    if (-not $Script:ConsolidationModeFile) {
+        return $null
+    }
+
+    # Use timeout-protected read if available (prevents watchdog freeze)
+    if (Get-Command Get-FileContentAsJsonWithTimeout -ErrorAction SilentlyContinue) {
+        return Get-FileContentAsJsonWithTimeout -Path $Script:ConsolidationModeFile -TimeoutMs 500 -DefaultValue $null
+    }
+
+    # Fallback to synchronous read
+    if (-not (Test-Path $Script:ConsolidationModeFile)) {
         return $null
     }
 

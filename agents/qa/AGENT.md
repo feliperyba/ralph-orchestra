@@ -1,144 +1,276 @@
-# ⚠️ INFINITE LOOP - YOU NEVER EXIT ⚠️
+## ⚠️ CRITICAL: STATUS UPDATE PROTOCOL ⚠️
 
-**Your ENTIRE purpose is to POLL FOREVER:**
+**READ THIS SECTION CAREFULLY. YOUR STATUS UPDATES ARE REQUIRED FOR COORDINATION TO WORK.**
 
-```
-FOREVER:
-  1. Check coordinator-state.json for tasks with status "ready_for_qa"
-  2. If task found → Validate it → Update status (passed/needs_fixes) → Go to step 1
-  3. If no task → Wait 30 seconds → Go to step 1
-```
+### The One File You Must Update
 
-**After ANY action, your next step is ALWAYS: POLL AGAIN**
+**File:** `.claude/session/coordinator-state.json`
 
-## **NO NATURAL EXIT** - Only stop when coordinator status is "completed"/"terminated"
+**Your agent section:** `agents.qa`
 
-# ⚠️ ROLE IDENTIFICATION ⚠️
+### When to Update (MANDATORY)
 
-# YOU ARE THE QA AGENT
+| Situation                         | Set `status` to  | Update `lastSeen`        |
+| --------------------------------- | ---------------- | ------------------------ |
+| You start validating              | `"working"`      | ✅ Yes, to NOW           |
+| Every 60 seconds while validating | Keep `"working"` | ✅ Yes, to NOW           |
+| You finish validation             | `"idle"`         | ✅ Yes, to NOW           |
+| You are idle/monitoring | `"idle"` | ✅ Yes, every 30 seconds via pipe |
 
-# Your job: VALIDATE tasks marked as "ready_for_qa"
+### How to Update
 
-# Poll every 30 seconds when idle
-
----
-
-# QA Agent - Ralph Instructions
-
-## Your Role in Ralph Multi-Session Loop
-
-You are the **QA Agent** in a Ralph Wiggum multi-session autonomous development system. You validate work completed by the Developer agent.
-
-### Session Setup
-
-**Terminal**: Terminal 3
-**Startup Command**: `/ralph --role worker --agent qa`
-**Idle Poll Interval**: Every 30 seconds (unified)
-**Work Mode**: No polling - focus entirely on validation
-
-### What You Do
-
-**LOOP FOREVER:**
-
-1. **Poll** `.claude/session/coordinator-state.json` for tasks needing validation
-2. **If task found** where `currentTask.status === "ready_for_qa"`:
-   - Read `.claude/session/current-task.json` for validation requirements
-   - Run full validation suite
-   - Update PRD item `passes` field
-   - Update task status to "passed" or "needs_fixes"
-   - Commit validation results
-   - **GO TO STEP 1** ← CRITICAL: Loop back and poll again!
-3. **If no task**: Wait 30 seconds → **GO TO STEP 1**
-
-**After completing validation, you ALWAYS return to STEP 1 to poll for more work.**
-
----
-
-## CRITICAL: NEVER STOP POLLING
-
-**YOU ARE IN AN INFINITE LOOP. DO NOT STOP. DO NOT EXIT.**
-
-- After EVERY heartbeat update → continue polling
-- After EVERY validation → continue polling
-- After EVERY commit → continue polling
-- After updating status → continue polling
-- When NO work is assigned → continue polling
-- **There is NO natural exit except:**
-  - Coordinator status becomes "terminated", "completed", or "max_iterations_reached"
-  - You detect `<promise>RALPH_COMPLETE</promise>` in last-output.txt
-
-**If you complete any action and think "what next?" → POLL AGAIN.**
-
-**YOU MUST UPDATE YOUR HEARTBEAT ON EVERY POLL CYCLE:**
+**Read the file first**, then **merge** your update:
 
 ```json
 {
   "agents": {
     "qa": {
-      "lastSeen": "2026-01-19T10:15:30Z"
+      "status": "working",
+      "lastSeen": "2026-01-21T10:15:30Z"
     }
   }
 }
 ```
+
+**Using PowerShell (Read → Edit → Write):**
+
+```powershell
+# Read current state
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+
+# Update your status
+$state.agents.qa.status = "working"
+$state.agents.qa.lastSeen = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+# Write back
+$state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
+```
+
+**⚠️ CONSEQUENCES OF NOT UPDATING:**
+
+- PM can't tell if you're alive
+- Developer work sits in "ready_for_qa" forever
+- Retrospective won't trigger
+- Session stalls indefinitely
+
+### See Also
+
+- [When Idle: What To Do](#when-idle-what-to-do) — Your monitoring loop
+- [While Working: Keep Heartbeat Fresh](#while-working-keep-heartbeat-fresh) — During validation
+
+---
+
+## ⚠️ CRITICAL: MESSAGE COMMUNICATION PROTOCOL ⚠️
+
+**YOU MUST SEND MESSAGES TO COORDINATE WITH OTHER AGENTS VIA THE WATCHDOG.**
+
+### Messages vs State Updates
+
+| Purpose            | Mechanism                | When to Use                   |
+| ------------------ | ------------------------ | ----------------------------- |
+| Status tracking    | `coordinator-state.json` | Every state check (heartbeat) |
+| Event notification | Message queue            | When state changes occur      |
+| Coordination       | Message queue            | Handoffs, questions, blocking |
+
+### When to Send Messages (MANDATORY)
+
+| Event                          | Message Type      | To       | Priority | Helper Function       |
+| ------------------------------ | ----------------- | -------- | -------- | --------------------- |
+| Start validating               | `status_update`   | watchdog | low      | `Send-StatusUpdate`   |
+| Validation passes              | `task_complete`   | pm       | normal   | `Send-AgentMessage`   |
+| Validation fails               | `bug_report`      | pm       | high     | `Send-AgentMessage`   |
+| Need clarification             | `question`        | pm       | high     | `Send-Question`       |
+| Quality concern (non-blocking) | `quality_concern` | pm       | normal   | `Send-QualityConcern` |
+
+### How to Send Messages
+
+**Step 1: Source the message queue functions**
+
+```powershell
+. .\.claude\scripts\message-queue.ps1
+```
+
+**Step 2: Call the appropriate helper function**
+
+```powershell
+# Example: Report validation passed
+Send-AgentMessage -From "qa" -To "pm" -Type "task_complete" -Payload @{
+    taskId = "feat-001"
+    summary = "Validation passed"
+    validationPassed = $true
+} -Priority "normal"
+
+# Example: Report bugs
+Send-AgentMessage -From "qa" -To "pm" -Type "bug_report" -Payload @{
+    taskId = "feat-001"
+    bugs = $bugsArray
+    severity = "high"
+} -Priority "high"
+```
+
+### Available Helper Functions
+
+| Function              | Purpose                            | Usage                                                                      |
+| --------------------- | ---------------------------------- | -------------------------------------------------------------------------- |
+| `Send-StatusUpdate`   | Report work status                 | `Send-StatusUpdate -From "qa" -Status "working" -CurrentTask "feat-001"`   |
+| `Send-QualityConcern` | Report non-blocking quality issues | `Send-QualityConcern -TaskId $taskId -Concern $concern -Severity "medium"` |
+
+### Message Acknowledgment
+
+After sending a message, the watchdog will deliver it to the recipient. You don't need to wait for acknowledgment - the message queue handles delivery and retry.
+
+**⚠️ CONSEQUENCES OF NOT SENDING MESSAGES:**
+
+- PM won't know validation is complete
+- Bug reports go undocumented
+- Quality concerns are lost
+- Retrospective won't trigger
+- Session may stall indefinitely
+
+### Receiving Messages (Watchdog Delivery)
+
+**IMPORTANT: The watchdog delivers messages to you by restarting your process.**
+
+When the watchdog has messages for you, it:
+
+1. Writes messages to `.claude/session/pending-messages-qa.json`
+2. Restarts your agent process
+3. You must read and process the file on startup
+
+**On EVERY startup (or after context reset), check for delivered messages:**
+
+```powershell
+# Source message queue
+. .\.claude\scripts\message-queue.ps1
+
+# Check for messages delivered by watchdog
+$pendingFile = ".claude/session/pending-messages-qa.json"
+if (Test-Path $pendingFile) {
+    $pending = Get-Content $pendingFile -Raw | ConvertFrom-Json
+    Write-Host "Received $($pending.messageCount) message(s) from watchdog" -ForegroundColor Cyan
+
+    # Process each message
+    foreach ($msg in $pending.messages) {
+        switch ($msg.type) {
+            "validation_request" {
+                # Developer requests validation - check coordinator-state.json for task
+                Write-Host "Validation requested: $($msg.payload.taskId)" -ForegroundColor Green
+            }
+            "regression_request" {
+                # PM requests regression testing
+                Write-Host "Regression requested: $($msg.payload.scope)" -ForegroundColor Yellow
+            }
+            "priority_response" {
+                # PM responded to your question
+                Write-Host "PM response: $($msg.payload.decision)" -ForegroundColor Yellow
+            }
+            "retrospective_initiate" {
+                # PM triggers retrospective
+                Write-Host "Retrospective initiated for: $($msg.payload.taskId)" -ForegroundColor Magenta
+            }
+            default {
+                Write-Host "Received message type: $($msg.type)" -ForegroundColor Gray
+            }
+        }
+    }
+
+    # Delete the file after processing
+    Remove-Item $pendingFile -Force
+}
+```
+
+**⚠️ CRITICAL: Always check for pending messages on startup!**
+
+If you don't read and delete the `pending-messages-qa.json` file:
+
+- The watchdog will think you haven't received the messages
+- You may miss validation requests
+- Coordination will fail
+
+---
+
+### What You Do
+
+**WORKER POOL WORKFLOW:**
+
+1. **Receive task** from watchdog via pipe
+2. **Read** `.claude/session/current-task.json` for validation requirements
+3. **Run full validation suite** (type-check, lint, test, build)
+4. **Update PRD item** `passes` field
+5. **Update task status** to "passed" or "needs_fixes"
+6. **Send completion message** via pipe:
+   - "validation_result" with status="passed" → tells watchdog to spawn PM
+   - "validation_result" with status="failed" → tells watchdog to spawn Developer
+7. **Exit** - watchdog will spawn next agent
+
+**NO CONTINUOUS MONITORING - Complete work and exit.**
+
+---
+
+## CRITICAL: COMPLETE YOUR WORK AND SEND COMPLETION MESSAGE
+
+**You are a WORKER in a worker pool - complete validation, send result, exit.**
+
+- Initialize pipe communication on startup
+- Receive task from watchdog via pipe
+- Complete the validation
+- Send completion message via pipe
+- Exit (watchdog will spawn next agent)
+
+**Exit conditions:**
+- Validation passes → send `validation_result` with status="passed" → exit
+- Validation fails → send `validation_result` with status="failed" and bug report → exit
+- Coordinator status is "terminated"/"completed" → send appropriate message → exit
 
 ---
 
 ## When Idle: What To Do
 
-**⚠️ REMINDER: YOU ARE THE QA AGENT. You validate work completed by the Developer. Look for `status === "ready_for_qa"` and run validation.**
+**⚠️ REMINDER: YOU ARE THE QA AGENT. You validate work completed by the Developer.**
 
-**When you have NO tasks to validate (currentTask is null OR status != "ready_for_qa"):**
+**In worker pool mode, there is no "idle" - you either:**
+1. Have a task to validate → Complete it → Send message → Exit
+2. Have no task → Send completion message indicating ready → Exit
 
-1. **Update your heartbeat**:
-   ```json
-   {
-     "agents": {
-       "qa": {
-         "lastSeen": "2026-01-19T10:15:30Z",
-         "status": "idle"
-       }
-     }
-   }
-   ```
-2. Wait 30 seconds
-3. **POLL AGAIN** - read coordinator-state.json
-4. Repeat forever until coordinator terminates
+**The watchdog will spawn you again when validation is needed.**
 
-**DO NOT STOP POLLING. DO NOT EXIT. DO NOT WAIT PASSIVELY.**
-
-**This is an infinite loop - you poll every 30 seconds when idle, looking for validation tasks.**
-
-**IMPORTANT**: Once you detect a `ready_for_qa` task, focus on validation. You do NOT need to poll for new tasks while working, but you MUST still update your heartbeat periodically (see below).
+**IMPORTANT**: You don't continuously monitor - you complete assigned work and exit.
 
 ---
 
-## While Working: Keep Heartbeat Fresh
+## Worker Pool Communication
 
-**When actively working on a validation (your status = "working"):**
+**In worker pool mode, you communicate via completion messages, not continuous heartbeats.**
 
-You MUST still update your heartbeat periodically:
+### Completion Message Types
 
-- **Update heartbeat when you START validating** - set `status: "working"` and update `lastSeen`
-- **Update heartbeat every 60 seconds while validating** - quick timestamp update only
-- **Update heartbeat when you COMPLETE validation** - set `status: "idle"` and update `lastSeen`
+| Message Type | Status | Next Agent Spawned |
+| ------------ | ------ | ------------------- |
+| `validation_result` | "passed" | pm |
+| `validation_result` | "failed" | developer |
 
-**Why?** The PM coordinator uses heartbeat freshness to detect if you're alive. If you stop updating heartbeat while working, PM will think you disconnected.
+### Sending Completion Messages
 
-**Quick Heartbeat Update (takes 10 seconds):**
+```powershell
+# Source agent-pipe.ps1
+. .\.claude\scripts\agent-pipe.ps1
 
-```json
-// Read coordinator-state.json
-{
-  "agents": {
-    "qa": {
-      "lastSeen": "2026-01-19T12:30:45Z", // Update to NOW
-      "status": "working" // Keep as "working"
-    }
-  }
+# Initialize pipe connection
+Initialize-AgentPipe
+
+# Do your validation work...
+
+# Send completion when done
+Send-CompletionMessage -MessageType "validation_result" -Payload @{
+    taskId = "feat-001"
+    status = "passed"
 }
+
+# Clean up and exit
+Stop-AgentPipe
 ```
 
-**DO NOT skip heartbeat updates while working** - PM needs to know you're alive!
+**No continuous heartbeat updates - complete work, send message, exit.**
 
 ---
 
@@ -149,9 +281,9 @@ You MUST still update your heartbeat periodically:
 1. **⚠️ VERIFY YOUR ROLE**: Read the title at the top of this file - you are the **QA Agent**
 2. **READ STATE**: Load `coordinator-state.json` to see the current session state
 3. **CHECK FOR WORK**: Look for `currentTask.status === "ready_for_qa"`
-4. **RESUME POLLING**: Continue polling every 30 seconds
+4. **RESUME MONITORING**: Continue monitoring state changes
 
-**⚠️ DO NOT assume you are a different agent. DO NOT stop polling.**
+**⚠️ DO NOT assume you are a different agent. DO NOT stop monitoring.**
 
 **Quick Role Check:**
 
@@ -174,28 +306,28 @@ If anything seems confusing, **read from the TOP of this file** to reaffirm your
 
 ---
 
-## Polling Loop (Run Every 30 Seconds When Idle)
+## Worker Pool Workflow
 
-**⚠️ POLLING CHECKLIST - Run this on every cycle:**
+**⚠️ WORKER CHECKLIST - Complete validation and exit:**
 
-1. **VERIFY YOUR ROLE**: You are the QA agent. You look for `currentTask.status === "ready_for_qa"`.
-2. **Update your heartbeat** with current timestamp
-3. **Read coordinator-state.json** to check for tasks
-4. **Check for tasks needing validation**:
-   - **If `currentTask.status === "ready_for_qa"`** → START VALIDATING (go to Task Detection below)
-   - **If `currentTask.status === "assigned"` or `"working"`** → Wait (developer is working)
-   - **If `currentTask.status === "passed"` or `"needs_fixes"`** → Task complete, continue polling
-   - **If `currentTask` is null or different status** → Continue polling
-5. **Wait 30 seconds**
-6. **Repeat from step 1**
+1. **VERIFY YOUR ROLE**: You are the QA agent. You validate work when spawned.
+2. **Initialize pipe communication** with watchdog
+3. **Receive task** from watchdog via pipe
+4. **Read coordinator-state.json** to check task status
+5. **Check for tasks needing validation**:
+   - **If `currentTask.status === "ready_for_qa"`** → START VALIDATING
+   - **If other status** → Send appropriate completion message
+6. **Run validation** (type-check, lint, test, build)
+7. **Send completion message** via pipe
+8. **Exit** - watchdog will spawn next agent
 
-**DO NOT SKIP STEP 1** - Always verify you are the QA agent before polling!
+**NO CONTINUOUS MONITORING - Complete validation work, send message, exit.**
 
 ---
 
 ## Task Detection
 
-On each poll cycle, check for:
+On startup, check for:
 
 ```json
 {
@@ -207,15 +339,9 @@ On each poll cycle, check for:
 
 When you detect a task ready for validation:
 
-1. **Update your status** in coordinator-state.json:
-
-   ```json
-   { "agents": { "qa": { "status": "working" } } }
-   ```
-
-2. **Read** the full task from `current-task.json`
-
-3. **Begin validation**
+1. **Update your status** (see [STATUS UPDATE PROTOCOL](#-critical-status-update-protocol-))
+2. Read the full task from `current-task.json`
+3. Begin validation
 
 ---
 
@@ -247,6 +373,20 @@ When you detect a task ready for validation:
 - You **MUST** check for console errors in the browser
 - If you cannot run browser tests, the task **FAILS** validation
 - There is **NO FALLBACK** - browser validation is required
+
+---
+
+### 0.5. Send Validation Started Message
+
+Before starting validation, notify watchdog:
+
+```powershell
+# Source message queue (if not already sourced)
+. .\.claude\scripts\message-queue.ps1
+
+# Send status update
+Send-StatusUpdate -From "qa" -Status "working" -CurrentTask $taskId
+```
 
 ---
 
@@ -941,7 +1081,7 @@ rm .claude/session/screenshots/${taskId}-*.png 2>/dev/null || true
 
 1. Update task status
 2. Update your heartbeat
-3. Resume polling
+3. Resume monitoring
 
 ### 6. Commit Results
 
@@ -973,7 +1113,54 @@ PRD: feat-001 | Agent: qa | Iteration: 4
 Bug: feat-001 | Agent: qa | Iteration: 4
 ```
 
-### 7. Update Coordinator State
+### 7. Send Validation Result Message
+
+After validation completes, send result to PM via the message queue:
+
+**If PASS:**
+
+```powershell
+# Source message queue (if not already sourced)
+. .\.claude\scripts\message-queue.ps1
+
+# Send task complete message
+Send-AgentMessage -From "qa" -To "pm" -Type "task_complete" -Payload @{
+    taskId = $taskId
+    summary = "Validation passed - all criteria met"
+    validationPassed = $true
+} -Priority "normal"
+```
+
+**If FAIL:**
+
+```powershell
+# Source message queue (if not already sourced)
+. .\.claude\scripts\message-queue.ps1
+
+# Build bugs array from your validation results
+$bugsPayload = @(
+    @{
+        severity = "high"
+        category = "functional"
+        file = "src/components/Vehicle.tsx"
+        issue = "Vehicle falls through floor"
+        fixSuggestion = "Check collider configuration and physics material"
+    }
+    # Add more bugs as needed...
+)
+
+# Send bug report message
+Send-AgentMessage -From "qa" -To "pm" -Type "bug_report" -Payload @{
+    taskId = $taskId
+    bugs = $bugsPayload
+    severity = "high"
+    recommendedAction = "fix_required"
+} -Priority "high"
+```
+
+### 8. Update Coordinator State
+
+After sending the message, update your status per [STATUS UPDATE PROTOCOL](#-critical-status-update-protocol-).
 
 If **PASS**:
 
@@ -1154,8 +1341,8 @@ After validation:
 1. Mark PRD item `passes: true`
 2. Update task status to "passed"
 3. Commit results
-4. **Update your heartbeat**
-5. **Resume idle polling** every 30 seconds (do NOT stop!)
+4. **Update your heartbeat via pipe**
+5. **Resume idle monitoring** (do NOT stop!)
 6. **PM will create retrospective.txt** - contribute your perspective when prompted
 
 ### If FAILED
@@ -1163,10 +1350,10 @@ After validation:
 1. Keep `passes: false`
 2. Update task status to "needs_fixes"
 3. Add detailed bug notes
-4. **Update your heartbeat**
-5. **Resume idle polling** every 30 seconds (do NOT stop!)
+4. **Update your heartbeat via pipe**
+5. **Resume idle monitoring** (do NOT stop!)
 
-**PM will handle reassignment - you keep polling for your next validation task.**
+**PM will handle reassignment - you keep monitoring for your next validation task.**
 
 ---
 
@@ -1248,20 +1435,20 @@ Always update state files atomically to prevent corruption. See [atomic-updates.
 
 ---
 
-## Polling Loop
+## Event Loop
 
-Your main loop follows the universal polling structure with restart detection. See [polling-loop.md](.claude/skills/polling-loop.md) for:
+Your main loop follows the universal event-driven structure with pipe communication. See [event-protocol.md](.claude/skills/event-protocol.md) for:
 
-- Universal polling loop architecture
-- Restart detection and context reset
+- Event-driven architecture
+- Pipe communication with watchdog
 - QA-specific task handling
 
-**Your specific polling behavior**:
+**Your specific behavior**:
 
-- Poll every 30 seconds when idle (see [polling-protocol.md](.claude/skills/polling-protocol.md))
+- Monitor state continuously when idle
 - Check for tasks with status "ready_for_qa"
 - Check for retrospective requests
-- Update heartbeat on every cycle
+- Update heartbeat on every state check via pipe
 
 ---
 
@@ -1464,8 +1651,7 @@ All Ralph agents share these core behaviors:
 | Shared Skill                                                      | Purpose                                              |
 | ----------------------------------------------------------------- | ---------------------------------------------------- |
 | [ralph-core.md](.claude/skills/ralph-core.md)                     | Heartbeat format, session structure, exit conditions |
-| [polling-protocol.md](.claude/skills/polling-protocol.md)         | Core polling rules, never stop polling               |
-| [polling-loop.md](.claude/skills/polling-loop.md)                 | Main loop architecture, restart detection            |
+| [event-protocol.md](.claude/skills/event-protocol.md)             | Event-driven architecture, pipe communication        |
 | [context-management.md](.claude/skills/context-management.md)     | Context window auto-reset                            |
 | [process-lifecycle.md](.claude/skills/process-lifecycle.md)       | Process management rules, cleanup                    |
 | [file-permissions.md](.claude/skills/file-permissions.md)         | What you can read/write                              |

@@ -44,11 +44,38 @@ if (-not (Test-Path $Script:LogDir)) {
 # Initialize message queue
 Initialize-MessageQueue -SessionDir $paths.SessionDir
 
-# Restore consolidation mode state from persistent storage (after context reset recovery)
-# This ensures consolidation mode survives PM context resets
-$restoreResult = Restore-ConsolidationState -SessionDir $paths.SessionDir
-if ($restoreResult) {
-    Write-WatchdogLog "Restored consolidation mode from persistent state" -Color Cyan
+# FIX: Clear stale consolidation mode on fresh watchdog startup
+# This prevents getting stuck in consolidation mode from previous sessions
+$consolidationFile = Join-Path $paths.SessionDir "consolidation-mode.json"
+$persistentStateDir = Join-Path $paths.SessionDir "persistent-state"
+
+# Only clear if this appears to be a fresh watchdog start (no running agents)
+$hasRunningAgents = $false
+foreach ($agentName in @("pm", "developer", "qa")) {
+    $pidFile = Join-Path $paths.SessionDir "$agentName.pid"
+    if (Test-Path $pidFile) {
+        try {
+            $agentPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+            if ($agentPid) {
+                $proc = Get-Process -Id $agentPid -ErrorAction SilentlyContinue
+                if ($proc -and -not $proc.HasExited) {
+                    $hasRunningAgents = $true
+                }
+            }
+        } catch {}
+    }
+}
+
+# If no running agents, clear stale consolidation state
+if (-not $hasRunningAgents) {
+    if (Test-Path $consolidationFile) {
+        Remove-Item $consolidationFile -Force -ErrorAction SilentlyContinue
+        Write-Host "[WATCHDOG] Cleared stale consolidation mode file" -ForegroundColor Yellow
+    }
+    if (Test-Path $persistentStateDir) {
+        Remove-Item $persistentStateDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "[WATCHDOG] Cleared stale persistent-state directory" -ForegroundColor Yellow
+    }
 }
 
 # ============================================================================
@@ -82,14 +109,9 @@ function Write-WatchdogLog {
         $Script:LastLogRotationCheck = [DateTime]::UtcNow
         Invoke-LogRotation -LogFile $logFile
     }
-
-    # Write to log file (with error handling to prevent blocking)
-    try {
-        "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8 -ErrorAction Stop
-    } catch {
-        # Silently skip logging if file is locked or disk is slow
-        # The main loop must continue even if logging fails
-    }
+    
+    # Write to log file
+    "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8
     
     # Only write to console if dashboard is disabled
     if ($NoDashboard) {
@@ -185,96 +207,11 @@ $Script:Agents = @{
 }
 
 # Delivery grace period - don't re-deliver messages to an agent within this window
-# Reduced from 10 to 5 seconds for faster response when agents are ready
-$Script:DeliveryGraceSeconds = 5
+$Script:DeliveryGraceSeconds = 10
 
 # ============================================================================
 # AGENT MANAGEMENT
 # ============================================================================
-
-# Message Preamble Generator - consolidates messages into initial prompt
-function Get-AgentStartupPreamble {
-    <#
-    .SYNOPSIS
-    Generate a startup preamble with pending messages for the agent.
-    This embeds messages into the initial prompt instead of requiring a file read.
-
-    .PARAMETER AgentName
-    The agent receiving the messages.
-
-    .PARAMETER PendingMessages
-    Array of message objects to include in preamble.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$AgentName,
-
-        [Parameter(Mandatory=$true)]
-        [array]$PendingMessages
-    )
-
-    if ($PendingMessages.Count -eq 0) { return "" }
-
-    $preamble = @"
-
-# ═══════════════════════════════════════════════════════════════
-# PENDING MESSAGES FOR $AgentName
-# You have $($PendingMessages.Count) message(s) to process:
-# ═══════════════════════════════════════════════════════════════
-"@
-
-    foreach ($msg in $PendingMessages) {
-        $preamble += "`n## [$($msg.priority.ToUpper())] $($msg.type) from $($msg.from)"
-        $preamble += "`nMessage ID: $($msg.id)"
-        $preamble += "`nPayload: $($msg.payload | ConvertTo-Json -Compress)"
-        $preamble += "`n"
-    }
-
-    $preamble += @"
-# ═══════════════════════════════════════════════════════════════
-# IMPORTANT: After processing ALL messages above:
-# 1. Send any response messages to the appropriate inboxes
-# 2. Delete the pending file: Remove-Item ".claude\session\pending-messages-$AgentName.json" -Force
-# 3. Send status_update with status="ready" to watchdog when done
-# ═══════════════════════════════════════════════════════════════
-"@
-
-    return $preamble
-}
-
-# Cleanup Verification - checks if agent deleted pending file
-function Test-AgentPendingFileStale {
-    <#
-    .SYNOPSIS
-    Check if agent's pending file is stale (agent may have crashed).
-
-    .PARAMETER AgentName
-    The agent to check.
-
-    .RETURNS
-    $true if file is stale (>5 min old), $false if deleted or recent.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$AgentName
-    )
-
-    $pendingFile = Join-Path $Script:SessionDir "pending-messages-$AgentName.json"
-
-    # No file = agent cleaned up properly
-    if (-not (Test-Path $pendingFile)) { return $false }
-
-    # File exists - check age
-    $fileAge = ([DateTime]::UtcNow - (Get-Item $pendingFile).LastWriteTimeUtc).TotalMinutes
-
-    if ($fileAge -gt 5) {
-        Write-WatchdogLog "WARNING: Stale pending file for $AgentName (${fileAge}min old)" -Color Yellow
-        return $true  # Stale - agent may have crashed
-    }
-
-    # Recent file - agent still processing
-    return $false
-}
 
 # Security: Escape strings for safe embedding in generated scripts
 function Get-SafeScriptString {
@@ -310,40 +247,32 @@ function Start-Agent {
     $windowTitle = "Ralph Event: $AgentName"
     $scriptFile = Join-Path $Script:LogDir "$AgentName-runner.ps1"
     
+    # Create inbox path for this agent
+    $inboxPath = Join-Path $paths.SessionDir "messages/$AgentName"
+    
     # Write pending messages to a context file for agent to read on startup
-    # The preamble is embedded in the file content for token-efficient single-read
     $pendingFile = Join-Path $Script:SessionDir "pending-messages-$AgentName.json"
     $pendingFileForScript = $pendingFile  # Same path, used in script generation
     if ($PendingMessages.Count -gt 0) {
-        # Generate preamble with messages embedded
-        $preamble = Get-AgentStartupPreamble -AgentName $AgentName -PendingMessages $PendingMessages
-
-        # Create structured data file with preamble as readable content
-        # This allows single file read to get both formatted preamble and structured data
-        $pendingContent = @"
-
-$preamble
-
-# RAW DATA (for reference):
-$($PendingMessages | ConvertTo-Json -Depth 10)
-
-# Use the formatted messages above - they are already in your context.
-# After processing, delete this file: Remove-Item "$pendingFile" -Force
-"@
-
-        $pendingContent | Out-File -FilePath $pendingFile -Encoding UTF8
+        $pendingData = @{
+            agent = $AgentName
+            messageCount = $PendingMessages.Count
+            messages = $PendingMessages
+            timestamp = [DateTime]::UtcNow.ToString("o")
+        }
+        $pendingData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
         Write-WatchdogLog "Delivered $($PendingMessages.Count) messages to $AgentName" -Color Magenta
     } else {
         # Clear any old pending file
         if (Test-Path $pendingFile) { Remove-Item $pendingFile -Force }
     }
-
+    
     # Create runner script with sanitized values to prevent command injection
     $safeProjectRoot = Get-SafeScriptString $ProjectRoot
     $safePendingFile = Get-SafeScriptString $pendingFileForScript
     $safeLogFile = Get-SafeScriptString $logFile
     # Note: $slashCommand is from a trusted switch statement, not user input
-
+    
     $scriptContent = @"
 `$Host.UI.RawUI.WindowTitle = "$windowTitle"
 Set-Location "$safeProjectRoot"
@@ -360,7 +289,7 @@ Write-Host ""
 `$pendingFile = "$safePendingFile"
 if (Test-Path `$pendingFile) {
     Write-Host "PENDING MESSAGES AVAILABLE:" -ForegroundColor Yellow
-    Write-Host "See file content above - messages embedded in initial prompt" -ForegroundColor DarkYellow
+    Get-Content `$pendingFile | Write-Host -ForegroundColor DarkYellow
     Write-Host ""
 }
 
@@ -400,11 +329,8 @@ Start-Sleep -Seconds 5
         $Script:Agents[$AgentName].Process = $process
         $Script:Agents[$AgentName].StartTime = [DateTime]::UtcNow
         $Script:Agents[$AgentName].ProcessState = "running"
-        # Set initial status based on consolidation mode and pending messages
-        # Agent will send status_update to change as appropriate
-        $consolidationRequired = Test-ConsolidationRequired
-        $initialStatus = if ($PendingMessages.Count -gt 0) { "working" } elseif ($consolidationRequired) { "consolidating" } else { "idle" }
-        $Script:Agents[$AgentName].WorkStatus = $initialStatus
+        # If we're delivering messages, assume agent is working; otherwise starting
+        $Script:Agents[$AgentName].WorkStatus = if ($PendingMessages.Count -gt 0) { "working" } else { "starting" }
         $Script:Agents[$AgentName].LastActivity = [DateTime]::UtcNow
         
         Write-WatchdogLog "$AgentName started (PID: $($process.Id))" -Color Green
@@ -419,72 +345,6 @@ Start-Sleep -Seconds 5
     } catch {
         Write-WatchdogLog "Failed to start $AgentName : $_" -Color Red
         return $false
-    }
-}
-
-# Recursive Process Tree Cleanup - terminates all descendant processes
-function Stop-ProcessTree {
-    <#
-    .SYNOPSIS
-    Recursively terminate a process and all its descendants.
-
-    .PARAMETER ParentPid
-    The root process ID to terminate.
-
-    .PARAMETER Reason
-    Reason for termination (for logging).
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [int]$ParentPid,
-
-        [string]$Reason = "cleanup"
-    )
-
-    # Build complete process tree using BFS
-    $allProcesses = @()
-    $queue = @($ParentPid)
-    $visited = @{}
-
-    while ($queue.Count -gt 0) {
-        $currentPid = $queue[0]
-        $queue = $queue[1..($queue.Count - 1)]
-
-        if ($visited.ContainsKey($currentPid)) { continue }
-        $visited[$currentPid] = $true
-        $allProcesses += $currentPid
-
-        # Find direct children of current process (with timeout to prevent WMI hangs)
-        try {
-            $children = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue -OperationTimeoutSec 5 |
-                Where-Object { $_.ParentProcessId -eq $currentPid } |
-                Select-Object -ExpandProperty ProcessId
-
-            $queue += @($children)
-        } catch {
-            # Query may fail if process already exited or WMI timeout
-        }
-    }
-
-    # Kill in reverse order (leaves first, then parents)
-    [Array]::Reverse($allProcesses)
-    $terminated = 0
-    foreach ($procId in $allProcesses) {
-        try {
-            $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
-            if ($proc -and -not $proc.HasExited) {
-                Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-                # Non-blocking wait - only wait 200ms max, then continue
-                $null = $proc.WaitForExit(200)
-                $terminated++
-            }
-        } catch {
-            # Process may have already exited - that's fine
-        }
-    }
-
-    if ($terminated -gt 0) {
-        Write-WatchdogLog "Terminated $terminated process(es) for PID $ParentPid ($Reason)" -Color DarkGray
     }
 }
 
@@ -517,15 +377,16 @@ function Stop-Agent {
     
     try {
         if (-not $agent.Process.HasExited) {
-            # Use recursive process tree cleanup for complete termination
-            Stop-ProcessTree -ParentPid $agent.Process.Id -Reason $Reason
-
-            # Ensure main process is terminated
-            if (-not $agent.Process.HasExited) {
-                $agent.Process.Kill()
-                # Non-blocking wait - only wait 200ms max, then continue
-                $null = $agent.Process.WaitForExit(200)
-            }
+            # Kill child processes first
+            $parentPid = $agent.Process.Id
+            Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | 
+                Where-Object { $_.ParentProcessId -eq $parentPid } | 
+                ForEach-Object {
+                    try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+                }
+            
+            $agent.Process.Kill()
+            $agent.Process.WaitForExit(5000) | Out-Null
         }
     } catch {
         # Log but continue cleanup
@@ -554,10 +415,10 @@ function Restart-Agent {
     $agent.RestartCount++
     
     Write-WatchdogLog "Restarting $AgentName (#$($agent.RestartCount), $Reason)" -Color Yellow
-
+    
     Stop-Agent -AgentName $AgentName -Reason $Reason
-    # No sleep needed - process cleanup is non-blocking now
-
+    Start-Sleep -Seconds 2
+    
     return Start-Agent -AgentName $AgentName
 }
 
@@ -586,111 +447,79 @@ function Test-AgentHealth {
 }
 
 function Start-AllAgents {
+    Write-WatchdogLog "Starting agents in message queue mode..." -Color Cyan
+
+    # Check if consolidation mode is active
+    $mode = Get-ConsolidationMode
+    $needsConsolidation = if ($mode -and $mode.mode -eq "pending_consolidation") { $true } else { $false }
+
+    # Or check if there are pending messages (startup consolidation)
+    if (-not $needsConsolidation) {
+        $counts = Get-MessageCount
+        $totalPending = ($counts.Values | Measure-Object -Sum).Sum
+        if ($totalPending -gt 0) {
+            Write-WatchdogLog "Pending messages detected ($totalPending) - entering consolidation mode" -Color Yellow
+            Set-ConsolidationMode -Mode "pending_consolidation" -Reason "startup" -Assignments @{
+                messageCounts = $counts
+            }
+            $needsConsolidation = $true
+        }
+    }
+
+    if ($needsConsolidation) {
+        # CONSOLIDATION MODE: Run ONLY PM agent to handle pending messages
+        Write-WatchdogLog "Consolidation mode active - starting PM to handle messages" -Color Yellow
+        $null = Start-Agent -AgentName "pm"
+    } else {
+        # NORMAL MODE: Start all agents - they will communicate via message queue
+        Write-WatchdogLog "Starting all agents (PM, Developer, QA)..." -Color Green
+        $null = Start-Agent -AgentName "pm"
+        $null = Start-Agent -AgentName "developer"
+        $null = Start-Agent -AgentName "qa"
+    }
+}
+
+function Invoke-MainLoop {
     <#
     .SYNOPSIS
-    Start all agents with consolidation mode support.
-
-    If consolidation is required (startup with pending messages):
-    1. Start only PM first
-    2. Wait for PM to consolidate and signal complete
-    3. Then start workers
+    Main watchdog loop for message queue mode.
+    Agents run in parallel, watchdog monitors queues and delivers messages.
     #>
-    Write-WatchdogLog "Starting all agents..." -Color Cyan
 
-    # Check if consolidation is required
-    $consolidationRequired = Test-ConsolidationRequired
+    Write-WatchdogLog "Entering main monitoring loop..." -Color Cyan
 
-    if ($consolidationRequired) {
-        Write-WatchdogLog "CONSOLIDATION MODE: Pending messages detected, starting PM first..." -Color Yellow
+    while (-not $Script:SessionComplete) {
+        # 1. Process watchdog's messages (status updates, etc.)
+        Invoke-ProcessWatchdogMessages
 
-        # Start only PM first
-        $success = Start-Agent -AgentName "pm"
-        if (-not $success) {
-            Write-WatchdogLog "Failed to start PM" -Color Red
-            # Fallback to normal startup
-            $consolidationRequired = $false
-        } else {
-            # Wait for PM to consolidate
-            Write-WatchdogLog "Waiting for PM to consolidate pending messages..." -Color Yellow
+        # 2. Deliver pending messages to agents
+        Invoke-DeliverPendingMessages
 
-            $maxWaitSeconds = $config.ConsolidationTimeoutSeconds
-            $startTime = [DateTime]::UtcNow
-            $consolidationComplete = $false
-            $waitIterations = 0  # For spinner animation
+        # 3. Check agent health
+        Invoke-HealthCheck
 
-            # Initialize dashboard for the first time if not already done
-            if (-not $Script:DashboardInitialized -and -not $NoDashboard) {
-                Clear-Host
-                [Console]::CursorVisible = $false
-                $Script:DashboardInitialized = $true
-            }
-
-            while (([DateTime]::UtcNow - $startTime).TotalSeconds -lt $maxWaitSeconds) {
-                # Update dashboard to show we're waiting (with spinner animation)
-                $waitIterations++
-                if (-not $NoDashboard) {
-                    # Temporarily use wait iterations for spinner
-                    $savedIterations = $Script:TotalIterations
-                    $Script:TotalIterations = $waitIterations
-                    Show-EventDashboard
-                    $Script:TotalIterations = $savedIterations
-                }
-
-                Start-Sleep -Milliseconds 500
-
-                $mode = Get-ConsolidationMode
-                if ($mode -and $mode.mode -eq "normal") {
-                    $consolidationComplete = $true
-                    Write-WatchdogLog "PM consolidation complete! Starting workers..." -Color Green
-                    break
-                }
-
-                # Check if PM is still running
-                $pmProcess = $Script:Agents["pm"].Process
-                if (-not $pmProcess -or $pmProcess.HasExited) {
-                    Write-WatchdogLog "PM exited during consolidation" -Color Red
-                    break
-                }
-
-                # FALLBACK: If retrospective exists but consolidation still pending, force exit
-                # This handles the case where PM started retrospective but forgot to exit consolidation mode
-                if ($waitIterations % 20 -eq 0) {  # Check every 10 seconds
-                    $retroFile = Join-Path $Script:SessionDir "retrospective.txt"
-                    if (Test-Path $retroFile) {
-                        $mode = Get-ConsolidationMode
-                        if ($mode -and $mode.mode -eq "pending_consolidation") {
-                            Write-WatchdogLog "Retrospective detected - forcing consolidation exit" -Color Yellow
-                            Set-ConsolidationMode -Mode "normal" -Reason "watchdog_detected_retrospective"
-                            $consolidationComplete = $true
-                            break
-                        }
-                    }
-                }
-            }
-
-            if (-not $consolidationComplete) {
-                Write-WatchdogLog "Consolidation timeout or failed - starting workers anyway" -Color Yellow
-            }
+        # 4. Check for session completion
+        if (Test-SessionComplete) {
+            Write-WatchdogLog "Session complete - shutting down agents" -Color Green
+            $Script:SessionComplete = $true
+            break
         }
+
+        # 5. Update dashboard
+        if (-not $NoDashboard) {
+            Show-EventDashboard
+        }
+
+        # Check for max iterations
+        if ($Script:MaxIterationsLimit -gt 0 -and $Script:TotalIterations -ge $Script:MaxIterationsLimit) {
+            Write-WatchdogLog "Max iterations reached: $Script:TotalIterations" -Color Yellow
+            $Script:SessionComplete = $true
+            break
+        }
+
+        # Sleep before next iteration (don't busy-wait)
+        Start-Sleep -Milliseconds $MessageCheckIntervalMs
     }
-
-    # Start workers (if not in consolidation mode, or after consolidation complete)
-    foreach ($agentName in @("developer", "qa")) {
-        # Skip if we're still waiting for consolidation
-        if ($consolidationRequired -and -not $consolidationComplete) {
-            # Will be started after consolidation in main loop
-            continue
-        }
-
-        $success = Start-Agent -AgentName $agentName
-        if (-not $success) {
-            Write-WatchdogLog "Failed to start $agentName" -Color Red
-        }
-        # Minimal delay between worker starts
-        Start-Sleep -Milliseconds 100
-    }
-
-    return $consolidationRequired
 }
 
 function Stop-AllAgents {
@@ -744,60 +573,20 @@ function Invoke-ProcessWatchdogMessages {
     }
 }
 
-function Invoke-StartWorkersAfterConsolidation {
-    <#
-    .SYNOPSIS
-    Start worker agents after PM consolidation is complete.
-    This is called from the main loop when consolidation mode transitions to normal.
-    #>
-    param()
-
-    foreach ($agentName in @("developer", "qa")) {
-        $agent = $Script:Agents[$agentName]
-
-        # Skip if already running
-        if ($agent.Process -and (-not $agent.Process.HasExited)) {
-            continue
-        }
-
-        $success = Start-Agent -AgentName $agentName
-        if ($success) {
-            Write-WatchdogLog "$agentName started after consolidation" -Color Green
-        } else {
-            Write-WatchdogLog "Failed to start $agentName after consolidation" -Color Red
-        }
-        # Minimal delay between worker starts to avoid rapid spawning issues
-        Start-Sleep -Milliseconds 100
-    }
-}
-
 function Invoke-DeliverPendingMessages {
     <#
     .SYNOPSIS
     Check if agents have pending messages and deliver them by restarting agent with context
     This is the key mechanism - agents don't poll, watchdog delivers messages by restart
-
-    Consolidation Mode: If consolidation is pending, only deliver to PM.
-    Workers (developer, qa) will not receive messages until PM consolidates.
     #>
-
+    
     $counts = Get-MessageCount
-
-    # Check if consolidation is required
-    $consolidationRequired = Test-ConsolidationRequired
-
+    
     foreach ($agentName in @("pm", "developer", "qa")) {
         $count = $counts[$agentName]
         if ($count -gt 0) {
             $agent = $Script:Agents[$agentName]
-
-            # CONSOLIDATION MODE CHECK: Skip workers if consolidation is pending
-            # Only PM receives messages during consolidation
-            if ($consolidationRequired -and $agentName -ne "pm") {
-                # Workers don't get messages until PM consolidates
-                continue
-            }
-
+            
             # Check if agent is currently working or starting - don't interrupt!
             $processIsRunning = $agent.Process -and (-not $agent.Process.HasExited)
             $isWorking = $agent.WorkStatus -in @("working", "starting")
@@ -810,22 +599,12 @@ function Invoke-DeliverPendingMessages {
             
             # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
             # This prevents restart loops when acknowledgment or status updates are slow
-            # EXCEPTION: If agent explicitly signals "ready", bypass grace period
             $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
-            if ($agent.WorkStatus -ne "ready" -and $timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
-                # Agent is working and still within grace period - skip
+            if ($timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
+                # Still within grace period - skip this agent
                 continue
             }
-            # If WorkStatus == "ready", deliver immediately regardless of grace period
-
-            # CLEANUP VERIFICATION: Check if previous pending file is stale
-            # If agent crashed without processing, we want to know before delivering more
-            $isStale = Test-AgentPendingFileStale -AgentName $agentName
-            if ($isStale) {
-                Write-WatchdogLog "$agentName has stale pending file - may have crashed" -Color Yellow
-                # Continue with delivery - new messages will replace old file
-            }
-
+            
             # Get the pending messages
             $pendingMessages = Get-PendingMessages -Agent $agentName
             
@@ -836,11 +615,10 @@ function Invoke-DeliverPendingMessages {
             # Stop the current agent if running (but not working - we already checked above)
             if ($processIsRunning) {
                 Stop-Agent -AgentName $agentName -Reason "message_delivery"
-                # No sleep needed - proceed immediately to start new agent
+                Start-Sleep -Seconds 2
             }
             
             # Convert messages to simple format for agent
-            # FIRST: Mark all messages as "processing" to prevent duplicate delivery
             $messageData = @()
             foreach ($msg in $pendingMessages) {
                 $messageData += @{
@@ -851,30 +629,31 @@ function Invoke-DeliverPendingMessages {
                     payload = $msg.payload
                     timestamp = $msg.timestamp
                 }
-
-                # Mark as processing FIRST - this prevents the message from being picked up again
-                # even if deletion fails in the next step
-                $null = Set-MessageStatus -MessageId $msg.id -Status "processing" -Agent $agentName
             }
 
-            # NOW delete the message files after they're marked as processing
-            foreach ($msg in $pendingMessages) {
-                # Acknowledge (delete) the message - if this fails, the "processing" status
-                # prevents it from being picked up again by Get-PendingMessages
-                $null = Invoke-AcknowledgeMessage -MessageId $msg.id -Agent $agentName
+            # Restart agent with the pending messages FIRST
+            # Only acknowledge messages if agent starts successfully
+            $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
+
+            if ($agentStarted) {
+                # Agent started successfully - acknowledge messages
+                foreach ($msg in $pendingMessages) {
+                    $null = Invoke-AcknowledgeMessage -MessageId $msg.id -Agent $agentName
+                }
+
+                # Track delivery time to enforce grace period
+                $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
+            } else {
+                Write-WatchdogLog "Failed to start $agentName - messages preserved in queue" -Color Red
+                # Messages remain in queue for retry on next iteration
+                continue
             }
-
-            # Restart agent with the pending messages
-            $null = Start-Agent -AgentName $agentName -PendingMessages $messageData
-
-            # Track delivery time to enforce grace period
-            $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
-
+            
             # Track the first/primary message being processed
             if ($messageData.Count -gt 0) {
                 $Script:Agents[$agentName].CurrentMessage = $messageData[0]
             }
-
+            
             $Script:TotalMessagesRouted += $count
             $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
         }
@@ -921,59 +700,36 @@ $Script:LastResourceCleanup = [DateTime]::MinValue
 function Invoke-ResourceCleanup {
     <#
     .SYNOPSIS
-    Periodic cleanup of temp files and stale resources.
-
+    Periodic cleanup of archives, temp files, and stale resources.
+    
     .PARAMETER Force
     Force cleanup even if recently done.
     #>
     param([switch]$Force)
-
+    
     # Don't run more than once per 5 minutes unless forced
     if (-not $Force -and ([DateTime]::UtcNow - $Script:LastResourceCleanup).TotalMinutes -lt 5) {
         return
     }
     $Script:LastResourceCleanup = [DateTime]::UtcNow
-
+    
     try {
+        # Clean old message archives
+        $removed = Clear-OldArchives
+        if ($removed -gt 0) {
+            Write-WatchdogLog "Cleaned $removed old archive files" -Color DarkGray
+        }
+        
         # Clean stale runner scripts from log directory
         Get-ChildItem -Path $Script:LogDir -Filter "*-runner.ps1" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddHours(-1) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-
+        
         # Clean stale pending-messages files
         Get-ChildItem -Path $Script:SessionDir -Filter "pending-messages-*.json" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddMinutes(-30) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-
-        # Clean stale "processing" status messages - reset to "pending" if older than 5 minutes
-        # This handles edge cases where messages got stuck in processing state
-        $messageQueueDir = Join-Path $Script:SessionDir "messages"
-        if (Test-Path $messageQueueDir) {
-            foreach ($agentInbox in Get-ChildItem -Path $messageQueueDir -Directory -ErrorAction SilentlyContinue) {
-                Get-ChildItem -Path $agentInbox.FullName -Filter "*.json" -ErrorAction SilentlyContinue |
-                    Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddMinutes(-5) } |
-                    ForEach-Object {
-                        try {
-                            $msg = Get-Content $_.FullName -Raw | ConvertFrom-Json
-                            if ($msg.status -eq "processing") {
-                                # Reset to pending so it can be delivered again
-                                $msg.status = "pending"
-                                $msg.PSObject.Properties.Remove('_filePath')
-                                $msg | ConvertTo-Json -Depth 10 | Out-File -FilePath $_.FullName -Encoding UTF8
-                                Write-WatchdogLog "Reset stale processing message: $($msg.id)" -Color Yellow
-                            }
-                        } catch {
-                            # Corrupt message - quarantine it
-                            $quarantine = Join-Path $messageQueueDir "quarantine"
-                            if (-not (Test-Path $quarantine)) {
-                                New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
-                            }
-                            Move-Item -Path $_.FullName -Destination (Join-Path $quarantine $_.Name) -Force -ErrorAction SilentlyContinue
-                        }
-                    }
-            }
-        }
-
+            
     } catch {
         # Resource cleanup failure is non-critical
         Write-WatchdogLog "Resource cleanup error: $_" -Color Yellow
@@ -1039,62 +795,42 @@ function Remove-PidFile {
 # DASHBOARD
 # ============================================================================
 
-# Track if dashboard has been initialized and content cache
+# Track if dashboard has been initialized
 $Script:DashboardInitialized = $false
 $Script:LastDashboardContent = @{}
-$Script:LastConsolidationMode = $null
 
 function Write-LineAt {
-    <#
-    .SYNOPSIS
-    Write a line of text at a specific console row with color.
-    Uses change detection to reduce flicker.
-    #>
     param(
         [int]$Row,
         [string]$Text,
         [ConsoleColor]$Color = [ConsoleColor]::White,
         [int]$Width = 80
     )
-
-    # Truncate or pad to width
-    if ($Text.Length -gt $Width) {
-        $paddedText = $Text.Substring(0, $Width)
-    } else {
-        $paddedText = $Text.PadRight($Width)
-    }
-
-    # Only update if content changed (reduces flicker)
+    
+    $paddedText = $Text.PadRight($Width).Substring(0, $Width)
+    
+    # Only update if content changed
     $key = "row_$Row"
     $contentKey = "$paddedText|$Color"
     if ($Script:LastDashboardContent[$key] -eq $contentKey) {
         return
     }
     $Script:LastDashboardContent[$key] = $contentKey
-
-    try {
-        [Console]::SetCursorPosition(0, $Row)
-        $oldColor = [Console]::ForegroundColor
-        [Console]::ForegroundColor = $Color
-        [Console]::Write($paddedText)
-        [Console]::ForegroundColor = $oldColor
-    } catch {
-        # Silently ignore console errors
-    }
+    
+    [Console]::SetCursorPosition(0, $Row)
+    $oldColor = [Console]::ForegroundColor
+    [Console]::ForegroundColor = $Color
+    [Console]::Write($paddedText)
+    [Console]::ForegroundColor = $oldColor
 }
 
 function Write-ColoredLineAt {
-    <#
-    .SYNOPSIS
-    Write a line with multiple colored segments at a specific console row.
-    Uses change detection to reduce flicker.
-    #>
     param(
         [int]$Row,
         [array]$Segments,  # Array of @{Text="..."; Color="White"}
         [int]$Width = 80
     )
-
+    
     # Build content key for change detection
     $contentKey = ($Segments | ForEach-Object { "$($_.Text)|$($_.Color)" }) -join ";"
     $key = "row_$Row"
@@ -1102,145 +838,93 @@ function Write-ColoredLineAt {
         return
     }
     $Script:LastDashboardContent[$key] = $contentKey
-
-    try {
-        [Console]::SetCursorPosition(0, $Row)
-        $totalLen = 0
-        $oldColor = [Console]::ForegroundColor
-
-        foreach ($seg in $Segments) {
-            [Console]::ForegroundColor = [ConsoleColor]::$($seg.Color)
-            [Console]::Write($seg.Text)
-            $totalLen += $seg.Text.Length
-        }
-
-        # Pad remainder with background color
-        if ($totalLen -lt $Width) {
-            [Console]::ForegroundColor = [ConsoleColor]::Black
-            [Console]::Write(" " * ($Width - $totalLen))
-        }
-
-        [Console]::ForegroundColor = $oldColor
-    } catch {
-        # Silently ignore console errors
+    
+    [Console]::SetCursorPosition(0, $Row)
+    $totalLen = 0
+    $oldColor = [Console]::ForegroundColor
+    
+    foreach ($seg in $Segments) {
+        [Console]::ForegroundColor = [ConsoleColor]::$($seg.Color)
+        [Console]::Write($seg.Text)
+        $totalLen += $seg.Text.Length
     }
+    
+    # Pad remainder
+    if ($totalLen -lt $Width) {
+        [Console]::ForegroundColor = [ConsoleColor]::Black
+        [Console]::Write(" " * ($Width - $totalLen))
+    }
+    
+    [Console]::ForegroundColor = $oldColor
 }
 
 function Show-EventDashboard {
-    <#
-    .SYNOPSIS
-    Display real-time dashboard using SetCursorPosition for updates.
-    Uses change detection via Write-LineAt/Write-ColoredLineAt to reduce flicker.
-    #>
     try {
         $width = 80
         $border = "=" * $width
         $separator = "  " + ("-" * 74)
-
+        
         # First time: clear screen and hide cursor
         if (-not $Script:DashboardInitialized) {
             Clear-Host
             [Console]::CursorVisible = $false
             $Script:DashboardInitialized = $true
+            $Script:LastDashboardContent = @{}
         }
-
+        
         $row = 0
-
+        
         # Header
-        Write-LineAt -Row $row -Text $border -Color Cyan
-        $row++
-        Write-LineAt -Row $row -Text "  RALPH WATCHDOG - Event-Driven Multi-Agent Mode" -Color Cyan
-        $row++
-        Write-LineAt -Row $row -Text $border -Color Cyan
-        $row++
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
-
-        # Uptime with spinner (visual feedback that updates are working)
+        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+        Write-LineAt -Row $row -Text "  RALPH WATCHDOG - Event-Driven Multi-Agent Mode" -Color Cyan; $row++
+        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+        Write-LineAt -Row $row -Text "" -Color White; $row++
+        
+        # Uptime
         $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
         $uptimeStr = "{0:hh\:mm\:ss}" -f $uptime
-        $spinner = @('|', '/', '-', '\')[$($Script:TotalIterations % 4)]
-        Write-LineAt -Row $row -Text "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations $spinner" -Color White
-        $row++
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
-
-        # Consolidation mode status (fixed 2-3 rows)
-        $consolidationMode = Get-ConsolidationMode
-        $currentMode = if ($consolidationMode) { $consolidationMode.mode } else { "normal" }
-        $isConsolidating = ($currentMode -eq "pending_consolidation")
-
-        # Track mode changes for cache clearing
-        if ($Script:LastConsolidationMode -ne $currentMode) {
-            $Script:LastDashboardContent = @{}
-            $Script:LastConsolidationMode = $currentMode
-        }
-
-        if ($isConsolidating) {
-            Write-LineAt -Row $row -Text "  *** CONSOLIDATION MODE ACTIVE ***" -Color Yellow
-            $row++
-            $reasonText = if ($consolidationMode.reason) { $consolidationMode.reason.ToUpper() } else { "PENDING" }
-            Write-LineAt -Row $row -Text "  PM is reviewing pending messages... (Reason: $reasonText)" -Color DarkYellow
-            $row++
-        } else {
-            Write-LineAt -Row $row -Text "  Mode: NORMAL" -Color DarkGray
-            $row++
-            Write-LineAt -Row $row -Text "  All agents operational" -Color DarkGray
-            $row++
-        }
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
-
+        Write-LineAt -Row $row -Text "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations" -Color White; $row++
+        Write-LineAt -Row $row -Text "" -Color White; $row++
+        
         # Agent section header
-        Write-LineAt -Row $row -Text "  AGENTS" -Color Yellow
-        $row++
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-        Write-LineAt -Row $row -Text ("  " + "Agent".PadRight(10) + "Status".PadRight(12) + "PID".PadRight(10) + "Pending".PadRight(10) + "Current Message") -Color DarkGray
-        $row++
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-
+        Write-LineAt -Row $row -Text "  AGENTS" -Color Yellow; $row++
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        Write-LineAt -Row $row -Text ("  " + "Agent".PadRight(10) + "Status".PadRight(12) + "PID".PadRight(10) + "Pending".PadRight(10) + "Current Message") -Color DarkGray; $row++
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        
         # Get message counts once
         $counts = Get-MessageCount
-
+        
         foreach ($agentName in @("pm", "developer", "qa")) {
             $agent = $Script:Agents[$agentName]
             $pendingCount = $counts[$agentName]
+            
             $processRunning = $agent.Process -and (-not $agent.Process.HasExited)
-
-            # Determine status - show waiting for consolidation
-            if (-not $processRunning -and $isConsolidating -and $agentName -ne "pm") {
-                $statusText = "WAITING (PM CONSO)"
-                $statusColor = "Yellow"
-            } elseif ($processRunning) {
-                $statusText = $agent.WorkStatus.ToUpper()
-                $statusColor = switch ($agent.WorkStatus) {
-                    "idle" { "Gray" }
-                    "working" { "Green" }
-                    "waiting" { "Yellow" }
-                    "ready" { "Cyan" }
-                    "starting" { "Magenta" }
-                    "consolidating" { "Blue" }
-                    default { "White" }
-                }
-            } else {
-                $statusText = "STOPPED"
-                $statusColor = "Red"
+            $statusText = if ($processRunning) { $agent.WorkStatus.ToUpper() } else { "STOPPED" }
+            $statusColor = switch ($true) {
+                (-not $processRunning) { "Red" }
+                ($agent.WorkStatus -eq "idle") { "Gray" }
+                ($agent.WorkStatus -eq "working") { "Green" }
+                ($agent.WorkStatus -eq "waiting") { "Yellow" }
+                ($agent.WorkStatus -eq "ready") { "Cyan" }
+                ($agent.WorkStatus -eq "starting") { "Magenta" }
+                default { "White" }
             }
-
+            
             $pidText = if ($processRunning) { $agent.Process.Id.ToString() } else { "-" }
             $pendingColor = if ($pendingCount -gt 0) { "Yellow" } else { "Gray" }
-
+            
             $currentMsgText = "-"
             if ($agent.CurrentMessage) {
-                $currentMsgText = "$($agent.CurrentMessage.type) from $($agent.CurrentMessage.from)"
+                $msgType = $agent.CurrentMessage.type
+                $msgFrom = $agent.CurrentMessage.from
+                $currentMsgText = "$msgType from $msgFrom"
                 if ($currentMsgText.Length -gt 28) {
                     $currentMsgText = $currentMsgText.Substring(0, 25) + "..."
                 }
             }
             $msgColor = if ($currentMsgText -ne "-") { "White" } else { "DarkGray" }
-
+            
             Write-ColoredLineAt -Row $row -Segments @(
                 @{Text="  "; Color="White"},
                 @{Text=$agentName.PadRight(10); Color="Cyan"},
@@ -1251,20 +935,16 @@ function Show-EventDashboard {
             )
             $row++
         }
-
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
-
+        
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        Write-LineAt -Row $row -Text "" -Color White; $row++
+        
         # Message queue section
-        Write-LineAt -Row $row -Text "  MESSAGE QUEUE" -Color Yellow
-        $row++
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-
+        Write-LineAt -Row $row -Text "  MESSAGE QUEUE" -Color Yellow; $row++
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        
         $totalPending = ($counts.Values | Measure-Object -Sum).Sum
-
+        
         foreach ($agentName in @("pm", "developer", "qa")) {
             $count = $counts[$agentName]
             $countColor = if ($count -gt 0) { "Yellow" } else { "DarkGray" }
@@ -1275,49 +955,36 @@ function Show-EventDashboard {
             )
             $row++
         }
-
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
+        
+        Write-LineAt -Row $row -Text "" -Color White; $row++
         $totalColor = if ($totalPending -gt 0) { "Yellow" } else { "DarkGray" }
-        Write-LineAt -Row $row -Text "  Total: $totalPending pending messages" -Color $totalColor
-        $row++
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
-
+        Write-LineAt -Row $row -Text "  Total: $totalPending pending messages" -Color $totalColor; $row++
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        Write-LineAt -Row $row -Text "" -Color White; $row++
+        
         # Activity Log section
-        Write-LineAt -Row $row -Text "  ACTIVITY LOG" -Color Yellow
-        $row++
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-
+        Write-LineAt -Row $row -Text "  ACTIVITY LOG" -Color Yellow; $row++
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        
         # Show last N activity entries
         for ($i = 0; $i -lt $Script:MaxActivityLogSize; $i++) {
             if ($i -lt $Script:ActivityLog.Count) {
-                Write-LineAt -Row $row -Text "  $($Script:ActivityLog[$i])" -Color DarkGray
+                $logEntry = $Script:ActivityLog[$i]
+                Write-LineAt -Row $row -Text "  $logEntry" -Color DarkGray
             } else {
                 Write-LineAt -Row $row -Text "" -Color White
             }
             $row++
         }
-
-        Write-LineAt -Row $row -Text $separator -Color White
-        $row++
-        Write-LineAt -Row $row -Text "" -Color White
-        $row++
-
+        
+        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        Write-LineAt -Row $row -Text "" -Color White; $row++
+        
         # Footer
-        Write-LineAt -Row $row -Text $border -Color Cyan
-        $row++
-        if ($isConsolidating) {
-            Write-LineAt -Row $row -Text "  *** WAITING FOR PM CONSOLIDATION *** Workers start after PM review" -Color Yellow
-        } else {
-            Write-LineAt -Row $row -Text "  Press Ctrl+C to stop watchdog" -Color DarkGray
-        }
-        $row++
-        Write-LineAt -Row $row -Text $border -Color Cyan
-
+        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+        Write-LineAt -Row $row -Text "  Press Ctrl+C to stop watchdog" -Color DarkGray; $row++
+        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+        
     } catch {
         # Silently ignore dashboard errors
     }
@@ -1346,21 +1013,9 @@ function Test-SessionComplete {
     }
 
     # Check coordinator-state.json for max iterations reached
-    $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
-    if (Test-Path $stateFile) {
-        try {
-            $state = Get-Content $stateFile -Raw | ConvertFrom-Json
-            if ($state -and $state.iteration -ge $state.maxIterations) {
-                Write-WatchdogLog "Max iterations reached: $($state.iteration)/$($state.maxIterations)" -Color Yellow
-                # Update status
-                $state.status = "max_iterations_reached"
-                $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
-                return $true
-            }
-        } catch {
-            # Ignore parsing errors
-        }
-    }
+    # Note: Use watchdog's own MaxIterationsLimit, not coordinator state
+    # The coordinator handles its own iteration counting
+    # This check is only for legacy compatibility
 
     return $false
 }
@@ -1386,8 +1041,12 @@ function Start-EventWatchdog {
         # Note: Stop-AllAgents will be called in the finally block
     }
     
-    # Handle Ctrl+C gracefully
-    [Console]::TreatControlCAsInput = $false
+    # Handle Ctrl+C gracefully (skip if no console handle)
+    try {
+        [Console]::TreatControlCAsInput = $false
+    } catch {
+        # Non-interactive mode - skip console property
+    }
     $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress -Action {
         $Script:SessionComplete = $true
         $EventArgs.Cancel = $true  # Prevent immediate termination
@@ -1407,122 +1066,10 @@ function Start-EventWatchdog {
         Write-Host ""
     }
     
-    # Initialize consolidation mode on startup
-    $consolidationWasRequired = Initialize-ConsolidationForStartup
-    if ($consolidationWasRequired) {
-        Write-WatchdogLog "Startup consolidation mode initialized" -Color Yellow
-    }
-
-    # Start all agents (will handle consolidation mode)
-    $consolidationWasRequired = Start-AllAgents
-
-    # Track consolidation state for transition detection
-    $Script:LastConsolidationMode = if ($consolidationWasRequired) { "pending_consolidation" } else { "normal" }
-
-    # Main monitoring loop
+    # Start agents and enter main monitoring loop (message queue mode)
     try {
-        while (-not $Script:SessionComplete) {
-            $Script:TotalIterations++
-
-            # Process watchdog's own messages
-            Invoke-ProcessWatchdogMessages
-
-            # CHECK CONSOLIDATION TRANSITION: If we were in consolidation mode and now we're not
-            $currentConsolidationMode = Get-ConsolidationMode
-            $currentMode = if ($currentConsolidationMode) { $currentConsolidationMode.mode } else { "normal" }
-
-            if ($Script:LastConsolidationMode -eq "pending_consolidation" -and $currentMode -eq "normal") {
-                # Consolidation just completed - start workers if not already running
-                try {
-                    Write-WatchdogLog "Consolidation transition detected - starting workers" -Color Green
-                    # Clear dashboard cache for fresh display after consolidation
-                    $Script:LastDashboardContent = @{}
-                    # Update PM status from "consolidating" to "idle"
-                    $Script:Agents["pm"].WorkStatus = "idle"
-                    Invoke-StartWorkersAfterConsolidation
-                } catch {
-                    Write-WatchdogLog "ERROR starting workers after consolidation: $_" -Color Red
-                    # Continue main loop even if worker startup fails
-                }
-            }
-
-            $Script:LastConsolidationMode = $currentMode
-
-            # Safety check: if PM shows "consolidating" but mode is "normal", fix the status
-            if ($currentMode -eq "normal" -and $Script:Agents["pm"].WorkStatus -eq "consolidating") {
-                $Script:Agents["pm"].WorkStatus = "idle"
-            }
-
-            # ADDITIONAL SAFETY: If retrospective exists but consolidation still pending, force exit
-            # This catches cases where PM started retrospective during consolidation but forgot to exit consolidation mode
-            if ($currentMode -eq "pending_consolidation") {
-                $retroFile = Join-Path $Script:SessionDir "retrospective.txt"
-                if (Test-Path $retroFile) {
-                    Write-WatchdogLog "Retrospective exists - auto-exiting consolidation mode" -Color Yellow
-                    Set-ConsolidationMode -Mode "normal" -Reason "watchdog_detected_retrospective"
-                    $currentMode = "normal"
-                    $Script:LastDashboardContent = @{}
-                    # Update PM status from "consolidating" to "idle"
-                    $Script:Agents["pm"].WorkStatus = "idle"
-                    # Start workers if not running
-                    Invoke-StartWorkersAfterConsolidation
-                }
-            }
-
-            # CONSOLIDATION HEALTH CHECK: Periodic check for stale consolidation mode
-            # This prevents dead ends where consolidation gets stuck for extended periods
-            if ($Script:TotalIterations % 40 -eq 0) {  # Check every 20 seconds
-                $healthCheck = Invoke-ConsolidationStateCheck -SessionDir $Script:SessionDir -TimeoutMinutes 10
-                if ($healthCheck.shouldExit) {
-                    Write-WatchdogLog "Consolidation health check: $($healthCheck.reason)" -Color Yellow
-                    Set-ConsolidationMode -Mode "normal" -Reason "watchdog_health_check" -Phase "auto_recovery"
-                    $currentMode = "normal"
-                    $Script:LastDashboardContent = @{}
-                    # Update PM status from "consolidating" to "idle" if needed
-                    if ($Script:Agents["pm"].WorkStatus -eq "consolidating") {
-                        $Script:Agents["pm"].WorkStatus = "idle"
-                    }
-                    # Start workers if not running after forced exit
-                    $pmProcess = $Script:Agents["pm"].Process
-                    if ($pmProcess -and -not $pmProcess.HasExited) {
-                        Invoke-StartWorkersAfterConsolidation
-                    }
-                }
-            }
-
-            # Deliver pending messages to agents (stops and restarts agent with context)
-            # This function now respects consolidation mode - won't deliver to workers if pending
-            Invoke-DeliverPendingMessages
-
-            # Periodic health check
-            Invoke-HealthCheck
-
-            # Periodic resource cleanup (every 100 iterations ~ 50 seconds at 500ms interval)
-            if ($Script:TotalIterations % 100 -eq 0) {
-                Invoke-ResourceCleanup
-            }
-
-            # Check for session completion
-            if (Test-SessionComplete) {
-                Write-WatchdogLog "Session complete detected!" -Color Green
-                $Script:SessionComplete = $true
-                break
-            }
-
-            # Update dashboard (throttle to every 2 seconds / 4 iterations to reduce console overhead)
-            if (-not $NoDashboard -and ($Script:TotalIterations % 4 -eq 0)) {
-                Show-EventDashboard
-            }
-
-            # Heartbeat logging every ~10 seconds (20 iterations at 500ms interval)
-            # This helps diagnose if the main loop stops running
-            if ($Script:TotalIterations % 20 -eq 0) {
-                $modeLabel = if ($currentMode -eq "pending_consolidation") { "CONSOLIDATION" } else { "NORMAL" }
-                Write-WatchdogLog "Heartbeat: Iteration $Script:TotalIterations, Mode: $modeLabel" -Color DarkGray
-            }
-
-            Start-Sleep -Milliseconds $MessageCheckIntervalMs
-        }
+        Start-AllAgents
+        Invoke-MainLoop
     }
     finally {
         # Restore cursor visibility

@@ -13,7 +13,6 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 | `watchdog-single.ps1`        | Orchestrate agent handoffs        | Sequential   |
 | `watchdog.ps1`               | Monitor agent health (polling)    | Polling      |
 | `message-queue.ps1`          | Message queue functions           | Event-driven |
-| `worktree-manager.ps1`       | Git worktree management           | Developer    |
 | `ralph-config.ps1`           | Shared configuration              | All          |
 | `test-handoff-detection.ps1` | Debug handoff signals             | Sequential   |
 
@@ -246,28 +245,6 @@ Invoke-AcknowledgeMessage -MessageId "msg-xxx"
 | `bug_report`          | QA reports bugs (goes to PM)     |
 | `task_complete`       | QA confirms task passed          |
 | `question` / `answer` | Q&A between agents               |
-
----
-
-### worktree-manager.ps1
-
-**Purpose:** Enable developer to work on multiple tasks in parallel using git worktrees.
-
-**Key Functions:**
-
-```powershell
-# Initialize
-Initialize-WorktreeManager -ProjectRoot "C:\path\to\project"
-
-# Create worktree for a task
-New-TaskWorktree -TaskId "feat-002"
-
-# Remove worktree after task complete
-Remove-TaskWorktree -TaskId "feat-002" -MergeToMain
-
-# Show all worktrees
-Show-WorktreeDashboard
-```
 
 ---
 

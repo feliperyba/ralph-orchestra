@@ -201,7 +201,7 @@ Ralph can be invoked through **three different interfaces**, each with different
 | Interface              | How to Invoke                               | Session Setup | Token Efficiency | Best For                      |
 | ---------------------- | ------------------------------------------- | ------------- | ---------------- | ----------------------------- |
 | **PowerShell Scripts** | `.\.claude\scripts\ralph-event-session.ps1` | Automatic     | Medium           | Production, autonomous runs   |
-| **Claude CLI**         | `/ralph-coordinator` in terminal            | Manual        | Standard         | Direct agent control          |
+| **PowerShell Scripts** | `.\.claude\scripts\ralph-single-session.ps1` | Automatic     | High             | Token-efficient runs          |
 | **Claude Code IDE**    | `/ralph-hitl` in chat                       | Semi-auto     | Standard         | Learning, integrated workflow |
 
 ### PowerShell Scripts (Recommended for Production)
@@ -212,11 +212,8 @@ Ralph can be invoked through **three different interfaces**, each with different
 # Event-driven (parallel, message queues) - Recommended
 .\.claude\scripts\ralph-event-session.ps1
 
-# Sequential (token-efficient)
+# Sequential (token-efficient, one agent at a time)
 .\.claude\scripts\ralph-single-session.ps1
-
-# Polling-based (legacy)
-.\.claude\scripts\ralph-multi-session.ps1
 ```
 
 **What happens:**
@@ -240,14 +237,20 @@ Ralph can be invoked through **three different interfaces**, each with different
 **Direct slash commands in separate terminals:**
 
 ```bash
+# Event-driven mode (parallel agents)
 # Terminal 1: PM Coordinator
-/ralph-coordinator
+/ralph-coordinator-event
 
 # Terminal 2: Developer Worker
-/ralph-worker --agent developer
+/ralph-worker-event --agent developer
 
 # Terminal 3: QA Worker
-/ralph-worker --agent qa
+/ralph-worker-event --agent qa
+
+# OR Sequential mode (token-efficient, one agent at a time)
+/ralph-coordinator-single
+/ralph-worker-single --agent developer
+/ralph-worker-single --agent qa
 
 # Single iteration (learning mode)
 /ralph-hitl
@@ -256,16 +259,16 @@ Ralph can be invoked through **three different interfaces**, each with different
 **What happens:**
 
 1. Each terminal runs a single agent
-2. Agents communicate via shared state files in `.claude/session/`
-3. You must create `.claude/session/` directory first (agents auto-create it)
+2. Event-driven: Agents communicate via message queues in `.claude/session/messages/`
+3. Sequential: Agents hand off via `handoff-signal.json` when done
 4. Manual setup of each terminal required
 
 **Benefits:**
 
 - Full visibility into each agent's thinking process
 - Can intervene at any time
-- No watchdog overhead
 - Easier debugging
+- No watchdog overhead
 
 **Differences from PowerShell scripts:**
 | Aspect | PowerShell Scripts | Claude CLI |
@@ -352,29 +355,25 @@ When you invoke `/ralph-hitl`, the IDE:
 Ralph Orchestra/
 ├── .claude/
 │   ├── commands/           # Slash commands for agents
-│   │   ├── ralph-coordinator.md        # PM parallel mode
+│   │   ├── ralph-coordinator-event.md  # PM event-driven mode
 │   │   ├── ralph-coordinator-single.md # PM sequential mode
-│   │   ├── ralph-worker.md             # Dev/QA parallel mode
+│   │   ├── ralph-worker-event.md       # Dev/QA event-driven mode
 │   │   ├── ralph-worker-single.md      # Dev/QA sequential mode
+│   │   ├── ralph-hitl.md               # Human-in-the-loop mode
 │   │   └── cancel-ralph.md             # Graceful shutdown
 │   │
 │   ├── scripts/            # Orchestration scripts
 │   │   ├── watchdog-event.ps1        # Event-driven orchestrator
 │   │   ├── watchdog-single.ps1       # Sequential mode orchestrator
-│   │   ├── watchdog.ps1              # Polling mode orchestrator
 │   │   ├── ralph-event-session.ps1   # Event-driven launcher
 │   │   ├── ralph-single-session.ps1  # Sequential mode launcher
-│   │   ├── ralph-multi-session.ps1   # Polling mode launcher
 │   │   ├── message-queue.ps1         # Message queue functions
-│   │   ├── worktree-manager.ps1      # Git worktree management
 │   │   └── ralph-config.ps1          # Shared configuration
 │   │
 │   ├── skills/             # Orchestration skills (YAML frontmatter)
 │   │   ├── ralph-core.md             # Core orchestration concepts
 │   │   ├── ralph-router.md           # Routes to agent skills
-│   │   ├── ralph-coordinator.md      # PM polling mode
 │   │   ├── ralph-coordinator-single.md # PM sequential mode
-│   │   ├── ralph-worker.md           # Worker polling mode
 │   │   ├── ralph-worker-single.md    # Worker sequential mode
 │   │   ├── ralph-handoff.md          # Handoff protocol
 │   │   ├── ralph-event-protocol.md   # Event-driven messaging
@@ -732,8 +731,10 @@ arguments:
 **Invocation:**
 
 ```bash
-/ralph-worker --agent developer  # Runs as Developer
-/ralph-worker --agent qa          # Runs as QA
+/ralph-worker-event --agent developer  # Runs as Developer (event-driven)
+/ralph-worker-single --agent developer  # Runs as Developer (sequential)
+/ralph-worker-event --agent qa          # Runs as QA (event-driven)
+/ralph-worker-single --agent qa          # Runs as QA (sequential)
 ```
 
 **Inside the skill**, the agent checks `$arguments.agent` to determine:
@@ -750,19 +751,19 @@ All agents are defined in [`.claude/scripts/ralph-config.ps1`](.claude/scripts/r
 $Script:AgentConfig = @{
     "pm" = @{
         Type = "coordinator"
-        Command = "/ralph-coordinator"
+        Command = "/ralph-coordinator-event"
         DisplayName = "PM (Coordinator)"
         Color = "Magenta"
     }
     "developer" = @{
         Type = "worker"
-        Command = "/ralph-worker --agent developer"
+        Command = "/ralph-worker-event --agent developer"
         DisplayName = "Developer"
         Color = "Cyan"
     }
     "qa" = @{
         Type = "worker"
-        Command = "/ralph-worker --agent qa"
+        Command = "/ralph-worker-event --agent qa"
         DisplayName = "QA"
         Color = "Yellow"
     }
@@ -817,7 +818,7 @@ $Script:AgentConfig = @{
     # ... existing agents ...
     "designer" = @{
         Type = "worker"
-        Command = "/ralph-worker --agent designer"
+        Command = "/ralph-worker-event --agent designer"
         DisplayName = "Designer"
         Color = "Blue"
     }
@@ -936,12 +937,16 @@ Create [`.claude/settings.designer.json`](.claude/settings.designer.json):
 #### Skill Variant Best Practices
 
 1. **Use `--agent` for variants** of the same pattern:
-   - `/ralph-worker --agent developer`
-   - `/ralph-worker --agent qa`
-   - `/ralph-worker --agent designer`
+   - `/ralph-worker-event --agent developer`
+   - `/ralph-worker-event --agent qa`
+   - `/ralph-worker-event --agent designer`
+   - `/ralph-worker-single --agent developer`
+   - `/ralph-worker-single --agent qa`
+   - `/ralph-worker-single --agent designer`
 
 2. **Use separate slash commands** for fundamentally different behaviors:
-   - `/ralph-coordinator` (orchestration)
+   - `/ralph-coordinator-event` (event-driven orchestration)
+   - `/ralph-coordinator-single` (sequential orchestration)
    - `/ralph-hitl` (single iteration)
 
 3. **Keep skill content generic** - use the `--agent` value to branch behavior
@@ -950,10 +955,16 @@ Create [`.claude/settings.designer.json`](.claude/settings.designer.json):
 
 #### Testing Your New Agent
 
-1. **Manual testing:**
+1. **Manual testing (event-driven):**
 
    ```bash
-   /ralph-worker --agent designer
+   /ralph-worker-event --agent designer
+   ```
+
+   **Or sequential mode:**
+
+   ```bash
+   /ralph-worker-single --agent designer
    ```
 
 2. **Sequential mode:**

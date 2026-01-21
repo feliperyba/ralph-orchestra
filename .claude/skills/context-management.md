@@ -186,4 +186,4 @@ To verify context reset is working:
 ## Reference
 
 - [ralph-core.md](ralph-core.md) — Session structure
-- [polling-loop.md](polling-loop.md) — Polling loop with restart detection
+- [ralph-event-protocol.md](ralph-event-protocol.md) — Event-driven messaging protocol

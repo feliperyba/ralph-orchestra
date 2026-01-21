@@ -179,22 +179,6 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 
 PM has MCP tools (Fetch, WebSearch, GitHub) to research and will send you a `research_response`.
 
-### Using Git Worktrees (Parallel Development)
-
-If PM assigns multiple tasks, use worktrees:
-
-```powershell
-# Create worktree for a feature
-git worktree add ..\RalphOrchestra-feat-002 -b feat-002
-
-# Work in that worktree
-Set-Location ..\RalphOrchestra-feat-002
-
-# When done, back to main
-Set-Location ..\RalphOrchestra
-git worktree remove ..\RalphOrchestra-feat-002
-```
-
 ---
 
 ## QA-Specific Instructions
@@ -523,7 +507,6 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 - **PM handles priorities** - Bug reports go to PM, not directly to developer
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
 - **Parallel work** - Other agents are working at the same time
-- **Git worktrees** - Developer can use worktrees for parallel tasks
 - **ALWAYS delete pending file after processing** - After you finish processing ALL messages, delete the file: `Remove-Item ".claude/session/pending-messages-$arguments.agent.json" -Force -ErrorAction SilentlyContinue`
 
 ---

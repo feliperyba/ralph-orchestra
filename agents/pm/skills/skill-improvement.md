@@ -19,7 +19,7 @@ depends-on: [retrospective]
    - https://agents.md/
    - https://agent-skills.md/
    - WebSearch for relevant patterns
-3. **UPDATE** at least one file per retrospective:
+3. **UPDATE** at least one file per agent per retrospective:
    - `agents/*/AGENT.md` (process improvement)
    - `agents/*/skills/*.md` (knowledge addition)
    - `agents/*/SKILLS.md` (core competencies)
