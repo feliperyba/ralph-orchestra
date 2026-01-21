@@ -185,8 +185,8 @@ Developer can work on multiple tasks using git worktrees:
 # PM assigns task-a and task-b
 
 # Developer creates worktrees
-git worktree add ../Ralph Orchestra-task-a -b task-a
-git worktree add ../Ralph Orchestra-task-b -b task-b
+git worktree add ../RalphOrchestra-task-a -b task-a
+git worktree add ../RalphOrchestra-task-b -b task-b
 
 # Work in parallel
 # Each worktree can have separate validation_request
@@ -199,7 +199,7 @@ When PM assigns a task with `worktree` field:
   "type": "task_assign",
   "payload": {
     "taskId": "feat-002",
-    "worktree": "../Ralph Orchestra-feat-002"
+    "worktree": "../RalphOrchestra-feat-002"
   }
 }
 ```

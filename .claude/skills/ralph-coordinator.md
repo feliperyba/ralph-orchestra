@@ -96,8 +96,8 @@ Then initialize state files (only if they don't exist):
 {
   "sessionId": "ralph-$(date +%Y%m%d-%H%M%S)",
   "startedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "maxIterations": 50,
-  "iteration": 1,
+  "maxIterations": 200,
+  "iteration": 0,
   "completionPromise": "RALPH_COMPLETE",
   "status": "running",
   "currentTask": null,
@@ -114,6 +114,8 @@ Then initialize state files (only if they don't exist):
   }
 }
 ```
+
+**Note**: `maxIterations` defaults to 200 (from `ralph-config.ps1`). The session launcher may override this value.
 
 **If `handoff-log.json` doesn't exist, create it**:
 
@@ -333,13 +335,16 @@ You run in **Terminal 1** as the coordinator. Two workers (Developer and QA) run
      - Increment `stats.completed`
      - Log completion to `coordinator-progress.txt`
      - Set `currentTask = null`
-     - Increment `iteration`
+     - Increment `coordinator-state.json.iteration` (each dev cycle = 1 iteration)
+     - Check if `iteration >= maxIterations` → if yes, output `<promise>RALPH_COMPLETE</promise>` and set status="max_iterations_reached"
      - Check if all tasks complete
      - Poll again (will assign next task on next iteration)
 
    **IF `currentTask.status === "needs_fixes"`:**
    - Reassign to developer
    - Increment `retryCount`
+   - **ALSO increment `coordinator-state.json.iteration`** (each dev cycle = 1 iteration, even if fixes needed)
+   - Check if `iteration >= maxIterations` → if yes, output `<promise>RALPH_COMPLETE</promise>` and set status="max_iterations_reached"
    - Log handoff
    - Poll again in 30 seconds
 
@@ -697,8 +702,18 @@ Output `<promise>RALPH_COMPLETE</promise>` when:
 
 - All PRD items have `passes: true`
 - QA has completed validation
+- **OR** `iteration >= maxIterations` (max development cycles reached)
 
 Stop gracefully when:
 
 - `/cancel-ralph` is invoked
-- `maxIterations` is reached
+- `maxIterations` is reached (set status to "max_iterations_reached")
+
+## Iteration Counting
+
+**IMPORTANT**: Each time you receive a QA validation result (passed OR needs_fixes):
+1. Increment `coordinator-state.json.iteration`
+2. Check if `iteration >= maxIterations`
+3. If at limit, output `<promise>RALPH_COMPLETE</promise>` and set `status = "max_iterations_reached"`
+
+This ensures every development cycle (PM→Dev→QA→PM) is counted, regardless of outcome.

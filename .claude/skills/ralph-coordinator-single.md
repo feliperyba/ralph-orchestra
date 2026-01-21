@@ -50,8 +50,8 @@ If starting fresh (no handoff context received):
    {
      "sessionId": "ralph-single-{{TIMESTAMP}}",
      "startedAt": "{{ISO_TIMESTAMP}}",
-     "maxIterations": 50,
-     "iteration": 1,
+     "maxIterations": 200,
+     "iteration": 0,
      "status": "running",
      "orchestrationMode": "single-agent",
      "currentAgent": "pm",
@@ -63,6 +63,8 @@ If starting fresh (no handoff context received):
      }
    }
    ```
+
+   **Note**: `maxIterations` defaults to 200. The session launcher may override this value.
 
 3. Initialize `handoff-log.json`:
    ```json
@@ -158,18 +160,25 @@ When you need to assign a task to Developer:
 
 When QA hands off to you with `validation_passed`:
 
-1. **Run retrospective** (required before next task):
+1. **Increment iteration counter** in `coordinator-state.json`:
+   ```json
+   { "iteration": {{NEW_VALUE}} }
+   ```
+2. **Check max iterations**: If `iteration >= maxIterations`:
+   - Set `status = "max_iterations_reached"`
+   - Output: `<promise>RALPH_COMPLETE</promise>`
+   - Stop (do not continue)
+3. **Run retrospective** (required before next task):
    - Document what was accomplished
    - Note any learnings
    - Update `coordinator-progress.txt`
 
-2. **Mark PRD item as complete**:
-
+4. **Mark PRD item as complete**:
    ```json
    { "passes": true, "completedAt": "{{ISO_TIMESTAMP}}" }
    ```
 
-3. **Check for completion**:
+5. **Check for completion**:
    - If ALL PRD items have `passes: true`:
      ```
      <promise>RALPH_COMPLETE</promise>
@@ -178,9 +187,14 @@ When QA hands off to you with `validation_passed`:
 
 When QA hands off with `validation_failed`:
 
-1. **Read the bugs** from handoff context
-2. **Update `current-task.json`** with bug details
-3. **Handoff to Developer** with fix instructions:
+1. **Increment iteration counter** in `coordinator-state.json` (each dev cycle counts!)
+2. **Check max iterations**: If `iteration >= maxIterations`:
+   - Set `status = "max_iterations_reached"`
+   - Output: `<promise>RALPH_COMPLETE</promise>`
+   - Stop (do not continue)
+3. **Read the bugs** from handoff context
+4. **Update `current-task.json`** with bug details
+5. **Handoff to Developer** with fix instructions:
    ```json
    {
      "from": "pm",

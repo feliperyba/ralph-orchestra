@@ -23,7 +23,7 @@ The agents communicate through shared JSON state files and can run indefinitely 
 ### Installation
 
 ```bash
-git clone https://github.com/feliperyba/ralph-orchestra.git
+git clone https://github.com/feliperyba/ralph-orchestra
 cd ralph-orchestra
 npm install
 ```
@@ -96,6 +96,99 @@ Run a **single iteration with full visibility** - ideal for learning before goin
 - **Ctrl+C** in the watchdog terminal
 - Run `/cancel-ralph` in any agent terminal
 - All tasks complete → agents output `<promise>RALPH_COMPLETE</promise>`
+- Max iterations reached → watchdog stops all agents gracefully
+
+---
+
+## 🔄 Max Iterations Configuration
+
+### What is an Iteration?
+
+**One iteration = one complete development cycle (PM→Dev→QA→PM):**
+
+```
+PM selects task → assigns to developer
+    ↓
+Developer implements feature
+    ↓
+QA validates implementation (reports bugs OR passes)
+    ↓
+PM receives QA's result
+    ↓
+Iteration counter increments (regardless of pass/fail)
+```
+
+This means if QA finds bugs and the task needs rework, that still counts as 1 iteration.
+
+### Setting Max Iterations
+
+**Method 1: Environment Variable (Recommended)**
+
+```powershell
+# Set for current session
+$env:RALPH_MAX_ITERATIONS = 100
+.\.claude\scripts\ralph-event-session.ps1
+
+# Or set permanently (system-wide)
+[System.Environment]::SetEnvironmentVariable('RALPH_MAX_ITERATIONS', '100', 'User')
+```
+
+**Method 2: Script Parameter Override**
+
+```powershell
+# Event-driven mode
+.\.claude\scripts\ralph-event-session.ps1 -MaxIterations 50
+
+# Sequential mode
+.\.claude\scripts\ralph-single-session.ps1 -MaxIterations 50
+
+# Polling mode
+.\.claude\scripts\ralph-multi-session.ps1 -MaxIterations 50
+```
+
+**Method 3: Edit Configuration Default**
+
+Edit [`.claude/scripts/ralph-config.ps1`](.claude/scripts/ralph-config.ps1) line 132:
+
+```powershell
+MaxIterations = Get-EnvInt -Name "RALPH_MAX_ITERATIONS" -Default 100
+```
+
+### Default Values
+
+| Configuration                                                        | Default Value          |
+| -------------------------------------------------------------------- | ---------------------- |
+| Config file ([`ralph-config.ps1`](.claude/scripts/ralph-config.ps1)) | 200 iterations         |
+| Environment variable                                                 | `RALPH_MAX_ITERATIONS` |
+| Session script parameter                                             | Overrides env var      |
+| Hardcoded fallback (stop-hook)                                       | 50 iterations          |
+
+### Stopping Conditions
+
+Agents stop when **EITHER**:
+
+1. **All PRD tasks have `passes: true`** → Normal completion
+2. **Max iterations reached** → `status = "max_iterations_reached"`
+
+Both the watchdog and all child agent processes will gracefully terminate.
+
+### Monitoring Iteration Progress
+
+The coordinator state file tracks iterations:
+
+```json
+{
+  "maxIterations": 200,
+  "iteration": 5,
+  "status": "running"
+}
+```
+
+View with:
+
+```powershell
+Get-Content .claude\session\coordinator-state.json | ConvertFrom-Json
+```
 
 ---
 

@@ -121,14 +121,14 @@ If PM assigns multiple tasks, use worktrees:
 
 ```powershell
 # Create worktree for a feature
-git worktree add ..\Ralph Orchestra-feat-002 -b feat-002
+git worktree add ..\RalphOrchestra-feat-002 -b feat-002
 
 # Work in that worktree
-Set-Location ..\Ralph Orchestra-feat-002
+Set-Location ..\RalphOrchestra-feat-002
 
 # When done, back to main
-Set-Location ..\Ralph Orchestra
-git worktree remove ..\Ralph Orchestra-feat-002
+Set-Location ..\RalphOrchestra
+git worktree remove ..\RalphOrchestra-feat-002
 ```
 
 ---

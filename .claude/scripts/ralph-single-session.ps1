@@ -1,13 +1,14 @@
 # Ralph Single-Agent Session Launcher
 # Launches the single-agent orchestration mode where only one agent runs at a time
-# Usage: .\.claude\scripts\ralph-single-session.ps1 [-InitialAgent pm|developer|qa]
+# Usage: .\.claude\scripts\ralph-single-session.ps1 [-InitialAgent pm|developer|qa] [-MaxIterations N]
 
 param(
     [string]$InitialAgent = "pm",
     [int]$GracefulShutdownSeconds = 30,
     [int]$MaxRestarts = 3,
     [switch]$NoDashboard = $false,
-    [switch]$Debug = $false
+    [switch]$Debug = $false,
+    [int]$MaxIterations = 0  # 0 = use config default from ralph-config.ps1
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,7 @@ Write-Host "Project Root: $ProjectRoot"
 Write-Host "Initial Agent: $InitialAgent"
 Write-Host "Graceful Shutdown: ${GracefulShutdownSeconds}s"
 Write-Host "Max Restarts: $MaxRestarts"
+Write-Host "Max Iterations: $maxIter"
 Write-Host "Dashboard: $(if ($NoDashboard) { 'DISABLED' } else { 'ENABLED' })"
 Write-Host ""
 
@@ -34,6 +36,10 @@ if ($InitialAgent -notin @("pm", "developer", "qa")) {
 # Source configuration
 . "$PSScriptRoot\ralph-config.ps1"
 $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
+$config = Get-RalphConfig
+
+# Determine max iterations
+$maxIter = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
 
 # Ensure session directory exists
 if (-not (Test-Path $paths.SessionDir)) {
@@ -47,8 +53,8 @@ if (-not (Test-Path $stateFile)) {
     $initialState = @{
         sessionId = "ralph-single-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         startedAt = [DateTime]::UtcNow.ToString("o")
-        maxIterations = 50
-        iteration = 1
+        maxIterations = $maxIter
+        iteration = 0
         status = "running"
         orchestrationMode = "single-agent"
         currentAgent = $InitialAgent
@@ -96,6 +102,10 @@ if ($NoDashboard) {
 
 if ($Debug) {
     $watchdogArgs += "-Debug"
+}
+
+if ($MaxIterations -gt 0) {
+    $watchdogArgs += "-MaxIterations", $MaxIterations
 }
 
 # Start watchdog in current terminal (not a new window)

@@ -16,7 +16,8 @@ param(
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,               # Enable verbose debug output
     [string]$ProjectRoot = "",
-    [string]$InitialAgent = "pm"           # Which agent starts first
+    [string]$InitialAgent = "pm",          # Which agent starts first
+    [int]$MaxIterations = 0                # 0 = use config default
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,6 +54,9 @@ $Script:AgentRestartCount = 0
 $Script:HandoffLog = @()
 $Script:PendingHandoff = $null
 $Script:SessionComplete = $false
+
+# Max iterations - use parameter or config default
+$Script:MaxIterationsLimit = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
 
 # ============================================================================
 # HANDOFF PROTOCOL
@@ -656,14 +660,33 @@ function Start-SingleAgentWatchdog {
                             -FromAgent $Script:ActiveAgent `
                             -ToAgent $handoffRequest.TargetAgent `
                             -Context $handoffRequest.Context
-                        
+
                         # Reset restart counter on successful handoff
                         $Script:AgentRestartCount = 0
-                        
+
                         # Skip the rest of this iteration - new agent is starting
                         Start-Sleep -Milliseconds $HandoffCheckIntervalMs
                         continue
                     }
+                }
+            }
+
+            # Check for max iterations reached
+            $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
+            if (Test-Path $stateFile) {
+                try {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    if ($state -and $state.iteration -ge $state.maxIterations) {
+                        Write-Host ""
+                        Write-Host "[WATCHDOG] Max iterations reached: $($state.iteration)/$($state.maxIterations)" -ForegroundColor Yellow
+                        # Update status
+                        $state.status = "max_iterations_reached"
+                        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
+                        $Script:SessionComplete = $true
+                        break
+                    }
+                } catch {
+                    # Ignore parsing errors
                 }
             }
             

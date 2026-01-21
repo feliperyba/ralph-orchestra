@@ -17,7 +17,8 @@ param(
     [switch]$NoDashboard = $false,
     [switch]$NoAutoRestart = $false,
     [string]$ProjectRoot = "",
-    [string[]]$Agents = @("pm", "developer", "qa")
+    [string[]]$Agents = @("pm", "developer", "qa"),
+    [int]$MaxIterations = 0             # 0 = use config default
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +50,9 @@ $Script:ValidAgentNames = @("pm", "developer", "qa")
 $Script:AgentStates = @{}
 $Script:WatchdogStartTime = [DateTime]::UtcNow
 $Script:TotalIterations = 0
+
+# Max iterations - use parameter or config default
+$Script:MaxIterationsLimit = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
 
 # Security: Escape strings for safe script generation
 function Get-SafeScriptString {
@@ -763,7 +767,35 @@ function Start-Watchdog {
                     }
                 }
             }
-            
+
+            # Check for max iterations reached in coordinator-state.json
+            $stateFile = Join-Path $paths.SessionDir "coordinator-state.json"
+            if (Test-Path $stateFile) {
+                try {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    if ($state -and $state.iteration -ge $state.maxIterations) {
+                        Write-Host ""
+                        Write-Host "[WATCHDOG] Max iterations reached: $($state.iteration)/$($state.maxIterations)" -ForegroundColor Yellow
+                        # Update status
+                        $state.status = "max_iterations_reached"
+                        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
+                        # Stop all agents
+                        foreach ($agentName in $Agents) {
+                            $agentState = $Script:AgentStates[$agentName]
+                            if ($agentState -and $agentState.Process -and -not $agentState.Process.HasExited) {
+                                try {
+                                    $agentState.Process.Kill()
+                                } catch {}
+                            }
+                        }
+                        Write-WatchdogSummary
+                        break
+                    }
+                } catch {
+                    # Ignore parsing errors
+                }
+            }
+
             # Update dashboard
             if (-not $NoDashboard) {
                 Show-Dashboard

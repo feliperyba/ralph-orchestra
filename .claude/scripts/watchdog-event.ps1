@@ -16,7 +16,8 @@ param(
     [int]$GracefulShutdownSeconds = 30,
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,
-    [string]$ProjectRoot = ""
+    [string]$ProjectRoot = "",
+    [int]$MaxIterations = 0  # 0 = use config default
 )
 
 $ErrorActionPreference = "Stop"
@@ -127,6 +128,9 @@ $Script:TotalIterations = 0
 $Script:TotalMessagesRouted = 0
 $Script:SessionComplete = $false
 $Script:LastHealthCheck = [DateTime]::MinValue
+
+# Max iterations - use parameter or config default
+$Script:MaxIterationsLimit = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
 
 # Agent tracking
 # ProcessState: stopped, running (actual process state)
@@ -889,7 +893,7 @@ function Test-SessionComplete {
     if (Test-Path $signalFile) {
         return $true
     }
-    
+
     # Check for RALPH_COMPLETE in any agent log
     foreach ($agentName in @("pm", "developer", "qa")) {
         $logFile = Join-Path $Script:LogDir "$agentName.log"
@@ -900,7 +904,24 @@ function Test-SessionComplete {
             }
         }
     }
-    
+
+    # Check coordinator-state.json for max iterations reached
+    $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
+    if (Test-Path $stateFile) {
+        try {
+            $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+            if ($state -and $state.iteration -ge $state.maxIterations) {
+                Write-WatchdogLog "Max iterations reached: $($state.iteration)/$($state.maxIterations)" -Color Yellow
+                # Update status
+                $state.status = "max_iterations_reached"
+                $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
+                return $true
+            }
+        } catch {
+            # Ignore parsing errors
+        }
+    }
+
     return $false
 }
 

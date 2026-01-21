@@ -5,11 +5,13 @@
 #   .\.claude\scripts\ralph-event-session.ps1
 #   .\.claude\scripts\ralph-event-session.ps1 -NoDashboard
 #   .\.claude\scripts\ralph-event-session.ps1 -Debug
+#   .\.claude\scripts\ralph-event-session.ps1 -MaxIterations 100
 
 param(
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,
-    [string]$ProjectRoot = ""
+    [string]$ProjectRoot = "",
+    [int]$MaxIterations = 0  # 0 = use config default from ralph-config.ps1
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,10 +87,17 @@ if ($cleanSession) {
 # Initialize coordinator state
 $stateFile = Join-Path $sessionDir "coordinator-state.json"
 if (-not (Test-Path $stateFile)) {
+    # Source config for max iterations default
+    . "$PSScriptRoot\ralph-config.ps1"
+    $config = Get-RalphConfig
+    $maxIter = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
+
     $initialState = @{
         mode = "event-driven"
         phase = "initializing"
         startTime = [DateTime]::UtcNow.ToString("o")
+        maxIterations = $maxIter
+        iteration = 0
         activeAgents = @("pm", "developer", "qa")
         currentTasks = @{
             pm = $null
@@ -140,6 +149,16 @@ Write-Host "  - PM handles all priority decisions"
 Write-Host "  - Developer can use git worktrees"
 Write-Host "  - No polling - event-driven"
 Write-Host ""
+
+# Show max iterations setting
+if ($MaxIterations -gt 0) {
+    Write-Host "Max Iterations: $MaxIterations (override)" -ForegroundColor Yellow
+} else {
+    . "$PSScriptRoot\ralph-config.ps1"
+    $config = Get-RalphConfig
+    Write-Host "Max Iterations: $($config.MaxIterations) (default)" -ForegroundColor Yellow
+}
+Write-Host ""
 Write-Host "Press Ctrl+C in watchdog window to stop all agents." -ForegroundColor DarkGray
 Write-Host ""
 
@@ -147,6 +166,7 @@ Write-Host ""
 $watchdogArgs = @()
 if ($NoDashboard) { $watchdogArgs += "-NoDashboard" }
 if ($Debug) { $watchdogArgs += "-Debug" }
+if ($MaxIterations -gt 0) { $watchdogArgs += "-MaxIterations", $MaxIterations }
 $watchdogArgs += "-ProjectRoot", "`"$ProjectRoot`""
 
 $watchdogScript = Join-Path $scriptsDir "watchdog-event.ps1"

@@ -9,7 +9,7 @@
 $Script:WorktreeConfig = @{
     BaseDir = $null
     ProjectRoot = $null
-    WorktreePrefix = "Ralph Orchestra-"
+    WorktreePrefix = "RalphOrchestra-"
 }
 
 function Initialize-WorktreeManager {

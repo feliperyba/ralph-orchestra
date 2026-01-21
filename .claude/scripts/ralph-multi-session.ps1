@@ -8,7 +8,8 @@ param(
     [int]$MaxRestarts = 5,
     [switch]$NoDashboard = $false,
     [switch]$NoAutoRestart = $false,
-    [string[]]$Agents = @("pm", "developer", "qa")
+    [string[]]$Agents = @("pm", "developer", "qa"),
+    [int]$MaxIterations = 0  # 0 = use config default from ralph-config.ps1
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,11 +17,17 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = (Get-Item $scriptDir).Parent.Parent.FullName
 
+# Source configuration for max iterations default
+. "$scriptDir\ralph-config.ps1"
+$config = Get-RalphConfig
+$maxIter = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
+
 Write-Host "=== Ralph Multi-Session Launcher ===" -ForegroundColor Cyan
 Write-Host "Project Root: $projectRoot"
 Write-Host "Agents: $($Agents -join ', ')"
 Write-Host "Idle Timeout: ${IdleTimeoutSeconds}s"
 Write-Host "Startup Grace: ${StartupGraceSeconds}s"
+Write-Host "Max Iterations: $maxIter"
 Write-Host "Auto-Restart: $(if (-not $NoAutoRestart) { 'ENABLED' } else { 'DISABLED' })"
 Write-Host ""
 
@@ -42,6 +49,7 @@ $watchdogArgs = @{
 
 if ($NoDashboard) { $watchdogArgs.NoDashboard = $true }
 if ($NoAutoRestart) { $watchdogArgs.NoAutoRestart = $true }
+if ($MaxIterations -gt 0) { $watchdogArgs.MaxIterations = $MaxIterations }
 
 # Run watchdog directly (it manages everything)
 Write-Host "Starting watchdog..." -ForegroundColor Yellow
