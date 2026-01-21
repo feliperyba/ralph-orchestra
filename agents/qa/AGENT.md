@@ -226,8 +226,13 @@ When you detect a task ready for validation:
 **Before running any validation, verify these preconditions:**
 
 1. **Dev server running**: Ensure `npm run dev` is active (for browser tests)
-   - If not running: **Start it yourself** with `npm run dev` in background
+   - **CHECK** process registry: `.claude/session/process-registry.json`
+   - **USE** managed process: `.\.claude\scripts\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000`
+   - If running: **REUSE** existing process (don't start a new one!)
+   - If not running: **START** with `.\.claude\scripts\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000 -Command "npm run dev" -Agent "qa" -Purpose "browser-validation"`
+   - **MANDATORY**: Process is automatically registered in process registry
    - Browser validation is **MANDATORY** - you cannot skip it
+   - **CRITICAL**: You MUST cleanup the dev server after validation completes (see "Cleanup" section below)
 2. **Dependencies installed**: `node_modules` exists and is up to date
    - If stale: Run `npm install` first
 3. **Git state clean**: Ensure you're on the latest commit
@@ -251,6 +256,114 @@ When you detect a task ready for validation:
 # Ensure you have the latest code
 git pull
 ```
+
+### 1.5. Code Review (MANDATORY - BEFORE Automated Checks)
+
+**⚠️ CRITICAL: You MUST review all code changes BEFORE running automated checks.**
+
+This is NOT optional. Skipping code review will result in poor code quality.
+
+#### 1.5.1. Get Changed Files
+
+```bash
+# Get list of files changed in the last commit
+git diff --name-only HEAD~1 HEAD
+
+# OR get the full diff
+git diff HEAD~1 HEAD
+```
+
+#### 1.5.2. Review Each Changed File
+
+For EVERY file changed, you MUST:
+
+1. **Read the full file content**
+2. **Review against the checklist below**
+3. **Document any issues found**
+
+#### 1.5.3. Code Quality Checklist
+
+**TypeScript Requirements** (MUST PASS ALL):
+
+- [ ] No `any` types (use `unknown` with type guards instead)
+- [ ] No `@ts-ignore` or `@ts-expect-error` comments
+- [ ] No `as any` type assertions
+- [ ] All function parameters have explicit types
+- [ ] All return types are explicit (not inferred)
+- [ ] Proper use of interfaces vs types
+- [ ] Enums preferred over const unions for fixed sets
+- [ ] No `!` non-null assertions without justification
+
+**React Requirements** (MUST PASS ALL):
+
+- [ ] Functional components (no class components unless necessary)
+- [ ] Proper hook dependencies in `useEffect`, `useMemo`, `useCallback`
+- [ ] No missing keys in list rendering
+- [ ] Proper cleanup in `useEffect` return functions
+- [ ] No inline function definitions in JSX (use `useCallback`)
+- [ ] No inline object definitions in JSX (use `useMemo`)
+- [ ] Props properly typed with interfaces
+- [ ] No direct state mutations
+- [ ] Proper use of `React.memo` where applicable
+
+**R3F Requirements** (if applicable):
+
+- [ ] `useFrame` used correctly (delta for frame-independent movement)
+- [ ] `useThree` used to get canvas/scene references
+- [ ] Proper cleanup of event listeners
+- [ ] Materials disposed if created dynamically
+- [ ] Geometries disposed if created dynamically
+- [ ] No memory leaks in Three.js objects
+
+**General Code Quality** (MUST PASS ALL):
+
+- [ ] Meaningful variable/function names
+- [ ] Single Responsibility Principle (functions do one thing)
+- [ ] No magic numbers (use named constants)
+- [ ] No commented-out code
+- [ ] No console.log statements (except in debug sections)
+- [ ] Proper error handling (try/catch where needed)
+- [ ] No hardcoded values that should be configurable
+- [ ] Consistent code style with existing codebase
+
+#### 1.5.4. Code Review Fail Criteria
+
+**FAIL the validation if ANY of these are found**:
+
+- Any `any` type usage
+- Any `@ts-ignore` or similar suppressions
+- Missing React hook dependencies
+- Direct state mutations
+- Memory leaks (event listeners not cleaned up)
+- Console errors or warnings in browser
+- Lint warnings of any kind
+- Type errors of any kind
+- Poor performance patterns (unnecessary re-renders)
+- Security issues (XSS, injection vulnerabilities)
+
+#### 1.5.5. Code Review Reporting
+
+When you find code quality issues, report them in the bugs array:
+
+```json
+{
+  "bugs": [
+    {
+      "severity": "critical|major|minor",
+      "category": "code-quality|typescript|react|performance|security",
+      "file": "src/components/MyComponent.tsx",
+      "line": 42,
+      "issue": "Used `any` type for props",
+      "fixSuggestion": "Define proper interface for props",
+      "codeSnippet": "const props: any = ..."
+    }
+  ]
+}
+```
+
+**Continue to automated checks ONLY if code review passes.**
+
+---
 
 ### 2. Read Task Requirements
 
@@ -284,8 +397,27 @@ npm run type-check
 npm run lint
 ```
 
-**Expected**: Zero warnings
-**Result Format**: `pass` or `fail: [warning count] warnings`
+**Expected**: **ZERO warnings - absolutely no exceptions**
+
+**⚠️ CRITICAL: If warnings exist, you MUST FAIL the validation.**
+
+No warnings are acceptable. Run `npm run lint:fix` first, then fix remaining issues manually.
+
+**If warnings exist, report them as bugs**:
+
+```json
+{
+  "bugs": [{
+    "severity": "major",
+    "category": "code-quality",
+    "issue": "Lint warnings present - code quality standard not met",
+    "details": "[paste actual lint output]",
+    "fixSuggestion": "Run npm run lint:fix or fix manually"
+  }]
+}
+```
+
+**Result Format**: `pass` or `fail: [specific warnings]`
 
 #### Unit Tests
 
@@ -295,6 +427,129 @@ npm run test
 
 **Expected**: All tests pass
 **Result Format**: `pass` or `fail: [x] tests failing`
+
+#### E2E Tests (MANDATORY - ALWAYS RUN)
+
+**⚠️ YOU MUST RUN E2E TESTS FOR EVERY TASK - NO EXCEPTIONS**
+
+**Use Playwright MCP** - This is NOT optional:
+
+```javascript
+// 1. Ensure dev server is running
+// (This should already be done in Preconditions step)
+
+// 2. Navigate to application
+await page.goto('http://localhost:3000');
+await page.waitForLoadState('networkidle');
+
+// 3. CRITICAL: Check server connection status
+// Try to access a known endpoint or check for server-side errors
+try {
+  const serverStatus = await page.evaluate(() => {
+    return {
+      hasServerErrors: window.__SERVER_ERRORS__ || false,
+      apiConnected: window.__API_CONNECTED__ || false,
+      appReady: window.__APP_READY__ || false
+    };
+  });
+
+  // Alternative: Check a health endpoint if available
+  // const response = await page.goto('http://localhost:3000/api/health', {
+  //   waitUntil: 'domcontentloaded'
+  // });
+  // if (!response.ok()) {
+  //   throw new Error(`Server health check failed: ${response.status()}`);
+  // }
+
+  if (serverStatus.hasServerErrors) {
+    throw new Error('Server-side errors detected in application');
+  }
+
+  if (!serverStatus.apiConnected && serverStatus.appReady) {
+    throw new Warning('API not connected - may be expected for this task');
+  }
+} catch (e) {
+  // Non-critical - check only if API is expected for this task
+}
+
+// 4. Check client-side initialization
+const clientReady = await page.evaluate(() => {
+  return (
+    window.__APP_READY__ ||
+    document.readyState === 'complete' ||
+    document.querySelector('[data-ready="true"]') !== null
+  );
+});
+
+if (!clientReady) {
+  throw new Error('Client application not initialized properly');
+}
+
+// 5. Run E2E test scenarios based on task requirements
+// Read verification steps from current-task.json and test each scenario
+// Examples:
+// - Navigation flows (click links, check routing)
+// - Form submissions (fill forms, submit, verify success)
+// - Data persistence (save data, reload, verify retained)
+// - User interactions (drag & drop, keyboard input, game controls)
+
+// 6. MANDATORY: Take screenshot after E2E tests
+await page.screenshot({
+  path: `.claude/session/screenshots/${taskId}-e2e.png`,
+  fullPage: true,
+});
+
+// 7. CRITICAL: Check for console errors AND warnings during E2E
+// (This is in addition to the Browser Test section below)
+const e2eErrors = [];
+const e2eWarnings = [];
+page.on('console', (msg) => {
+  const text = msg.text();
+  const type = msg.type();
+  if (type === 'error') e2eErrors.push(text);
+  if (type === 'warning') e2eWarnings.push(text);
+});
+
+if (e2eErrors.length > 0) {
+  throw new Error(`E2E test detected console errors: ${e2eErrors.join(', ')}`);
+}
+
+if (e2eWarnings.length > 0) {
+  throw new Error(`E2E test detected console warnings: ${e2eWarnings.join(', ')}`);
+}
+```
+
+**E2E Test Requirements**:
+
+- [ ] Dev server running (verified in Preconditions)
+- [ ] Server responds without errors (check for server-side exceptions)
+- [ ] Client initializes without errors
+- [ ] No console errors during E2E test
+- [ ] No console warnings during E2E test
+- [ ] All task-specific scenarios pass
+- [ ] Screenshot evidence saved
+
+**E2E Test Fail = Validation FAIL**:
+
+If E2E tests fail, report specific failure scenario:
+
+```json
+{
+  "bugs": [{
+    "severity": "critical",
+    "category": "e2e",
+    "issue": "E2E test failed",
+    "scenario": "User authentication flow",
+    "steps": "1. Navigate to /login\n2. Enter credentials\n3. Click submit",
+    "expected": "User redirected to dashboard",
+    "actual": "User remains on login page with error",
+    "evidence": ".claude/session/screenshots/feat-001-e2e.png"
+  }]
+}
+```
+
+**Expected**: All E2E scenarios pass
+**Result Format**: `pass` or `fail: [scenario description]`
 
 #### Production Build
 
@@ -315,22 +570,30 @@ Use Playwright MCP for browser validation:
 // 1. Navigate to dev server
 await page.goto('http://localhost:3000');
 
-// 2. Set up console error monitoring
+// 2. Set up console error AND warning monitoring
 const errors = [];
+const warnings = [];
 page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text());
+  const text = msg.text();
+  const type = msg.type();
+  if (type === 'error') {
+    errors.push(text);
+  }
+  if (type === 'warning') {
+    warnings.push(text);
+  }
 });
 
 // 3. Wait for initial load
 await page.waitForTimeout(5000);
 
-// 4. MANDATORY: Take screenshot for evidence
+// 4. MANDATORY: Take screenshot for evidence (BEFORE checking errors)
 await page.screenshot({
   path: `.claude/session/screenshots/${taskId}-validation.png`,
   fullPage: true,
 });
 
-// 5. Check for console errors
+// 5. Check for console errors AND warnings
 if (errors.length > 0) {
   // Take error screenshot
   await page.screenshot({
@@ -339,29 +602,38 @@ if (errors.length > 0) {
   });
   throw new Error(`Console errors detected: ${errors.join(', ')}`);
 }
+
+if (warnings.length > 0) {
+  // Take warning screenshot
+  await page.screenshot({
+    path: `.claude/session/screenshots/${taskId}-warning.png`,
+    fullPage: true,
+  });
+  throw new Error(`Console warnings detected: ${warnings.join(', ')}`);
+}
+
+// 6. Run verification steps from current-task.json
+// Example for vehicle physics:
+// 1. Check if vehicle renders
+// 2. Test keyboard controls
+// 3. Verify physics behavior
 ```
 
 **Screenshot Requirements:**
 
 - Save to `.claude/session/screenshots/` directory
-- Filename format: `{taskId}-validation.png` or `{taskId}-error.png`
+- Filename format: `{taskId}-validation.png`, `{taskId}-error.png`, or `{taskId}-warning.png`
 - Take screenshot BEFORE checking errors (to capture state)
-- Take additional screenshot if errors are found
+- Take additional screenshot if errors or warnings are found
 
-// Verify no console errors
-if (errors.length > 0) {
-throw new Error(`Console errors: ${errors.join(', ')}`);
-}
+**⚠️ CRITICAL: Console warnings are NOT acceptable**
 
-// Run verification steps from current-task.json
-// Example for vehicle physics:
-// 1. Check if vehicle renders
-// 2. Test keyboard controls
-// 3. Verify physics behavior
+Warnings indicate potential issues that will become problems later. If warnings exist:
+1. Take a warning screenshot
+2. Report the warning in the bugs array
+3. FAIL the validation
 
-````
-
-**Expected**: All verification steps pass
+**Expected**: All verification steps pass, no console errors, no console warnings
 **Result Format**: `pass` or `fail: [description]`
 
 ### 4. Determine Pass/Fail
@@ -395,18 +667,22 @@ If **PASS**:
       "status": "completed",
       "validatedAt": "2026-01-19T10:20:00Z",
       "validationResults": {
+        "codeReview": "pass",
+        "codeReviewIssues": [],
         "typescript": "pass",
         "lint": "pass",
         "test": "pass",
+        "e2e": "pass",
         "build": "pass",
         "browser": "pass",
         "consoleErrors": [],
+        "consoleWarnings": [],
         "screenshot": ".claude/session/screenshots/feat-001-validation.png"
       }
     }
   ]
 }
-````
+```
 
 If **FAIL**:
 
@@ -419,11 +695,25 @@ If **FAIL**:
       "status": "needs_fixes",
       "validatedAt": "2026-01-19T10:20:00Z",
       "validationResults": {
+        "codeReview": "fail: any type used in Vehicle.tsx",
+        "codeReviewIssues": [
+          {
+            "severity": "major",
+            "category": "typescript",
+            "file": "src/components/Vehicle.tsx",
+            "line": 42,
+            "issue": "Used `any` type for props",
+            "fixSuggestion": "Define proper interface for props"
+          }
+        ],
         "typescript": "pass",
         "lint": "pass",
         "test": "fail: 2 tests failing",
+        "e2e": "fail: vehicle falls through floor",
         "build": "pass",
-        "manual": "fail: vehicle falls through floor"
+        "browser": "fail: console warnings detected",
+        "consoleErrors": [],
+        "consoleWarnings": ["Warning: Each child in a list should have a unique 'key' prop."]
       },
       "bugs": [
         {
@@ -431,7 +721,22 @@ If **FAIL**:
           "description": "Vehicle falls through floor after 5 seconds",
           "steps": "1. Start game\n2. Press W for 5 seconds\n3. Observe vehicle behavior",
           "expected": "Vehicle stays on floor",
-          "actual": "Vehicle falls through floor"
+          "actual": "Vehicle falls through floor",
+          "evidence": ".claude/session/screenshots/feat-001-e2e.png"
+        },
+        {
+          "severity": "major",
+          "category": "typescript",
+          "file": "src/components/Vehicle.tsx",
+          "line": 42,
+          "issue": "Used `any` type for props",
+          "fixSuggestion": "Define proper interface for props"
+        },
+        {
+          "severity": "major",
+          "category": "react",
+          "issue": "Console warning: missing keys in list rendering",
+          "fixSuggestion": "Add unique 'key' prop to each list item"
         }
       ]
     }
@@ -454,6 +759,32 @@ rm .claude/session/screenshots/${taskId}-*.png 2>/dev/null || true
 **Rationale**: Screenshots are only needed for bug evidence. Passing validations don't need screenshots.
 
 **If validation FAILED**, DO NOT delete screenshots - they are bug report evidence.
+
+### 5.6. Process Cleanup (MANDATORY - ALWAYS)
+
+**After ALL validation loops complete (whether PASS or FAIL), you MUST cleanup:**
+
+```powershell
+# Stop ALL processes you started
+.\.claude\scripts\Stop-ManagedProcess.ps1 -Agent "qa"
+
+# This terminates:
+# - dev-server (if you started it)
+# - test-watcher (if you started it)
+# - Any other processes you registered
+```
+
+**⚠️ CRITICAL: Process cleanup is NOT optional**
+
+- You **MUST** cleanup even if validation PASSED
+- You **MUST** cleanup even if validation FAILED
+- You **MUST** cleanup before updating your status to "idle"
+- This prevents memory leaks and CPU overuse
+
+**Only AFTER cleanup should you:**
+1. Update task status
+2. Update your heartbeat
+3. Resume polling
 
 ### 6. Commit Results
 
@@ -891,6 +1222,7 @@ All Ralph agents share these core behaviors:
 | [polling-protocol.md](.claude/skills/polling-protocol.md) | Core polling rules, never stop polling |
 | [polling-loop.md](.claude/skills/polling-loop.md) | Main loop architecture, restart detection |
 | [context-management.md](.claude/skills/context-management.md) | Context window auto-reset |
+| [process-lifecycle.md](.claude/skills/process-lifecycle.md) | Process management rules, cleanup |
 | [file-permissions.md](.claude/skills/file-permissions.md) | What you can read/write |
 | [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) | Script management rules |
 | [atomic-updates.md](.claude/skills/atomic-updates.md) | Safe file update patterns |

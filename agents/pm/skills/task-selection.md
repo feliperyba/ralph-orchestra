@@ -113,12 +113,16 @@ const unblockScore = prd.items.filter((i) => i.dependencies.includes(task.id)).l
 
 Before assigning a task:
 
-- [ ] Current task is null OR status is "passed"
-- [ ] Retrospective complete (if previous task existed)
+- [ ] **Current task is `null`** (MUST be null, not "passed")
+- [ ] **NOT in "in_retrospective" status** (forbidden to assign during retrospective)
+- [ ] **NOT in "skill_research" status** (forbidden to assign during skill research)
+- [ ] **Retrospective complete** (if previous task existed, retrospective AND skill_research must be complete)
 - [ ] Task has all required fields (id, title, description, acceptanceCriteria)
 - [ ] All dependencies have `passes: true`
 - [ ] Worker heartbeats are fresh (< 60 seconds)
 - [ ] Selection rationale logged to coordinator-progress.txt
+
+**⚠️ CRITICAL:** When `currentTask.status === "passed"`, you MUST run retrospective first, then skill_research, and ONLY THEN set `currentTask = null` before selecting the next task. Never assign a new task while `currentTask` is not null.
 
 ## Reference
 

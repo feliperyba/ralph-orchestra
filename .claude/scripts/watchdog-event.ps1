@@ -75,9 +75,14 @@ function Write-WatchdogLog {
         $Script:LastLogRotationCheck = [DateTime]::UtcNow
         Invoke-LogRotation -LogFile $logFile
     }
-    
-    # Write to log file
-    "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8
+
+    # Write to log file (with error handling to prevent blocking)
+    try {
+        "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8 -ErrorAction Stop
+    } catch {
+        # Silently skip logging if file is locked or disk is slow
+        # The main loop must continue even if logging fails
+    }
     
     # Only write to console if dashboard is disabled
     if ($NoDashboard) {
@@ -389,6 +394,7 @@ Start-Sleep -Seconds 5
         $Script:Agents[$AgentName].StartTime = [DateTime]::UtcNow
         $Script:Agents[$AgentName].ProcessState = "running"
         # If we're delivering messages, assume agent is working; otherwise starting
+        # Agent will send status_update to change to "idle" or "working" as appropriate
         $Script:Agents[$AgentName].WorkStatus = if ($PendingMessages.Count -gt 0) { "working" } else { "starting" }
         $Script:Agents[$AgentName].LastActivity = [DateTime]::UtcNow
         
@@ -439,15 +445,15 @@ function Stop-ProcessTree {
         $visited[$currentPid] = $true
         $allProcesses += $currentPid
 
-        # Find direct children of current process
+        # Find direct children of current process (with timeout to prevent WMI hangs)
         try {
-            $children = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+            $children = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue -OperationTimeoutSec 5 |
                 Where-Object { $_.ParentProcessId -eq $currentPid } |
                 Select-Object -ExpandProperty ProcessId
 
             $queue += @($children)
         } catch {
-            # Query may fail if process already exited
+            # Query may fail if process already exited or WMI timeout
         }
     }
 
@@ -459,7 +465,8 @@ function Stop-ProcessTree {
             $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
             if ($proc -and -not $proc.HasExited) {
                 Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-                $proc.WaitForExit(1000) | Out-Null
+                # Non-blocking wait - only wait 200ms max, then continue
+                $null = $proc.WaitForExit(200)
                 $terminated++
             }
         } catch {

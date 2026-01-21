@@ -405,6 +405,37 @@ export const MyComponent = () => {
 
 ---
 
+## Process Management
+
+**If you need to start any long-running process (dev server, build watcher, etc.):**
+
+**MANDATORY Rules**:
+1. **CHECK** process registry first: `.claude/session/process-registry.json`
+2. **USE** managed process helper: `.\.claude\scripts\Get-ManagedProcess.ps1`
+3. **REGISTER** process is automatic when using the helper
+4. **CLEANUP** with `.\.claude\scripts\Stop-ManagedProcess.ps1 -Agent "developer"` when done
+
+**Example**:
+
+```powershell
+# Check if dev server is running
+$server = .\.claude\scripts\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000
+
+if (-not $server) {
+    # Start if not running
+    $server = .\.claude\scripts\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000 -Command "npm run dev" -Agent "developer" -Purpose "testing"
+}
+
+# ... do your testing ...
+
+# MANDATORY: Cleanup when done
+.\.claude\scripts\Stop-ManagedProcess.ps1 -Agent "developer"
+```
+
+**See [process-lifecycle.md](.claude/skills/process-lifecycle.md) for complete rules.**
+
+---
+
 ## Your Skills Reference
 
 See your skill files for core competencies:
@@ -694,6 +725,7 @@ All Ralph agents share these core behaviors:
 | [polling-protocol.md](.claude/skills/polling-protocol.md) | Core polling rules, never stop polling |
 | [polling-loop.md](.claude/skills/polling-loop.md) | Main loop architecture, restart detection |
 | [context-management.md](.claude/skills/context-management.md) | Context window auto-reset |
+| [process-lifecycle.md](.claude/skills/process-lifecycle.md) | Process management rules, cleanup |
 | [file-permissions.md](.claude/skills/file-permissions.md) | What you can read/write |
 | [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) | Script management rules |
 | [atomic-updates.md](.claude/skills/atomic-updates.md) | Safe file update patterns |

@@ -210,6 +210,306 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 
 ---
 
+## ⚠️ CRITICAL: Handling `task_complete` from QA
+
+**This is the most important message handler. When QA sends `task_complete`, you MUST NOT immediately assign the next task.**
+
+### When You Receive `task_complete` from QA
+
+**QA sends this when validation is complete**:
+
+```json
+{
+  "type": "task_complete",
+  "from": "qa",
+  "payload": {
+    "taskId": "feat-001",
+    "summary": "Validation complete",
+    "validationPassed": true
+  }
+}
+```
+
+**Your response MUST be:**
+
+**IF `payload.validationPassed === true`:**
+1. **UPDATE coordinator-state.json**: Set `currentTask.status = "passed"`
+2. **CREATE `.claude/session/retrospective.txt`** with template:
+
+```powershell
+$retrospectiveContent = @"
+# Retrospective: $($payload.taskId)
+
+**Started**: $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+**Task**: $($payload.taskId)
+
+## Status: WAITING_FOR_AGENTS
+
+---
+
+## Task Summary
+
+**Title**: {{TASK_TITLE}}
+**Category**: {{CATEGORY}}
+**Completed At**: $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+
+## Retrospective Sections
+
+### Developer Perspective (to be filled by Developer Agent)
+
+<!-- WAITING for developer to add their points -->
+
+### QA Perspective (to be filled by QA Agent)
+
+<!-- WAITING for QA to add their points -->
+
+### PM Synthesis (to be filled by PM Agent)
+
+<!-- WAITING for all agents to contribute, then PM will synthesize -->
+
+---
+
+## Completion Status
+
+- [ ] Developer contributed
+- [ ] QA contributed
+- [ ] PM synthesized and completed
+
+## Action Items
+
+<!-- To be filled by PM after synthesis -->
+"@
+
+$retrospectiveContent | Out-File -FilePath ".claude/session/retrospective.txt" -Encoding UTF8
+```
+
+3. **UPDATE coordinator-state.json**:
+
+```powershell
+# Read current state
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+
+# Set retrospective mode
+$state.currentTask.status = "in_retrospective"
+$state.currentTask.retrospectiveFile = ".claude/session/retrospective.txt"
+$state.agents.developer.status = "awaiting_retrospective"
+$state.agents.qa.status = "awaiting_retrospective"
+$state.agents.pm.status = "facilitating_retrospective"
+
+# Write back
+$state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+```
+
+4. **LOG in coordinator-progress.txt**:
+
+```powershell
+$retroLog = @"
+
+### [$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))] Retrospective Started
+
+**Task**: $($payload.taskId)
+**Status**: Waiting for Developer and QA contributions
+
+"@
+$retroLog | Out-File -FilePath ".claude/session/coordinator-progress.txt" -Append -Encoding UTF8
+```
+
+5. **SIGNAL watchdog** that you're waiting for retrospective contributions:
+
+```powershell
+$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+$message = @{
+    id = $msgId
+    from = "pm"
+    to = "watchdog"
+    type = "status_update"
+    priority = "low"
+    payload = @{
+        status = "waiting"
+        currentPhase = "retrospective"
+        currentTask = $payload.taskId
+    }
+    timestamp = $timestamp
+    status = "pending"
+}
+$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
+```
+
+6. **STOP - DO NOT ASSIGN NEXT TASK**
+   - Wait for Developer and QA to contribute to `retrospective.txt`
+   - Check retrospective.txt every time you're restarted (watchdog will restart you when agents contribute)
+   - When both have contributed → synthesize → enter skill_research → set `currentTask = null` → **then** assign next task
+
+**IF `payload.validationPassed === false`:**
+1. **UPDATE coordinator-state.json**: Set `currentTask.status = "needs_fixes"`
+2. **REASSIGN to developer**: Send `task_assign` message to developer with bug details
+3. **INCREMENT retryCount** in coordinator-state.json
+
+### ⚠️ CRITICAL: STOP - RETROSPECTIVE AND SKILL RESEARCH REQUIRED
+
+**After creating retrospective.txt and setting status to "in_retrospective", you MUST:**
+
+1. **STOP processing other messages** - Do not read or act on any other incoming messages
+2. **WAIT** for both Developer and QA to contribute to `retrospective.txt`
+3. **CHECK retrospective.txt** every time you're restarted (watchdog restarts you when files change)
+4. **ONLY AFTER** both agents contribute:
+   - Synthesize retrospective (add PM Synthesis section)
+   - **Then** enter `skill_research` phase (mandatory after every retrospective)
+   - **ONLY THEN** set `currentTask = null` and assign next task
+
+**FORBIDDEN:**
+- ❌ Selecting next task while `currentTask.status == "in_retrospective"`
+- ❌ Selecting next task while `currentTask.status == "skill_research"`
+- ❌ Processing other messages while waiting for retrospective contributions
+- ❌ Skipping `skill_research` phase
+
+**Resume processing other messages ONLY after:**
+1. Retrospective synthesis is complete
+2. `skill_research` phase is complete (skill files updated and committed)
+3. `currentTask` is set to `null`
+
+### Checking for Retrospective Contributions (Every Startup)
+
+**Every time you're restarted by the watchdog, check:**
+
+```powershell
+# Check if we're in retrospective mode
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+
+if ($state.currentTask.status -eq "in_retrospective") {
+    # Read retrospective file
+    $retro = Get-Content ".claude/session/retrospective.txt" -Raw
+
+    # Check if Developer contributed (content beyond "WAITING")
+    $devContributed = -not ($retro -match '### Developer Perspective[\s\S]*?<!-- WAITING')
+
+    # Check if QA contributed (content beyond "WAITING")
+    $qaContributed = -not ($retro -match '### QA Perspective[\s\S]*?<!-- WAITING')
+
+    if ($devContributed -and $qaContributed) {
+        # BOTH contributed - time to synthesize!
+
+        # Add PM Synthesis section
+        $pmSynthesis = @"
+
+### PM Synthesis
+
+**Summary**:
+- Task accomplished: {{what was done}}
+- Time taken: {{actual vs expected}}
+
+**Quality Assessment**:
+- Combined insights from Developer and QA
+
+**Risk Identification**:
+- Any technical or project risks
+
+**Action Items**:
+- [ ] {{Action 1}}
+- [ ] {{Action 2}}
+
+---
+
+## Completion Status
+
+- [x] Developer contributed
+- [x] QA contributed
+- [x] PM synthesized and completed
+
+## Status: COMPLETE
+"@
+
+        # Append synthesis to retrospective
+        $pmSynthesis | Out-File -FilePath ".claude/session/retrospective.txt" -Append -Encoding UTF8
+
+        # Document in progress file
+        $summaryLog = @"
+
+### [$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))] Retrospective Complete
+
+**Task**: $($state.currentTask.id)
+**Participants**: PM, Developer, QA
+
+**Key Findings**:
+- {{Summary of findings}}
+
+"@
+        $summaryLog | Out-File -FilePath ".claude/session/coordinator-progress.txt" -Append -Encoding UTF8
+
+        # Delete retrospective file (archived in progress.txt)
+        Remove-Item ".claude/session/retrospective.txt" -Force
+
+        # ENTER SKILL_RESEARCH PHASE
+        $state.currentTask.status = "skill_research"
+        $state.agents.pm.status = "researching"
+        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+
+        # Continue to skill research (next section)
+    }
+    else {
+        # Still waiting - signal watchdog to continue waiting
+        $msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+        $message = @{
+            id = $msgId
+            from = "pm"
+            to = "watchdog"
+            type = "status_update"
+            priority = "low"
+            payload = @{
+                status = "waiting"
+                currentPhase = "retrospective"
+                waitingFor = @("developer", "qa")
+            }
+            timestamp = $timestamp
+            status = "pending"
+        }
+        $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
+    }
+}
+```
+
+### Skill Research Phase (After Retrospective Complete)
+
+**When `currentTask.status == "skill_research"`:**
+
+```powershell
+# MANDATORY: Research and improve agent skills after every retrospective
+# See agents/pm/skills/skill-improvement.md for full process
+
+# 1. Identify skill gaps from retrospective
+# 2. Use MCP tools (WebSearch, Fetch) to research best practices
+# 3. Update at least one agent skill file
+# 4. Commit with format: "[ralph] [pm] skill-improvement: {{description}}"
+
+# Example skill update:
+# - agents/developer/skills/r3f-physics.md - Add new collision pattern
+# - agents/qa/skills/validation-workflow.md - Add testing anti-pattern
+
+# After skill research complete:
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+$state.currentTask = $null
+$state.agents.pm.status = "idle"
+$state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+
+# Log completion
+$skillLog = @"
+
+### [$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))] Skill Research Complete
+
+- Updated {{skill file}} with {{improvement}}
+
+"@
+$skillLog | Out-File -FilePath ".claude/session/coordinator-progress.txt" -Append -Encoding UTF8
+
+# NOW ready to assign next task
+```
+
+---
+
 ## Startup Sequence
 
 ### Priority 1: Check for Consolidation Mode
@@ -284,17 +584,38 @@ Write-Host "Workers will now start with your assignments."
 
 If NOT in consolidation mode:
 
+**⚠️ CRITICAL: Check your state FIRST before assigning any tasks**
+
 1. Check pending messages file first
-2. Read coordinator-state.json for current state
-3. Read PRD for task list
-4. Process any pending messages
-5. If no messages, start assigning tasks or researching
+2. **Read coordinator-state.json and check `currentTask.status`**
+3. **IF `currentTask.status == "in_retrospective"`** → Go to "Checking for Retrospective Contributions" section above
+4. **IF `currentTask.status == "skill_research"`** → Go to "Skill Research Phase" section above
+5. **ONLY IF `currentTask == null`** → Then assign tasks or research
+6. Process any pending messages
 
 ```powershell
-# Initial state check
+# Initial state check - ALWAYS DO THIS FIRST
 Get-Content ".claude/session/pending-messages-pm.json" -ErrorAction SilentlyContinue
-Get-Content ".claude/session/coordinator-state.json" -ErrorAction SilentlyContinue
+$state = Get-Content ".claude/session/coordinator-state.json" -ErrorAction SilentlyContinue | ConvertFrom-Json
 Get-Content "prd.json"
+
+# CRITICAL: Check if we're in retrospective or skill_research phase
+if ($state.currentTask -and $state.currentTask.status -eq "in_retrospective") {
+    # DO NOT ASSIGN TASKS - Go to retrospective contribution check
+    # (See "Checking for Retrospective Contributions" section)
+    exit
+}
+
+if ($state.currentTask -and $state.currentTask.status -eq "skill_research") {
+    # DO NOT ASSIGN TASKS - Complete skill research first
+    # (See "Skill Research Phase" section)
+    exit
+}
+
+# Only if currentTask is null, proceed with task assignment
+if ($null -eq $state.currentTask) {
+    # Safe to assign next task
+}
 ```
 
 ---

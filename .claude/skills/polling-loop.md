@@ -54,6 +54,7 @@ FOREVER:
 
 ```
 IF currentTask == null:
+  # CRITICAL: Verify not in retrospective or skill_research phase
   SELECT next task from PRD
   IF task available:
     ASSIGN to developer
@@ -67,7 +68,17 @@ ELSE IF currentTask.status == "in_retrospective":
   IF yes:
     SYNTHESIZE and complete retrospective
     DELETE retrospective.txt
-    SET currentTask = null
+    SET currentTask.status to "skill_research"  # ← MANDATORY intermediate phase
+    CONTINUE  # Poll again - will enter skill_research handler
+ELSE IF currentTask.status == "skill_research":
+  # MANDATORY: Skill improvement research after EVERY retrospective
+  # See [agents/pm/skills/skill-improvement.md](../agents/pm/skills/skill-improvement.md)
+  RESEARCH skill improvements using MCP tools
+  UPDATE at least one agent skill file
+  COMMIT improvements with format: "[ralph] [pm] skill-improvement: {{description}}"
+  LOG research completion in coordinator-progress.txt
+  SET currentTask = null  # Only after skill research completes
+  CONTINUE  # Poll again - will assign next task on next iteration
 ```
 
 ### Developer Worker

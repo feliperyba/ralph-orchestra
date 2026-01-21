@@ -34,6 +34,68 @@ Write a message JSON file to the recipient's inbox. The watchdog will deliver it
 
 ---
 
+## Task Status Updates
+
+**IMPORTANT**: Always send status updates when starting and finishing work. This ensures the dashboard shows accurate agent status.
+
+### When You START Working on a Task
+
+Send `status: "working"` immediately when you begin processing:
+
+```powershell
+$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+$message = @{
+    id = $msgId
+    from = "$arguments.agent"
+    to = "watchdog"
+    type = "status_update"
+    priority = "low"
+    payload = @{
+        status = "working"
+        currentTask = "feat-001"
+        details = "Implementing user authentication"
+    }
+    timestamp = $timestamp
+    status = "pending"
+}
+$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
+```
+
+### When You FINISH a Task
+
+Send `status: "ready"` when complete and ready for next assignment:
+
+```powershell
+$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+$message = @{
+    id = $msgId
+    from = "$arguments.agent"
+    to = "watchdog"
+    type = "status_update"
+    priority = "low"
+    payload = @{
+        status = "ready"
+        currentTask = $null
+        details = "Task complete, ready for next assignment"
+    }
+    timestamp = $timestamp
+    status = "pending"
+}
+$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
+```
+
+**Remember**:
+- Send `status: "working"` when you START a task
+- Send `status: "ready"` when you FINISH a task
+- The dashboard displays these statuses in real-time
+- Without status updates, the dashboard shows stale information
+
+---
+
 ## Developer-Specific Instructions
 
 ### Message Types You Receive

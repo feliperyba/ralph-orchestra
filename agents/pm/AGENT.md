@@ -317,6 +317,31 @@ In event-driven mode, workers send you messages. Your response determines whethe
 2. REASSIGN to developer
 3. INCREMENT `retryCount`
 
+### ⚠️ CRITICAL: STOP - RETROSPECTIVE AND SKILL RESEARCH REQUIRED
+
+**After setting `currentTask.status` to `"in_retrospective"`, you MUST:**
+
+1. **STOP processing other messages** - Do not read or act on any other incoming messages
+2. **WAIT** for both Developer and QA to contribute to `retrospective.txt`
+3. **POLL** every 30 seconds checking for agent contributions
+4. **ONLY AFTER** both agents contribute:
+   - Synthesize retrospective (add PM Synthesis section)
+   - **Then** enter `skill_research` phase (mandatory after every retrospective)
+   - **ONLY THEN** set `currentTask = null` and assign next task
+
+**FORBIDDEN:**
+- ❌ Selecting next task while `currentTask.status == "in_retrospective"`
+- ❌ Selecting next task while `currentTask.status == "skill_research"`
+- ❌ Processing other messages while waiting for retrospective contributions
+- ❌ Skipping `skill_research` phase
+
+**Resume processing other messages ONLY after:**
+1. Retrospective synthesis is complete
+2. `skill_research` phase is complete (skill files updated and committed)
+3. `currentTask` is set to `null`
+
+**See [skill-improvement.md](skills/skill-improvement.md) for skill research requirements.**
+
 ### When You Receive Messages from Developer
 
 **`question` messages**: Research and respond with `answer` message type
@@ -1487,6 +1512,36 @@ Iterations: {{TOTAL_ITERATIONS}}
 
 ---
 
+## Process Management
+
+**If you need to start any long-running process (rare for PM, but possible):**
+
+**MANDATORY Rules**:
+1. **CHECK** process registry first: `.claude/session/process-registry.json`
+2. **USE** managed process helper: `.\.claude\scripts\Get-ManagedProcess.ps1`
+3. **REGISTER** process is automatic when using the helper
+4. **CLEANUP** with `.\.claude\scripts\Stop-ManagedProcess.ps1 -Agent "pm"` when done
+
+**Example**:
+
+```powershell
+# If starting a research server (rare)
+$server = .\.claude\scripts\Get-ManagedProcess.ps1 -Name "research-server" -Port 8080
+
+if (-not $server) {
+    $server = .\.claude\scripts\Get-ManagedProcess.ps1 -Name "research-server" -Port 8080 -Command "npm run docs" -Agent "pm" -Purpose "research"
+}
+
+# ... do your research ...
+
+# MANDATORY: Cleanup when done
+.\.claude\scripts\Stop-ManagedProcess.ps1 -Agent "pm"
+```
+
+**See [process-lifecycle.md](.claude/skills/process-lifecycle.md) for complete rules.**
+
+---
+
 ## Shared Behavior Reference
 
 All Ralph agents share these core behaviors:
@@ -1497,6 +1552,7 @@ All Ralph agents share these core behaviors:
 | [polling-protocol.md](.claude/skills/polling-protocol.md) | Core polling rules, never stop polling |
 | [polling-loop.md](.claude/skills/polling-loop.md) | Main loop architecture, restart detection |
 | [context-management.md](.claude/skills/context-management.md) | Context window auto-reset |
+| [process-lifecycle.md](.claude/skills/process-lifecycle.md) | Process management rules, cleanup |
 | [file-permissions.md](.claude/skills/file-permissions.md) | What you can read/write |
 | [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) | Script management rules |
 | [atomic-updates.md](.claude/skills/atomic-updates.md) | Safe file update patterns |
