@@ -382,7 +382,7 @@ From `.claude/session/current-task.json`:
 
 Execute ALL feedback loops in order:
 
-#### TypeScript Check
+#### TypeScript Check (MANDATORY - ALWAYS RUN)
 
 ```bash
 npm run type-check
@@ -391,7 +391,7 @@ npm run type-check
 **Expected**: No type errors
 **Result Format**: `pass` or `fail: [error description]`
 
-#### Lint Check
+#### Lint Check (MANDATORY - ALWAYS RUN)
 
 ```bash
 npm run lint
@@ -407,19 +407,21 @@ No warnings are acceptable. Run `npm run lint:fix` first, then fix remaining iss
 
 ```json
 {
-  "bugs": [{
-    "severity": "major",
-    "category": "code-quality",
-    "issue": "Lint warnings present - code quality standard not met",
-    "details": "[paste actual lint output]",
-    "fixSuggestion": "Run npm run lint:fix or fix manually"
-  }]
+  "bugs": [
+    {
+      "severity": "major",
+      "category": "code-quality",
+      "issue": "Lint warnings present - code quality standard not met",
+      "details": "[paste actual lint output]",
+      "fixSuggestion": "Run npm run lint:fix or fix manually"
+    }
+  ]
 }
 ```
 
 **Result Format**: `pass` or `fail: [specific warnings]`
 
-#### Unit Tests
+#### Unit Tests (MANDATORY - ALWAYS RUN)
 
 ```bash
 npm run test
@@ -449,7 +451,7 @@ try {
     return {
       hasServerErrors: window.__SERVER_ERRORS__ || false,
       apiConnected: window.__API_CONNECTED__ || false,
-      appReady: window.__APP_READY__ || false
+      appReady: window.__APP_READY__ || false,
     };
   });
 
@@ -535,21 +537,174 @@ If E2E tests fail, report specific failure scenario:
 
 ```json
 {
-  "bugs": [{
-    "severity": "critical",
-    "category": "e2e",
-    "issue": "E2E test failed",
-    "scenario": "User authentication flow",
-    "steps": "1. Navigate to /login\n2. Enter credentials\n3. Click submit",
-    "expected": "User redirected to dashboard",
-    "actual": "User remains on login page with error",
-    "evidence": ".claude/session/screenshots/feat-001-e2e.png"
-  }]
+  "bugs": [
+    {
+      "severity": "critical",
+      "category": "e2e",
+      "issue": "E2E test failed",
+      "scenario": "User authentication flow",
+      "steps": "1. Navigate to /login\n2. Enter credentials\n3. Click submit",
+      "expected": "User redirected to dashboard",
+      "actual": "User remains on login page with error",
+      "evidence": ".claude/session/screenshots/feat-001-e2e.png"
+    }
+  ]
 }
 ```
 
 **Expected**: All E2E scenarios pass
 **Result Format**: `pass` or `fail: [scenario description]`
+
+#### Game Functionality Testing (MANDATORY for Game Features)
+
+**⚠️ THIS IS A GAME PROJECT - You MUST test game controls and functionality!**
+
+**For EVERY task that adds or modifies game features, you MUST:**
+
+1. **Test ALL Acceptance Criteria** - Each criterion in `current-task.json` must be verified
+2. **Test Controls** - Keyboard, mouse, or other input methods
+3. **Verify Gameplay** - Feature works as intended in the game context
+
+**Game Control Testing with Playwright MCP**:
+
+```javascript
+// Keyboard Controls Testing (WASD, Arrow Keys, Space, etc.)
+async function testKeyboardControls(page) {
+  // Focus the game canvas
+  await page.click('canvas');
+  await page.waitForTimeout(100);
+
+  // Test each control with screenshot evidence
+  const controls = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'Escape'];
+
+  for (const key of controls) {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(200); // Hold key briefly
+    await page.keyboard.up(key);
+    await page.waitForTimeout(300); // Observe effect
+
+    // Take screenshot after each input
+    await page.screenshot({
+      path: `.claude/session/screenshots/${taskId}-control-${key}.png`,
+    });
+  }
+}
+
+// Mouse Controls Testing
+async function testMouseControls(page) {
+  const canvas = await page.locator('canvas').boundingBox();
+
+  if (canvas) {
+    // Test mouse movement
+    await page.mouse.move(canvas.x + 100, canvas.y + 100);
+    await page.waitForTimeout(500);
+
+    // Test mouse clicks
+    await page.mouse.click(canvas.x + 150, canvas.y + 150, { button: 'left' });
+    await page.waitForTimeout(500);
+
+    await page.screenshot({
+      path: `.claude/session/screenshots/${taskId}-mouse-click.png`,
+    });
+  }
+}
+
+// Run game control tests
+await testKeyboardControls(page);
+await testMouseControls(page);
+```
+
+**Acceptance Criteria Verification Format**:
+
+For EACH acceptance criterion in the task, you MUST:
+
+```javascript
+// Read acceptance criteria from current-task.json
+const task = require('./.claude/session/current-task.json');
+const criteria = task.acceptanceCriteria || [];
+
+const results = [];
+
+for (const criterion of criteria) {
+  // Test the criterion
+  const testResult = await testAcceptanceCriterion(page, criterion);
+
+  results.push({
+    criterion: criterion,
+    status: testResult.pass ? 'pass' : 'fail',
+    notes: testResult.notes,
+    evidence: testResult.screenshot,
+  });
+}
+
+// If any criterion fails, FAIL the validation
+const failed = results.filter((r) => r.status === 'fail');
+if (failed.length > 0) {
+  throw new Error(`Acceptance criteria failed: ${failed.map((f) => f.criterion).join(', ')}`);
+}
+```
+
+**Game-Specific Tests to Consider**:
+
+| Feature Type    | Tests to Run                             |
+| --------------- | ---------------------------------------- |
+| Player Movement | WASD/Arrow keys move character correctly |
+| Camera Controls | Mouse drag rotates camera                |
+| Physics Objects | Objects respond to collisions            |
+| UI Elements     | Buttons clickable, panels toggle         |
+| Audio           | Sounds play on events                    |
+| Save/Load       | Game state persists                      |
+| Multiplayer     | Connection to server works               |
+
+**Game Functionality Fail = Validation FAIL**:
+
+If game functionality tests fail, report specific failure:
+
+```json
+{
+  "bugs": [
+    {
+      "severity": "critical",
+      "category": "game-functionality",
+      "issue": "Game controls not working",
+      "control": "WASD keyboard input",
+      "steps": "1. Clicked canvas to focus\n2. Pressed W key\n3. Expected vehicle to move forward",
+      "expected": "Vehicle moves forward",
+      "actual": "Vehicle did not move",
+      "evidence": ".claude/session/screenshots/feat-001-control-KeyW.png"
+    }
+  ]
+}
+```
+
+#### Researching Game Testing Patterns
+
+**⚠️ If you don't know how to test something, SEARCH for testing patterns!**
+
+You can use Web Search MCP to find game testing best practices:
+
+**When to search:**
+
+- Testing Three.js / WebGL features for the first time
+- Testing physics interactions (Rapier, Cannon, etc.)
+- Testing multiplayer functionality
+- Testing audio / video features
+- Testing performance (FPS, memory, etc.)
+
+**Example searches:**
+
+```
+"how to test Three.js applications with Playwright"
+"end-to-end testing for game physics validation"
+"playwright keyboard controls testing for games"
+"React Three Fiber testing best practices E2E"
+```
+
+**After searching, apply what you learned:**
+
+1. Adapt patterns to this codebase
+2. Document in your validation notes
+3. Suggest adding patterns to `skills/browser-testing.md`
 
 #### Production Build
 
@@ -629,6 +784,7 @@ if (warnings.length > 0) {
 **⚠️ CRITICAL: Console warnings are NOT acceptable**
 
 Warnings indicate potential issues that will become problems later. If warnings exist:
+
 1. Take a warning screenshot
 2. Report the warning in the bugs array
 3. FAIL the validation
@@ -782,6 +938,7 @@ rm .claude/session/screenshots/${taskId}-*.png 2>/dev/null || true
 - This prevents memory leaks and CPU overuse
 
 **Only AFTER cleanup should you:**
+
 1. Update task status
 2. Update your heartbeat
 3. Resume polling
@@ -1018,6 +1175,7 @@ After validation:
 **AFTER VALIDATION PASSES, YOU MUST CONTRIBUTE YOUR PERSPECTIVE TO THE RETROSPECTIVE.**
 
 See [worker-retrospective.md](.claude/skills/worker-retrospective.md) for:
+
 - Detecting retrospective requests
 - QA perspective format
 - Contribution guidelines
@@ -1070,12 +1228,14 @@ Consider mentioning refactor needs if:
 **CRITICAL: Your context will fill up after validating many tasks. Use automation to manage it.**
 
 See [context-management.md](.claude/skills/context-management.md) for:
+
 - Automatic context reset scripts
 - Manual restart procedures
 - What to keep/forget across restarts
 - State file persistence
 
 **Quick start** - Run in background terminal before starting your session:
+
 ```bash
 python scripts/restart-agent.py --agent qa --monitor --threshold 70
 ```
@@ -1091,11 +1251,13 @@ Always update state files atomically to prevent corruption. See [atomic-updates.
 ## Polling Loop
 
 Your main loop follows the universal polling structure with restart detection. See [polling-loop.md](.claude/skills/polling-loop.md) for:
+
 - Universal polling loop architecture
 - Restart detection and context reset
 - QA-specific task handling
 
 **Your specific polling behavior**:
+
 - Poll every 30 seconds when idle (see [polling-protocol.md](.claude/skills/polling-protocol.md))
 - Check for tasks with status "ready_for_qa"
 - Check for retrospective requests
@@ -1134,6 +1296,7 @@ Write-SessionLog -Agent "qa" -Level "INFO" -Message "Validation passed: feat-001
 ## Auxiliary Script Management
 
 Scripts created in `.claude/session/` are automatically classified and managed. See [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) for:
+
 - Script classification (temporary, reusable, unknown)
 - Auto-cleanup patterns
 - Creating reusable scripts
@@ -1158,6 +1321,7 @@ You can request new capabilities from the PM:
 ### Skill Gaps
 
 Missing knowledge that would help you validate better:
+
 - "I need reference patterns for Playwright browser testing"
 - "I don't know how to test WebGL performance"
 - "I need examples of accessibility testing"
@@ -1165,6 +1329,7 @@ Missing knowledge that would help you validate better:
 ### MCP Tool Gaps
 
 Missing tools that would make you more effective:
+
 - "I need browser screenshots for evidence"
 - "I need filesystem access to compare test outputs"
 - "I need web search to research validation patterns"
@@ -1188,6 +1353,7 @@ Send a `skill_request` message to PM:
 ```
 
 **Example**:
+
 ```json
 {
   "type": "skill_request",
@@ -1203,6 +1369,7 @@ Send a `skill_request` message to PM:
 ```
 
 The PM will:
+
 1. Acknowledge your request
 2. Add it to the retrospective action items
 3. Research and implement during the skill improvement phase
@@ -1212,18 +1379,96 @@ The PM will:
 
 ---
 
+## Requesting Test Plans from PM
+
+**⚠️ If you don't know how to test a feature, ASK THE PM for a test plan!**
+
+### When to Request a Test Plan
+
+Request a test plan when:
+
+- The feature is novel (you haven't tested similar functionality before)
+- Acceptance criteria are vague or unclear
+- You're unsure what constitutes "passing" for a feature
+- Complex interactions need verification (physics, multiplayer, etc.)
+- You need help testing game-specific functionality
+
+### How to Request a Test Plan
+
+Send a `test_plan_request` message to PM via the message queue or coordinator:
+
+```json
+{
+  "type": "test_plan_request",
+  "from": "qa",
+  "to": "pm",
+  "payload": {
+    "taskId": "feat-001",
+    "featureTitle": "Vehicle Physics Implementation",
+    "acceptanceCriteria": [
+      "Vehicle spawns at origin",
+      "WASD controls work",
+      "Physics runs at 60fps"
+    ],
+    "question": "I need specific test steps to verify vehicle physics. What should I test?",
+    "context": "This is a R3F vehicle with Rapier physics. I need to test WASD controls and physics simulation."
+  }
+}
+```
+
+### Test Plan Response Format
+
+The PM will respond with a test plan in `current-task.json` or a dedicated test file:
+
+```json
+{
+  "testPlan": {
+    "taskId": "feat-001",
+    "testCases": [
+      {
+        "id": "tc-001",
+        "title": "Vehicle spawns at origin (0, 0, 0)",
+        "steps": [
+          "Start the game",
+          "Wait for scene to load",
+          "Check vehicle position in debug panel or console"
+        ],
+        "expected": "Vehicle position is (0, 0, 0)",
+        "evidence": "Screenshot showing debug panel"
+      },
+      {
+        "id": "tc-002",
+        "title": "WASD controls move vehicle",
+        "steps": [
+          "Press W key for 1 second",
+          "Verify vehicle moves forward",
+          "Press A key for 1 second",
+          "Verify vehicle moves left"
+        ],
+        "expected": "Vehicle moves in direction of pressed key",
+        "evidence": "Screenshots showing position change"
+      }
+    ]
+  }
+}
+```
+
+**Note**: Don't let uncertainty block you. Request a test plan early, then continue with your best effort while PM responds.
+
+---
+
 ## Shared Behavior Reference
 
 All Ralph agents share these core behaviors:
 
-| Shared Skill | Purpose |
-|--------------|---------|
-| [ralph-core.md](.claude/skills/ralph-core.md) | Heartbeat format, session structure, exit conditions |
-| [polling-protocol.md](.claude/skills/polling-protocol.md) | Core polling rules, never stop polling |
-| [polling-loop.md](.claude/skills/polling-loop.md) | Main loop architecture, restart detection |
-| [context-management.md](.claude/skills/context-management.md) | Context window auto-reset |
-| [process-lifecycle.md](.claude/skills/process-lifecycle.md) | Process management rules, cleanup |
-| [file-permissions.md](.claude/skills/file-permissions.md) | What you can read/write |
-| [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md) | Script management rules |
-| [atomic-updates.md](.claude/skills/atomic-updates.md) | Safe file update patterns |
-| [worker-retrospective.md](.claude/skills/worker-retrospective.md) | Retrospective contribution format |
+| Shared Skill                                                      | Purpose                                              |
+| ----------------------------------------------------------------- | ---------------------------------------------------- |
+| [ralph-core.md](.claude/skills/ralph-core.md)                     | Heartbeat format, session structure, exit conditions |
+| [polling-protocol.md](.claude/skills/polling-protocol.md)         | Core polling rules, never stop polling               |
+| [polling-loop.md](.claude/skills/polling-loop.md)                 | Main loop architecture, restart detection            |
+| [context-management.md](.claude/skills/context-management.md)     | Context window auto-reset                            |
+| [process-lifecycle.md](.claude/skills/process-lifecycle.md)       | Process management rules, cleanup                    |
+| [file-permissions.md](.claude/skills/file-permissions.md)         | What you can read/write                              |
+| [auxiliary-scripts.md](.claude/skills/auxiliary-scripts.md)       | Script management rules                              |
+| [atomic-updates.md](.claude/skills/atomic-updates.md)             | Safe file update patterns                            |
+| [worker-retrospective.md](.claude/skills/worker-retrospective.md) | Retrospective contribution format                    |

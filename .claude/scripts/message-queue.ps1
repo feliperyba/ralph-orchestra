@@ -343,6 +343,18 @@ function Invoke-AcknowledgeMessage {
     <#
     .SYNOPSIS
     Mark a message as processed (completed) and delete it
+
+    .PARAMETER MessageId
+    The ID of the message to acknowledge
+
+    .PARAMETER Agent
+    The agent to search for the message (optional)
+
+    .PARAMETER Result
+    Optional result data to attach to the message
+
+    .RETURNS
+    $true if acknowledged successfully, $false otherwise
     #>
     param(
         [Parameter(Mandatory=$true)]
@@ -380,8 +392,29 @@ function Invoke-AcknowledgeMessage {
     $logEntry | Out-File -FilePath $messageLogFile -Append -Encoding utf8 -ErrorAction SilentlyContinue
 
     # Delete immediately - message is processed
+    # Use retry logic to handle file locks
     if ($filePath -and (Test-Path $filePath)) {
-        Remove-Item $filePath -Force
+        $deleted = $false
+        for ($i = 0; $i -lt 3; $i++) {
+            try {
+                Remove-Item $filePath -Force -ErrorAction Stop
+                $deleted = $true
+                break
+            } catch {
+                if ($i -lt 2) {
+                    Start-Sleep -Milliseconds 100
+                }
+            }
+        }
+        if (-not $deleted) {
+            # Failed to delete - rename to .failed for cleanup
+            try {
+                $failedPath = $filePath + ".failed"
+                Move-Item -Path $filePath -Destination $failedPath -Force -ErrorAction SilentlyContinue
+            } catch {
+                # Last resort - leave the file but it won't be picked up again due to status change
+            }
+        }
     }
 
     # Silent - acknowledgment logged by caller
@@ -655,6 +688,203 @@ function Test-ConsolidationRequired {
     return $false
 }
 
+function Exit-ConsolidationMode {
+    <#
+    .SYNOPSIS
+    Exit consolidation mode and transition to normal operation.
+    This is the SAFE way to exit consolidation mode with proper logging and state tracking.
+
+    .PARAMETER Reason
+    The reason for exiting consolidation (required for audit trail).
+
+    .PARAMETER Phase
+    The phase that triggered the exit (e.g., "retrospective", "skill_research", "manual").
+
+    .RETURNS
+    $true if exit was successful, $false otherwise.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Reason,
+
+        [string]$Phase = "unknown"
+    )
+
+    if (-not $Script:ConsolidationModeFile) {
+        return $false
+    }
+
+    try {
+        $currentMode = Get-ConsolidationMode
+        if (-not $currentMode -or $currentMode.mode -ne "pending_consolidation") {
+            # Already not in consolidation mode
+            return $true
+        }
+
+        # Exit consolidation mode
+        $state = @{
+            mode = "normal"
+            timestamp = [DateTime]::UtcNow.ToString("o")
+            reason = $Reason
+            phase = $Phase
+            previousMode = $currentMode.mode
+            exitedAt = [DateTime]::UtcNow.ToString("o")
+        }
+
+        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:ConsolidationModeFile -Encoding UTF8
+
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Invoke-ConsolidationStateCheck {
+    <#
+    .SYNOPSIS
+    Check if consolidation mode is stale and should be auto-exited.
+    This prevents dead ends where consolidation mode gets stuck.
+
+    .PARAMETER SessionDir
+    The session directory path.
+
+    .PARAMETER TimeoutMinutes
+    Minutes after which consolidation is considered stale (default: 10).
+
+    .RETURNS
+    Hashtable with { isStale, shouldExit, reason }
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SessionDir,
+
+        [int]$TimeoutMinutes = 10
+    )
+
+    $result = @{
+        isStale = $false
+        shouldExit = $false
+        reason = ""
+    }
+
+    $consolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
+    if (-not (Test-Path $consolidationModeFile)) {
+        return $result
+    }
+
+    try {
+        $mode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
+        if ($mode.mode -eq "pending_consolidation") {
+            # Check age of consolidation mode
+            $modeTime = [DateTime]::Parse($mode.timestamp)
+            $ageMinutes = ([DateTime]::UtcNow - $modeTime).TotalMinutes
+
+            if ($ageMinutes -gt $TimeoutMinutes) {
+                $result.isStale = $true
+                $result.shouldExit = $true
+                $result.reason = "Consolidation mode active for $([math]::Round($ageMinutes, 1)) minutes (timeout: ${TimeoutMinutes}m)"
+            }
+
+            # Also check if retrospective exists - that's a signal to exit
+            $retroFile = Join-Path $SessionDir "retrospective.txt"
+            if (Test-Path $retroFile) {
+                $result.isStale = $true
+                $result.shouldExit = $true
+                $result.reason = "Retrospective file exists - consolidation must exit for workers to participate"
+            }
+        }
+    } catch {
+        # Error reading mode - treat as needing exit
+        $result.isStale = $true
+        $result.shouldExit = $true
+        $result.reason = "Error reading consolidation mode: $($_.Exception.Message)"
+    }
+
+    return $result
+}
+
+function Save-ConsolidationState {
+    <#
+    .SYNOPSIS
+    Save consolidation mode state to a persistent location for context reset recovery.
+    This ensures consolidation mode survives context resets.
+
+    .PARAMETER SessionDir
+    The session directory path.
+
+    .RETURNS
+    $true if saved successfully, $false otherwise.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SessionDir
+    )
+
+    $consolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
+    if (-not (Test-Path $consolidationModeFile)) {
+        return $false
+    }
+
+    try {
+        $mode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
+
+        # Save to a location that survives context resets
+        $persistentStateDir = Join-Path $SessionDir "persistent-state"
+        if (-not (Test-Path $persistentStateDir)) {
+            New-Item -ItemType Directory -Path $persistentStateDir -Force | Out-Null
+        }
+
+        $persistentFile = Join-Path $persistentStateDir "consolidation-mode.json"
+        $mode | ConvertTo-Json -Depth 10 | Out-File -FilePath $persistentFile -Encoding UTF8
+
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Restore-ConsolidationState {
+    <#
+    .SYNOPSIS
+    Restore consolidation mode state from persistent storage after context reset.
+    This is called when PM agent restarts after a context reset.
+
+    .PARAMETER SessionDir
+    The session directory path.
+
+    .RETURNS
+    $true if restored successfully, $false otherwise.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SessionDir
+    )
+
+    $persistentStateDir = Join-Path $SessionDir "persistent-state"
+    $persistentFile = Join-Path $persistentStateDir "consolidation-mode.json"
+
+    if (-not (Test-Path $persistentFile)) {
+        return $false
+    }
+
+    try {
+        $mode = Get-Content $persistentFile -Raw | ConvertFrom-Json
+
+        # Only restore if we're not already in a different mode
+        $currentMode = Get-ConsolidationMode
+        if (-not $currentMode -or $currentMode.mode -eq "normal") {
+            # Current mode is normal or doesn't exist, safe to restore
+            $consolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
+            $mode | ConvertTo-Json -Depth 10 | Out-File -FilePath $consolidationModeFile -Encoding UTF8
+            return $true
+        }
+
+        return $false
+    } catch {
+        return $false
+    }
+}
+
 function Set-ConsolidationMode {
     <#
     .SYNOPSIS
@@ -694,6 +924,20 @@ function Set-ConsolidationMode {
     }
 
     $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:ConsolidationModeFile -Encoding UTF8
+
+    # AUTOMATIC PERSISTENCE: Also save to persistent state location for context reset recovery
+    # This ensures consolidation mode survives PM agent context resets
+    try {
+        $sessionDir = Split-Path $Script:ConsolidationModeFile -Parent
+        $persistentStateDir = Join-Path $sessionDir "persistent-state"
+        if (-not (Test-Path $persistentStateDir)) {
+            New-Item -ItemType Directory -Path $persistentStateDir -Force | Out-Null
+        }
+        $persistentFile = Join-Path $persistentStateDir "consolidation-mode.json"
+        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $persistentFile -Encoding UTF8
+    } catch {
+        # Log but don't fail - main file was written successfully
+    }
 }
 
 function Get-ConsolidationMode {

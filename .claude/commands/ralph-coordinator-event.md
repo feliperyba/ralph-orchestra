@@ -90,13 +90,14 @@ $msgId = "msg-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$((Get-Random).ToString().Su
 
 ### Message Types You Receive
 
-| Type               | From | Description                        |
-| ------------------ | ---- | ---------------------------------- |
-| `task_complete`    | qa   | Task passed validation             |
-| `bug_report`       | qa   | Bugs found, need priority decision |
-| `question`         | any  | Agent needs clarification          |
-| `research_request` | any  | Agent needs research/documentation |
-| `status_update`    | any  | Agent status change                |
+| Type                         | From      | Description                                    |
+| ---------------------------- | --------- | ---------------------------------------------- |
+| `task_complete`              | qa        | Task passed validation                         |
+| `bug_report`                 | qa        | Bugs found, need priority decision             |
+| `question`                   | any       | Agent needs clarification                      |
+| `research_request`           | any       | Agent needs research/documentation             |
+| `status_update`              | any       | Agent status change                            |
+| `retrospective_contribution` | developer/qa | Worker completed retrospective contribution |
 
 ---
 
@@ -337,7 +338,62 @@ $message = @{
 $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
 ```
 
-6. **STOP - DO NOT ASSIGN NEXT TASK**
+**STEP 6 (CRITICAL): Exit consolidation mode BEFORE sending retrospective_initiate**
+
+If the system is in consolidation mode, you MUST exit it now so workers can receive the retrospective_initiate messages:
+
+```powershell
+# CRITICAL: Exit consolidation mode before retrospective
+# Workers cannot receive messages while consolidation is pending
+$consolidationModeFile = ".claude/session/consolidation-mode.json"
+if (Test-Path $consolidationModeFile) {
+    $consolidationMode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
+    if ($consolidationMode.mode -eq "pending_consolidation") {
+        # Exit consolidation mode so workers can receive retrospective_initiate messages
+        @{
+            mode = "normal"
+            timestamp = (Get-Date).ToUniversalTime().ToString("o")
+            reason = "pm_consolidated_entering_retrospective"
+        } | ConvertTo-Json -Depth 10 | Out-File -FilePath $consolidationModeFile -Encoding UTF8
+
+        Write-Host "=== EXITED CONSOLIDATION MODE ===" -ForegroundColor Green
+        Write-Host "Workers will now receive retrospective_initiate messages."
+    }
+}
+```
+
+7. **SEND retrospective_initiate messages to workers** - This is CRITICAL!
+
+```powershell
+# Send retrospective_initiate to both workers so they know to participate
+foreach ($worker in @("developer", "qa")) {
+    $msgId = "msg-retro-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$((Get-Random).ToString().Substring(0,4))"
+    $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+    # Get task info from PRD
+    $prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
+    $taskInfo = $prd.items | Where-Object { $_.id -eq $payload.taskId }
+
+    $retroMessage = @{
+        id = $msgId
+        from = "pm"
+        to = $worker
+        type = "retrospective_initiate"
+        priority = "high"
+        payload = @{
+            taskId = $payload.taskId
+            retrospectiveFile = ".claude/session/retrospective.txt"
+            taskTitle = if ($taskInfo) { $taskInfo.title } else { $payload.taskId }
+            category = if ($taskInfo) { $taskInfo.category } else { "unknown" }
+        }
+        timestamp = $timestamp
+        status = "pending"
+    }
+    $retroMessage | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/$worker/$msgId.json" -Encoding UTF8
+}
+```
+
+7. **STOP - DO NOT ASSIGN NEXT TASK**
    - Wait for Developer and QA to contribute to `retrospective.txt`
    - Check retrospective.txt every time you're restarted (watchdog will restart you when agents contribute)
    - When both have contributed → synthesize → enter skill_research → set `currentTask = null` → **then** assign next task
@@ -362,13 +418,80 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 **FORBIDDEN:**
 - ❌ Selecting next task while `currentTask.status == "in_retrospective"`
 - ❌ Selecting next task while `currentTask.status == "skill_research"`
-- ❌ Processing other messages while waiting for retrospective contributions
 - ❌ Skipping `skill_research` phase
 
 **Resume processing other messages ONLY after:**
 1. Retrospective synthesis is complete
 2. `skill_research` phase is complete (skill files updated and committed)
 3. `currentTask` is set to `null`
+
+### Handling `retrospective_contribution` from Workers
+
+**When you receive a `retrospective_contribution` message:**
+
+This message indicates a worker has completed their retrospective contribution. You MUST process these messages to track when both workers have finished.
+
+```powershell
+# Check for retrospective_contribution messages in pending-messages-pm.json
+$contribMessages = $pendingMessages | Where-Object { $_.type -eq "retrospective_contribution" }
+
+if ($contribMessages) {
+    foreach ($msg in $contribMessages) {
+        $taskId = $msg.payload.taskId
+        $contributor = $msg.from
+
+        Write-Host "=== RETROSPECTIVE CONTRIBUTION RECEIVED ===" -ForegroundColor Cyan
+        Write-Host "From: $contributor"
+        Write-Host "Task: $taskId"
+        Write-Host "At: $($msg.payload.contributedAt)"
+
+        # Track contribution in coordinator-state.json
+        $state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+
+        # Initialize contributions tracker if not exists
+        if (-not $state.currentTask.contributions) {
+            $state.currentTask.contributions = @{}
+        }
+
+        # Mark this worker as contributed
+        $state.currentTask.contributions.$contributor = $msg.payload.contributedAt
+
+        # Update worker status from awaiting_retrospective to idle
+        if ($state.agents.$contributor.status -eq "awaiting_retrospective") {
+            $state.agents.$contributor.status = "idle"
+        }
+
+        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+
+        Write-Host "Contributions tracked: Developer=$($state.currentTask.contributions.developer), QA=$($state.currentTask.contributions.qa)"
+
+        # Check if BOTH workers have contributed
+        $devContributed = $state.currentTask.contributions.ContainsKey("developer") -and $state.currentTask.contributions.developer
+        $qaContributed = $state.currentTask.contributions.ContainsKey("qa") -and $state.currentTask.contributions.qa
+
+        if ($devContributed -and $qaContributed) {
+            Write-Host "=== BOTH WORKERS CONTRIBUTED - FINALIZING RETROSPECTIVE ===" -ForegroundColor Green
+
+            # Both workers done - proceed to PM Synthesis (see "Checking for Retrospective Contributions" section below)
+            # The synthesis will add PM section and transition to skill_research phase
+
+            # Jump to synthesis immediately
+            goto RetrospectiveSynthesis
+        }
+    }
+
+    # After processing contribution messages, clean them up
+    # Delete processed retrospective_contribution messages
+    foreach ($msg in $contribMessages) {
+        Remove-Item ".claude/session/messages/pm/$($msg.id).json" -Force -ErrorAction SilentlyContinue
+    }
+}
+```
+
+**IMPORTANT:**
+- `retrospective_contribution` messages are the ONLY exception while waiting for retrospective
+- You MUST process these to detect when workers are done
+- Do NOT process other message types (`question`, `research_request`, etc.) while in retrospective
 
 ### Checking for Retrospective Contributions (Every Startup)
 
@@ -477,25 +600,49 @@ if ($state.currentTask.status -eq "in_retrospective") {
 **When `currentTask.status == "skill_research"`:**
 
 ```powershell
-# MANDATORY: Research and improve agent skills after every retrospective
+# =============================================================================
+# SKILL RESEARCH PHASE - MANDATORY AFTER EVERY RETROSPECTIVE
+# =============================================================================
 # See agents/pm/skills/skill-improvement.md for full process
 
-# 1. Identify skill gaps from retrospective
-# 2. Use MCP tools (WebSearch, Fetch) to research best practices
-# 3. Update at least one agent skill file
-# 4. Commit with format: "[ralph] [pm] skill-improvement: {{description}}"
+# CRITICAL STEP 0: Exit consolidation mode if still active
+# Workers cannot receive messages while consolidation is pending
+$consolidationModeFile = ".claude/session/consolidation-mode.json"
+if (Test-Path $consolidationModeFile) {
+    $consolidationMode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
+    if ($consolidationMode.mode -eq "pending_consolidation") {
+        # Exit consolidation mode so system can function normally
+        @{
+            mode = "normal"
+            timestamp = (Get-Date).ToUniversalTime().ToString("o")
+            reason = "pm_skill_research_complete"
+            phase = "skill_research"
+        } | ConvertTo-Json -Depth 10 | Out-File -FilePath $consolidationModeFile -Encoding UTF8
+        Write-Host "=== EXITED CONSOLIDATION MODE (skill research phase) ===" -ForegroundColor Green
+    }
+}
 
-# Example skill update:
+# Step 1: Identify skill gaps from retrospective
+# Step 2: Use MCP tools (WebSearch, Fetch) to research best practices
+# Step 3: Update at least one agent skill file
+# Step 4: Commit with format: "[ralph] [pm] skill-improvement: {{description}}"
+
+# Example skill updates:
 # - agents/developer/skills/r3f-physics.md - Add new collision pattern
 # - agents/qa/skills/validation-workflow.md - Add testing anti-pattern
+# - .claude/settings.developer.json - Add new MCP server
 
-# After skill research complete:
+# =============================================================================
+# EXIT SKILL RESEARCH PHASE - Complete these steps IN ORDER:
+# =============================================================================
+
+# EXIT STEP 1: Clear current task and set status to idle
 $state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
 $state.currentTask = $null
 $state.agents.pm.status = "idle"
 $state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
 
-# Log completion
+# EXIT STEP 2: Log completion
 $skillLog = @"
 
 ### [$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))] Skill Research Complete
@@ -505,8 +652,35 @@ $skillLog = @"
 "@
 $skillLog | Out-File -FilePath ".claude/session/coordinator-progress.txt" -Append -Encoding UTF8
 
-# NOW ready to assign next task
+# EXIT STEP 3: Signal ready to watchdog
+$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$message = @{
+    id = $msgId
+    from = "pm"
+    to = "watchdog"
+    type = "status_update"
+    priority = "low"
+    payload = @{
+        status = "ready"
+        currentPhase = "idle"
+        currentTask = $null
+        details = "Skill research complete, ready for next task"
+    }
+    timestamp = $timestamp
+    status = "pending"
+}
+$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
+
+Write-Host "=== SKILL RESEARCH COMPLETE - Ready for next task ===" -ForegroundColor Green
 ```
+
+**⚠️ CRITICAL REMEMBER**: After skill research completes, you MUST:
+1. Set `currentTask = null`
+2. Set `agents.pm.status = "idle"`
+3. Exit consolidation mode if active
+4. Send `status_update` with `status = "ready"` to watchdog
+5. **THEN** proceed to task assignment on next poll cycle
 
 ---
 
@@ -560,9 +734,43 @@ After reviewing all pending messages, make decisions:
 3. **Combine** - Can multiple messages be combined into one assignment?
 4. **Hold** - Any messages that should wait?
 
+### Priority 3.5: ⚠️ RETROSPECTIVE TAKES PRIORITY OVER CONSOLIDATION
+
+**CRITICAL**: If you determine that you need to enter retrospective mode (e.g., you received `task_complete` with `validationPassed: true` among the pending messages), you MUST exit consolidation mode IMMEDIATELY:
+
+```powershell
+# Exit consolidation mode BEFORE creating retrospective
+# Workers cannot receive retrospective_initiate messages while consolidation is pending
+@{
+    mode = "normal"
+    timestamp = (Get-Date).ToUniversalTime().ToString("o")
+    reason = "pm_consolidated_entering_retrospective"
+} | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/consolidation-mode.json" -Encoding UTF8
+
+# Then proceed with retrospective creation (see "Handling `task_complete` from QA" section above)
+```
+
+**Do NOT complete normal consolidation signaling** (Step 6 below) if you need to enter retrospective mode instead.
+
 ### Priority 4: Signal Consolidation Complete
 
-When you've reviewed and decided on all pending messages, signal consolidation complete:
+When you've reviewed and decided on all pending messages, you must **CLEAN UP the message queue** before signaling consolidation complete:
+
+**STEP 1: Delete all processed message files from agent inboxes**
+
+```powershell
+# Delete all pending messages from the message queue (they've been reviewed)
+$agentInboxes = @("pm", "developer", "qa")
+foreach ($agent in $agentInboxes) {
+    $inboxPath = ".claude/session/messages/$agent"
+    if (Test-Path $inboxPath) {
+        Get-ChildItem -Path $inboxPath -Filter "*.json" | Remove-Item -Force -ErrorAction SilentlyContinue
+        Write-Host "Cleaned up messages in $agent inbox" -ForegroundColor Gray
+    }
+}
+```
+
+**STEP 2: Signal consolidation complete**
 
 ```powershell
 # Signal consolidation complete
@@ -578,6 +786,14 @@ When you've reviewed and decided on all pending messages, signal consolidation c
 
 Write-Host "=== CONSOLIDATION COMPLETE ===" -ForegroundColor Green
 Write-Host "Workers will now start with your assignments."
+```
+
+**STEP 3: Delete your pending messages file**
+
+```powershell
+# Delete the pending messages file after processing all messages
+Remove-Item ".claude/session/pending-messages-pm.json" -Force -ErrorAction SilentlyContinue
+Write-Host "Deleted pending messages file" -ForegroundColor Gray
 ```
 
 ### Normal Startup (No Consolidation)

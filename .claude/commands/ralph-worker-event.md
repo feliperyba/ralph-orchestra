@@ -100,21 +100,23 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 
 ### Message Types You Receive
 
-| Type                | From | Description                  |
-| ------------------- | ---- | ---------------------------- |
-| `task_assign`       | pm   | New task to implement        |
-| `answer`            | pm   | Response to your question    |
-| `research_response` | pm   | Response to research request |
-| `prd_update`        | pm   | Specs have changed           |
+| Type                    | From | Description                        |
+| ----------------------- | ---- | ---------------------------------- |
+| `task_assign`           | pm   | New task to implement             |
+| `retrospective_initiate` | pm   | Participate in retrospective task   |  ← CRITICAL: Must contribute when received |
+| `answer`                | pm   | Response to your question          |
+| `research_response`     | pm   | Response to research request       |
+| `prd_update`            | pm   | Specs have changed                 |
 
 ### Message Types You Send
 
-| Type                 | To       | Description                      |
-| -------------------- | -------- | -------------------------------- |
-| `validation_request` | qa       | Implementation ready for testing |
-| `question`           | pm       | Need clarification               |
-| `research_request`   | pm       | Need research/docs/code examples |
-| `status_update`      | watchdog | Current status                   |
+| Type                         | To        | Description                              |
+| --------------------         | -------- | ---------------------------------------- |
+| `validation_request`         | qa        | Implementation ready for testing         |
+| `question`                   | pm        | Need clarification                       |
+| `research_request`           | pm        | Need research/docs/code examples         |
+| `retrospective_contribution` | pm        | Completed retrospective contribution     |
+| `status_update`              | watchdog  | Current status                           |
 
 ### Workflow
 
@@ -199,22 +201,24 @@ git worktree remove ..\RalphOrchestra-feat-002
 
 ### Message Types You Receive
 
-| Type                 | From      | Description                  |
-| -------------------- | --------- | ---------------------------- |
-| `validation_request` | developer | Feature ready for testing    |
-| `regression_request` | pm        | Run regression tests         |
-| `answer`             | pm        | Response to your question    |
-| `research_response`  | pm        | Response to research request |
+| Type                    | From      | Description                        |
+| ----------------------- | --------- | ---------------------------------- |
+| `validation_request`   | developer | Feature ready for testing          |
+| `regression_request`   | pm        | Run regression tests                 |
+| `retrospective_initiate` | pm        | Participate in retrospective task   |  ← CRITICAL: Must contribute when received |
+| `answer`                | pm        | Response to your question           |
+| `research_response`     | pm        | Response to research request       |
 
 ### Message Types You Send
 
-| Type               | To           | Description                      |
-| ------------------ | ------------ | -------------------------------- |
-| `task_complete`    | pm           | Validation passed                |
-| `bug_report`       | pm           | Bugs found (PM decides priority) |
-| `question`         | pm/developer | Need clarification               |
-| `research_request` | pm           | Need research/docs/code examples |
-| `status_update`    | watchdog     | Current status                   |
+| Type                         | To           | Description                              |
+| ------------------           | ------------ | ---------------------------------------- |
+| `task_complete`              | pm           | Validation passed                        |
+| `bug_report`                 | pm           | Bugs found (PM decides priority)         |
+| `question`                   | pm/developer | Need clarification                       |
+| `research_request`           | pm           | Need research/docs/code examples         |
+| `retrospective_contribution` | pm           | Completed retrospective contribution     |
+| `status_update`              | watchdog     | Current status                           |
 
 ### Workflow
 
@@ -330,6 +334,163 @@ $message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/message
 Get-Content ".claude/session/pending-messages-$arguments.agent.json" -ErrorAction SilentlyContinue
 Get-Content ".claude/session/coordinator-state.json" -ErrorAction SilentlyContinue
 ```
+
+---
+
+## ⚠️ CRITICAL: Handling `retrospective_initiate` Messages
+
+**When you receive a `retrospective_initiate` message from PM, you MUST contribute to the retrospective. This is NOT optional - retrospectives are mandatory after every task completion.**
+
+### Message Format
+
+```json
+{
+  "type": "retrospective_initiate",
+  "from": "pm",
+  "payload": {
+    "taskId": "feat-001",
+    "retrospectiveFile": ".claude/session/retrospective.txt",
+    "taskTitle": "Task title here",
+    "category": "architectural"
+  }
+}
+```
+
+### Your Response When You Receive `retrospective_initiate`
+
+**Step 1: Read the retrospective file**
+
+```powershell
+$retroFile = ".claude/session/retrospective.txt"
+$retro = Get-Content $retroFile -Raw
+```
+
+**Step 2: Add your contribution**
+
+**If you are Developer** - Find the `### Developer Perspective` section and replace `<!-- WAITING -->` with:
+
+```markdown
+**Implementation Decisions**:
+- {{Describe the key technical decisions you made for this task}}
+
+**Technical Challenges Faced**:
+- {{What was technically difficult? Any blockers or unknowns?}}
+
+**What Worked Well**:
+- {{Solutions, patterns, or approaches that were effective}}
+
+**Areas for Improvement**:
+- {{What could be done better next time? Any lessons learned?}}
+
+---
+
+_**Contributed by**: Developer Agent | $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")_
+```
+
+**If you are QA** - Find the `### QA Perspective` section and replace `<!-- WAITING -->` with:
+
+```markdown
+**Validation Results Summary**:
+- TypeScript: {{pass/fail}}
+- Lint: {{pass/fail}}
+- Tests: {{pass/fail}}
+- Build: {{pass/fail}}
+
+**Code Quality Observations**:
+- Maintainability: {{Is the code clean and maintainable?}}
+- Performance: {{Any performance concerns?}}
+- Testing: {{Is test coverage adequate?}}
+
+**Suggestions for Improvement**:
+- {{What would make this code better?}}
+
+---
+
+_**Contributed by**: QA Agent | $(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")_
+```
+
+**Step 3: Update the retrospective file** - Write your contribution back to the file
+
+**Step 4: Update your status** in `coordinator-state.json`:
+
+```powershell
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+$state.agents.$arguments.agent.status = "idle"
+$state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+```
+
+**Step 5 (CRITICAL): Send retrospective_contribution to PM**
+
+**You MUST notify PM that you've completed your contribution. This is NOT optional - PM needs explicit notification to finalize the retrospective.**
+
+```powershell
+# Save the taskId from the original message for use in subsequent steps
+$taskId = $message.payload.taskId
+
+# Send retrospective_contribution to PM (CRITICAL - notifies PM worker is done)
+$msgId = "msg-retro-contrib-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$((Get-Random).ToString().Substring(0,4))"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+$contributionMessage = @{
+    id = $msgId
+    from = "$arguments.agent"
+    to = "pm"
+    type = "retrospective_contribution"
+    priority = "normal"
+    payload = @{
+        taskId = $taskId
+        retrospectiveFile = ".claude/session/retrospective.txt"
+        contributedAt = $timestamp
+    }
+    timestamp = $timestamp
+    status = "pending"
+}
+$contributionMessage | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/pm/$msgId.json" -Encoding UTF8
+
+Write-Host "=== SENT RETROSPECTIVE CONTRIBUTION TO PM ===" -ForegroundColor Green
+```
+
+**Step 6: Update your status** in `coordinator-state.json`:
+
+```powershell
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+$state.agents.$arguments.agent.status = "idle"
+$state | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude/session/coordinator-state.json" -Encoding UTF8
+```
+
+**Step 7: Delete pending messages file**:
+
+```powershell
+Remove-Item ".claude/session/pending-messages-$arguments.agent.json" -Force -ErrorAction SilentlyContinue
+```
+
+**Step 8: Send status_update to watchdog** (for dashboard visibility):
+
+```powershell
+$msgId = "msg-status-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+$message = @{
+    id = $msgId
+    from = $arguments.agent
+    to = "watchdog"
+    type = "status_update"
+    priority = "low"
+    payload = @{
+        status = "ready"
+        currentPhase = "retrospective_contributed"
+        retrospectiveTask = $taskId
+        notifiedPm = $true
+    }
+    timestamp = $timestamp
+    status = "pending"
+}
+$message | ConvertTo-Json -Depth 5 | Out-File -FilePath ".claude/session/messages/watchdog/$msgId.json" -Encoding UTF8
+```
+
+**IMPORTANT**: After contributing, DO NOT start new work. Wait for the next task assignment message from PM.
+
+---
 
 ### Asking Questions (PowerShell)
 

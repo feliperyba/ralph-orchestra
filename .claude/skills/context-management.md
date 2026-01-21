@@ -153,6 +153,27 @@ These files survive across context resets:
 | `developer-progress.txt` | Developer log | ✅ Yes |
 | `qa-progress.txt` | QA log | ✅ Yes |
 | `retrospective.txt` | Active retrospective | ✅ Yes |
+| `persistent-state/consolidation-mode.json` | **Consolidation mode state** | ✅ Yes |
+
+### ⚠️ IMPORTANT: Consolidation Mode State Preservation
+
+**Consolidation mode state is now automatically preserved across context resets.**
+
+When PM agent context is reset:
+1. Consolidation mode state is saved to `persistent-state/consolidation-mode.json`
+2. After reset, PM automatically restores consolidation mode
+3. This prevents workers from being blocked after context resets
+
+**Manual Recovery (if needed):**
+
+```powershell
+# Save consolidation state
+. .\.claude\scripts\message-queue.ps1
+Save-ConsolidationState -SessionDir ".claude\session"
+
+# Restore consolidation state (after context reset)
+Restore-ConsolidationState -SessionDir ".claude\session"
+```
 
 ## Verification
 
