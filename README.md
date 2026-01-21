@@ -9,6 +9,7 @@ Ralph Orchestra enables **autonomous software development** by coordinating mult
 - **PM Agent** (Coordinator) - Selects tasks, assigns work, runs retrospectives
 - **Developer Agent** (Worker) - Implements features, writes code, runs feedback loops
 - **QA Agent** (Worker) - Validates implementations, runs tests, reports bugs
+- **Game Designer Agent** (Worker) - Creates GDDs, validates design vs implementation, playtests via Playwright
 
 The agents communicate through shared JSON state files and can run indefinitely until all tasks are complete.
 
@@ -32,7 +33,7 @@ npm install
 
 #### Option 1: Event-Driven Mode ⭐ Recommended
 
-All **three agents run in parallel** with message-based communication (no polling).
+All **four agents run in parallel** with message-based communication (no polling).
 
 ```powershell
 # Windows PowerShell
@@ -247,10 +248,14 @@ Ralph can be invoked through **three different interfaces**, each with different
 # Terminal 3: QA Worker
 /ralph-worker-event --agent qa
 
+# Terminal 4: Game Designer Worker
+/ralph-worker-event --agent gamedesigner
+
 # OR Sequential mode (token-efficient, one agent at a time)
 /ralph-coordinator-single
 /ralph-worker-single --agent developer
 /ralph-worker-single --agent qa
+/ralph-worker-single --agent gamedesigner
 
 # Single iteration (learning mode)
 /ralph-hitl
@@ -438,6 +443,21 @@ Ralph Orchestra/
 │       └── references/     # Reference docs
 │           └── browser-testing-patterns.md # Playwright patterns
 │
+├── agents/gamedesigner/
+│       ├── AGENT.md        # Game Designer behavior instructions
+│       ├── skills/         # Modular skills
+│       │   ├── gdd-creation.md        # Game Design Document creation
+│       │   ├── thermite-integration.md # Thermite design methodology
+│       │   ├── mechanic-design.md      # Game mechanics documentation
+│       │   ├── level-design.md         # Map and level design
+│       │   ├── character-design.md     # Character and class design
+│       │   ├── weapon-design.md        # Weapon design
+│       │   ├── game-loop-design.md     # Core gameplay loop design
+│       │   └── playtest-validation.md  # Playwright-based playtesting
+│       └── checklists/
+│           ├── gdd-review.md           # GDD completeness checklist
+│           └── design-validation.md    # Design validation checklist
+│
 ├── prd.json                # Product Requirements Document (tasks)
 ├── CLAUDE.md               # Project context for Claude
 └── README.md               # This file
@@ -454,8 +474,8 @@ Ralph Orchestra supports **four orchestration modes** for different use cases:
 | Mode             | Agents Running | Communication   | Token Usage | Best For                  |
 | ---------------- | -------------- | --------------- | ----------- | ------------------------- |
 | **Sequential**   | 1 at a time    | Handoff files   | Lowest      | Learning, debugging       |
-| **Polling**      | 3 simultaneous | Polling (30s)   | High        | Legacy, simple projects   |
-| **Event-Driven** | 3 simultaneous | Message queues  | Medium      | Production, complex tasks |
+| **Polling**      | 4 simultaneous | Polling (30s)   | High        | Legacy, simple projects   |
+| **Event-Driven** | 4 simultaneous | Message queues  | Medium      | Production, complex tasks |
 | **HITL**         | 1 at a time    | User-controlled | Lowest      | Learning before going AFK |
 
 ### Sequential Mode (Handoff-Based)
@@ -506,9 +526,14 @@ Ralph Orchestra supports **four orchestration modes** for different use cases:
                     │  Message Queues  │
                     │   (File-based)   │
                     └──────────────────┘
+
+**Game Designer Agent** participates via messages:
+- Creates GDD when none exists
+- Answers design questions from Developer/QA
+- Playtests via Playwright MCP during retrospective
 ```
 
-**Message Types:** `task_assign`, `validation_request`, `bug_report`, `task_complete`, `question/answer`
+**Message Types:** `task_assign`, `validation_request`, `bug_report`, `task_complete`, `question/answer`, `gdd_ready`, `gdd_update`, `design_question`, `design_answer`, `playtest_request`, `playtest_report`
 
 ### Parallel Mode (Polling-Based) - Legacy
 
@@ -767,10 +792,18 @@ $Script:AgentConfig = @{
         DisplayName = "QA"
         Color = "Yellow"
     }
+    "gamedesigner" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent gamedesigner"
+        DisplayName = "Game Designer"
+        Color = "Blue"
+    }
 }
 ```
 
-#### Step-by-Step: Adding a "Designer" Agent
+#### Step-by-Step: Adding Custom Agents
+
+> **Note:** The Game Designer agent (`gamedesigner`) is already implemented. This section serves as a guide for adding other agent types.
 
 **Step 1: Create Agent Directory Structure**
 
@@ -927,7 +960,7 @@ Create [`.claude/settings.designer.json`](.claude/settings.designer.json):
 
 #### Worker vs Coordinator Pattern
 
-| Aspect         | Coordinator (PM)              | Workers (Dev/QA/Designer)              |
+| Aspect         | Coordinator (PM)              | Workers (Dev/QA/GameDesigner)         |
 | -------------- | ----------------------------- | -------------------------------------- |
 | **Type**       | `Type = "coordinator"`        | `Type = "worker"`                      |
 | **Instances**  | Single instance               | Multiple instances can run in parallel |
@@ -939,10 +972,10 @@ Create [`.claude/settings.designer.json`](.claude/settings.designer.json):
 1. **Use `--agent` for variants** of the same pattern:
    - `/ralph-worker-event --agent developer`
    - `/ralph-worker-event --agent qa`
-   - `/ralph-worker-event --agent designer`
+   - `/ralph-worker-event --agent gamedesigner`
    - `/ralph-worker-single --agent developer`
    - `/ralph-worker-single --agent qa`
-   - `/ralph-worker-single --agent designer`
+   - `/ralph-worker-single --agent gamedesigner`
 
 2. **Use separate slash commands** for fundamentally different behaviors:
    - `/ralph-coordinator-event` (event-driven orchestration)
@@ -1138,6 +1171,7 @@ The watchdog displays a live dashboard:
   pm         | PID: 1234 | RUNNING | Inbox: 2   | Processed: 15
   developer  | PID: 5678 | RUNNING | Inbox: 1   | Processed: 20
   qa         | PID: 9012 | RUNNING | Inbox: 0   | Processed: 7
+  gamedesigner| PID: 3456 | RUNNING | Inbox: 0   | Processed: 3
   --------------------------------------------------------------------------
 
   Press Ctrl+C to stop watchdog
@@ -1182,6 +1216,7 @@ Messages are archived in `.claude/session/messages/archive/` for debugging.
 - **PM Agent**: [Task Selection](agents/pm/skills/task-selection.md), [Scale-Adaptive](agents/pm/skills/scale-adaptive.md), [Retrospective](agents/pm/skills/retrospective.md)
 - **Developer Agent**: [R3F Fundamentals](agents/developer/skills/r3f-fundamentals.md), [R3F Performance](agents/developer/skills/r3f-performance.md), [Feedback Loops](agents/developer/skills/feedback-loops.md)
 - **QA Agent**: [Validation Workflow](agents/qa/skills/validation-workflow.md), [Browser Testing](agents/qa/skills/browser-testing.md)
+- **Game Designer Agent**: [GDD Creation](agents/gamedesigner/skills/gdd-creation.md), [Thermite Integration](agents/gamedesigner/skills/thermite-integration.md), [Mechanic Design](agents/gamedesigner/skills/mechanic-design.md), [Level Design](agents/gamedesigner/skills/level-design.md), [Character Design](agents/gamedesigner/skills/character-design.md), [Weapon Design](agents/gamedesigner/skills/weapon-design.md), [Game Loop Design](agents/gamedesigner/skills/game-loop-design.md), [Playtest Validation](agents/gamedesigner/skills/playtest-validation.md)
 
 ### External Documentation
 

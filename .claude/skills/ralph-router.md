@@ -21,11 +21,12 @@ Use at:
 
 ### By Agent Role
 
-| Agent     | Core Skills                                                              | Checklists                       |
-| --------- | ------------------------------------------------------------------------ | -------------------------------- |
-| PM        | `task-selection`, `retrospective`, `skill-improvement`, `scale-adaptive` | `prd-validation`, `task-handoff` |
-| Developer | `r3f-fundamentals`, `feedback-loops`, `typescript-patterns`              | `pre-commit`, `code-quality`     |
-| QA        | `validation-workflow`, `browser-testing`, `bug-reporting`                | `validation-checks`              |
+| Agent        | Core Skills                                                              | Checklists                       |
+| ----------- | ------------------------------------------------------------------------ | -------------------------------- |
+| PM           | `task-selection`, `retrospective`, `skill-improvement`, `scale-adaptive` | `prd-validation`, `task-handoff` |
+| Developer    | `r3f-fundamentals`, `feedback-loops`, `typescript-patterns`              | `pre-commit`, `code-quality`     |
+| QA           | `validation-workflow`, `browser-testing`, `bug-reporting`                | `validation-checks`              |
+| GameDesigner | `gdd-creation`, `thermite-integration`, `mechanic-design`, `level-design`, `character-design`, `weapon-design`, `game-loop-design`, `playtest-validation` | `gdd-review`, `design-validation` |
 
 ### By Task Category
 
@@ -168,4 +169,5 @@ retrospective ────────────▶ skill-improvement
 - [agents/pm/AGENT.md](../../pm/AGENT.md) — PM full instructions
 - [agents/developer/AGENT.md](../../developer/AGENT.md) — Developer full instructions
 - [agents/qa/AGENT.md](../../qa/AGENT.md) — QA full instructions
+- [agents/gamedesigner/AGENT.md](../../gamedesigner/AGENT.md) — Game Designer full instructions
 - [.claude/skills/r3f-router.md](../../../.claude/skills/r3f-router.md) — R3F-specific routing

@@ -19,14 +19,14 @@ This document defines the message-based communication protocol for event-driven 
 │  - Restarts crashed agents                                       │
 │  - Manages session lifecycle                                     │
 └─────────────────────────────────────────────────────────────────┘
-           │                    │                    │
-           ▼                    ▼                    ▼
-    ┌───────────┐        ┌───────────┐        ┌───────────┐
-    │    PM     │◄──────►│ Developer │◄──────►│    QA     │
-    │(Coordinator)       │ (Worker)  │        │ (Worker)  │
-    └───────────┘        └───────────┘        └───────────┘
-           │                    │                    │
-           └────────────────────┴────────────────────┘
+           │                    │                    │                    │
+           ▼                    ▼                    ▼                    ▼
+    ┌───────────┐        ┌───────────┐        ┌───────────┐        ┌───────────┐
+    │    PM     │◄──────►│ Developer │◄──────►│    QA     │◄──────►│GameDesigner│
+    │(Coordinator)       │ (Worker)  │        │ (Worker)  │        │ (Worker)  │
+    └───────────┘        └───────────┘        └───────────┘        └───────────┘
+           │                    │                    │                    │
+           └────────────────────┴────────────────────┴────────────────────┘
                          MESSAGE QUEUE
                    .claude/session/messages/
 ```
@@ -40,6 +40,8 @@ This document defines the message-based communication protocol for event-driven 
 ├── developer/          # Developer's inbox
 │   └── msg-xxx.json
 ├── qa/                 # QA's inbox
+│   └── msg-xxx.json
+├── gamedesigner/       # Game Designer's inbox
 │   └── msg-xxx.json
 └── watchdog/           # Watchdog's inbox
     └── msg-xxx.json
@@ -69,17 +71,17 @@ This document defines the message-based communication protocol for event-driven 
 
 ### Fields
 
-| Field     | Type   | Description                                     |
-| --------- | ------ | ----------------------------------------------- |
-| id        | string | Unique message ID: `msg-{date}-{time}-{random}` |
-| from      | string | Sender: `pm`, `developer`, `qa`, `watchdog`     |
-| to        | string | Recipient: `pm`, `developer`, `qa`, `watchdog`  |
-| type      | string | Message type (see below)                        |
-| priority  | string | `low`, `normal`, `high`, `urgent`               |
-| payload   | object | Type-specific data                              |
-| timestamp | string | ISO 8601 UTC timestamp                          |
-| status    | string | `pending`, `processing`, `completed`, `failed`  |
-| replyTo   | string | Original message ID (for responses)             |
+| Field     | Type   | Description                                                |
+| --------- | ------ | ---------------------------------------------------------- |
+| id        | string | Unique message ID: `msg-{date}-{time}-{random}`           |
+| from      | string | Sender: `pm`, `developer`, `qa`, `gamedesigner`, `watchdog`|
+| to        | string | Recipient: `pm`, `developer`, `qa`, `gamedesigner`, `watchdog` |
+| type      | string | Message type (see below)                                 |
+| priority  | string | `low`, `normal`, `high`, `urgent`                         |
+| payload   | object | Type-specific data                                        |
+| timestamp | string | ISO 8601 UTC timestamp                                    |
+| status    | string | `pending`, `processing`, `completed`, `failed`            |
+| replyTo   | string | Original message ID (for responses)                       |
 
 ## Message Types
 
@@ -88,20 +90,23 @@ This document defines the message-based communication protocol for event-driven 
 | Type                    | To              | Payload                                                           |
 | ----------------------- | --------------- | ----------------------------------------------------------------- |
 | `task_assign`           | developer       | `{ taskId, title, description, acceptanceCriteria[], worktree? }` |
-| `retrospective_initiate`| developer/qa    | `{ taskId, retrospectiveFile }`                                    |
-| `priority_response`     | developer/qa    | `{ decision, reasoning }`                                         |
-| `prd_update`            | developer/qa    | `{ taskId, changes }`                                             |
+| `retrospective_initiate`| developer/qa/gamedesigner | `{ taskId, retrospectiveFile }`          |
+| `priority_response`     | developer/qa/gamedesigner | `{ decision, reasoning }`               |
+| `prd_update`            | developer/qa/gamedesigner | `{ taskId, changes }`                  |
 | `regression_request`    | qa              | `{ scope, focus }`                                                |
+| `playtest_request`      | gamedesigner    | `{ taskId, focus, scope }`                                        |
+| `design_guidance_request`| gamedesigner   | `{ topic, context, taskId }`                                      |
 | `answer`                | any             | `{ answer }`                                                      |
 
 ### Developer Sends
 
-| Type                 | To       | Payload                                      |
-| -------------------- | -------- | -------------------------------------------- |
-| `validation_request` | qa       | `{ taskId, description, branch, worktree? }` |
-| `question`           | pm       | `{ question, context, taskId }`              |
-| `skill_request`      | pm       | `{ requestType, description, reason, taskId }` |
-| `status_update`      | watchdog | `{ status, currentTask, details }`           |
+| Type                 | To           | Payload                                                |
+| -------------------- | ------------ | ------------------------------------------------------ |
+| `validation_request` | qa           | `{ taskId, description, branch, worktree? }`           |
+| `question`           | pm/gamedesigner | `{ question, context, taskId }`                    |
+| `design_question`    | gamedesigner | `{ question, feature, context, taskId }`              |
+| `skill_request`      | pm           | `{ requestType, description, reason, taskId }`         |
+| `status_update`      | watchdog     | `{ status, currentTask, details }`                    |
 
 ### QA Sends
 
@@ -112,6 +117,19 @@ This document defines the message-based communication protocol for event-driven 
 | `question`      | pm       | `{ question, context, taskId }`                   |
 | `skill_request` | pm       | `{ requestType, description, reason, taskId }`     |
 | `status_update` | watchdog | `{ status, currentTask, details }`                |
+
+### Game Designer Sends
+
+| Type               | To             | Payload                                                        |
+| ------------------ | -------------- | -------------------------------------------------------------- |
+| `gdd_ready`        | pm             | `{ version, sections, artifacts }`                             |
+| `gdd_update`       | pm/developer/qa| `{ taskId, changes, section }`                                |
+| `design_answer`    | pm/developer   | `{ answer, questionId, context, taskId }`                      |
+| `playtest_report`  | pm             | `{ taskId, gddCompliance, deviations, issues, screenshots, recommendations, overall }` |
+| `mechanic_proposal`| pm             | `{ mechanic, description, rationale, validationNeeds }`        |
+| `design_guidance`  | pm             | `{ taskId, guidance, constraints }`                            |
+| `design_question`  | pm             | `{ question, context, feature, taskId }`                       |
+| `status_update`    | watchdog       | `{ status, currentTask, details }`                             |
 
 ### Any Agent Sends
 
@@ -225,34 +243,35 @@ Update BOTH when state changes:
 ### Task Completion Flow (with Retrospective)
 
 ```
-PM                    Developer               QA
- │                        │                    │
- ├──task_assign──────────►│                    │
- │                        │                    │
- │                        ├──validation_request────►│
- │                        │                    │
- │◄─────────────────────────────task_complete──┤
- │     (validationPassed=true)                   │
- │                                                │
- │ [PM triggers retrospective]                    │
- │ ├──creates retrospective.txt─────────────────►│
- │ └────────────────────────────────────────────►│
- │                                                │
- │◄────[Developer contribution]──────────────────┤
- │◄────[QA contribution]──────────────────────────┤
- │                                                │
- │ [PM synthesizes, completes retrospective]      │
- │                                                │
- │──task_assign──────────►│ (next task)          │
- │                                                │
+PM                    Developer               QA               GameDesigner
+ │                        │                    │                     │
+ ├──task_assign──────────►│                    │                     │
+ │                        │                    │                     │
+ │                        ├──validation_request────►│                    │
+ │                        │                    │                     │
+ │◄─────────────────────────────task_complete──┤                     │
+ │     (validationPassed=true)                   │                     │
+ │                                                │                     │
+ │ [PM triggers retrospective]                    │                     │
+ │ ├──creates retrospective.txt─────────────────►│                     │
+ │ └────────────────────────────────────────────►│──playtest_request──►│
+ │                                                │                     │
+ │◄────[Developer contribution]──────────────────┤                     │
+ │◄────[QA contribution]──────────────────────────┤◄────playtest_report┤
+ │                                                │                     │
+ │ [PM synthesizes, completes retrospective]      │                     │
+ │                                                │                     │
+ │──task_assign──────────►│ (next task)          │                     │
+ │                                                │                     │
 ```
 
 **CRITICAL**: PM must NOT assign the next task until retrospective completes. The flow is:
 1. QA sends `task_complete` with `validationPassed: true`
 2. PM creates `retrospective.txt` and waits for contributions
-3. Developer and QA contribute their perspectives
-4. PM synthesizes and completes retrospective
-5. Only THEN does PM assign the next task
+3. Developer, QA, and Game Designer contribute their perspectives
+4. Game Designer plays game via Playwright and sends `playtest_report`
+5. PM synthesizes and completes retrospective
+6. Only THEN does PM assign the next task
 
 ### Bug Fix Flow
 

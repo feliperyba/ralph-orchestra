@@ -31,7 +31,7 @@ $scriptsDir = Join-Path $ProjectRoot ".claude\scripts"
 
 # Create directories
 $directories = @($sessionDir, $messagesDir, $logsDir)
-$directories += @("pm", "developer", "qa", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
+$directories += @("pm", "developer", "qa", "gamedesigner", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
 
 foreach ($dir in $directories) {
     if (-not (Test-Path $dir)) {
@@ -98,11 +98,12 @@ if (-not (Test-Path $stateFile)) {
         startTime = [DateTime]::UtcNow.ToString("o")
         maxIterations = $maxIter
         iteration = 0
-        activeAgents = @("pm", "developer", "qa")
+        activeAgents = @("pm", "developer", "qa", "gamedesigner")
         currentTasks = @{
             pm = $null
             developer = $null
             qa = $null
+            gamedesigner = $null
         }
     }
     $initialState | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8

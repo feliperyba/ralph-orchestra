@@ -55,7 +55,7 @@ $persistentStateDir = Join-Path $paths.SessionDir "persistent-state"
 
 # Only clear if this appears to be a fresh watchdog start (no running agents)
 $hasRunningAgents = $false
-foreach ($agentName in @("pm", "developer", "qa")) {
+foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
     $pidFile = Join-Path $paths.SessionDir "$agentName.pid"
     if (Test-Path $pidFile) {
         try {
@@ -208,6 +208,17 @@ $Script:Agents = @{
         LastActivity = [DateTime]::MinValue
         LastDeliveryTime = [DateTime]::MinValue
     }
+    "gamedesigner" = @{
+        Process = $null
+        StartTime = $null
+        ProcessState = "stopped"
+        WorkStatus = "idle"
+        RestartCount = 0
+        CurrentTask = $null
+        CurrentMessage = $null
+        LastActivity = [DateTime]::MinValue
+        LastDeliveryTime = [DateTime]::MinValue
+    }
 }
 
 # Delivery grace period - don't re-deliver messages to an agent within this window
@@ -227,7 +238,7 @@ function Get-SafeScriptString {
 function Start-Agent {
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner")]
         [string]$AgentName,
         
         [array]$PendingMessages = @()  # Messages to deliver to agent on startup
@@ -246,6 +257,7 @@ function Start-Agent {
         "pm" { "/ralph-coordinator-event" }
         "developer" { "/ralph-worker-event --agent developer" }
         "qa" { "/ralph-worker-event --agent qa" }
+        "gamedesigner" { "/ralph-worker-event --agent gamedesigner" }
     }
     
     $windowTitle = "Ralph Event: $AgentName"
@@ -476,10 +488,11 @@ function Start-AllAgents {
         $null = Start-Agent -AgentName "pm"
     } else {
         # NORMAL MODE: Start all agents - they will communicate via message queue
-        Write-WatchdogLog "Starting all agents (PM, Developer, QA)..." -Color Green
+        Write-WatchdogLog "Starting all agents (PM, Developer, QA, GameDesigner)..." -Color Green
         $null = Start-Agent -AgentName "pm"
         $null = Start-Agent -AgentName "developer"
         $null = Start-Agent -AgentName "qa"
+        $null = Start-Agent -AgentName "gamedesigner"
     }
 }
 
@@ -531,10 +544,10 @@ function Stop-AllAgents {
         [switch]$Graceful = $false,
         [string]$Reason = "shutdown"
     )
-    
+
     Write-WatchdogLog "Stopping all agents..." -Color Cyan
-    
-    foreach ($agentName in @("pm", "developer", "qa")) {
+
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
         Stop-Agent -AgentName $agentName -Graceful:$Graceful -Reason $Reason
     }
 }
@@ -585,8 +598,8 @@ function Invoke-DeliverPendingMessages {
     #>
     
     $counts = Get-MessageCount
-    
-    foreach ($agentName in @("pm", "developer", "qa")) {
+
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
         $count = $counts[$agentName]
         if ($count -gt 0) {
             $agent = $Script:Agents[$agentName]
@@ -670,8 +683,8 @@ function Invoke-HealthCheck {
     }
     
     $Script:LastHealthCheck = [DateTime]::UtcNow
-    
-    foreach ($agentName in @("pm", "developer", "qa")) {
+
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
         $health = Test-AgentHealth -AgentName $agentName
         
         switch ($health) {
@@ -760,7 +773,7 @@ function Clear-OldArchives {
     $removed = 0
 
     # Check each agent's inbox
-    foreach ($agent in @("pm", "developer", "qa", "watchdog")) {
+    foreach ($agent in @("pm", "developer", "qa", "gamedesigner", "watchdog")) {
         $inbox = Join-Path $Script:MessageQueueDir $agent
         if (-not (Test-Path $inbox)) { continue }
 
@@ -953,8 +966,8 @@ function Show-EventDashboard {
         
         # Get message counts once
         $counts = Get-MessageCount
-        
-        foreach ($agentName in @("pm", "developer", "qa")) {
+
+        foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
             $agent = $Script:Agents[$agentName]
             $pendingCount = $counts[$agentName]
             
@@ -1001,10 +1014,10 @@ function Show-EventDashboard {
         # Message queue section
         Write-LineAt -Row $row -Text "  MESSAGE QUEUE" -Color Yellow; $row++
         Write-LineAt -Row $row -Text $separator -Color White; $row++
-        
+
         $totalPending = ($counts.Values | Measure-Object -Sum).Sum
-        
-        foreach ($agentName in @("pm", "developer", "qa")) {
+
+        foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
             $count = $counts[$agentName]
             $countColor = if ($count -gt 0) { "Yellow" } else { "DarkGray" }
             Write-ColoredLineAt -Row $row -Segments @(
@@ -1061,7 +1074,7 @@ function Test-SessionComplete {
     }
 
     # Check for RALPH_COMPLETE in any agent log
-    foreach ($agentName in @("pm", "developer", "qa")) {
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
         $logFile = Join-Path $Script:LogDir "$agentName.log"
         if (Test-Path $logFile) {
             $content = Get-Content $logFile -Tail 50 -ErrorAction SilentlyContinue | Out-String
@@ -1171,8 +1184,8 @@ Session Complete: $Script:SessionComplete
 AGENT STATISTICS
 --------------------------------------------------------------------------------
 "@
-    
-    foreach ($agentName in @("pm", "developer", "qa")) {
+
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner")) {
         $agent = $Script:Agents[$agentName]
         $summary += "`n  $agentName : Restarts=$($agent.RestartCount), ProcessState=$($agent.ProcessState), WorkStatus=$($agent.WorkStatus)"
     }

@@ -20,7 +20,7 @@ version: 2.0
 | ----------- | --------------------------------------------- |
 | **Primary** | Implement features from PRD tasks              |
 | **Cannot**  | Suppress errors, use `@ts-ignore`, skip validation |
-| **Works With** | PM coordinator, QA validator                |
+| **Works With** | PM coordinator, QA validator, Game Designer  |
 | **Startup** | `/ralph-worker-event --agent developer`        |
 
 ## Quick Start Checklist
@@ -114,6 +114,8 @@ if (Test-Path $pendingFile) {
         switch ($msg.type) {
             "task_assign" { # PM assigned new task }
             "priority_response" { # PM answered your question }
+            "design_answer" { # Game Designer answered design question }
+            "answer" { # Response to your question }
         }
         Remove-AgentMessage -Agent "developer" -MessageId $msg.id
     }
@@ -129,6 +131,7 @@ if (Test-Path $pendingFile) {
 |-------|--------------|-----|----------|------|
 | Implementation complete | `implementation_complete` | qa | high | After committing code |
 | Need clarification | `question` | pm | high | Specs are unclear |
+| Design question | `design_question` | gamedesigner | high | Game mechanics/behavior unclear |
 | Blocked/need help | `work_blocked` | pm | urgent | Cannot proceed |
 | Task abandoned | `task_abandoned` | pm | urgent | Giving up after 3+ attempts |
 | Need new skill/tool | `skill_request` | pm | normal | Identified capability gap |

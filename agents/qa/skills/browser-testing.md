@@ -138,69 +138,27 @@ test('performance is acceptable', async ({ page }) => {
 });
 ```
 
-## Manual Browser Testing Protocol
+## ⚠️ CRITICAL: Playwright MCP is REQUIRED
 
-When Playwright MCP is not available:
+**There is NO manual testing fallback.**
 
-### Step 1: Open Dev Server
+If Playwright MCP is not available:
 
-```bash
-npm run dev
-```
+1. **FAIL the validation immediately**
+2. Report as critical blocker: `"Playwright MCP not configured - cannot validate"`
+3. **DO NOT** attempt manual browser testing
 
-### Step 2: Navigate to App
+Browser testing via Playwright MCP is **NON-NEGOTIABLE**.
 
-- Open `http://localhost:3000` in browser
-- Open DevTools (F12)
+**This is a mandatory gating condition** - validation cannot proceed without Playwright MCP.
 
-### Step 3: Check Console
+### Why No Manual Fallback?
 
-- Look for red errors
-- Note any warnings
-- Take screenshot of console
-
-### Step 4: Test Functionality
-
-- Follow acceptance criteria steps
-- Test each control/feature
-- Note any issues
-
-### Step 5: Document Results
-
-```markdown
-## Browser Test Results
-
-**Date**: {{TIMESTAMP}}
-**Browser**: Chrome 120
-**Resolution**: 1920x1080
-
-### Load Test
-
-- [ ] Page loads in < 3s
-- [ ] Canvas visible
-- [ ] No loading errors
-
-### Console Check
-
-- [ ] No errors
-- [ ] No critical warnings
-- Errors found: {{list or "none"}}
-
-### Functional Test
-
-For each acceptance criterion:
-
-- Criterion: {{description}}
-- Test: {{what you did}}
-- Result: ✅ PASS / ❌ FAIL
-- Notes: {{observations}}
-
-### Performance
-
-- FPS: {{observed FPS}}
-- Stuttering: Yes / No
-- Memory issues: Yes / No
-```
+- Manual testing is subjective and error-prone
+- Automations ensure consistent validation across all tasks
+- Screenshots via Playwright provide objective evidence
+- Console monitoring catches issues humans miss
+- No manual testing = higher quality bar
 
 ## Cross-Browser Testing
 

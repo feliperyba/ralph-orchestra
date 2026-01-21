@@ -18,9 +18,9 @@ version: 2.0
 
 | Aspect      | Description                                   |
 | ----------- | --------------------------------------------- |
-| **Primary** | Coordinate Developer and QA agents            |
+| **Primary** | Coordinate Developer, QA, and Game Designer agents |
 | **Cannot**  | Edit source code, run tests, implement features |
-| **Works With** | Developer, QA agents                       |
+| **Works With** | Developer, QA, Game Designer agents            |
 | **Startup** | `/ralph-coordinator-event --max-iterations N`  |
 
 ## Quick Start Checklist
@@ -110,6 +110,11 @@ if (Test-Path $pendingFile) {
             "question" { # Worker asks for clarification }
             "work_blocked" { # Worker is blocked }
             "skill_request" { # Queue for retrospective }
+            "gdd_ready" { # Game Designer completed GDD - review and acknowledge }
+            "gdd_update" { # GDD was updated - inform workers }
+            "playtest_report" { # Game Designer completed playtest - review findings }
+            "design_question" { # Game Designer asks about design requirements }
+            "mechanic_proposal" { # Game Designer proposes new mechanic - review }
         }
         Remove-AgentMessage -Agent "pm" -MessageId $msg.id
     }
@@ -125,10 +130,15 @@ if (Test-Path $pendingFile) {
 |------|------|-----------------|
 | `task_complete` | qa | Trigger retrospective if passed |
 | `bug_report` | qa | Reassign to developer, increment retryCount |
-| `question` | developer/qa | Research and respond |
+| `question` | developer/qa/gamedesigner | Research and respond |
 | `work_blocked` | developer/qa | Assess severity, provide guidance |
 | `task_abandoned` | developer/qa | Reassign or escalate |
 | `skill_request` | developer/qa | Add to retrospective action items |
+| `gdd_ready` | gamedesigner | Review GDD, acknowledge, inform workers |
+| `gdd_update` | gamedesigner | Forward relevant updates to workers |
+| `playtest_report` | gamedesigner | Review findings, add issues to PRD if needed |
+| `design_question` | gamedesigner | Clarify requirements, update PRD |
+| `mechanic_proposal` | gamedesigner | Review, approve/request changes |
 
 ---
 
@@ -211,6 +221,49 @@ const next = sorted[0];
 | `in_retrospective` | Poll for agent contributions | (wait) |
 | `skill_research` | Research and update skills | `null` |
 | `needs_fixes` | Reassign to developer | `assigned` |
+
+### Game Designer Collaboration
+
+The Game Designer agent works mostly independently but collaborates on:
+
+**When to engage Game Designer:**
+
+| Trigger | Action |
+|---------|--------|
+| No GDD exists | Send `design_guidance_request` to create GDD |
+| Task requires design input | Ask via `design_question` message |
+| Retrospective begins | Send `playtest_request` for validation |
+| GDD needs review | Respond to `gdd_ready` with feedback |
+
+**GDD-Based Task Planning:**
+
+When Game Designer sends `gdd_ready`:
+1. Review the GDD at `docs/design/gdd.md`
+2. Extract design requirements relevant to current PRD
+3. Update task descriptions with design constraints
+4. Inform Developer and QA about design guidance available
+
+**Retrospective with Game Designer:**
+
+When starting retrospective:
+```powershell
+# Send playtest request to Game Designer
+Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_request" -Payload @{
+    taskId = $currentTaskId
+    focus = "all"
+    scope = "current_task"
+} -Priority "normal"
+
+# Wait for playtest_report before completing retrospective
+```
+
+**Design Questions Flow:**
+
+```
+PM → Game Designer: design_guidance_request
+Game Designer → PM: design_guidance
+PM → Developer/QA: gdd_update (forward relevant info)
+```
 
 ---
 

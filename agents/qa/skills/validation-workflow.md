@@ -23,23 +23,52 @@ Use when:
 # Run full validation suite
 npm run type-check && npm run lint && npm run test && npm run build
 
-# Then mandatory browser testing
-# Use Playwright MCP to:
+# Then MANDATORY browser testing via Playwright MCP
 # 1. Navigate to localhost:3000
 # 2. Take screenshots
 # 3. Verify functionality
 ```
 
+## ⚠️ VALIDATION GATE
+
+**Playwright MCP browser testing is REQUIRED for every validation.**
+
+If browser testing cannot be performed:
+
+→ **FAIL validation immediately**
+→ Report: `"Playwright MCP unavailable - validation gate failed"`
+→ **DO NOT** proceed with any other checks
+
+**This is NON-NEGOTIABLE** - there is NO manual testing fallback.
+
 ## Validation Pipeline
 
 ```
-┌─────────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────────┐
-│ Type Check  │───▶│   Lint   │───▶│   Test   │───▶│  Build   │───▶│  Browser    │
-│    (tsc)    │    │ (eslint) │    │ (vitest) │    │  (vite)  │    │ (Playwright)│
-└─────────────┘    └──────────┘    └──────────┘    └──────────┘    └─────────────┘
-       │                │                │               │               │
-       ▼                ▼                ▼               ▼               ▼
-   Pass/Fail       Pass/Fail        Pass/Fail       Pass/Fail       Pass/Fail
+      [GATE: Playwright MCP MUST be available]
+                  │
+                  ▼
+┌─────────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│ Type Check  │───▶│   Lint   │───▶│   Test   │───▶│  Build   │
+│    (tsc)    │    │ (eslint) │    │ (vitest) │    │  (vite)  │
+└─────────────┘    └──────────┘    └──────────┘    └──────────┘
+       │                │                │               │
+       ▼                ▼                ▼               ▼
+   Pass/Fail       Pass/Fail        Pass/Fail       Pass/Fail
+       │                │                │               │
+       └────────────────┴────────────────┴───────────────┘
+                                          │
+                                          ▼
+                              ┌─────────────────────┐
+                              │  BROWSER TESTING     │ ◄── MANDATORY GATE
+                              │  (Playwright MCP)    │     NO EXCEPTIONS
+                              └─────────────────────┘
+                                          │
+                              ┌──────────┴──────────┐
+                              │                     │
+                         PASS                   FAIL
+                          │                        │
+                          ▼                        ▼
+                    Update PRD            Report bugs
 ```
 
 ## Progressive Guide

@@ -21,7 +21,7 @@ version: 2.0
 | ----------- | --------------------------------------------- |
 | **Primary** | Validate developer work with full test suite   |
 | **Cannot**  | Edit source code, implement fixes, skip validation |
-| **Works With** | PM coordinator, Developer agent             |
+| **Works With** | PM coordinator, Developer agent, Game Designer |
 | **Startup** | `/ralph-worker-event --agent qa`               |
 
 ## Quick Start Checklist
@@ -111,6 +111,8 @@ if (Test-Path $pendingFile) {
             "regression_request" { # PM requests regression testing }
             "priority_response" { # PM answered your question }
             "retrospective_initiate" { # PM triggers retrospective }
+            "design_answer" { # Game Designer answered design question }
+            "answer" { # Response to your question }
         }
         Remove-AgentMessage -Agent "qa" -MessageId $msg.id
     }
@@ -127,6 +129,7 @@ if (Test-Path $pendingFile) {
 | Validation passes | `task_complete` | pm | normal | All checks pass |
 | Validation fails | `bug_report` | pm | high | Any check fails |
 | Need clarification | `question` | pm | high | Unclear how to test |
+| Design question | `design_question` | gamedesigner | high | Game behavior unclear |
 | Request test plan | `test_plan_request` | pm | high | Need testing guidance |
 | Quality concern | `quality_concern` | pm | normal | Non-blocking issue |
 
@@ -153,6 +156,35 @@ if (Test-Path $pendingFile) {
 ```
 
 **NO CONTINUOUS MONITORING** - Complete validation, send result, exit.
+
+### ⚠️ CRITICAL GATE: Browser Testing is NON-NEGOTIABLE
+
+**Browser testing via Playwright MCP is a MANDATORY GATING CONDITION.**
+
+- **NO** validation can proceed **WITHOUT** Playwright MCP browser testing
+- If Playwright MCP is unavailable → **FAIL validation immediately**
+- **NO** manual testing fallback exists
+- **NO** exceptions for any reason
+
+**IF browser testing is skipped → AUTOMATIC FAIL with severity "critical" bug report**
+
+**This is the first check that must happen after automated checks complete:**
+
+```
+         ┌─────────────────────────────────────┐
+         │  Can you use Playwright MCP?        │
+         └────────────────┬────────────────────┘
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+             YES                      NO
+              │                       │
+              ▼                       ▼
+      Continue validation    FAIL IMMEDIATELY
+                              Report: "Playwright MCP
+                              not configured -
+                              validation gate failed"
+```
 
 ### Validation Steps
 
