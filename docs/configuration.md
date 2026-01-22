@@ -73,7 +73,7 @@ The Product Requirements Document (prd.json) defines all tasks for agents to wor
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique identifier (e.g., `feat-001`, `iter1-001`) |
-| `category` | string | No | `architectural`, `functional`, `integration`, `visual`, `shader`, `effects`, `ui-polish`, `polish` |
+| `category` | string | No | `architectural`, `functional`, `integration`, `visual`, `shader`, `effects`, `ui-polish`, `polish`, `spike` |
 | `priority` | string | No | `high`, `medium`, `low` |
 | `title` | string | Yes | Human-readable task name |
 | `description` | string | Yes | Detailed task description |
@@ -93,6 +93,20 @@ pending → in_progress → ready_for_qa → passed
                     ↓
                   failed → in_progress
 ```
+
+### Task Category → Agent Mapping
+
+| Category | Default Agent | Examples |
+|----------|---------------|----------|
+| `architectural` | developer | State stores, API design, core systems |
+| `functional` | developer | Gameplay mechanics, features |
+| `integration` | developer | API integration, third-party services |
+| `visual` | techartist | 3D models, materials, textures |
+| `shader` | techartist | GLSL shaders, visual effects |
+| `effects` | techartist | Particles, post-processing, VFX |
+| `ui-polish` | techartist | UI styling, animations, polish |
+| `spike` | developer | Research, technical investigation |
+| `polish` | techartist | Visual refinement, effects |
 
 ### Best Practices
 
@@ -195,11 +209,11 @@ Each agent can have custom Claude CLI settings in `.claude/settings.{agent}.json
 
 | Agent | Typical MCP Servers |
 |-------|---------------------|
-| PM | GitHub, web-search, filesystem |
+| PM | GitHub, web-search, brave-search, filesystem |
 | Developer | GitHub, filesystem, web-search, brave-search |
-| QA | Playwright, filesystem, GitHub |
-| Game Designer | GitHub, filesystem, web-search |
-| Tech Artist | Playwright, filesystem, GitHub, Vision, Blender, ShaderToy, Image-Process |
+| QA | Playwright, filesystem, GitHub, Vision |
+| Game Designer | GitHub, filesystem, web-search, brave-search, Playwright, Vision |
+| Tech Artist | Playwright, filesystem, GitHub, Vision, Blender, Shadertoy, Image-process |
 
 ## Watchdog Configuration
 
@@ -250,7 +264,24 @@ $Script:AgentConfig = @{
         DisplayName = "Developer"
         Color = "Cyan"
     }
-    # Add more agents here...
+    "techartist" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent techartist"
+        DisplayName = "Tech Artist"
+        Color = "Green"
+    }
+    "qa" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent qa"
+        DisplayName = "QA"
+        Color = "Yellow"
+    }
+    "gamedesigner" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent gamedesigner"
+        DisplayName = "Game Designer"
+        Color = "Blue"
+    }
 }
 
 $Script:DefaultConfig = @{

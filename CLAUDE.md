@@ -6,17 +6,18 @@
 
 ### Key Features
 
-- **Multi-Agent Coordination** - PM, Developer, and QA agents with modular skills
+- **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
 - **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
 - **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
-- **Message-Based Communication** - File-based messages for agent coordination
+- **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms delivery)
 - **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
 - **Skill Improvement** - Agents research and propose skill updates during retrospectives
+- **Git Worktrees** - Developer and Tech Artist can work in parallel without conflicts
 
 ### Quick Start
 
 ```powershell
-# Event-driven mode (recommended - parallel with message queues)
+# Event-driven mode (recommended - parallel with named pipes)
 .\.claude\scripts\ralph-event-session.ps1
 
 # Sequential mode (token-efficient - one agent at a time)
@@ -42,8 +43,7 @@
 | [docs/monitoring.md](docs/monitoring.md) | Dashboard, logs, troubleshooting |
 | [.claude/scripts/README.md](.claude/scripts/README.md) | Script reference |
 | [agents/\*/AGENT.md](agents/) | Per-agent behavior instructions |
-| [agents/\*/skills/](agents/) | Modular skills (YAML frontmatter) |
-| [.claude/skills/](.claude/skills/) | Orchestration skills & routers |
+| [.claude/skills/](.claude/skills/) | Centralized orchestration skills (56+ skills) |
 
 ---
 
@@ -51,6 +51,7 @@
 
 - **PM Agent** ([`agents/pm/AGENT.md`](agents/pm/AGENT.md)) - Coordinator that selects tasks, assigns work, runs retrospectives
 - **Developer Agent** ([`agents/developer/AGENT.md`](agents/developer/AGENT.md)) - Implements features with domain-specific skills
+- **Tech Artist Agent** ([`agents/techartist/AGENT.md`](agents/techartist/AGENT.md)) - Creates visual assets, shaders, and effects
 - **QA Agent** ([`agents/qa/AGENT.md`](agents/qa/AGENT.md)) - Validates implementations with tests and browser checks
 - **Game Designer Agent** ([`agents/gamedesigner/AGENT.md`](agents/gamedesigner/AGENT.md)) - Creates GDDs, answers design questions, playtests
 
@@ -59,9 +60,10 @@
 Each agent has specific MCP servers configured:
 
 - **Developer Agent** - GitHub, filesystem, web-search, brave-search
-- **QA Agent** - Playwright, filesystem, GitHub
-- **PM Agent** - GitHub, web-search, filesystem
-- **Game Designer Agent** - GitHub, filesystem, web-search
+- **Tech Artist Agent** - Playwright, filesystem, GitHub, Vision, Blender, Shadertoy, Image-process
+- **QA Agent** - Playwright, filesystem, GitHub, Vision
+- **PM Agent** - GitHub, web-search, brave-search, filesystem
+- **Game Designer Agent** - GitHub, filesystem, web-search, brave-search, Playwright, Vision
 
 See [`.claude/settings.{agent}.json`](.claude/) for details.
 
@@ -69,7 +71,7 @@ See [`.claude/settings.{agent}.json`](.claude/) for details.
 
 ## Ralph Wiggum Autonomous Development
 
-Ralph Wiggum is a plugin that enables autonomous AI development loops with multi-agent coordination. It allows PM, Developer, and QA agents to work together without human intervention across multiple terminal sessions.
+Ralph Wiggum is a plugin that enables autonomous AI development loops with multi-agent coordination. It allows PM, Developer, Tech Artist, QA, and Game Designer agents to work together without human intervention across multiple terminal sessions.
 
 ### Quick Start
 
@@ -89,13 +91,21 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 # Terminal 2: Developer Agent (Worker)
 /ralph-worker-event --agent developer
 
-# Terminal 3: QA Agent (Worker)
+# Terminal 3: Tech Artist Agent (Worker)
+/ralph-worker-event --agent techartist
+
+# Terminal 4: QA Agent (Worker)
 /ralph-worker-event --agent qa
+
+# Terminal 5: Game Designer Agent (Worker)
+/ralph-worker-event --agent gamedesigner
 
 # OR Sequential Mode (token-efficient, one agent at a time):
 /ralph-coordinator-single
 /ralph-worker-single --agent developer
+/ralph-worker-single --agent techartist
 /ralph-worker-single --agent qa
+/ralph-worker-single --agent gamedesigner
 ```
 
 ### Commands
@@ -104,8 +114,8 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 | --------------------------- | -------------------------------------------- |
 | `/ralph-coordinator-event`  | Start PM agent in event-driven mode          |
 | `/ralph-coordinator-single` | Start PM agent in sequential mode            |
-| `/ralph-worker-event --agent X` | Start worker agent (developer/qa) in event-driven |
-| `/ralph-worker-single --agent X` | Start worker agent (developer/qa) in sequential |
+| `/ralph-worker-event --agent X` | Start worker agent (developer/techartist/qa/gamedesigner) in event-driven |
+| `/ralph-worker-single --agent X` | Start worker agent (developer/techartist/qa/gamedesigner) in sequential |
 | `/ralph-hitl`               | Single iteration mode for learning           |
 | `/cancel-ralph`             | Cancel active loop                           |
 
@@ -113,11 +123,13 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 
 1. **PM Agent** reviews `prd.json`, applies scale-adaptive planning (0-4), and assigns tasks
 2. **Developer Agent** implements features using R3F skills and runs feedback loops
-3. **QA Agent** validates with tests, browser checks, and structured bug reports
-4. **PM Agent** updates PRD status, runs retrospective, proposes skill improvements
-5. Progress tracked in `progress.txt` and `.claude/session/` files
-6. Each iteration commits work
-7. Loop continues until all PRD items have `passes: true`
+3. **Tech Artist Agent** creates visual assets, shaders, and effects
+4. **QA Agent** validates with tests, browser checks, and structured bug reports
+5. **Game Designer Agent** creates GDDs, provides design guidance, and performs playtesting
+6. **PM Agent** updates PRD status, runs retrospective, proposes skill improvements
+7. Progress tracked in `progress.txt` and `.claude/session/` files
+8. Each iteration commits work
+9. Loop continues until all PRD items have `passes: true`
 
 ### Session Files
 
@@ -129,6 +141,7 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 | `.claude/session/current-task.json`      | Active task details                      |
 | `.claude/session/handoff-signal.json`    | Agent switching signals (sequential)     |
 | `.claude/session/messages/`              | Message queues (event-driven)            |
+| `.claude/session/pipes/`                 | Named pipe endpoints (Phase 2)           |
 
 ### Multi-Session Architecture
 
@@ -144,16 +157,23 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
         ▼                       ▼                       ▼
    ┌─────────┐            ┌─────────┐            ┌─────────┐
    │   PM    │◄──────────►│Developer│◄──────────►│   QA    │
-   │ (inbox) │            │ (inbox) │            │ (inbox) │
+   │ (inbox) │            │ (pipes) │            │ (pipes) │
    └─────────┘            └─────────┘            └─────────┘
+        │                      │                      │
+        └──────────────────────┼──────────────────────┼───────────────────┐
+                               ▼                      ▼                   ▼
+                    ┌──────────────────┐    ┌───────────────┐   ┌───────────────┐
+                    │  Message Queues  │    │ TechArtist    │   │ GameDesigner  │
+                    │   (Named Pipes)  │    │  (pipes)      │   │  (pipes)      │
+                    └──────────────────┘    └───────────────┘   └───────────────┘
 ```
 
 **Sequential Mode (Token-Efficient):**
 
 ```
    ┌─────────┐            ┌─────────┐            ┌─────────┐
-   │   PM    │ ─handoff─▶ │Developer│ ─handoff─▶ │   QA    │
-   │  Agent  │            │  Agent  │            │  Agent  │
+   │   PM    │ ─handoff─▶ │Developer│ ─handoff─▶ │TechArtist│ ─handoff─▶
+   │  Agent  │            │  Agent  │            │  Agent   │
    └─────────┘            └─────────┘            └─────────┘
         ▲                                              │
         └──────────────────────────────────────────────┘
@@ -163,7 +183,7 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 ### Best Practices
 
 1. **Start with HITL mode** - Use `/ralph-hitl` to learn behavior before going AFK
-2. **Use max-iterations** - Always set a safety limit (default: 50)
+2. **Use max-iterations** - Always set a safety limit (default: 200)
 3. **Define clear scope** - PRD items with explicit acceptance criteria
 4. **Track progress** - `progress.txt` logs all completed work
 5. **Review commits** - Check git log after loop completes
@@ -189,9 +209,11 @@ All Ralph work follows production standards:
 
 **Agent Behavior:**
 
-- [`agents/pm/AGENT.md`](agents/pm/AGENT.md) - PM instructions + [skills/](agents/pm/skills/)
-- [`agents/developer/AGENT.md`](agents/developer/AGENT.md) - Developer instructions + [skills/](agents/developer/skills/)
-- [`agents/qa/AGENT.md`](agents/qa/AGENT.md) - QA instructions + [skills/](agents/qa/skills/)
+- [`agents/pm/AGENT.md`](agents/pm/AGENT.md) - PM instructions
+- [`agents/developer/AGENT.md`](agents/developer/AGENT.md) - Developer instructions
+- [`agents/techartist/AGENT.md`](agents/techartist/AGENT.md) - Tech Artist instructions
+- [`agents/qa/AGENT.md`](agents/qa/AGENT.md) - QA instructions
+- [`agents/gamedesigner/AGENT.md`](agents/gamedesigner/AGENT.md) - Game Designer instructions
 
 ### Example PRD Item
 
@@ -201,9 +223,14 @@ All Ralph work follows production standards:
   "category": "architectural",
   "priority": "high",
   "title": "Vehicle Physics Implementation",
-  "acceptanceCriteria": ["Vehicle spawns at origin", "WASD controls work", "Physics runs at 60fps"],
-  "passes": false,
-  "agent": "developer"
+  "description": "Implement vehicle physics with realistic collision and controls",
+  "acceptanceCriteria": [
+    "Vehicle spawns at origin",
+    "WASD controls work correctly",
+    "Physics runs at 60fps"
+  ],
+  "agent": "developer",
+  "passes": false
 }
 ```
 
@@ -248,6 +275,17 @@ All Ralph work follows production standards:
 2. For manual setup, ensure `.claude/session/` directory exists
 3. For event-driven mode, ensure `.claude/session/messages/` subdirectories exist
 4. Check file permissions on the session directory
+
+#### Named pipe issues
+
+**Symptoms**: Messages not delivering between agents.
+
+**Solutions**:
+
+1. Check that watchdog is running (creates named pipes)
+2. Verify `.claude/session/pipes/` directory exists
+3. System should automatically fallback to file queue if pipes fail
+4. Restart session if issues persist
 
 #### MCP filesystem path errors
 

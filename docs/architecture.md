@@ -11,7 +11,7 @@ Ralph Orchestra is a multi-agent autonomous development framework that coordinat
 │                                                                         │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐     │
 │  │    PM      │───▶│  DEVELOPER  │───▶│           QA             │     │
-│  │ (Coordinator)│    │(Logic Worker)│    │        (Worker)          │     │
+│  │(Coordinator)│    │(Logic Worker)│    │        (Worker)          │     │
 │  └─────────────┘    └─────────────┘    └─────────────────────────┘     │
 │         │                  ▲                                              │
 │         │                  │                                              │
@@ -20,9 +20,9 @@ Ralph Orchestra is a multi-agent autonomous development framework that coordinat
 │                                                                 │     │
 │  ┌─────────────┐    ┌─────────────────────────────────────────┐  │     │
 │  │TECH ARTIST  │    │            GAME DESIGNER                │  │     │
-│  │(Asset Worker)│   │         (On Demand Worker)             │  │     │
+│  │(Asset Worker)│   │         (Design Worker)                │  │     │
 │  │             │    │  GDD • Design Q&A • Playtesting         │  │     │
-│  │Materials    │    │                                     │  │     │
+│  │Materials    │    │  Thermite Design Integration           │  │     │
 │  │Shaders      │    │                                     │  │     │
 │  │VFX          │    │                                     │  │     │
 │  └─────────────┘    └─────────────────────────────────────────┘  │     │
@@ -49,9 +49,17 @@ The Developer agent implements features:
 
 - Reads task specs from assigned messages
 - Implements features using domain-specific skills (R3F, TypeScript, etc.)
+- Uses git worktrees for parallel development with Tech Artist
 - Runs feedback loops (type-check, lint, test, build)
 - Commits work with conventional commits
 - Sends validation request to QA
+
+**Focus Areas:**
+- Game mechanics and systems
+- State management (Zustand stores)
+- Physics integration (Rapier)
+- Network/multiplayer code (client & server)
+- Data structures and APIs
 
 ### QA Agent (Worker)
 
@@ -63,26 +71,35 @@ The QA agent validates implementations:
 - Reports bugs with structured format or confirms pass
 - Sends results back to PM
 
-### Game Designer Agent (On-Demand Worker)
+### Tech Artist Agent (Worker)
 
-The Game Designer agent handles design-specific tasks:
-
-- Creates Game Design Documents (GDDs) when none exist
-- Answers design questions from Developer/QA/Tech Artist
-- Designs game mechanics, levels, characters, weapons
-- Performs playtesting via Playwright MCP automation
-- Reports playtest results to PM
-
-### Tech Artist Agent (Asset Worker)
-
-The Tech Artist agent handles visual asset tasks:
+The Tech Artist agent creates visual assets and effects:
 
 - Creates 3D/2D assets and materials
 - Implements GLSL shaders and visual effects
 - Adds UI polish and post-processing
 - Optimizes assets for performance (60 FPS target)
-- Commits work with `[ralph] [techartist]` prefix
+- Uses git worktrees for parallel development with Developer
 - Sends asset-ready notifications to QA
+
+**Focus Areas:**
+- 3D model integration and materials
+- Shader development (GLSL)
+- Visual effects (particles, VFX)
+- UI styling and polish
+- Post-processing effects
+- Asset optimization (LOD, compression)
+
+### Game Designer Agent (Worker)
+
+The Game Designer agent handles design-specific tasks:
+
+- Creates Game Design Documents (GDDs) when none exist
+- Uses thermite-design skill for structured design sessions
+- Answers design questions from Developer/QA/Tech Artist
+- Designs game mechanics, levels, characters, weapons
+- Performs playtesting via Playwright MCP automation
+- Reports playtest results to PM
 
 ## Task Lifecycle
 
@@ -93,11 +110,11 @@ The Tech Artist agent handles visual asset tasks:
 │                                                                      │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐  │
 │  │ 1. SELECT   │───▶│ 2. ASSIGN   │───▶│ 3. IMPLEMENT            │  │
-│  │   (PM)      │    │  (PM→Dev)   │    │   (Developer)           │  │
+│  │   (PM)      │    │  (PM→Dev)   │    │   (Developer/TechArtist) │  │
 │  │             │    │             │    │                         │  │
 │  │ Read PRD    │    │ Update      │    │   - Domain skills       │  │
 │  │ Scale 0-4   │    │ state.json  │    │   - Feedback loops      │  │
-│  │ Find next   │    │ Send msg    │    │   - Commit changes      │  │
+│  │ Find next   │    │ Send msg    │    │   - Git worktree        │  │
 │  └─────────────┘    └─────────────┘    └───────────┬─────────────┘  │
 │                                                     │                │
 │  ┌─────────────┐    ┌─────────────────────────────┐│                │
@@ -111,10 +128,12 @@ The Tech Artist agent handles visual asset tasks:
 │  └─────────────┘    └─────────────────────────────┘                  │
 │                                                                      │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ 6. RETROSPECTIVE (End of PRD)                                  │  │
-│  │   - Review all tasks completed                                 │  │
-│  │   - Research skill improvements via MCP                        │  │
-│  │   - Propose updates to agent skills                            │  │
+│  │ 6. RETROSPECTIVE (End of Task)                                 │  │
+│  │   - Developer: Implementation review                           │  │
+│  │   - QA: Validation findings                                    │  │
+│  │   - Tech Artist: Visual quality assessment                      │  │
+│  │   - Game Designer: Playtest results (via Thermite)             │  │
+│  │   - PM: Synthesis and PRD reorganization                       │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
@@ -134,6 +153,46 @@ The PM agent uses scale levels (0-4) based on PRD task count to optimize plannin
 
 This prevents over-planning for small projects while ensuring proper coordination for large ones.
 
+## Named Pipe Messaging (Phase 2)
+
+Ralph Orchestra Phase 2 introduces named pipe messaging for ultra-fast communication:
+
+- **< 10ms** message delivery (vs 2-5 seconds with file queue)
+- Watchdog creates named pipes for each agent on startup
+- Workers (Developer, QA, Tech Artist, Game Designer) connect to pipes
+- PM (coordinator) continues with file queue for simplicity
+- Automatic fallback to file queue if pipes unavailable
+
+### Split State Files
+
+Phase 2 splits the monolithic `coordinator-state.json`:
+
+```
+.claude/session/
+├── state/
+│   ├── agents.json      # Agent statuses (watchdog primary writer)
+│   ├── prd.json         # PRD state (PM primary writer)
+│   ├── current-task.json # Active task (shared)
+│   └── metrics.json     # Performance metrics (watchdog)
+```
+
+This eliminates write contention and improves reliability.
+
+### Git Worktrees for Parallel Development
+
+Developer and Tech Artist can work simultaneously using git worktrees:
+
+```
+project/
+├── .git/
+├── src/                    # Main working tree (Developer)
+└── worktrees/
+    ├── dev-feature-001/    # Developer worktree
+    └── ta-visuals-002/     # Tech Artist worktree
+```
+
+Each agent has their own working tree, eliminating merge conflicts.
+
 ## Project Structure
 
 ```
@@ -142,8 +201,8 @@ ralph-orchestra/
 │   ├── commands/           # Slash commands for agents
 │   │   ├── ralph-coordinator-event.md  # PM event-driven mode
 │   │   ├── ralph-coordinator-single.md # PM sequential mode
-│   │   ├── ralph-worker-event.md       # Dev/QA event-driven mode
-│   │   ├── ralph-worker-single.md      # Dev/QA sequential mode
+│   │   ├── ralph-worker-event.md       # Worker event-driven mode
+│   │   ├── ralph-worker-single.md      # Worker sequential mode
 │   │   ├── ralph-hitl.md               # Human-in-the-loop mode
 │   │   └── cancel-ralph.md             # Graceful shutdown
 │   │
@@ -151,84 +210,76 @@ ralph-orchestra/
 │   │   ├── watchdog-event.ps1        # Event-driven orchestrator
 │   │   ├── watchdog-single.ps1       # Sequential mode orchestrator
 │   │   ├── ralph-event-session.ps1   # Event-driven launcher
-│   │   ├── ralph-single-session.ps1  # Sequential mode launcher
+│   │   ├── ralph-single-session.ps1  # Sequential launcher
 │   │   ├── ralph-multi-session.ps1   # Polling mode launcher
+│   │   ├── pipe-transport.ps1        # Named pipe messaging
 │   │   ├── message-queue.ps1         # Message queue functions
+│   ├── message-state-manager.ps1 # Message state tracking
 │   │   └── ralph-config.ps1          # Shared configuration
 │   │
-│   ├── skills/             # Orchestration skills (YAML frontmatter)
+│   ├── skills/             # Centralized skills (56+ skill directories)
 │   │   ├── ralph-core.md             # Core orchestration concepts
 │   │   ├── ralph-router.md           # Routes to agent skills
 │   │   ├── ralph-handoff.md          # Handoff protocol
 │   │   ├── ralph-event-protocol.md   # Event-driven messaging
-│   │   └── ...
+│   │   ├── file-permissions.md       # File write permissions
+│   │   ├── heartbeat-protocol.md     # Agent heartbeat updates
+│   │   ├── message-handling.md       # Pending message processing
+│   │   ├── worker-protocol.md        # Worker pool model
+│   │   ├── context-management.md     # Context window auto-reset
+│   │   ├── dev-backend-multiplayer  # Developer: Server-authoritative
+│   │   ├── dev-client-prediction    # Developer: Client prediction
+│   │   ├── qa-validation-workflow   # QA: Validation pipeline
+│   │   ├── qa-browser-testing       # QA: Playwright testing
+│   │   ├── thermite-design          # Game Designer: Design sessions
+│   │   └── ... (56+ total skills)
 │   │
 │   ├── session/            # Runtime state (gitignored)
+│   │   ├── state/                   # Split state files (Phase 2)
+│   │   │   ├── agents.json          # Agent statuses
+│   │   │   ├── prd.json             # PRD state
+│   │   │   ├── current-task.json    # Active task
+│   │   │   └── metrics.json         # Performance metrics
+│   │   ├── pipes/                   # Named pipe endpoints
 │   │   ├── coordinator-state.json    # Main coordination state
 │   │   ├── current-task.json         # Active task details
 │   │   ├── handoff-signal.json       # Agent switching signals
 │   │   ├── messages/                 # Event-driven message queues
+│   │   │   ├── pm/                   # PM inbox
+│   │   │   ├── developer/            # Developer inbox
+│   │   │   ├── techartist/           # Tech Artist inbox
+│   │   │   ├── qa/                   # QA inbox
+│   │   │   ├── gamedesigner/         # Game Designer inbox
+│   │   │   └── watchdog/             # Watchdog inbox
 │   │   └── logs/                     # Agent output logs
 │   │
 │   └── settings.*.json     # Per-agent Claude settings
 │
-├── agents/                 # Modular agent definitions
+├── agents/                 # Agent definitions
 │   ├── pm/
 │   │   ├── AGENT.md        # PM behavior instructions
-│   │   ├── SKILLS.md       # Skills index
-│   │   └── skills/         # Modular skills
-│   │       ├── task-selection.md     # Priority algorithm
-│   │       ├── retrospective.md      # Retrospective facilitation
-│   │       ├── skill-improvement.md  # MCP-based skill updates
-│   │       └── scale-adaptive.md     # Scale 0-4 planning
-│   │
+│   │   ├── SKILLS.md       # Skills documentation
+│   │   ├── checklists/      # PM checklists
+│   │   └── references/      # PM reference materials
 │   ├── developer/
 │   │   ├── AGENT.md        # Developer behavior instructions
-│   │   ├── SKILLS.md       # Skills index
-│   │   └── skills/         # Modular skills
-│   │       ├── r3f-fundamentals.md   # R3F scene composition
-│   │       ├── r3f-materials.md      # Materials & shaders
-│   │       ├── r3f-physics.md        # Rapier physics
-│   │       ├── r3f-performance.md    # Performance optimization
-│   │       ├── feedback-loops.md     # Type/lint/test/build
-│   │       └── typescript-patterns.md # TS best practices
-│   │
+│   │   ├── SKILLS.md       # Skills documentation
+│   │   ├── checklists/      # Developer checklists
+│   │   └── references/      # Developer reference materials
 │   ├── techartist/
 │   │   ├── AGENT.md        # Tech Artist behavior instructions
-│   │   ├── SKILLS.md       # Skills index
-│   │   ├── skills/         # Modular skills
-│   │   │   ├── r3f-fundamentals.md   # R3F scene composition
-│   │   │   ├── r3f-materials.md      # PBR materials & custom shaders
-│   │   │   ├── shader-sdf.md         # SDF primitives for shaders
-│   │   │   ├── postfx-effects.md     # Post-processing effects
-│   │   │   ├── particles-gpu.md      # GPU particle systems
-│   │   │   ├── asset-workflow.md     # Asset pipeline workflow
-│   │   │   ├── shader-development.md  # Shader creation process
-│   │   │   └── visual-polish.md       # UI/visual polish checklist
-│   │   ├── checklists/      # Quality checklists
-│   │   │   ├── asset-quality.md      # Asset quality checks
-│   │   │   ├── shader-review.md      # Shader performance checks
-│   │   │   └── visual-consistency.md # Style consistency
-│   │   └── references/      # Reference material
-│   │       ├── material-presets.md   # Common material setups
-│   │       └── shader-patterns.md    # Reusable shader patterns
-│   │
+│   │   ├── SKILLS.md       # Skills documentation
+│   │   ├── checklists/      # Tech Artist checklists
+│   │   └── references/      # Tech Artist reference materials
 │   ├── qa/
 │   │   ├── AGENT.md        # QA behavior instructions
-│   │   ├── SKILLS.md       # Skills index
-│   │   └── skills/         # Modular skills
-│   │       ├── validation-workflow.md # Full validation pipeline
-│   │       ├── browser-testing.md    # Playwright MCP testing
-│   │       └── bug-reporting.md      # Bug report format
-│   │
+│   │   ├── SKILLS.md       # Skills documentation
+│   │   ├── checklists/      # QA checklists
+│   │   └── references/      # QA reference materials
 │   └── gamedesigner/
 │       ├── AGENT.md        # Game Designer behavior instructions
-│       └── skills/         # Modular skills
-│           ├── gdd-creation.md        # Game Design Document creation
-│           ├── mechanic-design.md      # Game mechanics documentation
-│           ├── level-design.md         # Map and level design
-│           ├── character-design.md     # Character and class design
-│           └── playtest-validation.md  # Playwright-based playtesting
+│       ├── checklists/      # Game Designer checklists
+│       └── references/      # Game Designer reference materials
 │
 ├── prd.json                # Product Requirements Document (tasks)
 ├── CLAUDE.md               # Project context for Claude
@@ -240,10 +291,13 @@ ralph-orchestra/
 | File | Purpose |
 |------|---------|
 | `prd.json` | Project requirements with `passes` field |
+| `.claude/session/state/agents.json` | Agent statuses (Phase 2 split) |
+| `.claude/session/state/prd.json` | PRD state (Phase 2 split) |
+| `.claude/session/state/current-task.json` | Active task details (Phase 2 split) |
 | `.claude/session/coordinator-state.json` | Shared coordination state |
-| `.claude/session/current-task.json` | Active task details |
 | `.claude/session/handoff-signal.json` | Agent switching signals (sequential) |
 | `.claude/session/messages/` | Message queues (event-driven) |
+| `.claude/session/pipes/` | Named pipe endpoints (Phase 2) |
 | `.claude/session/logs/` | Agent output logs |
 
 ## Message Flow (Event-Driven)
@@ -260,9 +314,51 @@ QA validates → sends result (bug report OR pass) to PM
 PM updates PRD, marks task passed or assigns back to worker
 ```
 
-**Message Acknowledgment Protocol**: All workers MUST acknowledge received messages immediately via `message_ack`. This prevents duplicate messages, enables delivery tracking, and allows deadlock recovery. See [orchestration-modes.md](./orchestration-modes.md#message-acknowledgment-protocol) for details.
+**Message Acknowledgment Protocol**: All workers MUST acknowledge received messages immediately via `message_ack`. This prevents duplicate messages, enables delivery tracking, and allows deadlock recovery.
 
 For design questions, any agent can message the Game Designer, who responds with design answers. Tech Artist can request artistic references from Game Designer.
+
+### Message Types
+
+| Type | From → To | Purpose |
+|------|-----------|---------|
+| `task_assign` | PM → Developer/TechArtist | Assign task for implementation |
+| `validation_request` | Developer/TechArtist → QA | Request validation |
+| `asset_ready` | Tech Artist → QA | Assets ready for validation |
+| `bug_report` | QA → PM | Report bugs with priority |
+| `task_complete` | QA → PM | Confirm task passed |
+| `question` / `answer` | Any ↔ Any | Q&A between agents |
+| `gdd_ready` | Game Designer → PM | GDD is ready |
+| `gdd_update` | Game Designer → PM | GDD has been updated |
+| `design_question` | Any → Game Designer | Ask design question |
+| `design_answer` | Game Designer → Any | Answer design question |
+| `playtest_request` | PM → Game Designer | Request playtest |
+| `playtest_report` | Game Designer → PM | Playtest results |
+| `asset_assign` | PM → Tech Artist | Assign visual task |
+| `asset_question` | Tech Artist → PM/Game Designer | Clarification request |
+| `shader_request` | Tech Artist → PM | Propose shader work |
+| `reference_request` | Tech Artist → Game Designer | Request artistic references |
+| `message_ack` | Worker → PM | Acknowledge message receipt |
+| `retrospective_initiate` | PM → All Workers | Start retrospective |
+| `test_plan_request` | PM → QA/GameDesigner | Request test plan input |
+
+## Thermite Design Integration
+
+The Game Designer agent uses the [thermite-design](.claude/skills/thermite-design.md) skill for structured game design sessions. This provides:
+
+**Design Pillars:**
+- Meaningful Risk - Every action matters
+- Readable Chaos - Chaotic but parseable
+- Compressed Tension - 5-8 minute matches
+- Earned Mastery - Skill beats gear
+- Sustainable Economy - Patchable, not exploitable
+
+**Design Session Types:**
+- Mechanic design - Define gameplay systems
+- Level design - Map and environment creation
+- Character design - Classes and abilities
+- Weapon design - Items and equipment
+- Playtesting - Validation via Playwright MCP
 
 ## Further Reading
 

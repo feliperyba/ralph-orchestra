@@ -32,7 +32,7 @@ Ralph Orchestra can be invoked through **three different interfaces**, each with
 Full orchestration with automatic session management, health monitoring, and graceful shutdown:
 
 ```powershell
-# Event-driven (parallel, message queues) - Recommended
+# Event-driven (parallel, named pipes + message queues) - Recommended
 .\.claude\scripts\ralph-event-session.ps1
 
 # Sequential (token-efficient, one agent at a time)
@@ -60,15 +60,19 @@ Direct slash commands in separate terminals:
 # Terminal 2: Developer Worker
 /ralph-worker-event --agent developer
 
-# Terminal 3: QA Worker
+# Terminal 3: Tech Artist Worker
+/ralph-worker-event --agent techartist
+
+# Terminal 4: QA Worker
 /ralph-worker-event --agent qa
 
-# Terminal 4: Game Designer Worker
+# Terminal 5: Game Designer Worker
 /ralph-worker-event --agent gamedesigner
 
 # OR Sequential mode (token-efficient)
 /ralph-coordinator-single
 /ralph-worker-single --agent developer
+/ralph-worker-single --agent techartist
 /ralph-worker-single --agent qa
 /ralph-worker-single --agent gamedesigner
 ```
@@ -103,7 +107,7 @@ All agents run in parallel with message-based communication (no polling):
 .\.claude\scripts\ralph-event-session.ps1
 ```
 
-**Benefits:** Parallel execution, no polling overhead, message history
+**Benefits:** Parallel execution, named pipe speed (< 10ms), message history, git worktree support
 
 ### Sequential Mode (Token-Efficient)
 
@@ -123,7 +127,7 @@ All agents run simultaneously, each polling for work every 30s:
 .\.claude\scripts\ralph-multi-session.ps1
 ```
 
-**Benefits:** Simple implementation, agents can work on different tasks concurrently
+**Benefits:** Simple implementation, agents can work on different tasks simultaneously
 
 ## Stopping Agents
 
@@ -146,6 +150,20 @@ $env:RALPH_MAX_ITERATIONS = 100
 ```
 
 See [Configuration](./configuration.md#max-iterations) for more options.
+
+## Git Worktrees for Parallel Development
+
+Developer and Tech Artist can work simultaneously using git worktrees:
+
+```powershell
+# The system automatically creates worktrees when needed
+# No manual setup required for basic usage
+```
+
+Each agent gets their own working tree, eliminating merge conflicts:
+- Developer works on logic/server code
+- Tech Artist works on visuals/assets
+- Changes are isolated until merged
 
 ## Next Steps
 

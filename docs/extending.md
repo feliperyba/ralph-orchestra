@@ -54,7 +54,7 @@ name: ralph-worker
 description: Worker loop - execute tasks assigned by coordinator
 category: orchestration
 arguments:
-  --agent: "developer" or "qa" or "gamedesigner"
+  --agent: "developer" or "qa" or "gamedesigner" or "techartist"
 ---
 ```
 
@@ -63,18 +63,19 @@ arguments:
 /ralph-worker-event --agent developer   # Runs as Developer (event-driven)
 /ralph-worker-single --agent developer  # Runs as Developer (sequential)
 /ralph-worker-event --agent qa          # Runs as QA (event-driven)
-/ralph-worker-single --agent gamedesigner  # Runs as Game Designer
+/ralph-worker-single --agent techartist # Runs as Tech Artist (sequential)
+/ralph-worker-event --agent gamedesigner # Runs as Game Designer (event-driven)
 ```
 
 **Inside the skill**, the agent checks `$arguments.agent` to determine:
-- Which skills directory to load (`agents/developer/skills/` vs `agents/qa/skills/`)
-- What behavior to follow (coding vs validation)
+- Which agent-specific instructions to follow (coding vs validation vs assets)
 - What state files to update
+- What MCP servers are available
 
 ## Worker vs Coordinator Pattern
 
-| Aspect | Coordinator (PM) | Workers (Dev/QA/GameDesigner) |
-|--------|-------------------|-------------------------------|
+| Aspect | Coordinator (PM) | Workers (Dev/QA/GameDesigner/TechArtist) |
+|--------|-------------------|------------------------------------------|
 | **Type** | `Type = "coordinator"` | `Type = "worker"` |
 | **Instances** | Single instance | Multiple can run in parallel |
 | **Command** | No `--agent` argument | Requires `--agent` argument |
@@ -84,21 +85,12 @@ arguments:
 
 ### Step 1: Create Agent Directory Structure
 
-For example, to add a Tech Artist agent (already included):
+For example, to add a new worker agent (techartist is already included as an example):
 
 ```
 agents/techartist/
 ├── AGENT.md              # Core behavior instructions
-├── SKILLS.md             # Skills index
-├── skills/               # Modular skills
-│   ├── r3f-fundamentals.md
-│   ├── r3f-materials.md
-│   ├── shader-sdf.md
-│   ├── postfx-effects.md
-│   ├── particles-gpu.md
-│   ├── asset-workflow.md
-│   ├── shader-development.md
-│   └── visual-polish.md
+├── SKILLS.md             # Skills index (documents relevant skills)
 ├── checklists/
 │   ├── asset-quality.md
 │   ├── shader-review.md
@@ -107,6 +99,8 @@ agents/techartist/
     ├── material-presets.md
     └── shader-patterns.md
 ```
+
+**Note:** Skills are centralized in `.claude/skills/`, not inside agent folders.
 
 ### Step 2: Create AGENT.md
 
@@ -134,7 +128,7 @@ agents/techartist/
 
 ### Step 3: Update ralph-config.ps1
 
-Add your new agent to the `AgentConfig` hashtable (already done for techartist):
+Add your new agent to the `AgentConfig` hashtable:
 
 ```powershell
 $Script:AgentConfig = @{
@@ -179,30 +173,11 @@ Check the `--agent` argument:
 - **"techartist"**: Create visual assets, shaders, and effects
 - **"qa"**: Validate implementations with tests and browser checks
 - **"gamedesigner"**: Create GDDs and answer design questions
-
-## Tech Artist Agent Path
-
-**IF `--agent == "techartist"`**:
-
-Look for tasks where:
-- `currentTask.assignedAgent == "techartist"`
-- `currentTask.status` is "assigned" or "needs_fixes"
-
-**When you find work**:
-1. Update your status to "working"
-2. Read task specs from `current-task.json`
-3. Read GDD for artistic references
-4. Create assets/shaders using R3F patterns
-5. Test in browser via Playwright
-6. Run feedback loops (type-check, lint, build)
-7. Commit work with [ralph] [techartist] prefix
-8. Update task status to "ready_for_qa"
-9. Resume polling
 ```
 
 ### Step 6: Create Agent-Specific Settings (Optional)
 
-Create `.claude/settings.techartist.json` (already included):
+Create `.claude/settings.techartist.json`:
 
 ```json
 {
@@ -248,6 +223,35 @@ Create `.claude/settings.techartist.json` (already included):
 }
 ```
 
+## Git Worktrees for Parallel Development
+
+Developer and Tech Artist can work simultaneously using git worktrees:
+
+### How It Works
+
+```
+project/
+├── .git/
+├── src/                    # Main working tree (Developer)
+└── worktrees/
+    ├── dev-feature-001/    # Developer worktree
+    └── ta-visuals-002/     # Tech Artist worktree
+```
+
+### Setting Up Worktrees
+
+The system automatically creates worktrees when needed. Each agent gets their own working tree, eliminating merge conflicts:
+
+- Developer works on logic/server code
+- Tech Artist works on visuals/assets
+- Changes are isolated until merged
+
+### Benefits
+
+- No merge conflicts between parallel agents
+- Each agent has their own isolated workspace
+- Changes can be tested independently before merging
+
 ## Skill Routing
 
 The `.claude/skills/ralph-router.md` skill routes tasks to appropriate domain skills based on:
@@ -270,6 +274,26 @@ Edit `.claude/skills/ralph-router.md`:
 | task contains "ui" | skills/ui-patterns.md |
 | task contains "shader" | skills/shader-creation.md |
 ```
+
+## Thermite Design Integration
+
+The Game Designer agent uses the [thermite-design](.claude/skills/thermite-design.md) skill for structured design sessions:
+
+### Design Pillars
+
+- Meaningful Risk - Every action matters
+- Readable Chaos - Chaotic but parseable
+- Compressed Tension - 5-8 minute matches
+- Earned Mastery - Skill beats gear
+- Sustainable Economy - Patchable, not exploitable
+
+### Design Session Types
+
+- Mechanic design - Define gameplay systems
+- Level design - Map and environment creation
+- Character design - Classes and abilities
+- Weapon design - Items and equipment
+- Playtesting - Validation via Playwright MCP
 
 ## Custom Handoff Logic
 

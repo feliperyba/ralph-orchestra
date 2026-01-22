@@ -15,7 +15,17 @@ Ralph Orchestra enables **autonomous software development** by coordinating spec
 - **QA Agent** (Worker) - Validates implementations, runs tests, reports bugs
 - **Game Designer Agent** (Worker) - Creates GDDs, validates design, playtests
 
-The agents communicate through shared state files and can run indefinitely until all tasks are complete.
+The agents communicate through shared state files and named pipes, and can run indefinitely until all tasks are complete.
+
+## Key Features
+
+- **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
+- **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
+- **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
+- **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms delivery)
+- **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
+- **Skill Improvement** - Agents research and propose skill updates during retrospectives
+- **Git Worktrees** - Developer and Tech Artist can work in parallel without conflicts
 
 ## Quick Start
 
@@ -71,23 +81,16 @@ For individual agent sessions:
 /ralph-worker-event --agent developer   # Start Developer
 /ralph-worker-event --agent techartist  # Start Tech Artist
 /ralph-worker-event --agent qa          # Start QA
+/ralph-worker-event --agent gamedesigner # Start Game Designer
 ```
-
-## Key Features
-
-- **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
-- **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
-- **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
-- **Message-Based Communication** - File-based messages for agent coordination
-- **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
-- **Skill Improvement** - Agents research and propose skill updates during retrospectives
 
 ## Architecture
 
 ```
-PM selects task → assigns to developer
+PM selects task → assigns to developer or techartist
      ↓
-Developer implements feature
+Developer implements feature (logic)
+Tech Artist creates assets (visuals)
      ↓
 QA validates implementation (reports bugs OR passes)
      ↓
@@ -111,8 +114,7 @@ Iteration completes → next task begins
 
 - [.claude/scripts/README.md](./.claude/scripts/README.md) - Script reference
 - [agents/\*/AGENT.md](./agents/) - Per-agent behavior instructions
-- [agents/\*/skills/](./agents/) - Modular skills (YAML frontmatter)
-- [.claude/skills/](./.claude/skills/) - Orchestration skills & routers
+- [.claude/skills/](./.claude/skills/) - Centralized orchestration skills (56+ skills)
 
 ## Example PRD Item
 

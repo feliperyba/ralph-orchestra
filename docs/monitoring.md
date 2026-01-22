@@ -17,8 +17,9 @@ The watchdog displays a live dashboard during operation:
   --------------------------------------------------------------------------
   pm         | PID: 1234 | RUNNING | Inbox: 2   | Processed: 15
   developer  | PID: 5678 | RUNNING | Inbox: 1   | Processed: 20
-  qa         | PID: 9012 | RUNNING | Inbox: 0   | Processed: 7
-  gamedesigner| PID: 3456 | RUNNING | Inbox: 0   | Processed: 3
+  techartist | PID: 9012 | RUNNING | Inbox: 0   | Processed: 7
+  qa         | PID: 3456 | RUNNING | Inbox: 0   | Processed: 12
+  gamedesigner| PID: 7890 | RUNNING | Inbox: 0   | Processed: 3
   --------------------------------------------------------------------------
 
   Press Ctrl+C to stop watchdog
@@ -45,6 +46,7 @@ All agent output is logged to `.claude/session/logs/`:
 |------|-----------|
 | `pm.log` | PM agent output |
 | `developer.log` | Developer agent output |
+| `techartist.log` | Tech Artist agent output |
 | `qa.log` | QA agent output |
 | `gamedesigner.log` | Game Designer agent output |
 | `watchdog-summary.log` | Session summary on exit |
@@ -56,7 +58,7 @@ All agent output is logged to `.claude/session/logs/`:
 Get-Content .\.claude\session\logs\developer.log -Wait -Tail 50
 
 # View session summary
-Get-Content .\.claude\session\logs\watchdog-summary.log
+Get-Content .claude\session\logs\watchdog-summary.log
 ```
 
 ## Message History (Event-Driven Mode)
@@ -71,7 +73,16 @@ Messages are archived in `.claude/session/messages/archive/` for debugging:
 ├── developer/
 │   ├── inbox/
 │   └── sent/
+├── techartist/
+│   ├── inbox/
+│   └── sent/
 ├── qa/
+│   ├── inbox/
+│   └── sent/
+├── gamedesigner/
+│   ├── inbox/
+│   └── sent/
+├── watchdog/
 │   ├── inbox/
 │   └── sent/
 └── archive/
@@ -113,7 +124,7 @@ Each message file contains:
 
 4. **Check watchdog logs:**
    ```powershell
-   Get-Content .\.claude\session\logs\watchdog-summary.log
+   Get-Content .claude\session\logs\watchdog-summary.log
    ```
 
 ### Agents Stop Polling (Polling/Event Mode)
@@ -144,6 +155,23 @@ Each message file contains:
    ls .\.claude\session\messages\developer\inbox\
    ```
 
+### Named Pipe Issues
+
+**Symptoms:** Messages not delivering, agents not receiving tasks.
+
+**Solutions:**
+
+1. **Check named pipe endpoints exist:**
+   ```powershell
+   ls .\.claude\session\pipes\
+   ```
+
+2. **Verify watchdog is running** - Named pipes are created by watchdog
+
+3. **Check for fallback to file queue** - System should automatically fallback if pipes fail
+
+4. **Restart session** - Named pipe issues are usually resolved by restarting
+
 ### Context Window Overflow
 
 **Symptoms:** Agent becomes slow, forgets previous context, gives inconsistent responses.
@@ -159,7 +187,7 @@ Each message file contains:
 
 3. **Check reset count:**
    ```powershell
-   Get-Content .\.claude\session\context-reset-count.txt
+   Get-Content .claude\session\context-reset-count.txt
    ```
 
 4. **Use sequential mode** for lower token usage
@@ -205,6 +233,7 @@ claude auth login
    mkdir .\.claude\session
    mkdir .\.claude\session\messages\pm
    mkdir .\.claude\session\messages\developer
+   mkdir .\.claude\session\messages\techartist
    mkdir .\.claude\session\messages\qa
    mkdir .\.claude\session\messages\gamedesigner
    ```
@@ -255,6 +284,7 @@ The watchdog performs several health checks:
 | **Log file growth** | Agent is producing output | Restart if idle |
 | **Heartbeat** | Agent heartbeat in state file | Warning if stale |
 | **Message queue** | Messages being processed | Alert if backing up |
+| **Named pipe connectivity** | Pipe connection active | Fallback to file queue |
 
 ## Getting Help
 
