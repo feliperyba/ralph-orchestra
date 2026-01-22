@@ -53,6 +53,7 @@ version: 2.0
 - Run retrospective after EVERY task completion
 - Research and improve agent skills during retrospective
 - Detect session completion (all tasks `passes: true`)
+- **Commit all file changes following Ralph format**
 
 ### What You Cannot Do (MUST NOT CODE)
 
@@ -410,6 +411,66 @@ Game Designer → Tech Artist: visual_reference (mood boards, style guides)
 **Retrospective with Tech Artist:**
 
 When starting retrospective, include Tech Artist in `retrospective_initiate` messages. Tech Artist contributes visual quality perspective and visual performance metrics.
+
+### Commit Format
+
+The PM MUST commit after ANY file changes.
+
+**PM Commit Format:**
+```
+[ralph] [pm] {{TASK_ID}}: {{Brief description}}
+
+- Change 1
+- Change 2
+
+PRD: {{TASK_ID}} | Agent: pm | Iteration: {{N}}
+```
+
+**Examples:**
+
+Task assignment (PRD update):
+```
+[ralph] [pm] feat-001: Task assigned to developer
+
+- Set status: assigned
+- Assigned to: developer
+- Assigned at: 2026-01-21T10:00:00Z
+
+PRD: feat-001 | Agent: pm | Iteration: 3
+```
+
+Retrospective/PRD reorganization:
+```
+[ralph] [pm] retrospective: Reorganized PRD with new tasks
+
+- Added 2 tasks from retrospective findings
+- Updated priorities for 3 tasks
+- PRD version: 1.2.0
+
+PRD: retrospective | Agent: pm | Iteration: 3
+```
+
+Skill improvement:
+```
+[ralph] [pm] skill-improvement: Updated developer skills
+
+- Added r3f-physics patterns
+- Updated error handling guidelines
+
+PRD: skill-improvement | Agent: pm | Iteration: 3
+```
+
+Progress update:
+```
+[ralph] [pm] feat-001: Task assignment completed
+
+- Selected feat-001 from PRD
+- Created test plan with QA and Game Designer
+- Assigned to developer
+- Updated coordinator-progress.txt
+
+PRD: feat-001 | Agent: pm | Iteration: 3
+```
 
 ---
 

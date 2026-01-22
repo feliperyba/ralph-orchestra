@@ -180,6 +180,54 @@ if (Test-Path $pendingFile) {
 
 **NO CONTINUOUS MONITORING** - Complete validation, send result, exit.
 
+### Commit Format
+
+The QA MUST commit validation results after each validation.
+
+**Pass Format:**
+```
+[ralph] [qa] {{TASK_ID}}: Validation PASSED
+
+- TypeScript: pass
+- Lint: pass
+- Tests: pass
+- Build: pass
+- Browser: pass
+
+All acceptance criteria verified.
+
+PRD: {{TASK_ID}} | Agent: qa | Iteration: {{N}}
+```
+
+**Fail Format:**
+```
+[ralph] [qa] {{TASK_ID}}: Validation FAILED
+
+- TypeScript: pass
+- Lint: pass
+- Tests: FAIL - 2 tests failing
+- Build: pass
+- Browser: FAIL
+
+Bug: Unit test assertion failed.
+See current-task.json for full bug report.
+
+PRD: {{TASK_ID}} | Agent: qa | Iteration: {{N}}
+```
+
+**Critical Fail Format (Playwright unavailable):**
+```
+[ralph] [qa] {{TASK_ID}}: Validation FAILED
+
+- Playwright MCP: NOT CONFIGURED
+- Browser testing: CRITICAL GATE FAILED
+
+Validation cannot proceed without Playwright MCP.
+This is a mandatory gating condition with no exceptions.
+
+PRD: {{TASK_ID}} | Agent: qa | Iteration: {{N}}
+```
+
 ### ⚠️ CRITICAL GATE: Browser Testing is NON-NEGOTIABLE
 
 **Browser testing via Playwright MCP is a MANDATORY GATING CONDITION.**

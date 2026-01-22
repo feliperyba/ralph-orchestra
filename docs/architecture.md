@@ -251,6 +251,8 @@ ralph-orchestra/
 ```
 PM assigns task → Worker (Developer/TechArtist) picks up from inbox
     ↓
+Worker acknowledges message → sends message_ack to PM
+    ↓
 Worker implements → sends validation request to QA
     ↓
 QA validates → sends result (bug report OR pass) to PM
@@ -258,7 +260,9 @@ QA validates → sends result (bug report OR pass) to PM
 PM updates PRD, marks task passed or assigns back to worker
 ```
 
-For design questions, any agent can message the Game Designer, who responds with design answers.
+**Message Acknowledgment Protocol**: All workers MUST acknowledge received messages immediately via `message_ack`. This prevents duplicate messages, enables delivery tracking, and allows deadlock recovery. See [orchestration-modes.md](./orchestration-modes.md#message-acknowledgment-protocol) for details.
+
+For design questions, any agent can message the Game Designer, who responds with design answers. Tech Artist can request artistic references from Game Designer.
 
 ## Further Reading
 

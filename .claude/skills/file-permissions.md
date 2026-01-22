@@ -63,6 +63,53 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 - ❌ `coordinator-progress.txt` - Read-only
 - ❌ `developer-progress.txt` - Read-only
 
+### Game Designer Worker
+- ✅ `.claude/session/session.log` - Append log entries
+- ✅ `.claude/session/gamedesigner-progress.txt` - Full ownership
+- ✅ `docs/design/` - Full ownership of all design artifacts
+- ✅ Design artifacts in project root
+- ❌ Source code files - Read-only
+- ❌ `prd.json` task descriptions - Read-only (PM only)
+
+### Tech Artist Worker
+- ✅ `.claude/session/session.log` - Append log entries
+- ✅ `.claude/session/techartist-progress.txt` - Full ownership
+- ✅ `src/assets/` - All 3D models, textures, materials
+- ✅ `src/components/**/*.{materials,shaders,effects}*` - Visual components
+- ✅ `src/styles/` - UI styles and visual themes
+- ✅ `src/vfx/` - Particle systems and effects
+- ❌ Core game logic (store/, hooks/, utils/) - Read-only
+- ❌ Network code (server/) - Read-only
+- ❌ `prd.json` task descriptions - Read-only (PM only)
+
+## Commit Permissions
+
+**ALL agents MUST commit their file changes** following the Ralph commit format.
+
+| Agent | Must Commit | Commit Scope |
+|-------|-------------|--------------|
+| **PM** | ✅ Yes | `prd.json`, `.claude/session/coordinator-progress.txt`, skill files, retrospective artifacts |
+| **Developer** | ✅ Yes | Source files, tests, own progress files |
+| **Tech Artist** | ✅ Yes | Asset files, visual components, shaders, styles |
+| **QA** | ✅ Yes | `prd.json` (validation fields), bug reports, own progress files |
+| **Game Designer** | ✅ Yes | `docs/design/`, GDD, design artifacts, own progress files |
+
+**Commit Format:**
+```
+[ralph] [{{AGENT}}] {{TASK_ID}}: {{Brief description}}
+
+- Change 1
+- Change 2
+
+PRD: {{TASK_ID}} | Agent: {{AGENT}} | Iteration: {{N}}
+```
+
+**No Commit Exceptions:**
+- Heartbeat updates (coordinator-state.json timestamps)
+- Temporary/pending message files (deleted after processing)
+
+> See [ralph-core.md](ralph-core.md#universal-commit-rule-all-agents) for complete commit rules.
+
 ## Concurrency Rules
 
 1. **Never overwrite entire files** - update specific fields only

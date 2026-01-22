@@ -206,6 +206,31 @@ This checks the `version` field before writing and fails if another process modi
 PRD: {{PRD_ID}} | Agent: {{AGENT}} | Iteration: {{N}}
 ```
 
+## Universal Commit Rule (ALL AGENTS)
+
+**CRITICAL: Every agent MUST commit their file changes.**
+
+Any time an agent makes file changes, those changes MUST be committed with the Ralph format.
+
+**When to Commit:**
+- After any file modifications (source files, configs, PRD, docs, session files)
+- Before sending completion messages
+- After any skill file updates
+- After any documentation changes
+
+**No Commit Exceptions:**
+- Heartbeat updates (coordinator-state.json timestamps)
+- Temporary/pending message files (deleted after processing)
+
+**Each Agent MUST Commit:**
+| Agent | Must Commit These Files |
+|-------|------------------------|
+| **PM** | `prd.json`, `.claude/session/coordinator-progress.txt`, skill files, retrospective artifacts |
+| **Developer** | Source files, tests, own progress files |
+| **Tech Artist** | Asset files, visual components, shaders, styles |
+| **QA** | `prd.json` (validation fields), bug reports, own progress files |
+| **Game Designer** | `docs/design/`, GDD, design artifacts, own progress files |
+
 ## Common File Operations
 
 Atomic update pattern:

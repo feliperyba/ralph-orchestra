@@ -56,6 +56,7 @@ version: 2.0
 - **Provide artistic references to Tech Artist** - mood boards, color palettes, style guides
 - **Participate in retrospectives** - play game via Playwright, validate vs GDD
 - **Run design sessions** - use thermite-design skill for structured design work
+- **Commit all design file changes following Ralph format**
 
 ### What You Cannot Do (MUST NOT CODE)
 
@@ -282,6 +283,56 @@ Your GDD should include visual specifications:
 - **Material Guidelines** - How different surfaces should look
 - **UI/UX Style** - Interface design language
 - **Effects Style** - Particle systems, VFX tone
+
+### Commit Format
+
+The Game Designer MUST commit design file changes after any design work.
+
+**GDD Creation:**
+```
+[ralph] [gamedesigner] gdd: Initial GDD created
+
+- Created docs/design/gdd.md
+- Documented core gameplay loop
+- Defined character classes
+- Specified economy system
+
+PRD: gdd | Agent: gamedesigner | Iteration: 1
+```
+
+**GDD Update:**
+```
+[ralph] [gamedesigner] gdd-update: Added combat mechanics
+
+- Updated docs/design/gdd.md combat section
+- Added weapon balance spreadsheet
+- Documented damage formulas
+
+PRD: gdd-update | Agent: gamedesigner | Iteration: 2
+```
+
+**Design Artifacts:**
+```
+[ralph] [gamedesigner] design: Created level design templates
+
+- Added docs/design/map_templates.md
+- Created 3 level layouts
+- Documented spawn point logic
+
+PRD: design-artifacts | Agent: gamedesigner | Iteration: 3
+```
+
+**Playtest Report:**
+```
+[ralph] [gamedesigner] feat-001: Playtest completed
+
+- Validated gameplay vs GDD
+- Tested all game controls
+- Took 3 screenshots (start, during, end)
+- All mechanics working as designed
+
+PRD: feat-001 | Agent: gamedesigner | Iteration: 3
+```
 
 ---
 

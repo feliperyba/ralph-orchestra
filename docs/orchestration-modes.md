@@ -6,9 +6,9 @@ Ralph Orchestra supports **four orchestration modes** for different use cases.
 
 | Mode | Agents Running | Communication | Token Usage | Parallelism | Best For |
 |------|----------------|---------------|-------------|-------------|----------|
-| **Event-Driven** | 4 simultaneous | Message queues | Medium | Full | Production, complex tasks |
+| **Event-Driven** | 5 simultaneous | Message queues | Medium | Full | Production, complex tasks |
 | **Sequential** | 1 at a time | Handoff files | Lowest | None | Learning, debugging |
-| **Polling** | 4 simultaneous | Polling (30s) | High | Full | Legacy, simple projects |
+| **Polling** | 5 simultaneous | Polling (30s) | High | Full | Legacy, simple projects |
 | **HITL** | 1 at a time | User-controlled | Lowest | None | Learning before going AFK |
 
 ---
@@ -38,18 +38,25 @@ All agents run in parallel with message-based communication (no polling).
    │ (inbox) │            │ (inbox) │            │ (inbox) │
    └─────────┘            └─────────┘            └─────────┘
         │                      │                      │
-        └──────────────────────┼──────────────────────┘
-                               ▼
-                    ┌──────────────────┐
-                    │  Message Queues  │
-                    │   (File-based)   │
-                    └──────────────────┘
+        └──────────────────────┼──────────────────────┼───────────────────┐
+                               ▼                      ▼                   ▼
+                    ┌──────────────────┐    ┌───────────────┐   ┌───────────────┐
+                    │  Message Queues  │    │ GameDesigner  │   │  TechArtist  │
+                    │   (File-based)   │    │    (inbox)    │   │   (inbox)    │
+                    └──────────────────┘    └───────────────┘   └───────────────┘
 ```
 
-**Game Designer Agent** participates via messages:
+**Additional Agents** participate via messages:
+
+**Game Designer Agent:**
 - Creates GDD when none exists
-- Answers design questions from Developer/QA
+- Answers design questions from Developer/QA/TechArtist
 - Playtests via Playwright MCP during retrospective
+
+**Tech Artist Agent:**
+- Creates visual assets (materials, shaders, VFX, UI polish)
+- Works with Game Designer for artistic direction
+- Submits assets to QA for validation
 
 ### Message Types
 
@@ -66,6 +73,38 @@ All agents run in parallel with message-based communication (no polling).
 | `design_answer` | Game Designer → Any | Answer design question |
 | `playtest_request` | PM → Game Designer | Request playtest |
 | `playtest_report` | Game Designer → PM | Playtest results |
+| `asset_assign` | PM → Tech Artist | Assign visual task |
+| `asset_ready` | Tech Artist → QA | Assets ready for validation |
+| `asset_question` | Tech Artist → PM/Game Designer | Clarification request |
+| `shader_request` | Tech Artist → PM | Propose shader work |
+| `reference_request` | Tech Artist → Game Designer | Request artistic references |
+| `message_ack` | Worker → PM | Acknowledge message receipt |
+
+### Message Acknowledgment Protocol
+
+**ALL worker agents MUST acknowledge received messages immediately.**
+
+When a worker (Developer, QA, Game Designer, or Tech Artist) receives any message from PM:
+
+1. **Send `message_ack` to PM immediately** (before processing)
+2. **Process the message**
+3. **Remove message from inbox**
+
+This protocol:
+- Prevents duplicate message delivery
+- Enables PM to track which messages were actually received
+- Allows deadlock recovery after agent crashes
+- Provides delivery confirmation for reliable messaging
+
+**Example acknowledgment payload:**
+```json
+{
+  "originalMessageId": "msg-xxx",
+  "originalMessageType": "task_assign",
+  "acknowledgedAt": "2024-01-20T12:00:00Z",
+  "status": "received"
+}
+```
 
 ### Benefits
 

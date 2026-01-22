@@ -62,6 +62,17 @@ Single iteration for learning the flow:
 
 Press `Ctrl+C` in the watchdog terminal, or run `/cancel-ralph` in any agent terminal.
 
+#### Manual Agent Startup
+
+For individual agent sessions:
+
+```powershell
+/ralph-coordinator-event           # Start PM (coordinator)
+/ralph-worker-event --agent developer   # Start Developer
+/ralph-worker-event --agent techartist  # Start Tech Artist
+/ralph-worker-event --agent qa          # Start QA
+```
+
 ## Key Features
 
 - **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills

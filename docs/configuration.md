@@ -73,14 +73,14 @@ The Product Requirements Document (prd.json) defines all tasks for agents to wor
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique identifier (e.g., `feat-001`, `iter1-001`) |
-| `category` | string | No | `architectural`, `functional`, `integration`, `polish` |
+| `category` | string | No | `architectural`, `functional`, `integration`, `visual`, `shader`, `effects`, `ui-polish`, `polish` |
 | `priority` | string | No | `high`, `medium`, `low` |
 | `title` | string | Yes | Human-readable task name |
 | `description` | string | Yes | Detailed task description |
 | `acceptanceCriteria` | array | Yes | List of pass/fail criteria |
 | `verificationSteps` | array | No | Steps QA should use to verify |
 | `files` | array | No | Files this task affects |
-| `agent` | string | No | Target agent: `developer`, `qa`, `gamedesigner` |
+| `agent` | string | No | Target agent: `developer`, `qa`, `gamedesigner`, `techartist` |
 | `dependencies` | array | No | Task IDs that must complete first |
 | `notes` | string | No | Additional context |
 | `status` | string | No | `pending`, `in_progress`, `ready_for_qa`, `passed`, `failed` |
@@ -199,6 +199,7 @@ Each agent can have custom Claude CLI settings in `.claude/settings.{agent}.json
 | Developer | GitHub, filesystem, web-search, brave-search |
 | QA | Playwright, filesystem, GitHub |
 | Game Designer | GitHub, filesystem, web-search |
+| Tech Artist | Playwright, filesystem, GitHub, Vision, Blender, ShaderToy, Image-Process |
 
 ## Watchdog Configuration
 
