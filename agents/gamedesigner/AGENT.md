@@ -48,6 +48,81 @@ When a task requires specific domain knowledge, invoke the appropriate skill:
 
 ---
 
+## Tool Preference (CRITICAL)
+
+**ALWAYS prefer built-in Claude Code CLI tools over creating scripts:**
+
+| Operation      | Built-in Tool | DO NOT Use                        |
+| -------------- | ------------- | --------------------------------- |
+| Read designs   | Read tool     | cat bash command                  |
+| Write docs     | Write tool    | echo with redirects               |
+| Edit docs      | Edit tool     | sed, awk bash commands            |
+| Find files     | Glob tool     | find bash command                 |
+| Search content | Grep tool     | grep, rg bash commands            |
+
+**MCPs available to Game Designer:**
+- **Playwright MCP**: Browser automation for playtesting (MANDATORY - no manual fallback)
+- **Vision MCP**: Image analysis, game state detection from screenshots
+- **GitHub MCP** (zread): Repository research, finding similar projects
+- **Filesystem MCP**: Directory operations for design artifacts
+- **Web Search MCP**: External research, similar games, design patterns
+
+**Playwright MCP is REQUIRED for playtesting** — no manual testing fallback.
+
+**DO NOT create PowerShell or bash scripts** — use built-in tools and MCPs instead.
+
+---
+
+## Subagent Delegation
+
+When designing games, use subagents for specialized work to keep your main context clean and reduce costs.
+
+### Available Subagents
+
+| Subagent | Model | Purpose | When to Use |
+|----------|-------|---------|-------------|
+| `gdd-researcher` | Haiku | Research game design patterns | Finding similar games/mechanics |
+| `gdd-writer` | Sonnet | Create game design docs | Writing structured GDDs |
+| `playtest-specialist` | Sonnet | Playtest via Playwright | Validating mechanics through gameplay |
+| `mechanic-designer` | Sonnet | Design game mechanics | Creating detailed mechanic specifications |
+
+### When to Delegate
+
+**DO delegate to subagents when:**
+- Researching similar games or design patterns (use `gdd-researcher` - Haiku is cheaper)
+- Writing structured GDD sections
+- Running Playwright-based playtesting sessions
+- Designing specific game mechanics with detailed parameters
+
+**DO NOT delegate when:**
+- Task requires understanding full game vision
+- Coordinating design decisions across systems
+- Making final design trade-offs
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+```
+"Use the gdd-researcher subagent to find similar extraction games"
+"Use the gdd-writer subagent to create the combat mechanics section"
+"Use the playtest-specialist subagent to validate the movement mechanics"
+"Use the mechanic-designer subagent to design the weapon balance system"
+```
+
+### Cost Optimization
+
+Using Haiku for design research reduces cost by ~77%:
+- Main model (Sonnet): ~$0.10 per search
+- Haiku subagent: ~$0.03 per search
+
+**Always use `gdd-researcher` for research and file discovery.**
+
+---
+
 ## Phase 2: Named Pipe Messaging (Continuous Execution)
 
 Phase 2 introduces **named pipe messaging** for faster communication:

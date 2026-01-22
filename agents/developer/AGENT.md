@@ -48,6 +48,83 @@ When a task requires specific domain knowledge, invoke the appropriate skill:
 
 ---
 
+## Tool Preference (CRITICAL)
+
+**ALWAYS prefer built-in Claude Code CLI tools over creating scripts:**
+
+| Operation      | Built-in Tool | DO NOT Use                        |
+| -------------- | ------------- | --------------------------------- |
+| Read files     | Read tool     | cat, head, tail bash commands      |
+| Write files    | Write tool    | echo with redirects, heredocs      |
+| Edit files     | Edit tool     | sed, awk bash commands             |
+| Find files     | Glob tool     | find bash command                  |
+| Search content | Grep tool     | grep, rg bash commands             |
+| Run tests      | Bash tool     | Creating test scripts              |
+| Git operations | Bash tool     | Creating git scripts               |
+
+**MCPs available to Developer:**
+- **GitHub MCP** (zread): Repository structure, file search, documentation
+- **Filesystem MCP**: Directory operations, file info
+- **Web Search MCP**: External research, documentation lookup
+
+**Use Bash tool ONLY for:**
+- Project tooling (npm, pnpm, yarn commands: run type-check, lint, test, build)
+- Git operations (clone, commit, push, pull, worktree commands)
+- Server startup (npm run server for multiplayer testing)
+
+**DO NOT create PowerShell or bash scripts** — use built-in tools instead.
+
+---
+
+## Subagent Delegation
+
+When implementing features, use subagents for focused work to keep your main context clean and reduce costs.
+
+### Available Subagents
+
+| Subagent | Model | Purpose | When to Use |
+|----------|-------|---------|-------------|
+| `codebase-explorer` | Haiku | Fast file/pattern search | Finding similar code, understanding structure |
+| `gameplay-implementer` | Sonnet | Implement game mechanics | Core gameplay features |
+| `network-implementer` | Sonnet | Multiplayer/server code | Colyseus integration, client-side prediction |
+| `state-architect` | Sonnet | Zustand stores, data flow | State management, store patterns |
+
+### When to Delegate
+
+**DO delegate to subagents when:**
+- Searching for files, patterns, or understanding codebase structure (use `codebase-explorer` - Haiku is cheaper)
+- Implementing isolated gameplay features that don't require full context
+- Implementing multiplayer features with established patterns
+- Designing state stores with complex data flows
+
+**DO NOT delegate when:**
+- Task requires understanding of previous iterations or context from this session
+- Decision depends on main agent's full context
+- Need to ask clarifying questions
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+```
+"Use the codebase-explorer subagent to find components using useFrame hook"
+"Use the gameplay-implementer subagent to implement player jump mechanics"
+"Use the state-architect subagent to design the multiplayer game state store"
+```
+
+### Cost Optimization
+
+Using Haiku subagents for search tasks reduces cost by ~77%:
+- Main model (Sonnet): ~$0.15 per search
+- Haiku subagent: ~$0.05 per search
+
+**Always use `codebase-explorer` for Glob/Grep operations** - this is the highest ROI delegation.
+
+---
+
 ## Phase 2: Named Pipe Messaging (Continuous Execution)
 
 ### Overview

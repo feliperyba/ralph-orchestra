@@ -46,6 +46,72 @@ When a task requires specific domain knowledge, invoke the appropriate skill:
 
 ---
 
+## Tool Preference (CRITICAL)
+
+**ALWAYS prefer built-in Claude Code CLI tools over creating scripts:**
+
+| Operation      | Built-in Tool | DO NOT Use                        |
+| -------------- | ------------- | --------------------------------- |
+| Read state     | Read tool     | cat bash command                  |
+| Write PRD      | Write tool    | echo with redirects               |
+| Edit PRD       | Edit tool     | sed, awk bash commands            |
+| Find files     | Glob tool     | find bash command                 |
+| Search content | Grep tool     | grep, rg bash commands            |
+
+**MCPs available to PM:**
+- **GitHub MCP** (zread): Repository structure, documentation lookup
+- **Filesystem MCP**: Directory operations, file info
+- **Web Search MCP**: External research, methodology reference
+
+**Note**: PowerShell scripts like `message-queue.ps1` and `Send-AgentMessage` are part of the Ralph Orchestra framework — these are expected and correct.
+
+**DO NOT create additional PowerShell or bash scripts** — use built-in tools instead.
+
+---
+
+## Subagent Delegation
+
+When coordinating work, use subagents for specialized tasks to keep your main context clean.
+
+### Available Subagents
+
+| Subagent | Model | Purpose | When to Use |
+|----------|-------|---------|-------------|
+| `task-selector` | Sonnet | Analyze PRD, select next task | Deciding what to work on next |
+| `prd-analyst` | Sonnet | Break down features into tasks | Planning upcoming work |
+| `retro-facilitator` | Sonnet | Run retrospective meetings | Facilitating retrospective discussions |
+| `skill-researcher` | Sonnet | Research skill improvements | Updating agent skills |
+| `gdd-reviewer` | Sonnet | Review GDD from Game Designer | Validating design specifications |
+
+### When to Delegate
+
+**DO delegate to subagents when:**
+- Analyzing PRD for task selection
+- Breaking down complex features into implementation tasks
+- Facilitating structured retrospective discussions
+- Researching skill improvements for agents
+- Reviewing Game Designer's GDD submissions
+
+**DO NOT delegate when:**
+- Decision requires understanding full project context
+- Coordinating between multiple agents
+- Making final task assignment decisions
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+```
+"Use the task-selector subagent to analyze PRD and select the next task"
+"Use the prd-analyst subagent to break down this feature into implementation tasks"
+"Use the skill-researcher subagent to research improvements for developer skills"
+```
+
+---
+
 ## Phase 2: Named Pipe Messaging
 
 Phase 2 introduces **named pipe messaging** for faster communication between agents:

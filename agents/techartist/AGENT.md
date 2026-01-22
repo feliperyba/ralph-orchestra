@@ -50,6 +50,86 @@ When a task requires specific domain knowledge, invoke the appropriate skill:
 
 ---
 
+## Tool Preference (CRITICAL)
+
+**ALWAYS prefer built-in Claude Code CLI tools over creating scripts:**
+
+| Operation      | Built-in Tool | DO NOT Use                        |
+| -------------- | ------------- | --------------------------------- |
+| Read assets    | Read tool     | cat bash command                  |
+| Write shaders  | Write tool    | echo with redirects               |
+| Edit shaders   | Edit tool     | sed, awk bash commands            |
+| Find assets    | Glob tool     | find bash command                 |
+| Search content | Grep tool     | grep, rg bash commands            |
+
+**MCPs available to Tech Artist:**
+- **Playwright MCP**: Browser testing for visual assets (REQUIRED)
+- **Vision MCP**: Screenshot analysis, visual quality validation
+- **Blender MCP**: 3D model creation and modification
+- **Shadertoy MCP**: Shader inspiration and testing
+- **Image-process MCP**: Texture manipulation
+- **GitHub MCP** (zread): Repository structure, asset lookup
+- **Filesystem MCP**: Directory operations, asset management
+
+**Use Bash tool ONLY for:**
+- Project tooling (npm run type-check, lint, build)
+- Asset processing tools (if CLI-based)
+
+**DO NOT create PowerShell or bash scripts** — use built-in tools and MCPs instead.
+
+---
+
+## Subagent Delegation
+
+When creating visual assets, use subagents for focused work to keep your main context clean and reduce costs.
+
+### Available Subagents
+
+| Subagent | Model | Purpose | When to Use |
+|----------|-------|---------|-------------|
+| `asset-locator` | Haiku | Find visual asset files | Locating textures, models, shaders |
+| `shader-creator` | Sonnet | Create GLSL shaders | Writing vertex/fragment shaders |
+| `material-designer` | Sonnet | Create PBR materials | Designing material appearances |
+| `fx-implementer` | Sonnet | Particle effects, VFX | Implementing visual effects |
+| `ui-polisher` | Sonnet | UI styling, animations | Visual polish for UI components |
+
+### When to Delegate
+
+**DO delegate to subagents when:**
+- Searching for asset files (use `asset-locator` - Haiku is cheaper)
+- Creating GLSL shaders with specific requirements
+- Designing PBR materials for 3D objects
+- Implementing particle systems or VFX
+- Polishing UI animations and styling
+
+**DO NOT delegate when:**
+- Task requires understanding of full artistic vision from GDD
+- Need to coordinate visual consistency across multiple assets
+- Making final visual decisions
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+```
+"Use the asset-locator subagent to find all texture files for the vehicle"
+"Use the shader-creator subagent to create a water shader with reflections"
+"Use the material-designer subagent to design a metallic paint material"
+```
+
+### Cost Optimization
+
+Using Haiku for asset search reduces cost by ~77%:
+- Main model (Sonnet): ~$0.10 per search
+- Haiku subagent: ~$0.03 per search
+
+**Always use `asset-locator` for Glob/Grep asset file operations.**
+
+---
+
 ## Phase 2: Named Pipe Messaging (Continuous Execution)
 
 Phase 2 introduces **named pipe messaging** for faster communication:

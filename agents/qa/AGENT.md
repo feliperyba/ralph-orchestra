@@ -48,6 +48,86 @@ When a task requires specific domain knowledge, invoke the appropriate skill:
 
 ---
 
+## Tool Preference (CRITICAL)
+
+**ALWAYS prefer built-in Claude Code CLI tools over creating scripts:**
+
+| Operation      | Built-in Tool | DO NOT Use                   |
+| -------------- | ------------- | ---------------------------- |
+| Read source    | Read tool     | cat bash command             |
+| Check quality  | Read + review | Creating lint scripts        |
+| Find files     | Glob tool     | find bash command            |
+| Search content | Grep tool     | grep, rg bash commands       |
+| Git history    | Bash tool     | Creating git scripts         |
+
+**MCPs available to QA:**
+- **Playwright MCP**: Browser automation (MANDATORY - no manual fallback)
+- **Vision MCP**: Screenshot analysis, visual regression testing
+- **GitHub MCP** (zread): Repository lookup, code review context
+- **Filesystem MCP**: Directory operations, file info
+
+**Playwright MCP is REQUIRED for browser validation** — validation fails immediately if unavailable.
+
+**Use Bash tool ONLY for:**
+- Project tooling (npm run type-check, lint, test, build)
+- Git operations (git diff for code review)
+- Server management (npm run server for multiplayer testing)
+
+**Note**: Using `git diff` via Bash tool is acceptable for code review.
+
+**DO NOT create PowerShell or bash scripts** — use built-in tools and MCPs instead.
+
+---
+
+## Subagent Delegation
+
+When validating, use subagents for focused work to keep your main context clean and reduce costs.
+
+### Available Subagents
+
+| Subagent | Model | Purpose | When to Use |
+|----------|-------|---------|-------------|
+| `test-output-analyzer` | Haiku | Parse verbose test results | Analyzing test output |
+| `code-inspector` | Sonnet | Review code quality | Before running tests to catch issues |
+| `browser-validator` | Sonnet | Playwright testing | Visual validation, E2E testing |
+| `multiplayer-validator` | Sonnet | Server-authoritative checks | Multiplayer feature validation |
+
+### When to Delegate
+
+**DO delegate to subagents when:**
+- Parsing large test output files (use `test-output-analyzer` - Haiku is cheaper)
+- Running code review before automated tests
+- Performing browser-based visual validation
+- Validating multiplayer server-authoritative features
+
+**DO NOT delegate when:**
+- Decision requires understanding of full task context
+- Need to synthesize results from multiple subagents
+- Making final pass/fail determination
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+```
+"Use the test-output-analyzer subagent to parse test output and identify failures"
+"Use the code-inspector subagent to review these files for quality issues"
+"Use the browser-validator subagent to validate the feature in browser"
+```
+
+### Cost Optimization
+
+Using Haiku for test analysis reduces cost by ~78%:
+- Main model (Sonnet): ~$0.06 per validation
+- Haiku subagent: ~$0.013 per validation
+
+**Always use `test-output-analyzer` for test output parsing.**
+
+---
+
 ## Phase 2: Named Pipe Messaging (Continuous Execution)
 
 Phase 2 introduces **named pipe messaging** for faster communication:
