@@ -108,7 +108,66 @@ if (Test-Path $pendingFile) {
         switch ($msg.type) {
             "design_question" { # PM or Developer asks about design }
             "playtest_request" { # PM requests playtest validation }
-            "retrospective_initiate" { # PM triggers retrospective }
+            "retrospective_initiate" { # PM triggers retrospective
+                # Update status to indicate working on retrospective
+                $stateFile = ".claude/session/coordinator-state.json"
+                if (Test-Path $stateFile) {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    $state.agents.gamedesigner.status = "working_on_retrospective"
+                    $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                }
+
+                # Read retrospective.txt
+                $retroFile = ".claude/session/retrospective.txt"
+                if (Test-Path $retroFile) {
+                    $retroContent = Get-Content $retroFile -Raw
+
+                    # Find Game Designer Perspective section and add contribution
+                    if ($retroContent -match "### Game Designer Perspective\s*<!-- WAITING -->") {
+                        $timestamp = [DateTime]::UtcNow.ToString("o")
+                        $contribution = @"
+
+### Game Designer Perspective
+
+**Design Validation**:
+
+- {{How well implementation matches GDD}}
+- {{Design intent preserved}}
+
+**Player Experience**:
+
+- {{Gameplay feel and flow}}
+- {{UX observations}}
+- {{Engagement level}}
+
+**Design Concerns**:
+
+- {{Any deviations from GDD vision}}
+- {{Missing features or polish}}
+- {{Design risks identified}}
+
+**Suggestions**:
+
+- {{Improvements for player experience}}
+- {{Design adjustments needed}}
+- {{New ideas discovered}}
+
+_**Contributed by**: Game Designer Agent | $timestamp_
+"@
+                        $retroContent = $retroContent -replace "### Game Designer Perspective\s*<!-- WAITING -->", "### Game Designer Perspective$contribution"
+                        $retroContent | Out-File -FilePath $retroFile -Encoding UTF8 -NoNewline
+                    }
+
+                    # Update status back to idle after contribution
+                    if (Test-Path $stateFile) {
+                        $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                        $state.agents.gamedesigner.status = "idle"
+                        $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                    }
+                }
+                # NOTE: No message sent to PM for retrospective contribution - it's in the file
+                # NOTE: playtest_report is sent separately via playtest_request handler
+            }
             "gdd_feedback" { # Someone provided GDD feedback }
         }
         Remove-AgentMessage -Agent "gamedesigner" -MessageId $msg.id

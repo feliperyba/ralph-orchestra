@@ -301,6 +301,66 @@ if (Test-Path $pendingFile) {
             "priority_response" { # PM answered your question }
             "design_answer" { # Game Designer answered design question }
             "answer" { # Response to your question }
+            "retrospective_initiate" { # PM triggers retrospective
+                # Update status to indicate working on retrospective
+                $stateFile = ".claude/session/coordinator-state.json"
+                if (Test-Path $stateFile) {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    $state.agents.developer.status = "working_on_retrospective"
+                    $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                }
+
+                # Read retrospective.txt
+                $retroFile = ".claude/session/retrospective.txt"
+                if (Test-Path $retroFile) {
+                    $retroContent = Get-Content $retroFile -Raw
+
+                    # Find Developer Perspective section and add contribution
+                    if ($retroContent -match "### Developer Perspective\s*<!-- WAITING -->") {
+                        $timestamp = [DateTime]::UtcNow.ToString("o")
+                        $contribution = @"
+
+### Developer Perspective
+
+**Implementation Decisions**:
+
+- Describe key technical decisions you made
+- Why you chose specific approaches
+
+**Technical Challenges Faced**:
+
+- What was difficult about this task
+- How you overcame those challenges
+
+**What Worked Well**:
+
+- Solutions or patterns that worked effectively
+
+**Areas for Improvement**:
+
+- What could be done better next time
+- Any technical debt or shortcuts taken
+
+**Lessons Learned**:
+
+- What would help with similar future tasks
+- Suggestions for PRD clarifications
+
+_**Contributed by**: Developer Agent | $timestamp_
+"@
+                        $retroContent = $retroContent -replace "### Developer Perspective\s*<!-- WAITING -->", "### Developer Perspective$contribution"
+                        $retroContent | Out-File -FilePath $retroFile -Encoding UTF8 -NoNewline
+                    }
+
+                    # Update status back to idle after contribution
+                    if (Test-Path $stateFile) {
+                        $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                        $state.agents.developer.status = "idle"
+                        $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                    }
+                }
+                # NOTE: No message sent to PM - contribution is in the file
+            }
         }
         Remove-AgentMessage -Agent "developer" -MessageId $msg.id
     }

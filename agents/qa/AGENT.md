@@ -123,7 +123,70 @@ if (Test-Path $pendingFile) {
             "validation_request" { # Developer ready for QA }
             "regression_request" { # PM requests regression testing }
             "priority_response" { # PM answered your question }
-            "retrospective_initiate" { # PM triggers retrospective }
+            "retrospective_initiate" { # PM triggers retrospective
+                # Update status to indicate working on retrospective
+                $stateFile = ".claude/session/coordinator-state.json"
+                if (Test-Path $stateFile) {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    $state.agents.qa.status = "working_on_retrospective"
+                    $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                }
+
+                # Read retrospective.txt
+                $retroFile = ".claude/session/retrospective.txt"
+                if (Test-Path $retroFile) {
+                    $retroContent = Get-Content $retroFile -Raw
+
+                    # Find QA Perspective section and add contribution
+                    if ($retroContent -match "### QA Perspective\s*<!-- WAITING -->") {
+                        $timestamp = [DateTime]::UtcNow.ToString("o")
+                        $contribution = @"
+
+### QA Perspective
+
+**Validation Results Summary**:
+
+- TypeScript: {{pass/fail}}
+- Lint: {{pass/fail}}
+- Tests: {{pass/fail}}
+- Build: {{pass/fail}}
+- Manual/Browser: {{pass/fail}}
+
+**Code Quality Observations**:
+
+- {{Is the code maintainable?}}
+- {{Any code smells or anti-patterns?}}
+- {{Is there proper error handling?}}
+- {{Is the code well-structured?}}
+
+**Quality Concerns**:
+
+- {{Should this be refactored before continuing?}}
+- {{Any performance concerns?}}
+- {{Is test coverage adequate?}}
+- {{Does this follow project patterns?}}
+
+**Suggestions for Improvement**:
+
+- {{What would make this code better?}}
+- {{Any areas that need refactoring?}}
+- {{Missing tests or coverage?}}
+
+_**Contributed by**: QA Agent | $timestamp_
+"@
+                        $retroContent = $retroContent -replace "### QA Perspective\s*<!-- WAITING -->", "### QA Perspective$contribution"
+                        $retroContent | Out-File -FilePath $retroFile -Encoding UTF8 -NoNewline
+                    }
+
+                    # Update status back to idle after contribution
+                    if (Test-Path $stateFile) {
+                        $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                        $state.agents.qa.status = "idle"
+                        $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                    }
+                }
+                # NOTE: No message sent to PM - contribution is in the file
+            }
             "test_plan_request" { # PM requests test plan input for upcoming task
                 # Provide test cases, edge cases, validation approach
                 $contribution = @{

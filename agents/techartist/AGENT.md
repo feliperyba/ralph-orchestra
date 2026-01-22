@@ -246,7 +246,84 @@ if (Test-Path $pendingFile) {
     foreach ($msg in $pending.messages) {
         switch ($msg.type) {
             "asset_assign" { # PM assigns asset task }
-            "retrospective_initiate" { # PM triggers retrospective }
+            "retrospective_initiate" { # PM triggers retrospective
+                # Update status to indicate working on retrospective
+                $stateFile = ".claude/session/coordinator-state.json"
+                if (Test-Path $stateFile) {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    $state.agents.techartist.status = "working_on_retrospective"
+                    $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                }
+
+                # Read retrospective.txt
+                $retroFile = ".claude/session/retrospective.txt"
+                if (Test-Path $retroFile) {
+                    $retroContent = Get-Content $retroFile -Raw
+
+                    # Find Tech Artist Perspective section and add contribution
+                    if ($retroContent -match "### Tech Artist Perspective\s*<!-- WAITING -->") {
+                        $timestamp = [DateTime]::UtcNow.ToString("o")
+                        $contribution = @"
+
+### Tech Artist Perspective
+
+**Visual Assets Created**:
+
+- {{Assets/materials/shaders created}}
+- {{3D models, textures, effects implemented}}
+
+**Visual Quality Assessment**:
+
+- {{How well visuals match GDD specifications}}
+- {{Artistic direction alignment}}
+- {{Overall visual polish achieved}}
+
+**Performance Metrics**:
+
+- {{Frame rate impact}}
+- {{Draw calls, triangle count}}
+- {{Texture memory usage}}
+- {{Shader complexity}}
+
+**Challenges Faced**:
+
+- {{What was difficult about visual implementation}}
+- {{Shader compilation or optimization issues}}
+- {{Asset integration challenges}}
+
+**What Worked Well**:
+
+- {{Visual techniques that were effective}}
+- {{Performance optimizations that succeeded}}
+- {{Artistic solutions that pleased the Game Designer}}
+
+**Areas for Improvement**:
+
+- {{What could be improved visually}}
+- {{Performance bottlenecks to address}}
+- {{Asset workflow refinements needed}}
+
+**Lessons Learned**:
+
+- {{What would help with similar visual tasks}}
+- {{Shader patterns to reuse}}
+- {{Asset pipeline improvements}}
+
+_**Contributed by**: Tech Artist Agent | $timestamp_
+"@
+                        $retroContent = $retroContent -replace "### Tech Artist Perspective\s*<!-- WAITING -->", "### Tech Artist Perspective$contribution"
+                        $retroContent | Out-File -FilePath $retroFile -Encoding UTF8 -NoNewline
+                    }
+
+                    # Update status back to idle after contribution
+                    if (Test-Path $stateFile) {
+                        $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                        $state.agents.techartist.status = "idle"
+                        $state | ConvertTo-Json -Depth 10 | Set-Content $stateFile
+                    }
+                }
+                # NOTE: No message sent to PM - contribution is in the file
+            }
             "prd_reorganized" { # PM updated PRD }
             "design_answer" { # Game Designer answered question }
             "visual_reference" { # Game Designer sent references }

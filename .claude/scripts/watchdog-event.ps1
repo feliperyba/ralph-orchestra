@@ -482,7 +482,7 @@ function Start-AllAgents {
     # Note: Workers will be started by watchdog when:
     # 1. PM sends task_assign → Developer starts
     # 2. PM sends test_plan_request → QA starts
-    # 3. PM sends retrospective_initiate → Developer, QA, GameDesigner start
+    # 3. PM sends retrospective_initiate → Developer, Tech Artist, QA, GameDesigner start
     # 4. PM sends playtest_request → GameDesigner starts
 }
 
@@ -505,14 +505,23 @@ function Invoke-MainLoop {
         # 3. Check agent health
         Invoke-HealthCheck
 
-        # 4. Check for session completion
+        # 4. Check for retrospective file and start watcher if needed
+        $retroFile = Join-Path $Script:SessionDir "retrospective.txt"
+        if ((Test-Path $retroFile) -and -not $Script:RetrospectiveWatcher) {
+            Start-RetrospectiveWatcher
+        }
+
+        # 5. Check retrospective timeout for idle agents
+        Test-RetrospectiveTimeout
+
+        # 6. Check for session completion
         if (Test-SessionComplete) {
             Write-WatchdogLog "Session complete - shutting down agents" -Color Green
             $Script:SessionComplete = $true
             break
         }
 
-        # 5. Update dashboard
+        # 7. Update dashboard
         if (-not $NoDashboard) {
             Show-EventDashboard
         }
@@ -536,6 +545,9 @@ function Stop-AllAgents {
     )
 
     Write-WatchdogLog "Stopping all agents..." -Color Cyan
+
+    # Stop retrospective watcher if active
+    Stop-RetrospectiveWatcher
 
     foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
         Stop-Agent -AgentName $agentName -Graceful:$Graceful -Reason $Reason
@@ -695,6 +707,204 @@ function Invoke-HealthCheck {
                 # Healthy is normal - don't log
             }
         }
+    }
+}
+
+# ============================================================================
+# RETROSPECTIVE FILE WATCHER
+# ============================================================================
+
+# Global file watcher state
+$Script:RetrospectiveWatcher = $null
+$Script:RetrospectiveContributions = @{
+    developer = $false
+    techartist = $false
+    qa = $false
+    gamedesigner = $false
+}
+$Script:RetrospectiveStartTime = $null
+
+function Start-RetrospectiveWatcher {
+    <#
+    .SYNOPSIS
+    Start monitoring retrospective.txt for changes. Wakes PM when all workers contributed.
+    #>
+    $retroFile = Join-Path $Script:SessionDir "retrospective.txt"
+
+    if (-not (Test-Path $retroFile)) {
+        Write-WatchdogLog "Retrospective file not found, cannot start watcher" -Color Yellow
+        return
+    }
+
+    # Reset contributions tracking
+    $Script:RetrospectiveContributions = @{
+        developer = $false
+        techartist = $false
+        qa = $false
+        gamedesigner = $false
+    }
+    $Script:RetrospectiveStartTime = [DateTime]::UtcNow
+
+    try {
+        # Create FileSystemWatcher
+        $watcher = New-Object System.IO.FileSystemWatcher
+        $watcher.Path = $Script:SessionDir
+        $watcher.Filter = "retrospective.txt"
+        $watcher.NotifyFilter = [System.IO.NotifyFilters]::LastWrite
+        $watcher.EnableRaisingEvents = $true
+
+        # Register change event
+        $action = {
+            $retroFile = Join-Path $Event.MessageData "retrospective.txt"
+            if (Test-Path $retroFile) {
+                # Small delay to ensure file write is complete
+                Start-Sleep -Milliseconds 100
+
+                try {
+                    $content = Get-Content $retroFile -Raw -ErrorAction SilentlyContinue
+                    if ($content) {
+                        # Check each agent's contribution
+                        $Script:RetrospectiveContributions.developer = $content -match "### Developer Perspective" -and $content -notmatch "WAITING"
+                        $Script:RetrospectiveContributions.techartist = $content -match "### Tech Artist Perspective" -and $content -notmatch "WAITING"
+                        $Script:RetrospectiveContributions.qa = $content -match "### QA Perspective" -and $content -notmatch "WAITING"
+                        $Script:RetrospectiveContributions.gamedesigner = $content -match "### Game Designer Perspective" -and $content -notmatch "WAITING"
+
+                        # Check if playtest was received
+                        $stateFile = Join-Path $Event.MessageData "coordinator-state.json"
+                        $playtestReceived = $false
+                        if (Test-Path $stateFile) {
+                            $state = Get-Content $stateFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+                            if ($state -and $state.retro) {
+                                $playtestReceived = $state.retro.playtestReportReceived -eq $true
+                            }
+                        }
+
+                        # Check if all complete
+                        if ($Script:RetrospectiveContributions.developer -and
+                            $Script:RetrospectiveContributions.techartist -and
+                            $Script:RetrospectiveContributions.qa -and
+                            $Script:RetrospectiveContributions.gamedesigner -and
+                            $playtestReceived) {
+
+                            Write-WatchdogLog "All retrospective contributions received. Waking PM for synthesis..." -Color Green
+
+                            # Stop watching
+                            $watcher = $Event.SourceObject
+                            $watcher.EnableRaisingEvents = $false
+
+                            # Wake PM
+                            $null = Start-Agent -AgentName "pm"
+                        }
+                    }
+                } catch {
+                    Write-WatchdogLog "Error processing retrospective change: $_" -Color Yellow
+                }
+            }
+        }
+
+        # Register event with session dir as message data
+        Register-ObjectEvent -InputObject $watcher -EventName "Changed" -Action $action -MessageData $Script:SessionDir | Out-Null
+
+        $Script:RetrospectiveWatcher = $watcher
+        Write-WatchdogLog "Started retrospective file watcher" -Color Cyan
+
+    } catch {
+        Write-WatchdogLog "Failed to start retrospective watcher: $_" -Color Red
+    }
+}
+
+function Stop-RetrospectiveWatcher {
+    <#
+    .SYNOPSIS
+    Stop monitoring retrospective.txt and clean up resources.
+    #>
+    if ($Script:RetrospectiveWatcher) {
+        try {
+            $Script:RetrospectiveWatcher.EnableRaisingEvents = $false
+            $Script:RetrospectiveWatcher.Dispose()
+        } catch {
+            # Ignore disposal errors
+        }
+        $Script:RetrospectiveWatcher = $null
+    }
+
+    # Unregister event subscribers
+    try {
+        Get-EventSubscriber -ErrorAction SilentlyContinue |
+            Where-Object { $_.SourceObject -and $_.SourceObject.Filter -eq "retrospective.txt" } |
+            Unregister-Event -ErrorAction SilentlyContinue
+    } catch {
+        # Ignore unregistration errors
+    }
+
+    $Script:RetrospectiveContributions = @{
+        developer = $false
+        techartist = $false
+        qa = $false
+        gamedesigner = $false
+    }
+    $Script:RetrospectiveStartTime = $null
+
+    Write-WatchdogLog "Stopped retrospective file watcher" -Color Cyan
+}
+
+function Test-RetrospectiveTimeout {
+    <#
+    .SYNOPSIS
+    Check if retrospective has timed out and send reminders to idle agents.
+    Called periodically from main loop.
+    #>
+    if (-not $Script:RetrospectiveStartTime) {
+        return
+    }
+
+    # Check timeout (5 minutes)
+    $elapsed = ([DateTime]::UtcNow - $Script:RetrospectiveStartTime).TotalMinutes
+    if ($elapsed -lt 5) {
+        return
+    }
+
+    # Timeout reached - check who hasn't contributed and send reminder
+    try {
+        $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
+        if (-not (Test-Path $stateFile)) {
+            return
+        }
+
+        $state = Get-Content $stateFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if (-not $state -or $state.currentTask.status -ne "in_retrospective") {
+            return
+        }
+
+        $remindersSent = 0
+
+        # Check each agent
+        foreach ($agent in @("developer", "techartist", "qa", "gamedesigner")) {
+            if (-not $Script:RetrospectiveContributions.$agent) {
+                # Agent hasn't contributed - check if they're idle
+                if ($state.agents.$agent.status -ne "working_on_retrospective") {
+                    Write-WatchdogLog "Sending retrospective reminder to idle agent: $agent" -Color Yellow
+
+                    # Send reminder message
+                    $retroFile = Join-Path $Script:SessionDir "retrospective.txt"
+                    Send-AgentMessage -From "watchdog" -To $agent -Type "retrospective_initiate" -Payload @{
+                        taskId = $state.currentTask.id
+                        retrospectiveFile = $retroFile
+                        reminder = $true
+                    } -Priority "normal"
+
+                    $remindersSent++
+                }
+            }
+        }
+
+        if ($remindersSent -gt 0) {
+            # Reset timer to avoid spamming
+            $Script:RetrospectiveStartTime = [DateTime]::UtcNow
+        }
+
+    } catch {
+        Write-WatchdogLog "Error in retrospective timeout check: $_" -Color Yellow
     }
 }
 

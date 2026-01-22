@@ -198,74 +198,50 @@ PM             Developer      TechArtist       QA              GameDesigner
 | Game Designer | Writes to retrospective.txt | Design perspective, UX considerations |
 | Game Designer | Sends `playtest_report` | **MANDATORY** - Playtest findings via Playwright MCP with screenshots |
 
-### Level 2.6: Event-Based Message Checking (CRITICAL - NO LOOPS, NO TIMERS)
+### Level 2.6: Watchdog File Watcher Coordination (CRITICAL - NO LOOPS, NO TIMERS)
 
-**Game Designer playtest is NON-NEGOTIABLE.** PM must verify `playtest_report` message was received.
+**Game Designer playtest is NON-NEGOTIABLE.** Watchdog monitors `retrospective.txt` and wakes PM when all 4 workers contributed + playtest received.
 
 **Event-driven flow (NO loops, NO timers, NO blocking):**
 
 ```powershell
 # After sending retrospective_initiate and playtest_request:
-# 1. EXIT immediately - watchdog will restart you when messages arrive
-# 2. On restart, check state ONCE
-# 3. If all conditions met, synthesize; otherwise, EXIT again
+# 1. EXIT immediately - watchdog monitors file and wakes you when complete
+# 2. On wake-up, all workers should have contributed
 
-# When PM wakes up (restarted by watchdog):
+# When PM wakes up (watchdog signals all complete):
 . .\\.claude\\scripts\\message-queue.ps1
 
 # Load state
 $state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
 
-# Check for playtest_report message from Game Designer (FIRST message only, no loops)
-$playtestReportFile = Get-Item ".claude/session/messages/pm/from-gamedesigner-*.json" -ErrorAction SilentlyContinue |
-    Select-Object -First 1
+# Read retrospective file and verify contributions
+$retroFile = ".claude/session/retrospective.txt"
+$retroContent = Get-Content $retroFile -Raw
 
-if ($playtestReportFile) {
-    $msg = Get-Content $playtestReportFile.FullName -Raw | ConvertFrom-Json
-    if ($msg.type -eq "playtest_report" -and $msg.payload.taskId -eq $state.currentTask.id) {
-        # Verify required evidence
-        if (-not $msg.payload.screenshots -or $msg.payload.screenshots.Count -eq 0) {
-            # Reject report without screenshots
-            Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_reject" -Payload @{
-                reason = "No screenshot evidence provided"
-                required = "At least 3 screenshots: start, during, end gameplay"
-                taskId = $state.currentTask.id
-            } -Priority "high"
-            Remove-Item $playtestReportFile.FullName -Force
-            # EXIT - wait for new playtest_report
-            exit 0
-        }
-
-        # Valid playtest received - mark complete in state
-        $state.retro.playtestReportReceived = $true
-        $state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
-        Remove-Item $playtestReportFile.FullName -Force
-    }
-}
-
-# Check retrospective contributions (read file ONCE)
-$retroContent = Get-Content ".claude/session/retrospective.txt" -Raw
-$devContributed = $retroContent -match "### Developer Perspective" -and $retroContent -notmatch "WAITING.*developer"
-$taContributed = $retroContent -match "### Tech Artist Perspective" -and $retroContent -notmatch "WAITING.*Tech Artist"
-$qaContributed = $retroContent -match "### QA Perspective" -and $retroContent -notmatch "WAITING.*QA"
-$gdContributed = $retroContent -match "### Game Designer Perspective" -and $retroContent -notmatch "WAITING.*Game Designer"
+# Check each agent's section for WAITING marker
+$devContributed = $retroContent -match "### Developer Perspective" -and $retroContent -notmatch "WAITING"
+$taContributed = $retroContent -match "### Tech Artist Perspective" -and $retroContent -notmatch "WAITING"
+$qaContributed = $retroContent -match "### QA Perspective" -and $retroContent -notmatch "WAITING"
+$gdContributed = $retroContent -match "### Game Designer Perspective" -and $retroContent -notmatch "WAITING"
 $playtestReportReceived = $state.retro.playtestReportReceived -eq $true
 
-# If NOT all conditions met - EXIT immediately (watchdog restarts on new messages)
-if (-not $devContributed -or -not $taContributed -or -not $qaContributed -or -not $gdContributed -or -not $playtestReportReceived) {
-    $state.retro.status = "waiting_for_agents"
-    $state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
+# Watchdog should only wake PM when all conditions met
+if ($devContributed -and $taContributed -and $qaContributed -and $gdContributed -and $playtestReportReceived) {
+    # All complete - proceed to synthesis
+} else {
+    # Shouldn't happen - watchdog ensures completeness before waking
+    # If somehow incomplete, exit and wait for watchdog
     exit 0
 }
-
-# All conditions met - proceed to synthesis
 ```
 
 **Key principles:**
 - **NO loops** - no `while`, no `foreach`, no `for`
 - **NO timers** - no `Start-Sleep`, no timeouts
-- **Single check per wake-up** - process one message max, then exit
-- **Watchdog handles flow** - it restarts PM when new messages arrive
+- **File watcher coordination** - watchdog monitors retrospective.txt changes
+- **Watchdog wakes PM** - only when all 4 workers contributed + playtest received
+- **Timeout escalation** - watchdog sends reminders to idle agents after 5 minutes
 
 ### Level 3: PM Synthesis
 
