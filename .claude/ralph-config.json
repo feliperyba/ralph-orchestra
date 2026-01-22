@@ -1,0 +1,100 @@
+{
+  "version": "2.0",
+  "description": "Consolidated Ralph Orchestra configuration - single source of truth for all agents",
+  "mcpServers": {
+    "github": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"],
+      "description": "GitHub repository access"
+    },
+    "filesystem": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "PATH": "${PATH}"
+      },
+      "description": "Local filesystem access"
+    },
+    "web-search": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-web-search"],
+      "description": "Web search capabilities"
+    },
+    "brave-search": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-brave-search"],
+      "description": "Brave search engine"
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": ["/c", "npx", "@playwright/mcp@latest"],
+      "description": "Browser automation and testing"
+    },
+    "vision": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@thenomadinorbit/vision-mcp-server"],
+      "description": "Image/video analysis"
+    },
+    "blender": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "blender-mcp"],
+      "description": "Blender 3D operations (Tech Artist)"
+    },
+    "shadertoy": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-shadertoy"],
+      "description": "Shader playground integration (Tech Artist)"
+    },
+    "image-process": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@x007xyz/image-process-mcp-server"],
+      "description": "Image processing capabilities (Tech Artist)"
+    }
+  },
+  "agents": {
+    "pm": {
+      "displayName": "PM (Coordinator)",
+      "type": "coordinator",
+      "mcpServers": ["github", "web-search", "filesystem"],
+      "color": "Magenta"
+    },
+    "developer": {
+      "displayName": "Developer",
+      "type": "worker",
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search"],
+      "color": "Cyan"
+    },
+    "qa": {
+      "displayName": "QA",
+      "type": "worker",
+      "mcpServers": ["playwright", "filesystem", "github", "vision"],
+      "color": "Yellow"
+    },
+    "gamedesigner": {
+      "displayName": "Game Designer",
+      "type": "worker",
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search", "playwright", "vision"],
+      "color": "Blue"
+    },
+    "techartist": {
+      "displayName": "Tech Artist",
+      "type": "worker",
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search", "playwright", "vision", "blender", "shadertoy", "image-process"],
+      "color": "Green"
+    }
+  },
+  "session": {
+    "maxIterations": 200,
+    "heartbeatInterval": 30,
+    "contextResetThreshold": 70,
+    "idleTimeoutSeconds": 60,
+    "staleAgentThreshold": 90,
+    "deliveryGraceSeconds": 10
+  },
+  "performance": {
+    "fileReadTimeoutMs": 500,
+    "fileEnumTimeoutMs": 2000,
+    "messageProcessingTimeoutMs": 300,
+    "directoryCacheMaxAge": 500
+  }
+}

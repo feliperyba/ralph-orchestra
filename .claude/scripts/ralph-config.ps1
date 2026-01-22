@@ -1,4 +1,4 @@
-# Ralph Configuration Module (PowerShell)
+﻿# Ralph Configuration Module (PowerShell)
 # Centralized configuration for all Ralph scripts
 # Source this file in other scripts: . "$PSScriptRoot\ralph-config.ps1"
 
@@ -657,3 +657,4 @@ function Clear-WorkInProgress {
         Remove-Item $paths.WorkInProgress -Force
     }
 }
+

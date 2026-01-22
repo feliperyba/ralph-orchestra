@@ -37,6 +37,31 @@ version: 2.0
 
 ---
 
+## Skill Invocation (CRITICAL)
+
+**You MUST use slash commands to invoke skills.**
+
+When a task requires specific domain knowledge, invoke the appropriate skill:
+- Use `/skill-name` to manually invoke a skill
+- Skills will auto-load based on their `description` when relevant
+- Example: `/ta-shader-sdf` for SDF shader primitives guidance
+
+**Available skills are listed in the Skills Reference section below.**
+
+---
+
+## Phase 2: Named Pipe Messaging (Continuous Execution)
+
+Phase 2 introduces **named pipe messaging** for faster communication:
+
+- **< 10ms** message delivery (vs 2-5 seconds with file queue)
+- **No process restarts** - agent runs continuously
+- **True event-driven** - agent blocks on pipe read
+
+See the [Developer Agent](../developer/AGENT.md#phase-2-named-pipe-messaging-continuous-execution) for detailed usage information.
+
+---
+
 ## Table of Contents
 
 1. [Core Responsibilities](#1-core-responsibilities)
@@ -470,29 +495,38 @@ PRD: vis-001 | Agent: techartist | Iteration: 2
 
 ### Tech Artist-Specific Skills
 
-| Skill | Purpose |
-|-------|---------|
-| [`skills/r3f-fundamentals.md`](skills/r3f-fundamentals.md) | Core R3F setup, Canvas, scenes |
-| [`skills/r3f-materials.md`](skills/r3f-materials.md) | Materials, PBR, custom shaders |
-| [`skills/r3f-geometry.md`](skills/r3f-geometry.md) | Procedural geometry generation |
-| [`skills/shader-sdf.md`](skills/shader-sdf.md) | SDF primitives for shaders |
-| [`skills/postfx-effects.md`](skills/postfx-effects.md) | Post-processing effects |
-| [`skills/particles-gpu.md`](skills/particles-gpu.md) | GPU particle systems |
-| [`skills/asset-workflow.md`](skills/asset-workflow.md) | Asset creation pipeline |
-| [`skills/shader-development.md`](skills/shader-development.md) | Shader creation process |
-| [`skills/visual-polish.md`](skills/visual-polish.md) | UI/visual polish checklist |
+| Slash Command | Purpose |
+| ------------- | --------- |
+| `/ta-shader-sdf` | SDF primitives for shaders |
+| `/ta-postfx-effects` | Post-processing effects |
+| `/ta-particles-gpu` | GPU particle systems |
+| `/ta-asset-workflow` | Asset creation pipeline |
+| `/ta-shader-development` | Shader creation process |
+| `/ta-visual-polish` | UI/visual polish checklist |
+| `/ta-networked-visual-feedback` | Multiplayer visual effects |
 
-### Shared Skills (Copied from Developer)
+### Shared Skills (Used by Multiple Agents)
 
-| Shared Skill | Purpose |
-|--------------|---------|
-| [`.claude/skills/ralph-core.md`](.claude/skills/ralph-core.md) | Session structure, heartbeats, exit conditions |
-| [`.claude/skills/ralph-event-protocol.md`](.claude/skills/ralph-event-protocol.md) | Message types, state vs messages |
-| [`.claude/skills/heartbeat-protocol.md`](.claude/skills/heartbeat-protocol.md) | When/how to update coordinator-state.json |
-| [`.claude/skills/message-handling.md`](.claude/skills/message-handling.md) | Pending message delivery and processing |
-| [`.claude/skills/worker-protocol.md`](.claude/skills/worker-protocol.md) | Worker pool model (complete work → send message → exit) |
-| [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md) | File read/write permissions matrix |
-| [`.claude/skills/context-management.md`](.claude/skills/context-management.md) | Context window auto-reset procedures |
+| Slash Command | Purpose |
+| ------------- | --------- |
+| `/shared-r3f-fundamentals` | Core R3F setup, Canvas, scenes |
+| `/shared-r3f-physics` | Physics integration |
+| `/shared-r3f-materials` | Materials, PBR, custom shaders |
+| `/shared-r3f-performance` | Performance optimization |
+| `/shared-feedback-loops` | TypeScript, lint, test, build validation |
+| `/shared-typescript-patterns` | TypeScript best practices |
+
+### Ralph Shared Behaviors
+
+| Slash Command | Purpose |
+| ------------- | --------- |
+| `/ralph-core` | Session structure, heartbeats, exit conditions |
+| `/ralph-event-protocol` | Message types, state vs messages |
+| `/heartbeat-protocol` | When/how to update coordinator-state.json |
+| `/message-handling` | Pending message delivery and processing |
+| `/worker-protocol` | Worker pool model (complete work → send message → exit) |
+| `/file-permissions` | File read/write permissions matrix |
+| `/context-management` | Context window auto-reset procedures |
 
 ### External References
 

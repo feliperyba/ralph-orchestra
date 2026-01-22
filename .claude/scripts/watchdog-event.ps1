@@ -32,6 +32,17 @@ if (-not $ProjectRoot) {
 . "$PSScriptRoot\message-queue.ps1"
 # Message-state-manager is already sourced by message-queue.ps1
 
+# Source pipe transport for named pipe messaging (Phase 2)
+$pipeTransportModule = Join-Path $PSScriptRoot "pipe-transport.ps1"
+if (Test-Path $pipeTransportModule) {
+    . $pipeTransportModule
+    $Script:UsePipeTransport = $true
+    Write-Host "[WATCHDOG] Pipe transport loaded - named pipes enabled" -ForegroundColor Cyan
+} else {
+    $Script:UsePipeTransport = $false
+    Write-Host "[WATCHDOG] Pipe transport not found - using file queue only" -ForegroundColor Yellow
+}
+
 # Source watchdog common utilities
 . "$PSScriptRoot\Watchdog-Common.ps1"
 
@@ -45,11 +56,97 @@ if (-not (Test-Path $Script:LogDir)) {
     New-Item -ItemType Directory -Path $Script:LogDir -Force | Out-Null
 }
 
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Activity log buffer for dashboard display - use Queue for O(1) operations
+$Script:ActivityLog = [System.Collections.Generic.Queue[string]]::new()
+$Script:MaxActivityLogSize = 5
+$Script:LastLogRotationCheck = [DateTime]::MinValue
+
+function Write-WatchdogLog {
+    param(
+        [string]$Message,
+        [ConsoleColor]$Color = [ConsoleColor]::White
+    )
+
+    # Add to activity log buffer (for dashboard)
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $logEntry = "[$timestamp] $Message"
+    $Script:ActivityLog.Enqueue($logEntry)
+
+    # Keep only last N entries - O(1) dequeue
+    while ($Script:ActivityLog.Count -gt $Script:MaxActivityLogSize) {
+        $null = $Script:ActivityLog.Dequeue()
+    }
+
+    # Check if log rotation is needed (check once per minute)
+    $logFile = Join-Path $Script:LogDir "watchdog.log"
+    if (([DateTime]::UtcNow - $Script:LastLogRotationCheck).TotalSeconds -gt 60) {
+        $Script:LastLogRotationCheck = [DateTime]::UtcNow
+        Invoke-LogRotation -LogFile $logFile
+    }
+
+    # Write to log file
+    "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8
+
+    # Only write to console if dashboard is disabled
+    if ($NoDashboard) {
+        Write-Host $Message -ForegroundColor $Color
+    }
+}
+
+function Invoke-LogRotation {
+    <#
+    .SYNOPSIS
+    Rotate log file if it exceeds MaxLogSizeMB.
+    Keeps up to 3 rotated files.
+    #>
+    param([string]$LogFile)
+
+    if (-not (Test-Path $LogFile)) { return }
+
+    try {
+        $maxSizeMB = $config.Watchdog.MaxLogSizeMB
+        if (-not $maxSizeMB) { $maxSizeMB = 50 }
+        $maxSizeBytes = $maxSizeMB * 1MB
+
+        $fileInfo = Get-Item $LogFile -ErrorAction SilentlyContinue
+        if (-not $fileInfo -or $fileInfo.Length -lt $maxSizeBytes) { return }
+
+        # Rotate: .log -> .log.1, .log.1 -> .log.2, .log.2 -> .log.3, delete .log.3
+        for ($i = 2; $i -ge 0; $i--) {
+            $src = if ($i -eq 0) { $LogFile } else { "$LogFile.$i" }
+            $dst = "$LogFile.$($i + 1)"
+            if (Test-Path $src) {
+                if ($i -eq 2) {
+                    Remove-Item $dst -Force -ErrorAction SilentlyContinue
+                }
+                Move-Item -Path $src -Destination $dst -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {
+        # Log rotation failure is non-critical
+    }
+}
+
 # Initialize message queue
 Initialize-MessageQueue -SessionDir $paths.SessionDir
 
 # Initialize message state manager for idempotency tracking
 Initialize-MessageStateManager -SessionDir $paths.SessionDir
+
+# Initialize pipe server for named pipe messaging (Phase 2)
+if ($Script:UsePipeTransport) {
+    $pipeInitialized = Initialize-PipeServer -SessionDir $paths.SessionDir
+    if ($pipeInitialized) {
+        Write-WatchdogLog "Named pipe server initialized" -Color Green
+    } else {
+        Write-WatchdogLog "Failed to initialize pipe server, using file queue only" -Color Yellow
+        $Script:UsePipeTransport = $false
+    }
+}
 
 # FIX: Clear stale consolidation mode on fresh watchdog startup
 # This prevents getting stuck in consolidation mode from previous sessions
@@ -82,81 +179,6 @@ if (-not $hasRunningAgents) {
     if (Test-Path $persistentStateDir) {
         Remove-Item $persistentStateDir -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "[WATCHDOG] Cleared stale persistent-state directory" -ForegroundColor Yellow
-    }
-}
-
-# ============================================================================
-# LOGGING
-# ============================================================================
-
-# Activity log buffer for dashboard display - use Queue for O(1) operations
-$Script:ActivityLog = [System.Collections.Generic.Queue[string]]::new()
-$Script:MaxActivityLogSize = 5
-$Script:LastLogRotationCheck = [DateTime]::MinValue
-
-function Write-WatchdogLog {
-    param(
-        [string]$Message,
-        [ConsoleColor]$Color = [ConsoleColor]::White
-    )
-    
-    # Add to activity log buffer (for dashboard)
-    $timestamp = Get-Date -Format "HH:mm:ss"
-    $logEntry = "[$timestamp] $Message"
-    $Script:ActivityLog.Enqueue($logEntry)
-    
-    # Keep only last N entries - O(1) dequeue
-    while ($Script:ActivityLog.Count -gt $Script:MaxActivityLogSize) {
-        $null = $Script:ActivityLog.Dequeue()
-    }
-    
-    # Check if log rotation is needed (check once per minute)
-    $logFile = Join-Path $Script:LogDir "watchdog.log"
-    if (([DateTime]::UtcNow - $Script:LastLogRotationCheck).TotalSeconds -gt 60) {
-        $Script:LastLogRotationCheck = [DateTime]::UtcNow
-        Invoke-LogRotation -LogFile $logFile
-    }
-    
-    # Write to log file
-    "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8
-    
-    # Only write to console if dashboard is disabled
-    if ($NoDashboard) {
-        Write-Host $Message -ForegroundColor $Color
-    }
-}
-
-function Invoke-LogRotation {
-    <#
-    .SYNOPSIS
-    Rotate log file if it exceeds MaxLogSizeMB.
-    Keeps up to 3 rotated files.
-    #>
-    param([string]$LogFile)
-    
-    if (-not (Test-Path $LogFile)) { return }
-    
-    try {
-        $maxSizeMB = $config.MaxLogSizeMB
-        if (-not $maxSizeMB) { $maxSizeMB = 50 }
-        $maxSizeBytes = $maxSizeMB * 1MB
-        
-        $fileInfo = Get-Item $LogFile -ErrorAction SilentlyContinue
-        if (-not $fileInfo -or $fileInfo.Length -lt $maxSizeBytes) { return }
-        
-        # Rotate: .log -> .log.1, .log.1 -> .log.2, .log.2 -> .log.3, delete .log.3
-        for ($i = 2; $i -ge 0; $i--) {
-            $src = if ($i -eq 0) { $LogFile } else { "$LogFile.$i" }
-            $dst = "$LogFile.$($i + 1)"
-            if (Test-Path $src) {
-                if ($i -eq 2) {
-                    Remove-Item $dst -Force -ErrorAction SilentlyContinue
-                }
-                Move-Item -Path $src -Destination $dst -Force -ErrorAction SilentlyContinue
-            }
-        }
-    } catch {
-        # Log rotation failure is non-critical
     }
 }
 
@@ -595,87 +617,125 @@ function Invoke-ProcessWatchdogMessages {
 function Invoke-DeliverPendingMessages {
     <#
     .SYNOPSIS
-    Check if agents have pending messages and deliver them by restarting agent with context
-    This is the key mechanism - agents don't poll, watchdog delivers messages by restart
+    Check if agents have pending messages and deliver them.
+    Phase 2: Uses named pipes if available and agent is connected.
+    Falls back to file queue + restart mechanism if pipes unavailable.
     #>
-    
+
     $counts = Get-MessageCount
 
     foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
         $count = $counts[$agentName]
-        if ($count -gt 0) {
-            $agent = $Script:Agents[$agentName]
-            
-            # Check if agent is currently working or starting - don't interrupt!
-            $processIsRunning = $agent.Process -and (-not $agent.Process.HasExited)
-            $isWorking = $agent.WorkStatus -in @("working", "starting")
-            
-            # Only deliver messages if agent is NOT actively working or booting
-            # Deliver if: agent stopped, idle, ready, or waiting for input
-            if ($processIsRunning -and $isWorking) {
-                continue  # Don't interrupt working/starting agents - let them finish booting
-            }
-            
-            # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
-            # This prevents restart loops when acknowledgment or status updates are slow
-            $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
-            if ($timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
-                # Still within grace period - skip this agent
-                continue
-            }
-            
-            # Get the pending messages
-            $pendingMessages = Get-PendingMessages -Agent $agentName
-            
-            if ($pendingMessages.Count -eq 0) { continue }
-            
-            Write-WatchdogLog "${agentName}: delivering $count message(s)" -Color Magenta
-            
-            # Stop the current agent if running (but not working - we already checked above)
-            if ($processIsRunning) {
-                Stop-Agent -AgentName $agentName -Reason "message_delivery"
-                Start-Sleep -Seconds 2
-            }
-            
-            # Convert messages to simple format for agent
-            $messageData = @()
+        if ($count -eq 0) { continue }
+
+        $agent = $Script:Agents[$agentName]
+
+        # Get the pending messages
+        $pendingMessages = Get-PendingMessages -Agent $agentName
+        if ($pendingMessages.Count -eq 0) { continue }
+
+        # PHASE 2: Try pipe delivery first if available and agent is connected
+        if ($Script:UsePipeTransport -and (Test-PipeConnected -AgentName $agentName)) {
+            $pipeSuccess = $true
             foreach ($msg in $pendingMessages) {
-                $messageData += @{
+                $messageObj = @{
                     id = $msg.id
                     from = $msg.from
+                    to = $msg.to
                     type = $msg.type
                     priority = $msg.priority
                     payload = $msg.payload
                     timestamp = $msg.timestamp
                 }
-            }
 
-            # Restart agent with the pending messages FIRST
-            # Only acknowledge messages if agent starts successfully
-            $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
-
-            if ($agentStarted) {
-                # Agent started successfully - acknowledge messages (with state tracking)
-                foreach ($msg in $pendingMessages) {
-                    $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
+                if (-not (Send-MessageViaPipe -ToAgent $agentName -Message $messageObj -WaitForConnection $false)) {
+                    $pipeSuccess = $false
+                    break
                 }
 
-                # Track delivery time to enforce grace period
+                # Acknowledge message immediately for pipe delivery
+                $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
+            }
+
+            if ($pipeSuccess) {
+                Write-WatchdogLog "${agentName}: delivered $count message(s) via pipe" -Color Cyan
+                $Script:TotalMessagesRouted += $count
+                $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
                 $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
-            } else {
-                Write-WatchdogLog "Failed to start $agentName - messages preserved in queue" -Color Red
-                # Messages remain in queue for retry on next iteration
+                $Script:Agents[$agentName].CurrentMessage = @{
+                    type = $pendingMessages[0].type
+                    from = $pendingMessages[0].from
+                }
                 continue
             }
-            
-            # Track the first/primary message being processed
-            if ($messageData.Count -gt 0) {
-                $Script:Agents[$agentName].CurrentMessage = $messageData[0]
-            }
-            
-            $Script:TotalMessagesRouted += $count
-            $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
+            # If pipe delivery failed, fall through to file queue method
         }
+
+        # FALLBACK: File queue + restart method
+        # Check if agent is currently working or starting - don't interrupt!
+        $processIsRunning = $agent.Process -and (-not $agent.Process.HasExited)
+        $isWorking = $agent.WorkStatus -in @("working", "starting")
+
+        # Only deliver messages if agent is NOT actively working or booting
+        # Deliver if: agent stopped, idle, ready, or waiting for input
+        if ($processIsRunning -and $isWorking) {
+            continue  # Don't interrupt working/starting agents - let them finish booting
+        }
+
+        # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
+        # This prevents restart loops when acknowledgment or status updates are slow
+        $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
+        if ($timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
+            # Still within grace period - skip this agent
+            continue
+        }
+
+        Write-WatchdogLog "${agentName}: delivering $count message(s) via file queue" -Color Magenta
+
+        # Stop the current agent if running (but not working - we already checked above)
+        if ($processIsRunning) {
+            Stop-Agent -AgentName $agentName -Reason "message_delivery"
+            Start-Sleep -Seconds 2
+        }
+
+        # Convert messages to simple format for agent
+        $messageData = @()
+        foreach ($msg in $pendingMessages) {
+            $messageData += @{
+                id = $msg.id
+                from = $msg.from
+                type = $msg.type
+                priority = $msg.priority
+                payload = $msg.payload
+                timestamp = $msg.timestamp
+            }
+        }
+
+        # Restart agent with the pending messages FIRST
+        # Only acknowledge messages if agent starts successfully
+        $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
+
+        if ($agentStarted) {
+            # Agent started successfully - acknowledge messages (with state tracking)
+            foreach ($msg in $pendingMessages) {
+                $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
+            }
+
+            # Track delivery time to enforce grace period
+            $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
+        } else {
+            Write-WatchdogLog "Failed to start $agentName - messages preserved in queue" -Color Red
+            # Messages remain in queue for retry on next iteration
+            continue
+        }
+
+        # Track the first/primary message being processed
+        if ($messageData.Count -gt 0) {
+            $Script:Agents[$agentName].CurrentMessage = $messageData[0]
+        }
+
+        $Script:TotalMessagesRouted += $count
+        $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
     }
 }
 
@@ -1016,6 +1076,70 @@ function Clear-OldArchives {
 $Script:DashboardInitialized = $false
 $Script:LastDashboardContent = @{}
 
+# Phase 3: Cell-level dashboard caching for frequently-formatted values
+$Script:DashboardCellCache = @{}
+$Script:CellCacheMaxAge = 1000  # 1 second TTL for cached cell values
+
+function Get-CachedDashboardCell {
+    <#
+    .SYNOPSIS
+    Get a cached dashboard cell value, or compute and cache it.
+
+    .DESCRIPTION
+    Reduces string allocations by caching frequently-formatted values
+    like uptime, timestamps, and message counts for up to CellCacheMaxAge ms.
+
+    .PARAMETER CellId
+    Unique identifier for this cell (e.g., "uptime", "msg_count_pm").
+
+    .PARAMETER Formatter
+    Script block that computes the cell value.
+
+    .RETURNS
+    The cached or newly computed cell value.
+
+    .EXAMPLE
+    $uptimeStr = Get-CachedDashboardCell -CellId "uptime" -Formatter {
+        $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
+        "{0:hh\:mm\:ss}" -f $uptime
+    }
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$CellId,
+
+        [Parameter(Mandatory=$true)]
+        [scriptblock]$Formatter
+    )
+
+    $now = [DateTime]::UtcNow
+
+    # Check cache
+    if ($Script:DashboardCellCache.ContainsKey($CellId)) {
+        $cached = $Script:DashboardCellCache[$CellId]
+        if (($now - $cached.Time).TotalMilliseconds -lt $Script:CellCacheMaxAge) {
+            return $cached.Value
+        }
+    }
+
+    # Compute and cache
+    $value = & $Formatter
+    $Script:DashboardCellCache[$CellId] = @{
+        Time = $now
+        Value = $value
+    }
+
+    return $value
+}
+
+function Clear-DashboardCellCache {
+    <#
+    .SYNOPSIS
+    Clear the dashboard cell cache. Useful for testing or forced refresh.
+    #>
+    $Script:DashboardCellCache.Clear()
+}
+
 function Write-LineAt {
     param(
         [int]$Row,
@@ -1094,6 +1218,8 @@ function Initialize-DashboardScreen {
         }
         $Script:DashboardInitialized = $true
         $Script:LastDashboardContent = @{}
+        # Phase 3: Clear cell cache on initialization
+        $Script:DashboardCellCache.Clear()
     }
 }
 
@@ -1114,14 +1240,22 @@ function Draw-DashboardHeader {
     $separator = "  " + ("-" * ($Width - 4))
     $row = $StartRow
 
-    $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
-    $uptimeStr = "{0:hh\:mm\:ss}" -f $uptime
+    # Phase 3: Use cached uptime string (updated once per second)
+    $uptimeStr = Get-CachedDashboardCell -CellId "uptime" -Formatter {
+        $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
+        "{0:hh\:mm\:ss}" -f $uptime
+    }
+
+    # Also cache the stats line
+    $statsLine = Get-CachedDashboardCell -CellId "stats" -Formatter {
+        "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations"
+    }
 
     Write-LineAt -Row $row -Text $border -Color Cyan; $row++
     Write-LineAt -Row $row -Text "  RALPH WATCHDOG - Event-Driven Multi-Agent Mode" -Color Cyan; $row++
     Write-LineAt -Row $row -Text $border -Color Cyan; $row++
     Write-LineAt -Row $row -Text "" -Color White; $row++
-    Write-LineAt -Row $row -Text "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations" -Color White; $row++
+    Write-LineAt -Row $row -Text $statsLine -Color White; $row++
     Write-LineAt -Row $row -Text "" -Color White; $row++
 
     return $row
@@ -1451,7 +1585,13 @@ function Start-EventWatchdog {
         
         # Stop all agents
         Stop-AllAgents -Graceful -Reason "watchdog_shutdown"
-        
+
+        # Close pipe server if using named pipes (Phase 2)
+        if ($Script:UsePipeTransport) {
+            Close-PipeServer
+            Write-Host "[WATCHDOG] Named pipe server closed" -ForegroundColor Cyan
+        }
+
         # Final cleanup
         Invoke-ResourceCleanup -Force
         

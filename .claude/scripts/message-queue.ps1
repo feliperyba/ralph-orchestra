@@ -24,6 +24,16 @@ if (Test-Path $consolidationModule) {
     . $consolidationModule
 }
 
+# Source message-pool module for object pooling (Phase 3)
+$poolModule = Join-Path $PSScriptRoot "message-pool.ps1"
+if (Test-Path $poolModule) {
+    . $poolModule
+    $Script:UseMessagePool = $true
+    Initialize-MessagePool
+} else {
+    $Script:UseMessagePool = $false
+}
+
 # ============================================================================
 # MESSAGE TYPES
 # ============================================================================
@@ -146,27 +156,48 @@ function Send-AgentMessage {
     if (-not $Script:MessageQueueDir) {
         throw "Message queue not initialized. Call Initialize-MessageQueue first."
     }
-    
+
     $messageId = New-MessageId
-    
-    $message = @{
-        id = $messageId
-        from = $From
-        to = $To
-        type = $Type
-        priority = $Priority
-        payload = $Payload
-        timestamp = [DateTime]::UtcNow.ToString("o")
-        status = "pending"
-        replyTo = $ReplyTo
+
+    # Use pooled message if available (Phase 3 optimization)
+    if ($Script:UseMessagePool -and (Get-Command Get-PooledMessage -ErrorAction SilentlyContinue)) {
+        $message = Get-PooledMessage
+        $message["id"] = $messageId
+        $message["from"] = $From
+        $message["to"] = $To
+        $message["type"] = $Type
+        $message["priority"] = $Priority
+        $message["payload"] = $Payload
+        $message["timestamp"] = [DateTime]::UtcNow.ToString("o")
+        $message["status"] = "pending"
+        $message["replyTo"] = $ReplyTo
+        $message["_pooled"] = $true  # Mark for later return to pool
+    } else {
+        # Fallback to original allocation
+        $message = @{
+            id = $messageId
+            from = $From
+            to = $To
+            type = $Type
+            priority = $Priority
+            payload = $Payload
+            timestamp = [DateTime]::UtcNow.ToString("o")
+            status = "pending"
+            replyTo = $ReplyTo
+        }
     }
-    
+
+    # Remove internal _pooled flag before writing to JSON (Phase 3)
+    if ($message._pooled) {
+        $message.Remove("_pooled")
+    }
+
     # Write to recipient's inbox using atomic write pattern (write to .tmp, then rename)
     # This prevents partial reads by other processes during write
     $inbox = Join-Path $Script:MessageQueueDir $To
     $filePath = Join-Path $inbox "$messageId.json"
     $tempPath = Join-Path $inbox "$messageId.json.tmp"
-    
+
     try {
         $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
         Move-Item -Path $tempPath -Destination $filePath -Force
@@ -195,13 +226,13 @@ function Remove-OrphanedTempFiles {
     Only runs occasionally (random 1 in 10 chance) to reduce overhead.
 
     .PARAMETER Files
-    The file list to process (from Get-ChildItem).
+    The file list to process (from Get-ChildItem or Get-ChildItemWithTimeout).
 
     .PARAMETER AlwaysRun
     If true, always run cleanup regardless of random check.
     #>
     param(
-        [System.IO.FileInfo[]]$Files,
+        [object[]]$Files,
         [switch]$AlwaysRun
     )
 
@@ -318,7 +349,7 @@ function Sort-MessagesByPriority {
     The message collection to sort.
 
     .RETURNS
-    Sorted message collection.
+    Sorted message collection (always an array).
     #>
     param(
         [object[]]$Messages = @()
@@ -330,10 +361,18 @@ function Sort-MessagesByPriority {
 
     $priorityOrder = @{ "low" = 0; "normal" = 1; "high" = 2; "urgent" = 3 }
 
-    return $Messages | Sort-Object -Property @(
+    # Sort and ensure array is always returned (even for single item)
+    $sorted = $Messages | Sort-Object -Property @(
         @{ Expression = { $priorityOrder[$_.priority] }; Descending = $true },
         @{ Expression = { $_.timestamp }; Descending = $false }
     )
+
+    # Force array return - use generic list to avoid unwrapping
+    $result = [System.Collections.ObjectModel.Collection[object]]::new()
+    foreach ($item in $sorted) {
+        $result.Add($item)
+    }
+    return ,$result  # The comma forces array return
 }
 
 function Get-PendingMessages {
@@ -583,6 +622,13 @@ function Invoke-AcknowledgeMessage {
                 # Last resort - leave the file but it won't be picked up again due to status change
             }
         }
+    }
+
+    # Return pooled message to pool (Phase 3 optimization)
+    # Only return if this was actually a pooled hashtable (not from JSON)
+    if ($Script:UseMessagePool -and $message -is [hashtable] -and $message._pooled -eq $true -and (Get-Command Return-PooledMessage -ErrorAction SilentlyContinue)) {
+        $message._pooled = $false  # Clear the flag before returning
+        Return-PooledMessage $message
     }
 
     # Silent - acknowledgment logged by caller

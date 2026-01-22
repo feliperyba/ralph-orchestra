@@ -35,6 +35,83 @@ version: 2.0
 
 ---
 
+## Skill Invocation (CRITICAL)
+
+**You MUST use slash commands to invoke skills.**
+
+When a task requires specific domain knowledge, invoke the appropriate skill:
+- Use `/skill-name` to manually invoke a skill
+- Skills will auto-load based on their `description` when relevant
+- Example: `/dev-object-pooling-pattern` for object pooling guidance
+
+**Available skills are listed in the Skills Reference section below.**
+
+---
+
+## Phase 2: Named Pipe Messaging (Continuous Execution)
+
+### Overview
+
+Phase 2 introduces **named pipe messaging** for faster communication:
+
+- **< 10ms** message delivery (vs 2-5 seconds with file queue)
+- **No process restarts** - agent runs continuously
+- **True event-driven** - agent blocks on pipe read
+
+### How It Works
+
+```
+┌─────────────────┐         pipe          ┌─────────────┐
+│   WATCHDOG      │ ─────────────────────▶│  DEVELOPER  │
+│  (pipe server)  │   task_assign msg     │ (pipe client)│
+└─────────────────┘                      └─────────────┘
+       ▲                                         │
+       │                                         │
+       │          task_complete msg             │
+       └─────────────────────────────────────────┘
+```
+
+### Startup with Pipe Support
+
+```powershell
+# Source pipe transport (Phase 2)
+. .\.claude\scripts\pipe-transport.ps1
+
+# Connect to watchdog pipe
+Connect-AgentPipe -AgentName "developer"
+
+# Enter message loop (blocking)
+Enter-PipeMessageLoop -AgentName "developer" -MessageHandler {
+    param($msg)
+
+    switch ($msg.type) {
+        "task_assign" {
+            # Process task assignment
+            $taskId = $msg.payload.taskId
+            # ... implement feature ...
+        }
+        "shutdown" {
+            # Graceful shutdown requested
+            exit 0
+        }
+        default {
+            Write-Warning "Unknown message type: $($msg.type)"
+        }
+    }
+}
+```
+
+### Fallback Behavior
+
+If named pipes are unavailable (module not found, connection failed), the system **automatically falls back** to the file queue + restart mechanism:
+- Messages written to `.claude/session/messages/developer/`
+- Watchdog restarts agent with pending messages
+- Same functionality, slower delivery
+
+You don't need to handle this fallback - it's automatic in the watchdog.
+
+---
+
 ## Table of Contents
 
 1. [Core Responsibilities](#1-core-responsibilities)
@@ -123,17 +200,21 @@ version: 2.0
 ### File Permissions
 
 **MAY write to:**
-- `.claude/session/coordinator-state.json` (agents.developer section only)
+- `.claude/session/state/agents.json` (agents.developer section only)
+- `.claude/session/state/current-task.json` (when assigned task)
 - Source files in `src/`
 - Test files
 - Your progress: `.claude/session/developer-progress.txt`
 
 **MAY NOT write to:**
+- `.claude/session/state/prd.json` (PM only)
+- `.claude/session/state/metrics.json` (watchdog only)
 - `prd.json` (PM only)
-- `.claude/session/current-task.json` status fields (PM/QA only)
 - QA progress files
 
 > See [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md) for full permissions matrix.
+>
+> **Phase 2**: Use `Set-AgentState` from split-state-manager.ps1 for safe writes to agents.json.
 
 ---
 
@@ -593,26 +674,37 @@ const { phase, setPhase } = useGameStore();
 
 ### Developer-Specific Skills
 
-| Skill | Purpose |
-|-------|---------|
-| [`skills/feedback-loops.md`](skills/feedback-loops.md) | TypeScript, lint, test, build validation |
-| [`skills/backend-multiplayer.md`](skills/backend-multiplayer.md) | **Server-authoritative multiplayer with Colyseus** |
-| [`skills/r3f-fundamentals.md`](skills/r3f-fundamentals.md) | React Three Fiber core patterns |
-| [`skills/r3f-physics.md`](skills/r3f-physics.md) | @react-three/rapier physics integration |
-| [`skills/r3f-materials.md`](skills/r3f-materials.md) | Custom shader materials |
-| [`skills/typescript-patterns.md`](skills/typescript-patterns.md) | TypeScript best practices |
+| Slash Command | Purpose |
+| ------------- | --------- |
+| `/dev-backend-multiplayer` | **Server-authoritative multiplayer with Colyseus** |
+| `/dev-client-prediction` | Client-side prediction for lag compensation |
+| `/dev-coverage-tracking-pattern` | Test coverage tracking |
+| `/dev-game-ui-animations` | UI animation patterns |
+| `/dev-mobile-haptics` | Haptic feedback integration |
+| `/dev-object-pooling-pattern` | Object pooling for performance |
+
+### Shared Skills (Used by Multiple Agents)
+
+| Slash Command | Purpose |
+| ------------- | --------- |
+| `/shared-r3f-fundamentals` | React Three Fiber core patterns |
+| `/shared-r3f-physics` | @react-three/rapier physics integration |
+| `/shared-r3f-materials` | Custom shader materials |
+| `/shared-r3f-performance` | Performance optimization |
+| `/shared-feedback-loops` | TypeScript, lint, test, build validation |
+| `/shared-typescript-patterns` | TypeScript best practices |
 
 ### Shared Behaviors
 
-| Shared Skill | Purpose |
-|--------------|---------|
-| [`.claude/skills/ralph-core.md`](.claude/skills/ralph-core.md) | Session structure, heartbeats, exit conditions |
-| [`.claude/skills/ralph-event-protocol.md`](.claude/skills/ralph-event-protocol.md) | Message types, state vs messages |
-| [`.claude/skills/heartbeat-protocol.md`](.claude/skills/heartbeat-protocol.md) | When/how to update coordinator-state.json |
-| [`.claude/skills/message-handling.md`](.claude/skills/message-handling.md) | Pending message delivery and processing |
-| [`.claude/skills/worker-protocol.md`](.claude/skills/worker-protocol.md) | Worker pool model (complete work → send message → exit) |
-| [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md) | File read/write permissions matrix |
-| [`.claude/skills/context-management.md`](.claude/skills/context-management.md) | Context window auto-reset procedures |
+| Slash Command | Purpose |
+| ------------- | --------- |
+| `/ralph-core` | Session structure, heartbeats, exit conditions |
+| `/ralph-event-protocol` | Message types, state vs messages |
+| `/heartbeat-protocol` | When/how to update coordinator-state.json |
+| `/message-handling` | Pending message delivery and processing |
+| `/worker-protocol` | Worker pool model (complete work → send message → exit) |
+| `/file-permissions` | File read/write permissions matrix |
+| `/context-management` | Context window auto-reset procedures |
 
 ### External References
 

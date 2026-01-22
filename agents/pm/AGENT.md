@@ -33,6 +33,71 @@ version: 2.0
 
 ---
 
+## Skill Invocation (CRITICAL)
+
+**You MUST use slash commands to invoke skills.**
+
+When a task requires specific domain knowledge, invoke the appropriate skill:
+- Use `/skill-name` to manually invoke a skill
+- Skills will auto-load based on their `description` when relevant
+- Example: `/pm-scale-adaptive` for scale-adaptive planning guidance
+
+**Available skills are listed in the Skills Reference section below.**
+
+---
+
+## Phase 2: Named Pipe Messaging
+
+Phase 2 introduces **named pipe messaging** for faster communication between agents:
+
+- **< 10ms** message delivery (vs 2-5 seconds with file queue)
+- **Watchdog** creates named pipes for each agent on startup
+- **Workers** (Developer, QA, Tech Artist, Game Designer) connect to pipes
+- **PM** (coordinator) doesn't use pipes directly - continues with file queue
+
+### What Changed for PM
+
+The **watchdog** now handles message delivery:
+1. Creates named pipes for all agents on startup
+2. Sends messages via pipe if agent is connected
+3. Falls back to file queue + restart if pipe unavailable
+
+**PM continues to work as before:**
+- PM sends messages via `Send-AgentMessage` (file queue)
+- Watchdog routes them (via pipe or file)
+- No changes needed to PM workflow
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WATCHDOG                                 │
+│  Creates pipes, routes messages, handles fallback           │
+└──────────────┬─────────────────────────────────────────────┘
+               │
+     ┌─────────┴─────────┐
+     │                   │
+     ▼                   ▼
+┌─────────┐         ┌─────────┐
+│   PM    │         │Workers  │
+│ (file   │         │ (pipes)  │
+│ queue)  │         │         │
+└─────────┘         └─────────┘
+```
+
+### Split State Files
+
+Phase 2 also splits the monolithic `coordinator-state.json`:
+
+- `state/agents.json` - Agent statuses (watchdog primary writer)
+- `state/prd.json` - PRD state (PM primary writer)
+- `state/current-task.json` - Active task (shared)
+- `state/metrics.json` - Performance metrics (watchdog)
+
+PM now has dedicated write access to `state/prd.json` without contention.
+
+---
+
 ## Table of Contents
 
 1. [Core Responsibilities](#1-core-responsibilities)
@@ -589,27 +654,28 @@ if (allComplete) {
 
 ### PM-Specific Skills
 
-| Skill                                                            | Purpose                                               |
-| ---------------------------------------------------------------- | ----------------------------------------------------- |
-| [`skills/task-selection.md`](skills/task-selection.md)           | Priority algorithm for selecting next PRD task        |
-| [`skills/test-planning.md`](skills/test-planning.md)             | Collaborative test planning with QA and Game Designer |
-| [`skills/retrospective.md`](skills/retrospective.md)             | File-based retrospective facilitation with 4 workers  |
-| [`skills/prd-reorganization.md`](skills/prd-reorganization.md)   | GDD-to-PRD task extraction and reorganization         |
-| [`skills/skill-improvement.md`](skills/skill-improvement.md)     | Multi-agent skill research and updates (ALL 5 agents) |
-| [`skills/pm-self-improvement.md`](skills/pm-self-improvement.md) | PM-specific skill improvement areas                   |
-| [`skills/scale-adaptive.md`](skills/scale-adaptive.md)           | Adjust planning depth based on PRD size               |
+| Slash Command | Purpose                                               |
+| ------------- | ----------------------------------------------------- |
+| `/pm-task-selection` | Priority algorithm for selecting next PRD task        |
+| `/pm-test-planning` | Collaborative test planning with QA and Game Designer |
+| `/pm-retrospective` | File-based retrospective facilitation with 4 workers  |
+| `/pm-prd-reorganization` | GDD-to-PRD task extraction and reorganization         |
+| `/pm-skill-improvement` | Multi-agent skill research and updates (ALL 5 agents) |
+| `/pm-pm-self-improvement` | PM-specific skill improvement areas                   |
+| `/pm-scale-adaptive` | Adjust planning depth based on PRD size               |
+| `/pm-architecture-validation` | Validate client vs server-authoritative architecture gaps |
 
 ### Shared Behaviors
 
-| Shared Skill                                                                       | Purpose                                                 |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| [`.claude/skills/ralph-core.md`](.claude/skills/ralph-core.md)                     | Session structure, heartbeats, exit conditions          |
-| [`.claude/skills/ralph-event-protocol.md`](.claude/skills/ralph-event-protocol.md) | Message types, state vs messages                        |
-| [`.claude/skills/heartbeat-protocol.md`](.claude/skills/heartbeat-protocol.md)     | When/how to update coordinator-state.json               |
-| [`.claude/skills/message-handling.md`](.claude/skills/message-handling.md)         | Pending message delivery and processing                 |
-| [`.claude/skills/worker-protocol.md`](.claude/skills/worker-protocol.md)           | Worker pool model (complete work → send message → exit) |
-| [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md)         | File read/write permissions matrix                      |
-| [`.claude/skills/context-management.md`](.claude/skills/context-management.md)     | Context window auto-reset procedures                    |
+| Slash Command | Purpose                                                 |
+| ------------- | ------------------------------------------------------- |
+| `/ralph-core` | Session structure, heartbeats, exit conditions          |
+| `/ralph-event-protocol` | Message types, state vs messages                        |
+| `/heartbeat-protocol` | When/how to update coordinator-state.json               |
+| `/message-handling` | Pending message delivery and processing                 |
+| `/worker-protocol` | Worker pool model (complete work → send message → exit) |
+| `/file-permissions` | File read/write permissions matrix                      |
+| `/context-management` | Context window auto-reset procedures                    |
 
 ### External References
 
