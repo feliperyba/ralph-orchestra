@@ -1,6 +1,6 @@
 ---
 name: retrospective
-description: Facilitate file-based retrospective after task completion with all agents (Developer, QA, Game Designer)
+description: Facilitate file-based retrospective after task completion with all worker agents (Developer, Tech Artist, QA, Game Designer)
 category: coordination
 depends-on: []
 ---
@@ -21,10 +21,10 @@ Use when:
 
 1. Create `.claude/session/retrospective.txt` with template
 2. Set `currentTask.status = "in_retrospective"`
-3. **CRITICAL**: Send `retrospective_initiate` to **ALL THREE** agents (Developer, QA, AND Game Designer)
+3. **CRITICAL**: Send `retrospective_initiate` to **ALL FOUR worker agents** (Developer, Tech Artist, QA, AND Game Designer)
 4. Send `playtest_request` to Game Designer (separate message for Playwright-based playtesting)
 5. **EXIT** - watchdog will restart you when agents send messages
-6. On wake-up, check: Developer contribution, QA contribution, Game Designer contribution, `playtest_report` received
+6. On wake-up, check: Developer contribution, Tech Artist contribution, QA contribution, Game Designer contribution, `playtest_report` received
 7. If all conditions met → synthesize; otherwise → **EXIT again** (event-driven, NO waiting)
 8. Set `currentTask.status = "prd_analysis"` and reorganize PRD
 9. Set `currentTask.status = "skill_research"` and improve skills
@@ -46,7 +46,7 @@ passed → in_retrospective → prd_analysis → skill_research → completed
 | On wake-up: incomplete        | Check state, if incomplete → **EXIT again**    |
 | playtest_report missing       | Check state, if missing → **EXIT again**       |
 | playtest_report invalid       | Send `playtest_reject`, then **EXIT**          |
-| All THREE contributed + playtest_report | Synthesize and move to prd_analysis |
+| All FOUR worker agents contributed + playtest_report | Synthesize and move to prd_analysis |
 | PRD analysis complete         | Move to skill_research                         |
 | Skill research complete       | Set status completed, assign next task         |
 
@@ -78,6 +78,10 @@ passed → in_retrospective → prd_analysis → skill_research → completed
 
 <!-- WAITING for developer to add their points -->
 
+### Tech Artist Perspective (to be filled by Tech Artist Agent)
+
+<!-- WAITING for Tech Artist to add their points -->
+
 ### QA Perspective (to be filled by QA Agent)
 
 <!-- WAITING for QA to add their points -->
@@ -88,13 +92,14 @@ passed → in_retrospective → prd_analysis → skill_research → completed
 
 ### PM Synthesis (to be filled by PM Agent)
 
-<!-- WAITING for all THREE agents to contribute -->
+<!-- WAITING for all FOUR worker agents to contribute -->
 
 ---
 
 ## Completion Status
 
 - [ ] Developer contributed
+- [ ] Tech Artist contributed
 - [ ] QA contributed
 - [ ] Game Designer contributed (playtest report)
 - [ ] PM synthesized and completed
@@ -111,6 +116,10 @@ passed → in_retrospective → prd_analysis → skill_research → completed
 const devSection = retrospective.match(/### Developer Perspective\n([\s\S]*?)###/);
 const devContributed = devSection && !devSection[1].includes('WAITING');
 
+// Check if Tech Artist contributed
+const taSection = retrospective.match(/### Tech Artist Perspective\n([\s\S]*?)###/);
+const taContributed = taSection && !taSection[1].includes('WAITING');
+
 // Check if QA contributed
 const qaSection = retrospective.match(/### QA Perspective\n([\s\S]*?)###/);
 const qaContributed = qaSection && !qaSection[1].includes('WAITING');
@@ -121,6 +130,7 @@ const gdContributed = gdSection && !gdSection[1].includes('WAITING');
 
 // Update checkboxes
 if (devContributed) updateCheckbox('Developer contributed', true);
+if (taContributed) updateCheckbox('Tech Artist contributed', true);
 if (qaContributed) updateCheckbox('QA contributed', true);
 if (gdContributed) updateCheckbox('Game Designer contributed (playtest report)', true);
 ```
@@ -130,11 +140,17 @@ if (gdContributed) updateCheckbox('Game Designer contributed (playtest report)',
 **You MUST send TWO types of messages:**
 
 ```powershell
-# 1. Send retrospective_initiate to ALL THREE agents
+# 1. Send retrospective_initiate to ALL FOUR worker agents
 . .\\.claude\\scripts\\message-queue.ps1
 
 # To Developer
 Send-AgentMessage -From "pm" -To "developer" -Type "retrospective_initiate" -Payload @{
+    taskId = $currentTask.id
+    retrospectiveFile = ".claude/session/retrospective.txt"
+} -Priority "normal"
+
+# To Tech Artist
+Send-AgentMessage -From "pm" -To "techartist" -Type "retrospective_initiate" -Payload @{
     taskId = $currentTask.id
     retrospectiveFile = ".claude/session/retrospective.txt"
 } -Priority "normal"
@@ -162,14 +178,14 @@ Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_request" -Payloa
 **Message Flow:**
 
 ```
-PM                    Developer               QA               GameDesigner
- │                        │                    │                     │
- │──retrospective_initiate──►│                    │                     │
- │──retrospective_initiate──────────────────────►│                     │
- │──retrospective_initiate────────────────────────────────────────────►│
- │ │                                              │                     │
- │ │                                              │  ┌──playtest_request──►│
- │ │                                              │  │                   │
+PM             Developer      TechArtist       QA              GameDesigner
+ │                 │               │            │                    │
+ │──retrospective_initiate──►│               │            │                    │
+ │──retrospective_initiate───────────────────►│            │                    │
+ │──retrospective_initiate─────────────────────────────────►│                    │
+ │──retrospective_initiate────────────────────────────────────────────────────►│
+ │                                                              │  ┌──playtest_request──►│
+ │                                                              │  │                   │
 ```
 
 **Expected Responses:**
@@ -177,6 +193,7 @@ PM                    Developer               QA               GameDesigner
 | Agent | Message Type | What They Contribute |
 |-------|-------------|---------------------|
 | Developer | Writes to retrospective.txt | Implementation challenges, technical insights |
+| Tech Artist | Writes to retrospective.txt | Visual quality, asset challenges, performance metrics |
 | QA | Writes to retrospective.txt | Validation findings, test coverage, bugs found |
 | Game Designer | Writes to retrospective.txt | Design perspective, UX considerations |
 | Game Designer | Sends `playtest_report` | **MANDATORY** - Playtest findings via Playwright MCP with screenshots |
@@ -229,12 +246,13 @@ if ($playtestReportFile) {
 # Check retrospective contributions (read file ONCE)
 $retroContent = Get-Content ".claude/session/retrospective.txt" -Raw
 $devContributed = $retroContent -match "### Developer Perspective" -and $retroContent -notmatch "WAITING.*developer"
+$taContributed = $retroContent -match "### Tech Artist Perspective" -and $retroContent -notmatch "WAITING.*Tech Artist"
 $qaContributed = $retroContent -match "### QA Perspective" -and $retroContent -notmatch "WAITING.*QA"
 $gdContributed = $retroContent -match "### Game Designer Perspective" -and $retroContent -notmatch "WAITING.*Game Designer"
 $playtestReportReceived = $state.retro.playtestReportReceived -eq $true
 
 # If NOT all conditions met - EXIT immediately (watchdog restarts on new messages)
-if (-not $devContributed -or -not $qaContributed -or -not $gdContributed -or -not $playtestReportReceived) {
+if (-not $devContributed -or -not $taContributed -or -not $qaContributed -or -not $gdContributed -or -not $playtestReportReceived) {
     $state.retro.status = "waiting_for_agents"
     $state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
     exit 0
@@ -254,10 +272,11 @@ if (-not $devContributed -or -not $qaContributed -or -not $gdContributed -or -no
 **BEFORE synthesizing - verify ALL conditions met:**
 
 1. ✅ Developer contributed to retrospective.txt (check section doesn't contain "WAITING")
-2. ✅ QA contributed to retrospective.txt (check section doesn't contain "WAITING")
-3. ✅ Game Designer contributed to retrospective.txt (check section doesn't contain "WAITING")
-4. ✅ **`playtest_report` message received from Game Designer** (check message queue)
-5. ✅ **playtest_report includes screenshots** (at least 3)
+2. ✅ Tech Artist contributed to retrospective.txt (check section doesn't contain "WAITING")
+3. ✅ QA contributed to retrospective.txt (check section doesn't contain "WAITING")
+4. ✅ Game Designer contributed to retrospective.txt (check section doesn't contain "WAITING")
+5. ✅ **`playtest_report` message received from Game Designer** (check message queue)
+6. ✅ **playtest_report includes screenshots** (at least 3)
 
 **If any condition NOT met → EXIT and wait for next wake-up**
 
@@ -275,9 +294,11 @@ When ALL conditions met, add synthesis covering:
 **Quality Assessment**:
 
 - Developer insights: {{from dev section}}
+- Tech Artist insights: {{from TA section}}
 - QA validation: {{from qa section}}
 - Game Designer playtest findings: {{from GD section}}
 - Code quality: {{combined assessment}}
+- Visual quality: {{from TA section}}
 - Design compliance: {{alignment with GDD}}
 
 **Risk Identification**:
@@ -312,7 +333,7 @@ When ALL conditions met, add synthesis covering:
 ❌ **DON'T:**
 
 - Skip retrospective even for "simple" tasks
-- Synthesize before ALL THREE agents contribute
+- Synthesize before ALL FOUR worker agents contribute
 - Synthesize without verifying `playtest_report` was received from Game Designer
 - Skip Game Designer playtest report
 - Accept playtest without screenshot evidence
@@ -327,7 +348,7 @@ When ALL conditions met, add synthesis covering:
 - Send messages, then **EXIT** - let watchdog wake you when agents respond
 - Check state on wake-up, proceed or **EXIT again** based on conditions
 - Process ONE message per wake-up max (use `Select-Object -First 1`)
-- Send `retrospective_initiate` to ALL THREE agents (Developer, QA, Game Designer)
+- Send `retrospective_initiate` to ALL FOUR worker agents (Developer, Tech Artist, QA, Game Designer)
 - Send `playtest_request` to Game Designer for Playwright-based playtesting
 - **Verify `playtest_report` message received** with screenshots before synthesis
 - **Reject playtest without evidence** (request again with specific requirements)
@@ -335,13 +356,14 @@ When ALL conditions met, add synthesis covering:
 - Document action items from findings
 - Update PRD with discovered risks and new tasks
 - Reorganize PRD based on retrospective findings
-- Improve skills for ALL agents (PM included)
+- Improve skills for ALL FIVE agents (PM included)
 
 ## Checklist
 
 Before completing retrospective:
 
 - [ ] Developer contributed their perspective
+- [ ] Tech Artist contributed their perspective
 - [ ] QA contributed their perspective
 - [ ] Game Designer contributed playtest report
 - [ ] **`playtest_report` message received** (not just retrospective.txt contribution)
@@ -350,7 +372,7 @@ Before completing retrospective:
 - [ ] Action items documented
 - [ ] GDD compliance analysis completed
 - [ ] PRD reorganized (prd_analysis phase complete)
-- [ ] Skills improved for ALL agents (skill_research phase complete)
+- [ ] Skills improved for ALL FIVE agents (skill_research phase complete)
 - [ ] Summary appended to coordinator-progress.txt
 - [ ] PRD updated with new tasks and risks (if any)
 
@@ -371,7 +393,7 @@ After PM synthesis is complete:
 
 1. Use [skill-improvement.md](./skill-improvement.md) skill
 2. Use [pm-self-improvement.md](./pm-self-improvement.md) skill
-3. Improve skills for ALL FOUR agents (PM, Developer, QA, Game Designer)
+3. Improve skills for ALL FIVE agents (PM, Developer, Tech Artist, QA, Game Designer)
 4. Commit skill improvements
 5. Send `skill_improvements` message to watchdog
 

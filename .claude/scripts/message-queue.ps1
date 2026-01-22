@@ -18,6 +18,12 @@ if (Test-Path $stateManagerModule) {
     . $stateManagerModule
 }
 
+# Source consolidation-mode module for PM consolidation behavior
+$consolidationModule = Join-Path $PSScriptRoot "Consolidation-Mode.ps1"
+if (Test-Path $consolidationModule) {
+    . $consolidationModule
+}
+
 # ============================================================================
 # MESSAGE TYPES
 # ============================================================================
@@ -175,6 +181,161 @@ function Send-AgentMessage {
     return $messageId
 }
 
+# ============================================================================
+# PENDING MESSAGE HELPER FUNCTIONS
+# ============================================================================
+
+function Remove-OrphanedTempFiles {
+    <#
+    .SYNOPSIS
+    Removes orphaned .tmp files from message queue directories.
+
+    .DESCRIPTION
+    Cleans up temporary files from failed atomic writes that are older than 30 seconds.
+    Only runs occasionally (random 1 in 10 chance) to reduce overhead.
+
+    .PARAMETER Files
+    The file list to process (from Get-ChildItem).
+
+    .PARAMETER AlwaysRun
+    If true, always run cleanup regardless of random check.
+    #>
+    param(
+        [System.IO.FileInfo[]]$Files,
+        [switch]$AlwaysRun
+    )
+
+    $thresholdSeconds = 30
+
+    foreach ($file in $Files | Where-Object { $_.Name -match '\.tmp$' }) {
+        $age = ([DateTime]::UtcNow - $file.LastWriteTimeUtc).TotalSeconds
+        if ($age -gt $thresholdSeconds) {
+            Remove-Item $file.FullName -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Read-MessageFileWithRetry {
+    <#
+    .SYNOPSIS
+    Reads and parses a message file with retry logic.
+
+    .DESCRIPTION
+    Attempts to read a JSON message file up to 3 times with 50ms delays between retries.
+    Handles empty files (in-progress writes) and JSON parse errors.
+
+    .PARAMETER FilePath
+    The full path to the message file.
+
+    .PARAMETER TimeoutMs
+    Maximum time to spend retrying before giving up.
+
+    .RETURNS
+    The parsed message object, or $null if all retries fail.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath,
+
+        [int]$TimeoutMs = 150
+    )
+
+    $retries = 3
+    $retryDelayMs = 50
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    for ($i = 0; $i -lt $retries; $i++) {
+        # Check timeout
+        if ($stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
+            break
+        }
+
+        try {
+            $rawContent = Get-Content $FilePath -Raw -ErrorAction Stop
+            if ([string]::IsNullOrWhiteSpace($rawContent)) {
+                # File may be in middle of write - wait and retry
+                Start-Sleep -Milliseconds $retryDelayMs
+                continue
+            }
+            $content = $rawContent | ConvertFrom-Json -ErrorAction Stop
+            $stopwatch.Stop()
+            return $content
+        } catch {
+            if ($i -lt $retries - 1) { Start-Sleep -Milliseconds $retryDelayMs }
+        }
+    }
+
+    $stopwatch.Stop()
+    return $null
+}
+
+function Move-CorruptFilesToQuarantine {
+    <#
+    .SYNOPSIS
+    Moves corrupt message files to quarantine directory.
+
+    .DESCRIPTION
+    Uses async job to avoid blocking the main thread.
+
+    .PARAMETER CorruptFiles
+    List of file paths that failed to parse.
+
+    .PARAMETER MessageQueueDir
+    The message queue directory containing the quarantine folder.
+    #>
+    param(
+        [string[]]$CorruptFiles = @(),
+
+        [Parameter(Mandatory=$true)]
+        [string]$MessageQueueDir
+    )
+
+    if ($CorruptFiles.Count -eq 0) {
+        return
+    }
+
+    $quarantine = Join-Path $MessageQueueDir "quarantine"
+    if (-not (Test-Path $quarantine)) {
+        New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
+    }
+
+    # Use async job for quarantine to avoid blocking
+    Start-Job -ScriptBlock {
+        param($files, $quarantine)
+        foreach ($file in $files) {
+            $dest = Join-Path $quarantine (Split-Path $file -Leaf)
+            Move-Item -Path $file -Destination $dest -Force -ErrorAction SilentlyContinue
+        }
+    } -ArgumentList $CorruptFiles, $quarantine -ErrorAction SilentlyContinue | Out-Null
+}
+
+function Sort-MessagesByPriority {
+    <#
+    .SYNOPSIS
+    Sorts messages by priority (highest first), then by timestamp (oldest first).
+
+    .PARAMETER Messages
+    The message collection to sort.
+
+    .RETURNS
+    Sorted message collection.
+    #>
+    param(
+        [object[]]$Messages = @()
+    )
+
+    if ($Messages.Count -eq 0) {
+        return $Messages
+    }
+
+    $priorityOrder = @{ "low" = 0; "normal" = 1; "high" = 2; "urgent" = 3 }
+
+    return $Messages | Sort-Object -Property @(
+        @{ Expression = { $priorityOrder[$_.priority] }; Descending = $true },
+        @{ Expression = { $_.timestamp }; Descending = $false }
+    )
+}
+
 function Get-PendingMessages {
     <#
     .SYNOPSIS
@@ -213,120 +374,65 @@ function Get-PendingMessages {
     $inbox = Join-Path $Script:MessageQueueDir $Agent
     if (-not (Test-Path $inbox)) { return @() }
 
-    # RESILIENCE FIX: Use timeout-protected file enumeration if available
-    # This prevents watchdog freeze when message directories are large
-    # FIXED: Use Get-Command to check if function exists (Test-Path function: is unreliable)
+    # Get file list with timeout protection
     if (Get-Command Get-ChildItemWithTimeout -ErrorAction SilentlyContinue) {
         $allFiles = Get-ChildItemWithTimeout -Path $inbox -Filter "*.json" -TimeoutMs 2000 -DefaultValue @()
     } else {
         $allFiles = Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue
     }
 
-    # Start timeout stopwatch
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-    # Migration: cleanup any orphaned .tmp files from failed atomic writes
-    # Only do this occasionally (every 10th call) to reduce overhead
+    # Cleanup orphaned temp files occasionally
     if ($Agent -eq "pm" -or (Get-Random -Maximum 10) -eq 0) {
-        $allFiles | Where-Object { $_.Name -match '\.tmp$' } | ForEach-Object {
-            $age = ([DateTime]::UtcNow - $_.LastWriteTimeUtc).TotalSeconds
-            if ($age -gt 30) {
-                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
-            }
-        }
+        Remove-OrphanedTempFiles -Files @($allFiles) -AlwaysRun
     }
 
     $priorityOrder = @{ "low" = 0; "normal" = 1; "high" = 2; "urgent" = 3 }
     $minPriorityValue = $priorityOrder[$MinPriority]
-
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $messages = @()
     $corruptFiles = @()
 
     # Process files with timeout protection
     foreach ($fileInfo in $allFiles) {
-        # TIMEOUT CHECK: Abort if we've exceeded our time budget
+        # Timeout check
         if ($stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
-            # Return what we have rather than blocking watchdog
             break
         }
 
-        # Skip temp files (shouldn't match *.json but be safe)
+        # Skip temp files
         if ($fileInfo.Name -match '\.tmp$') { continue }
 
-        try {
-            # Read with retry for race condition safety - but with timeout check
-            $retries = 3
-            $content = $null
-            for ($i = 0; $i -lt $retries; $i++) {
-                # Check timeout inside retry loop too
-                if ($stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
-                    break
-                }
+        # Read message file with retry
+        $remainingTimeout = $TimeoutMs - $stopwatch.ElapsedMilliseconds
+        $content = Read-MessageFileWithRetry -FilePath $fileInfo.FullName -TimeoutMs $remainingTimeout
 
-                try {
-                    $rawContent = Get-Content $fileInfo.FullName -Raw -ErrorAction Stop
-                    if ([string]::IsNullOrWhiteSpace($rawContent)) {
-                        # File may be in middle of write - wait and retry
-                        Start-Sleep -Milliseconds 50
-                        continue
-                    }
-                    $content = $rawContent | ConvertFrom-Json -ErrorAction Stop
-                    break
-                } catch {
-                    if ($i -lt $retries - 1) { Start-Sleep -Milliseconds 50 }
-                }
-            }
-
-            if (-not $content) {
-                $corruptFiles += $fileInfo.FullName
-                continue
-            }
-
-            # Filter by status
-            if ($content.status -ne "pending") { continue }
-
-            # Filter by type if specified
-            if ($Type -and $content.type -ne $Type) { continue }
-
-            # Filter by priority
-            $msgPriority = $priorityOrder[$content.priority]
-            if ($msgPriority -lt $minPriorityValue) { continue }
-
-            # Add file path for acknowledgment
-            $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $fileInfo.FullName -Force
-
-            $messages += $content
-        } catch {
+        if (-not $content) {
             $corruptFiles += $fileInfo.FullName
+            continue
         }
+
+        # Filter by status
+        if ($content.status -ne "pending") { continue }
+
+        # Filter by type if specified
+        if ($Type -and $content.type -ne $Type) { continue }
+
+        # Filter by priority
+        $msgPriority = $priorityOrder[$content.priority]
+        if ($msgPriority -lt $minPriorityValue) { continue }
+
+        # Add file path for acknowledgment
+        $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $fileInfo.FullName -Force
+        $messages += $content
     }
 
     $stopwatch.Stop()
 
-    # Move corrupt files to quarantine for debugging (async to not block)
-    if ($corruptFiles.Count -gt 0) {
-        $quarantine = Join-Path $Script:MessageQueueDir "quarantine"
-        if (-not (Test-Path $quarantine)) {
-            New-Item -ItemType Directory -Path $quarantine -Force | Out-Null
-        }
+    # Move corrupt files to quarantine
+    Move-CorruptFilesToQuarantine -CorruptFiles $corruptFiles -MessageQueueDir $Script:MessageQueueDir
 
-        # Use async job for quarantine to avoid blocking
-        Start-Job -ScriptBlock {
-            param($files, $quarantine)
-            foreach ($file in $files) {
-                $dest = Join-Path $quarantine (Split-Path $file -Leaf)
-                Move-Item -Path $file -Destination $dest -Force -ErrorAction SilentlyContinue
-            }
-        } -ArgumentList $corruptFiles, $quarantine -ErrorAction SilentlyContinue | Out-Null
-    }
-
-    # Sort by priority (highest first), then by timestamp (oldest first)
-    $messages = $messages | Sort-Object -Property @(
-        @{ Expression = { $priorityOrder[$_.priority] }; Descending = $true },
-        @{ Expression = { $_.timestamp }; Descending = $false }
-    )
-
-    return $messages
+    # Sort and return messages
+    return Sort-MessagesByPriority -Messages $messages
 }
 
 function Get-MessageById {
@@ -1044,338 +1150,10 @@ function Remove-AgentMessage {
 }
 
 # ============================================================================
-# CONSOLIDATION MODE
+# CONSOLIDATION MODE HELPERS
 # ============================================================================
-# Consolidation mode allows PM to review all pending messages on startup/restart
-# before any workers begin processing. This ensures PM is the source of truth.
-
-$Script:ConsolidationModeFile = $null
-
-function Initialize-ConsolidationMode {
-    <#
-    .SYNOPSIS
-    Initialize consolidation mode file path.
-
-    .PARAMETER SessionDir
-    The session directory path.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SessionDir
-    )
-
-    $Script:ConsolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
-}
-
-function Test-ConsolidationRequired {
-    <#
-    .SYNOPSIS
-    Check if consolidation is required (startup/restart scenario).
-
-    Returns $true if:
-    - Consolidation mode file exists and mode is "pending_consolidation"
-    - OR there are pending messages in worker inboxes and this is startup
-
-    .RETURNS
-    $true if consolidation is required, $false otherwise.
-    #>
-    param()
-
-    if (-not $Script:ConsolidationModeFile) {
-        return $false
-    }
-
-    # Check if consolidation mode file exists
-    if (Test-Path $Script:ConsolidationModeFile) {
-        try {
-            $mode = Get-Content $Script:ConsolidationModeFile -Raw | ConvertFrom-Json
-            if ($mode.mode -eq "pending_consolidation") {
-                return $true
-            }
-        } catch {
-            # File corrupt - treat as requiring consolidation
-            return $true
-        }
-    }
-
-    return $false
-}
-
-function Exit-ConsolidationMode {
-    <#
-    .SYNOPSIS
-    Exit consolidation mode and transition to normal operation.
-    This is the SAFE way to exit consolidation mode with proper logging and state tracking.
-
-    .PARAMETER Reason
-    The reason for exiting consolidation (required for audit trail).
-
-    .PARAMETER Phase
-    The phase that triggered the exit (e.g., "retrospective", "skill_research", "manual").
-
-    .RETURNS
-    $true if exit was successful, $false otherwise.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Reason,
-
-        [string]$Phase = "unknown"
-    )
-
-    if (-not $Script:ConsolidationModeFile) {
-        return $false
-    }
-
-    try {
-        $currentMode = Get-ConsolidationMode
-        if (-not $currentMode -or $currentMode.mode -ne "pending_consolidation") {
-            # Already not in consolidation mode
-            return $true
-        }
-
-        # Exit consolidation mode
-        $state = @{
-            mode = "normal"
-            timestamp = [DateTime]::UtcNow.ToString("o")
-            reason = $Reason
-            phase = $Phase
-            previousMode = $currentMode.mode
-            exitedAt = [DateTime]::UtcNow.ToString("o")
-        }
-
-        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:ConsolidationModeFile -Encoding UTF8
-
-        return $true
-    } catch {
-        return $false
-    }
-}
-
-function Invoke-ConsolidationStateCheck {
-    <#
-    .SYNOPSIS
-    Check if consolidation mode is stale and should be auto-exited.
-    This prevents dead ends where consolidation mode gets stuck.
-
-    .PARAMETER SessionDir
-    The session directory path.
-
-    .PARAMETER TimeoutMinutes
-    Minutes after which consolidation is considered stale (default: 10).
-
-    .RETURNS
-    Hashtable with { isStale, shouldExit, reason }
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SessionDir,
-
-        [int]$TimeoutMinutes = 10
-    )
-
-    $result = @{
-        isStale = $false
-        shouldExit = $false
-        reason = ""
-    }
-
-    $consolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
-    if (-not (Test-Path $consolidationModeFile)) {
-        return $result
-    }
-
-    try {
-        $mode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
-        if ($mode.mode -eq "pending_consolidation") {
-            # Check age of consolidation mode
-            $modeTime = [DateTime]::Parse($mode.timestamp)
-            $ageMinutes = ([DateTime]::UtcNow - $modeTime).TotalMinutes
-
-            if ($ageMinutes -gt $TimeoutMinutes) {
-                $result.isStale = $true
-                $result.shouldExit = $true
-                $result.reason = "Consolidation mode active for $([math]::Round($ageMinutes, 1)) minutes (timeout: ${TimeoutMinutes}m)"
-            }
-
-            # Also check if retrospective exists - that's a signal to exit
-            $retroFile = Join-Path $SessionDir "retrospective.txt"
-            if (Test-Path $retroFile) {
-                $result.isStale = $true
-                $result.shouldExit = $true
-                $result.reason = "Retrospective file exists - consolidation must exit for workers to participate"
-            }
-        }
-    } catch {
-        # Error reading mode - treat as needing exit
-        $result.isStale = $true
-        $result.shouldExit = $true
-        $result.reason = "Error reading consolidation mode: $($_.Exception.Message)"
-    }
-
-    return $result
-}
-
-function Save-ConsolidationState {
-    <#
-    .SYNOPSIS
-    Save consolidation mode state to a persistent location for context reset recovery.
-    This ensures consolidation mode survives context resets.
-
-    .PARAMETER SessionDir
-    The session directory path.
-
-    .RETURNS
-    $true if saved successfully, $false otherwise.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SessionDir
-    )
-
-    $consolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
-    if (-not (Test-Path $consolidationModeFile)) {
-        return $false
-    }
-
-    try {
-        $mode = Get-Content $consolidationModeFile -Raw | ConvertFrom-Json
-
-        # Save to a location that survives context resets
-        $persistentStateDir = Join-Path $SessionDir "persistent-state"
-        if (-not (Test-Path $persistentStateDir)) {
-            New-Item -ItemType Directory -Path $persistentStateDir -Force | Out-Null
-        }
-
-        $persistentFile = Join-Path $persistentStateDir "consolidation-mode.json"
-        $mode | ConvertTo-Json -Depth 10 | Out-File -FilePath $persistentFile -Encoding UTF8
-
-        return $true
-    } catch {
-        return $false
-    }
-}
-
-function Restore-ConsolidationState {
-    <#
-    .SYNOPSIS
-    Restore consolidation mode state from persistent storage after context reset.
-    This is called when PM agent restarts after a context reset.
-
-    .PARAMETER SessionDir
-    The session directory path.
-
-    .RETURNS
-    $true if restored successfully, $false otherwise.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SessionDir
-    )
-
-    $persistentStateDir = Join-Path $SessionDir "persistent-state"
-    $persistentFile = Join-Path $persistentStateDir "consolidation-mode.json"
-
-    if (-not (Test-Path $persistentFile)) {
-        return $false
-    }
-
-    try {
-        $mode = Get-Content $persistentFile -Raw | ConvertFrom-Json
-
-        # Only restore if we're not already in a different mode
-        $currentMode = Get-ConsolidationMode
-        if (-not $currentMode -or $currentMode.mode -eq "normal") {
-            # Current mode is normal or doesn't exist, safe to restore
-            $consolidationModeFile = Join-Path $SessionDir "consolidation-mode.json"
-            $mode | ConvertTo-Json -Depth 10 | Out-File -FilePath $consolidationModeFile -Encoding UTF8
-            return $true
-        }
-
-        return $false
-    } catch {
-        return $false
-    }
-}
-
-function Set-ConsolidationMode {
-    <#
-    .SYNOPSIS
-    Set the consolidation mode state.
-
-    .PARAMETER Mode
-    The consolidation mode: "pending_consolidation", "normal", or "completed"
-
-    .PARAMETER Reason
-    The reason for the mode change (startup, restart, pm_consolidated, etc.)
-
-    .PARAMETER Assignments
-    Optional PM assignments dictionary (for mode "normal")
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [ValidateSet("pending_consolidation", "normal", "completed")]
-        [string]$Mode,
-
-        [string]$Reason = "",
-
-        [hashtable]$Assignments = $null
-    )
-
-    if (-not $Script:ConsolidationModeFile) {
-        throw "Consolidation mode not initialized. Call Initialize-ConsolidationMode first."
-    }
-
-    $state = @{
-        mode = $Mode
-        timestamp = [DateTime]::UtcNow.ToString("o")
-        reason = $Reason
-    }
-
-    if ($Assignments) {
-        $state.pmAssignments = $Assignments
-    }
-
-    $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:ConsolidationModeFile -Encoding UTF8
-
-    # REMOVED: Persistent-state save functionality
-    # Consolidation mode now only lives in memory. If watchdog crashes,
-    # the stale state cleanup in watchdog-event.ps1 will clear the mode
-    # and PM will re-consolidate on next startup.
-    # This prevents getting stuck in consolidation mode from crashed sessions.
-}
-
-function Get-ConsolidationMode {
-    <#
-    .SYNOPSIS
-    Get the current consolidation mode state with timeout protection.
-
-    .RETURNS
-    The consolidation mode object, or $null if file doesn't exist.
-    #>
-    param()
-
-    if (-not $Script:ConsolidationModeFile) {
-        return $null
-    }
-
-    # Use timeout-protected read if available (prevents watchdog freeze)
-    if (Get-Command Get-FileContentAsJsonWithTimeout -ErrorAction SilentlyContinue) {
-        return Get-FileContentAsJsonWithTimeout -Path $Script:ConsolidationModeFile -TimeoutMs 500 -DefaultValue $null
-    }
-
-    # Fallback to synchronous read
-    if (-not (Test-Path $Script:ConsolidationModeFile)) {
-        return $null
-    }
-
-    try {
-        $mode = Get-Content $Script:ConsolidationModeFile -Raw | ConvertFrom-Json
-        return $mode
-    } catch {
-        return $null
-    }
-}
+# Consolidation mode functions are now in Consolidation-Mode.ps1
+# These helper functions remain here as they use message queue internals
 
 function Get-GlobalMessageState {
     <#

@@ -28,6 +28,7 @@ version: 2.0
 
 ## Quick Start Checklist
 
+- [ ] **Verify git worktree setup** (see [Git Worktree Setup](#git-worktree-setup) below)
 - [ ] Source message queue: `. .\.claude\scripts\message-queue.ps1`
 - [ ] Check for pending messages on startup
 - [ ] Read coordinator-state.json and prd.json
@@ -82,6 +83,142 @@ version: 2.0
 - `prd.json` task descriptions (PM only)
 
 > See [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md) for full permissions matrix.
+
+---
+
+## 1.5. Git Worktree Setup for Parallel Development
+
+### Why Git Worktrees Are REQUIRED
+
+**CRITICAL**: You MUST work in a separate git worktree when Developer or other agents are working in parallel.
+
+**The Problem**: When multiple agents work in the same git directory:
+- Commits from one agent appear in the other's workspace
+- `git status` shows unexpected changes
+- Build conflicts occur (QA can't build to test)
+- Files may be overwritten
+
+**The Solution**: Git worktrees allow each agent to have their own working directory on a different branch, while sharing the same Git repository.
+
+### Git Worktree Architecture
+
+```
+project-root/
+├── .git/                          # Shared Git repository
+├── agentic-threejs/               # Main worktree (PM, QA, Game Designer)
+│   ├── src/
+│   ├── package.json
+│   └── ...
+├── agentic-threejs-developer/     # Developer worktree
+│   ├── src/
+│   ├── package.json
+│   └── .git -> ../agentic-threejs/.git/
+└── agentic-threejs-techartist/   # Tech Artist worktree (YOUR WORKSPACE)
+    ├── src/
+    ├── package.json
+    └── .git -> ../agentic-threejs/.git/
+```
+
+Each worktree:
+- Has its own files and working directory
+- Can have a different branch checked out
+- Shares commits through the common `.git` folder
+- Cannot check out the same branch as another worktree
+
+### Startup Worktree Verification
+
+**EVERY TIME you start**, verify you're in the correct worktree:
+
+```powershell
+# 1. Check current directory path
+$pwd = Get-Location
+if ($pwd.Path -notmatch "agentic-threejs-techartist") {
+    Write-Host "WARNING: Not in techartist worktree!" -ForegroundColor Yellow
+    Write-Host "Current: $pwd" -ForegroundColor Red
+    Write-Host "Expected: .../agentic-threejs-techartist" -ForegroundColor Red
+}
+
+# 2. Check current branch
+$branch = git branch --show-current
+Write-Host "Current branch: $branch"
+
+# 3. Verify no other agent has this branch
+git worktree list
+```
+
+### Creating Your Worktree (First Time Setup)
+
+If your worktree doesn't exist, create it:
+
+```powershell
+# Navigate to parent directory
+cd C:\Users\Felip\Projects\gamedev\projects\ThreeJS
+
+# Create techartist worktree on a new branch
+git worktree add -b techartist-visual-XXX ../agentic-threejs-techartist
+
+# Navigate into your worktree
+cd ../agentic-threejs-techartist
+
+# Install dependencies (fresh node_modules)
+npm install
+
+# Verify setup
+git worktree list
+# Expected output:
+# C:\Users\Felip\Projects\gamedev\projects\ThreeJS\agentic-threejs       [main]
+# C:\Users\Felip\Projects\gamedev\projects\ThreeJS\agentic-threejs-techartist [techartist-visual-XXX]
+```
+
+### Daily Worktree Workflow
+
+```
+1. STARTUP: cd into YOUR worktree (agentic-threejs-techartist)
+2. VERIFY: git worktree list (ensure you're on a unique branch)
+3. WORK: Create assets/shaders/effects
+4. TEST: View in browser (Playwright), run feedback loops
+5. COMMIT: Commit in YOUR worktree
+6. NOTIFY: Send asset_ready message to QA
+7. DONE: Exit (watchdog handles worktree cleanup)
+```
+
+### Important Worktree Rules
+
+| Rule | Why |
+|------|-----|
+| **NEVER work in main worktree** | Other agents (PM, QA, GD) use it |
+| **NEVER share a branch** | Git prevents same branch in multiple worktrees |
+| **ALWAYS commit before exit** | Uncommitted changes block worktree removal |
+| **NEVER cd into another agent's worktree** | Causes merge conflicts |
+
+### Worktree Cleanup (When Task Complete)
+
+After your assets are validated and merged:
+
+```powershell
+# Return to main worktree
+cd ../agentic-threejs
+
+# Remove your worktree
+git worktree remove ../agentic-threejs-techartist
+
+# Prune any stale worktree references
+git worktree prune
+```
+
+### Troubleshooting Worktrees
+
+| Problem | Solution |
+|---------|----------|
+| "fatal: 'main' is already used by worktree" | Create a new branch: `git worktree add -b visual-name ../path` |
+| Worktree directory deleted manually | Run `git worktree prune` to clean stale references |
+| Uncommitted changes blocking removal | Commit changes or use `git worktree remove --force` |
+| Can't see other agent's commits | Commits appear in all worktrees automatically after push |
+
+### Further Reading
+
+- [Git Worktree Tutorial (DataCamp)](https://www.datacamp.com/tutorial/git-worktree-tutorial)
+- [Git Worktrees for Agentic Development (Reddit)](https://www.reddit.com/r/ClaudeCode/comments/1pzczjn/git_worktrees_are_a_superpower_for_agentic_dev/)
 
 ---
 

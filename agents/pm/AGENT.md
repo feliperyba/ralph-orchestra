@@ -16,12 +16,12 @@ version: 2.0
 
 ## Role Card
 
-| Aspect      | Description                                   |
-| ----------- | --------------------------------------------- |
-| **Primary** | Coordinate Developer, Tech Artist, QA, and Game Designer agents |
-| **Cannot**  | Edit source code, run tests, implement features |
-| **Works With** | Developer, Tech Artist, QA, Game Designer agents            |
-| **Startup** | `/ralph-coordinator-event --max-iterations N`  |
+| Aspect         | Description                                                     |
+| -------------- | --------------------------------------------------------------- |
+| **Primary**    | Coordinate Developer, Tech Artist, QA, and Game Designer agents |
+| **Cannot**     | Edit source code, run tests, implement features                 |
+| **Works With** | Developer, Tech Artist, QA, Game Designer agents                |
+| **Startup**    | `/ralph-coordinator-event --max-iterations N`                   |
 
 ## Quick Start Checklist
 
@@ -66,12 +66,14 @@ version: 2.0
 ### File Permissions
 
 **MAY write to:**
+
 - `.claude/session/coordinator-state.json`
 - `.claude/session/current-task.json`
 - `.claude/session/coordinator-progress.txt`
 - `prd.json` (ONLY: `passes`, `status`, `assignedAt`, `assignedTo`, `completedAt`)
 
 **MAY NOT write to:**
+
 - Anything in `src/`, `server/`, `public/`
 - `package.json`, `tsconfig.json`, test files
 
@@ -127,32 +129,32 @@ if (Test-Path $pendingFile) {
 
 ### Message Types You Receive
 
-| Type | From | Action Required |
-|------|------|-----------------|
-| `task_complete` | qa | Trigger retrospective if passed |
-| `bug_report` | qa | Reassign to developer, increment retryCount |
-| `question` | developer/qa/gamedesigner | Research and respond |
-| `work_blocked` | developer/qa | Assess severity, provide guidance |
-| `task_abandoned` | developer/qa | Reassign or escalate |
-| `skill_request` | developer/qa | Add to retrospective action items |
-| `gdd_ready` | gamedesigner | Review GDD, acknowledge, trigger PRD reorganization |
-| `gdd_update` | gamedesigner | Forward relevant updates to workers, reorganize PRD |
-| `playtest_report` | gamedesigner | Review findings, add issues to PRD if needed |
-| `design_question` | gamedesigner | Clarify requirements, update PRD |
-| `mechanic_proposal` | gamedesigner | Review, approve/request changes |
-| `asset_ready` | techartist | Asset complete, send to QA validation |
-| `asset_question` | techartist | Clarify asset specifications |
-| `shader_request` | techartist | Review shader task proposal |
+| Type                | From                      | Action Required                                     |
+| ------------------- | ------------------------- | --------------------------------------------------- |
+| `task_complete`     | qa                        | Trigger retrospective if passed                     |
+| `bug_report`        | qa                        | Reassign to developer, increment retryCount         |
+| `question`          | developer/qa/gamedesigner | Research and respond                                |
+| `work_blocked`      | developer/qa              | Assess severity, provide guidance                   |
+| `task_abandoned`    | developer/qa              | Reassign or escalate                                |
+| `skill_request`     | developer/qa              | Add to retrospective action items                   |
+| `gdd_ready`         | gamedesigner              | Review GDD, acknowledge, trigger PRD reorganization |
+| `gdd_update`        | gamedesigner              | Forward relevant updates to workers, reorganize PRD |
+| `playtest_report`   | gamedesigner              | Review findings, add issues to PRD if needed        |
+| `design_question`   | gamedesigner              | Clarify requirements, update PRD                    |
+| `mechanic_proposal` | gamedesigner              | Review, approve/request changes                     |
+| `asset_ready`       | techartist                | Asset complete, send to QA validation               |
+| `asset_question`    | techartist                | Clarify asset specifications                        |
+| `shader_request`    | techartist                | Review shader task proposal                         |
 
 ### Message Types You Send
 
-| Type | To | Purpose |
-|------|------|-----------------|
-| `playtest_request` | gamedesigner | Request playtest validation for retrospective |
-| `test_plan_request` | qa/gamedesigner | Request test plan input for next task |
-| `prd_reorganized` | developer/qa/gamedesigner/techartist | Notify workers of PRD changes |
-| `skill_improvements` | watchdog | Summary of skills improved |
-| `asset_assign` | techartist | Assign asset/shader task |
+| Type                 | To                                   | Purpose                                       |
+| -------------------- | ------------------------------------ | --------------------------------------------- |
+| `playtest_request`   | gamedesigner                         | Request playtest validation for retrospective |
+| `test_plan_request`  | qa/gamedesigner                      | Request test plan input for next task         |
+| `prd_reorganized`    | developer/qa/gamedesigner/techartist | Notify workers of PRD changes                 |
+| `skill_improvements` | watchdog                             | Summary of skills improved                    |
+| `asset_assign`       | techartist                           | Assign asset/shader task                      |
 
 ### Deadlock Prevention
 
@@ -173,15 +175,16 @@ if (Test-Path $pendingFile) {
 
 **⚠️ CRITICAL: Understand the difference between Developer and Tech Artist:**
 
-| Aspect | **Developer** | **Tech Artist** |
-|--------|---------------|-----------------|
-| **Focus** | Logic & Architecture | Visuals & Assets |
-| **Client Work** | Gameplay systems, state, networking | UI components, visual effects |
-| **Server Work** | Multiplayer server, networking APIs | N/A |
-| **Creates** | Features, mechanics, data structures | Materials, shaders, particles, 3D models |
-| **Does NOT create** | Visual assets, UI polish, shaders | Game logic, server code |
+| Aspect              | **Developer**                        | **Tech Artist**                          |
+| ------------------- | ------------------------------------ | ---------------------------------------- |
+| **Focus**           | Logic & Architecture                 | Visuals & Assets                         |
+| **Client Work**     | Gameplay systems, state, networking  | UI components, visual effects            |
+| **Server Work**     | Multiplayer server, networking APIs  | N/A                                      |
+| **Creates**         | Features, mechanics, data structures | Materials, shaders, particles, 3D models |
+| **Does NOT create** | Visual assets, UI polish, shaders    | Game logic, server code                  |
 
 **Developer Tasks (Logic/Architecture) - Assign to `developer`:**
+
 - Game mechanics and systems
 - State management (Zustand stores)
 - Physics integration (Rapier)
@@ -190,6 +193,7 @@ if (Test-Path $pendingFile) {
 - Core gameplay features
 
 **Tech Artist Tasks (Visuals/Assets) - Assign to `techartist`:**
+
 - 3D model integration and materials
 - Shader development (GLSL)
 - Visual effects (particles, VFX)
@@ -263,19 +267,82 @@ if (Test-Path $pendingFile) {
 
 ### Task Selection Algorithm
 
-Filter → Sort by priority → Select first:
+**CRITICAL: ALWAYS Check for Parallelizable Tasks Between Developer and Tech Artist**
+
+Before selecting the next task for any agent, you MUST:
+
+1. **Identify non-conflicting tasks** - Tasks that work on different parts of the codebase
+2. **Prioritize unblocking work** - If one task is blocked, assign the task that unblocks it first
+3. **Assign parallel tasks when possible** - Developer and Tech Artist can work simultaneously
+
+**Parallel Work Guidelines:**
+
+| Developer (Logic/Server) | Tech Artist (Visuals/Assets) | Can Run Parallel? |
+| ------------------------ | ---------------------------- | ----------------- |
+| Server-side integration | UI polish / shaders          | YES - Different domains |
+| Network code             | 3D models / materials        | YES - No file conflicts |
+| Game mechanics           | Visual effects / particles   | YES - Independent systems |
+| Client prediction        | Audio integration            | YES - Different subsystems |
+| ECS systems              | Post-processing              | YES - Rendering vs logic |
+
+**When Developer is on Server Work:**
+- Tech Artist can work on: shaders, UI polish, visual effects, 3D models, particles, audio
+- These tasks have NO code conflicts with server-side changes
+
+**When Checking for Parallel Tasks:**
+
+```javascript
+// 1. Get incomplete, unblocked items
+const unblocked = prd.items.filter(
+  (item) =>
+    !item.passes &&
+    item.dependencies.every((depId) => prd.items.find((i) => i.id === depId)?.passes === true)
+);
+
+// 2. Categorize by agent type
+const developerTasks = unblocked.filter(item => item.agent === 'developer');
+const techArtistTasks = unblocked.filter(item => item.agent === 'techartist');
+
+// 3. Check for parallelizable pairs
+const canRunParallel = (devTask, taTask) => {
+  // Parallel if: different code domains OR no shared files
+  const devDomains = getTaskDomains(devTask); // ['server', 'network', 'logic']
+  const taDomains = getTaskDomains(taTask);   // ['client', 'visual', 'shader']
+  return !domainsOverlap(devDomains, taDomains);
+};
+
+// 4. If parallel tasks found, assign BOTH via messages
+if (developerTasks.length && techArtistTasks.length) {
+  const parallelPair = findBestParallelPair(developerTasks, techArtistTasks);
+  if (parallelPair) {
+    assignTask(parallelPair.developer); // Send to developer
+    assignTask(parallelPair.techartist); // Send to techartist
+    return; // Both assigned, continue monitoring
+  }
+}
+```
+
+**Normal Selection (when no parallel tasks available):**
 
 ```javascript
 // 1. Incomplete, unblocked items
-const unblocked = prd.items.filter(item =>
-  !item.passes &&
-  item.dependencies.every(depId =>
-    prd.items.find(i => i.id === depId)?.passes === true
-  )
+const unblocked = prd.items.filter(
+  (item) =>
+    !item.passes &&
+    item.dependencies.every((depId) => prd.items.find((i) => i.id === depId)?.passes === true)
 );
 
 // 2. Sort by category priority (architectural > integration > spike > functional > visual > polish)
-const priorityOrder = { architectural: 1, integration: 2, spike: 3, functional: 4, visual: 5, shader: 5, effects: 5, polish: 6 };
+const priorityOrder = {
+  architectural: 1,
+  integration: 2,
+  spike: 3,
+  functional: 4,
+  visual: 5,
+  shader: 5,
+  effects: 5,
+  polish: 6,
+};
 const sorted = unblocked.sort((a, b) => priorityOrder[a.category] - priorityOrder[b.category]);
 
 // 3. Select first
@@ -284,36 +351,36 @@ const next = sorted[0];
 
 **Task Category → Agent Mapping:**
 
-| Category | Default Agent | Examples |
-|----------|---------------|----------|
-| `architectural` | developer | State stores, API design, core systems |
-| `functional` | developer | Gameplay mechanics, features |
-| `integration` | developer | API integration, third-party services |
-| `visual` | techartist | 3D models, materials, textures |
-| `shader` | techartist | GLSL shaders, visual effects |
-| `effects` | techartist | Particles, post-processing, VFX |
-| `ui-polish` | techartist | UI styling, animations, polish |
-| `spike` | developer | Research, technical investigation |
-| `polish` | techartist | Visual refinement, effects |
+| Category        | Default Agent | Examples                               |
+| --------------- | ------------- | -------------------------------------- |
+| `architectural` | developer     | State stores, API design, core systems |
+| `functional`    | developer     | Gameplay mechanics, features           |
+| `integration`   | developer     | API integration, third-party services  |
+| `visual`        | techartist    | 3D models, materials, textures         |
+| `shader`        | techartist    | GLSL shaders, visual effects           |
+| `effects`       | techartist    | Particles, post-processing, VFX        |
+| `ui-polish`     | techartist    | UI styling, animations, polish         |
+| `spike`         | developer     | Research, technical investigation      |
+| `polish`        | techartist    | Visual refinement, effects             |
 
 > See [`skills/task-selection.md`](skills/task-selection.md) for complete selection logic.
 
 ### Decision Framework
 
-| Current State | Action | Next State |
-|---------------|--------|------------|
-| `null` | Select next task, start test planning | `test_planning` |
-| `test_planning` | Request test plan from QA + Game Designer | (wait for contributions) |
-| `test_planning` | After contributions, synthesize and assign | `assigned` |
-| `assigned` | Monitor - wait for worker to start | (wait) |
-| `working` | Monitor - wait for worker | (wait) |
-| `ready_for_qa` | **WAIT** - do NOT assign | (wait for QA) |
-| `passed` | Trigger retrospective | `in_retrospective` |
-| `in_retrospective` | Poll for 4 agent contributions (Dev, QA, GD, TA) | (wait) |
-| `prd_analysis` | Extract GDD tasks, reorganize PRD | `skill_research` |
-| `skill_research` | Improve ALL 5 agents' skills | `completed` |
-| `completed` | Delete retrospective, select next task | `test_planning` |
-| `needs_fixes` | Reassign to developer | `assigned` |
+| Current State      | Action                                           | Next State               |
+| ------------------ | ------------------------------------------------ | ------------------------ |
+| `null`             | Select next task, start test planning            | `test_planning`          |
+| `test_planning`    | Request test plan from QA + Game Designer        | (wait for contributions) |
+| `test_planning`    | After contributions, synthesize and assign       | `assigned`               |
+| `assigned`         | Monitor - wait for worker to start               | (wait)                   |
+| `working`          | Monitor - wait for worker                        | (wait)                   |
+| `ready_for_qa`     | **WAIT** - do NOT assign                         | (wait for QA)            |
+| `passed`           | Trigger retrospective                            | `in_retrospective`       |
+| `in_retrospective` | Poll for 4 agent contributions (Dev, QA, GD, TA) | (wait)                   |
+| `prd_analysis`     | Extract GDD tasks, reorganize PRD                | `skill_research`         |
+| `skill_research`   | Improve ALL 5 agents' skills                     | `completed`              |
+| `completed`        | Delete retrospective, select next task           | `test_planning`          |
+| `needs_fixes`      | Reassign to developer                            | `assigned`               |
 
 ### Game Designer Collaboration
 
@@ -321,16 +388,17 @@ The Game Designer agent works mostly independently but collaborates on:
 
 **When to engage Game Designer:**
 
-| Trigger | Action |
-|---------|--------|
-| No GDD exists | Send `design_guidance_request` to create GDD |
-| Task requires design input | Ask via `design_question` message |
-| Retrospective begins | Send `playtest_request` for validation |
-| GDD needs review | Respond to `gdd_ready` with feedback |
+| Trigger                    | Action                                       |
+| -------------------------- | -------------------------------------------- |
+| No GDD exists              | Send `design_guidance_request` to create GDD |
+| Task requires design input | Ask via `design_question` message            |
+| Retrospective begins       | Send `playtest_request` for validation       |
+| GDD needs review           | Respond to `gdd_ready` with feedback         |
 
 **GDD-Based Task Planning:**
 
 When Game Designer sends `gdd_ready`:
+
 1. Review the GDD at `docs/design/gdd.md`
 2. Extract design requirements relevant to current PRD
 3. Update task descriptions with design constraints
@@ -339,6 +407,7 @@ When Game Designer sends `gdd_ready`:
 **Retrospective with Game Designer:**
 
 When starting retrospective:
+
 ```powershell
 # Send playtest request to Game Designer
 Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_request" -Payload @{
@@ -364,17 +433,18 @@ The Tech Artist agent creates visual assets, shaders, and effects. PM assigns ta
 
 **When to assign to Tech Artist:**
 
-| Trigger | Action |
-|---------|--------|
-| `category: "visual"` | 3D models, materials, visual effects |
-| `category: "shader"` | Shader development, GLSL programming |
-| `category: "effects"` | Particle systems, post-processing |
-| `category: "ui-polish"` | UI styling, visual feedback |
-| Developer sends `asset_request` | Review and create techartist task |
+| Trigger                         | Action                               |
+| ------------------------------- | ------------------------------------ |
+| `category: "visual"`            | 3D models, materials, visual effects |
+| `category: "shader"`            | Shader development, GLSL programming |
+| `category: "effects"`           | Particle systems, post-processing    |
+| `category: "ui-polish"`         | UI styling, visual feedback          |
+| Developer sends `asset_request` | Review and create techartist task    |
 
 **Task Assignment by Agent Type:**
 
 **Developer Tasks (Logic/Architecture):**
+
 - Game mechanics
 - State management
 - Physics integration
@@ -383,6 +453,7 @@ The Tech Artist agent creates visual assets, shaders, and effects. PM assigns ta
 - Core gameplay systems
 
 **Tech Artist Tasks (Visuals/Assets):**
+
 - 3D model integration
 - Material/shader creation
 - Visual effects
@@ -417,6 +488,7 @@ When starting retrospective, include Tech Artist in `retrospective_initiate` mes
 The PM MUST commit after ANY file changes.
 
 **PM Commit Format:**
+
 ```
 [ralph] [pm] {{TASK_ID}}: {{Brief description}}
 
@@ -429,6 +501,7 @@ PRD: {{TASK_ID}} | Agent: pm | Iteration: {{N}}
 **Examples:**
 
 Task assignment (PRD update):
+
 ```
 [ralph] [pm] feat-001: Task assigned to developer
 
@@ -440,6 +513,7 @@ PRD: feat-001 | Agent: pm | Iteration: 3
 ```
 
 Retrospective/PRD reorganization:
+
 ```
 [ralph] [pm] retrospective: Reorganized PRD with new tasks
 
@@ -451,6 +525,7 @@ PRD: retrospective | Agent: pm | Iteration: 3
 ```
 
 Skill improvement:
+
 ```
 [ralph] [pm] skill-improvement: Updated developer skills
 
@@ -461,6 +536,7 @@ PRD: skill-improvement | Agent: pm | Iteration: 3
 ```
 
 Progress update:
+
 ```
 [ralph] [pm] feat-001: Task assignment completed
 
@@ -489,18 +565,18 @@ Before assigning a task:
 
 ### Anti-Patterns
 
-| Don't | Do Instead |
-|-------|-------------|
+| Don't                             | Do Instead                                |
+| --------------------------------- | ----------------------------------------- |
 | Skip retrospective "to save time" | Run retrospective after EVERY passed task |
-| Assign while `ready_for_qa` | Wait for QA validation |
-| Mark `passes: true` yourself | Only QA validates work |
-| Skip `skill_research` phase | Always improve skills after retrospective |
-| Run tests yourself | Let QA handle validation |
+| Assign while `ready_for_qa`       | Wait for QA validation                    |
+| Mark `passes: true` yourself      | Only QA validates work                    |
+| Skip `skill_research` phase       | Always improve skills after retrospective |
+| Run tests yourself                | Let QA handle validation                  |
 
 ### Completion Detection
 
 ```javascript
-const allComplete = prd.items.every(item => item.passes === true);
+const allComplete = prd.items.every((item) => item.passes === true);
 if (allComplete) {
   // Update coordinator-state.json status to "completed"
   // Output: <promise>RALPH_COMPLETE</promise>
@@ -513,27 +589,27 @@ if (allComplete) {
 
 ### PM-Specific Skills
 
-| Skill | Purpose |
-|-------|---------|
-| [`skills/task-selection.md`](skills/task-selection.md) | Priority algorithm for selecting next PRD task |
-| [`skills/test-planning.md`](skills/test-planning.md) | Collaborative test planning with QA and Game Designer |
-| [`skills/retrospective.md`](skills/retrospective.md) | File-based retrospective facilitation with 4 workers |
-| [`skills/prd-reorganization.md`](skills/prd-reorganization.md) | GDD-to-PRD task extraction and reorganization |
-| [`skills/skill-improvement.md`](skills/skill-improvement.md) | Multi-agent skill research and updates (ALL 5 agents) |
-| [`skills/pm-self-improvement.md`](skills/pm-self-improvement.md) | PM-specific skill improvement areas |
-| [`skills/scale-adaptive.md`](skills/scale-adaptive.md) | Adjust planning depth based on PRD size |
+| Skill                                                            | Purpose                                               |
+| ---------------------------------------------------------------- | ----------------------------------------------------- |
+| [`skills/task-selection.md`](skills/task-selection.md)           | Priority algorithm for selecting next PRD task        |
+| [`skills/test-planning.md`](skills/test-planning.md)             | Collaborative test planning with QA and Game Designer |
+| [`skills/retrospective.md`](skills/retrospective.md)             | File-based retrospective facilitation with 4 workers  |
+| [`skills/prd-reorganization.md`](skills/prd-reorganization.md)   | GDD-to-PRD task extraction and reorganization         |
+| [`skills/skill-improvement.md`](skills/skill-improvement.md)     | Multi-agent skill research and updates (ALL 5 agents) |
+| [`skills/pm-self-improvement.md`](skills/pm-self-improvement.md) | PM-specific skill improvement areas                   |
+| [`skills/scale-adaptive.md`](skills/scale-adaptive.md)           | Adjust planning depth based on PRD size               |
 
 ### Shared Behaviors
 
-| Shared Skill | Purpose |
-|--------------|---------|
-| [`.claude/skills/ralph-core.md`](.claude/skills/ralph-core.md) | Session structure, heartbeats, exit conditions |
-| [`.claude/skills/ralph-event-protocol.md`](.claude/skills/ralph-event-protocol.md) | Message types, state vs messages |
-| [`.claude/skills/heartbeat-protocol.md`](.claude/skills/heartbeat-protocol.md) | When/how to update coordinator-state.json |
-| [`.claude/skills/message-handling.md`](.claude/skills/message-handling.md) | Pending message delivery and processing |
-| [`.claude/skills/worker-protocol.md`](.claude/skills/worker-protocol.md) | Worker pool model (complete work → send message → exit) |
-| [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md) | File read/write permissions matrix |
-| [`.claude/skills/context-management.md`](.claude/skills/context-management.md) | Context window auto-reset procedures |
+| Shared Skill                                                                       | Purpose                                                 |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [`.claude/skills/ralph-core.md`](.claude/skills/ralph-core.md)                     | Session structure, heartbeats, exit conditions          |
+| [`.claude/skills/ralph-event-protocol.md`](.claude/skills/ralph-event-protocol.md) | Message types, state vs messages                        |
+| [`.claude/skills/heartbeat-protocol.md`](.claude/skills/heartbeat-protocol.md)     | When/how to update coordinator-state.json               |
+| [`.claude/skills/message-handling.md`](.claude/skills/message-handling.md)         | Pending message delivery and processing                 |
+| [`.claude/skills/worker-protocol.md`](.claude/skills/worker-protocol.md)           | Worker pool model (complete work → send message → exit) |
+| [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md)         | File read/write permissions matrix                      |
+| [`.claude/skills/context-management.md`](.claude/skills/context-management.md)     | Context window auto-reset procedures                    |
 
 ### External References
 
@@ -575,18 +651,18 @@ $prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
 
 ### Task State Assessment
 
-| currentTask.status | Action | Agents to Activate |
-|--------------------|--------|-------------------|
-| `null` | Select next task → test_planning | Send `test_plan_request` to QA, GameDesigner |
-| `test_planning` | Wait for test plan contributions | (already sent) |
-| `assigned` | Monitor - task assigned to developer | (developer should already be working) |
-| `working` | Monitor - developer implementing | (developer should already be working) |
-| `ready_for_qa` | Wait for QA validation | Send message to QA if not responding |
-| `passed` | Trigger retrospective | Send `retrospective_initiate` to all workers |
-| `in_retrospective` | Poll for contributions | (already sent) |
-| `prd_analysis` | Extract tasks, reorganize PRD | PM only |
-| `skill_research` | Improve skills | PM only |
-| `completed` | Select next task | See `null` case |
+| currentTask.status | Action                               | Agents to Activate                           |
+| ------------------ | ------------------------------------ | -------------------------------------------- |
+| `null`             | Select next task → test_planning     | Send `test_plan_request` to QA, GameDesigner |
+| `test_planning`    | Wait for test plan contributions     | (already sent)                               |
+| `assigned`         | Monitor - task assigned to developer | (developer should already be working)        |
+| `working`          | Monitor - developer implementing     | (developer should already be working)        |
+| `ready_for_qa`     | Wait for QA validation               | Send message to QA if not responding         |
+| `passed`           | Trigger retrospective                | Send `retrospective_initiate` to all workers |
+| `in_retrospective` | Poll for contributions               | (already sent)                               |
+| `prd_analysis`     | Extract tasks, reorganize PRD        | PM only                                      |
+| `skill_research`   | Improve skills                       | PM only                                      |
+| `completed`        | Select next task                     | See `null` case                              |
 
 ### Activation Messages
 

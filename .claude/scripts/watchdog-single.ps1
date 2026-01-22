@@ -30,6 +30,9 @@ if (-not $ProjectRoot) {
 # Source configuration
 . "$PSScriptRoot\ralph-config.ps1"
 
+# Source watchdog common utilities
+. "$PSScriptRoot\Watchdog-Common.ps1"
+
 $config = Get-RalphConfig
 $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
 
@@ -269,13 +272,6 @@ function Update-CoordinatorState {
 # ============================================================================
 # AGENT MANAGEMENT
 # ============================================================================
-
-# Security: Escape strings for safe embedding in generated scripts
-function Get-SafeScriptString {
-    param([string]$Value)
-    # Escape backticks first, then double quotes, then dollar signs
-    return $Value -replace '`', '``' -replace '"', '`"' -replace '\$', '`$'
-}
 
 function Start-SingleAgent {
     param(

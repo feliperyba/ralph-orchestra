@@ -27,7 +27,7 @@ depends-on: [retrospective]
 4. **COMMIT** the improvements
 5. **ONLY THEN** set `currentTask = null` and assign next task
 
-**Minimum per retrospective**: At least **FOUR** skill files updated (one per agent: PM, Developer, QA, Game Designer).
+**Minimum per retrospective**: At least **FIVE** skill files updated (one per agent: PM, Developer, Tech Artist, QA, Game Designer).
 
 **PM Self-Improvement**: The PM MUST also improve at least ONE of its OWN skills each retrospective. See [pm-self-improvement.md](./pm-self-improvement.md).
 
@@ -48,7 +48,7 @@ Use during `skill_research` phase when:
 ```markdown
 ## Retrospective: Skill Improvement Check
 
-1. Identify skill gaps for ALL FOUR agents (PM, Developer, QA, Game Designer)
+1. Identify skill gaps for ALL FIVE agents (PM, Developer, Tech Artist, QA, Game Designer)
 2. Use MCP (WebSearch, fetch) to research best practices
 3. Update at least ONE skill file per agent
 4. PM must improve at least ONE of its own skills
@@ -61,9 +61,10 @@ Use this matrix to identify which skills to improve for each agent:
 
 | Agent | Skill Areas to Improve | When to Trigger |
 |-------|------------------------|-----------------|
-| **PM** | task-selection.md, retrospective.md, prd-reorganization.md, pm-self-improvement.md, AGENT.md | Task assignment issues, retrospective gaps, PRD not reorganized |
-| **Developer** | r3f-fundamentals.md, feedback-loops.md, typescript-patterns.md, r3f-physics.md, AGENT.md | Code quality issues, failed builds, type errors |
-| **QA** | validation-workflow.md, browser-testing.md, bug-reporting.md, AGENT.md | Missed bugs, incomplete validation, test failures |
+| **PM** | task-selection.md, retrospective.md, prd-reorganization.md, pm-self-improvement.md, git-worktree-coordination.md, AGENT.md | Task assignment issues, retrospective gaps, PRD not reorganized, agent workspace conflicts |
+| **Developer** | r3f-fundamentals.md, feedback-loops.md, typescript-patterns.md, r3f-physics.md, AGENT.md | Code quality issues, failed builds, type errors, worktree violations |
+| **Tech Artist** | r3f-materials.md, shader-development.md, asset-workflow.md, visual-polish.md, AGENT.md | Visual quality issues, shader errors, asset workflow problems, worktree violations |
+| **QA** | validation-workflow.md, browser-testing.md, bug-reporting.md, AGENT.md | Missed bugs, incomplete validation, test failures, build conflicts from parallel agents |
 | **Game Designer** | gdd-creation.md, thermite-integration.md, playtest-validation.md, AGENT.md | GDD unclear, playtest issues, design violations |
 
 ## Decision Framework
@@ -78,12 +79,14 @@ Use this matrix to identify which skills to improve for each agent:
 | PM task assignment struggled        | Improve PM task-selection.md                |
 | PRD not reorganized                 | Improve PM prd-reorganization.md            |
 | GDD gaps in implementation          | Improve Game Designer gdd-creation.md       |
+| **Build conflicts from parallel agents** | **Improve PM git-worktree-coordination.md** |
+| **QA reports unexpected changes**   | **Verify agents using separate worktrees**   |
 
 ## Progressive Guide
 
 ### Level 1: Identify Skill Gaps
 
-During retrospective synthesis, identify gaps for ALL FOUR agents:
+During retrospective synthesis, identify gaps for ALL FIVE agents:
 
 ```markdown
 ### Skill Gap Analysis
@@ -91,14 +94,23 @@ During retrospective synthesis, identify gaps for ALL FOUR agents:
 **PM Gaps**:
 
 - [ ] Missing: PRD reorganization after GDD updates
+- [ ] Missing: Git worktree coordination for parallel agents
 - [ ] Unclear: Task prioritization algorithms
 - [ ] Missing: Risk assessment procedures
 
 **Developer Gaps**:
 
 - [ ] Missing: R3F instancing patterns
+- [ ] Missing: Git worktree setup/verification procedures
 - [ ] Unclear: Shader uniform management
 - [ ] Missing: TypeScript error patterns
+
+**Tech Artist Gaps**:
+
+- [ ] Missing: R3F material optimization patterns
+- [ ] Missing: Git worktree setup/verification procedures
+- [ ] Unclear: Shader performance profiling
+- [ ] Missing: Asset workflow best practices
 
 **QA Gaps**:
 
@@ -171,6 +183,13 @@ Create or update skill files based on research:
 - `agents/gamedesigner/skills/thermite-integration.md` — Thermite editor
 - `agents/gamedesigner/skills/playtest-validation.md` — Playtest process
 
+**Tech Artist Agent**:
+- `agents/techartist/AGENT.md` — Core Tech Artist behavior
+- `agents/techartist/skills/r3f-materials.md` — R3F materials
+- `agents/techartist/skills/shader-development.md` — Shader creation
+- `agents/techartist/skills/asset-workflow.md` — Asset pipeline
+- `agents/techartist/skills/visual-polish.md` — Visual polish
+
 **Shared Skills**:
 - `.claude/skills/*.md` — Orchestration skills
 
@@ -230,7 +249,7 @@ Adjust skill depth based on PRD complexity:
 ✅ **DO:**
 
 - Research before updating
-- Improve skills for ALL FOUR agents
+- Improve skills for ALL FIVE agents
 - Always improve at least one PM skill
 - Verify patterns work in practice
 - Cross-reference multiple sources
@@ -242,9 +261,10 @@ During `skill_research` phase, verify:
 
 - [ ] At least ONE PM skill file updated (MANDATORY)
 - [ ] At least ONE Developer skill file updated
+- [ ] At least ONE Tech Artist skill file updated
 - [ ] At least ONE QA skill file updated
 - [ ] At least ONE Game Designer skill file updated
-- [ ] Total: At least FOUR skill files improved
+- [ ] Total: At least FIVE skill files improved
 - [ ] All improvements committed to git
 - [ ] Changes documented in action items
 

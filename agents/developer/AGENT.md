@@ -25,6 +25,7 @@ version: 2.0
 
 ## Quick Start Checklist
 
+- [ ] **Verify git worktree setup** (see [Git Worktree Setup](#git-worktree-setup) below)
 - [ ] Source message queue: `. .\.claude\scripts\message-queue.ps1`
 - [ ] Check for pending messages on startup
 - [ ] Read coordinator-state.json and current-task.json
@@ -133,6 +134,141 @@ version: 2.0
 - QA progress files
 
 > See [`.claude/skills/file-permissions.md`](.claude/skills/file-permissions.md) for full permissions matrix.
+
+---
+
+## 1.5. Git Worktree Setup for Parallel Development
+
+### Why Git Worktrees Are REQUIRED
+
+**CRITICAL**: You MUST work in a separate git worktree when Tech Artist or other agents are working in parallel.
+
+**The Problem**: When multiple agents work in the same git directory:
+- Commits from one agent appear in the other's workspace
+- `git status` shows unexpected changes
+- Build conflicts occur (QA can't build to test)
+- Files may be overwritten
+
+**The Solution**: Git worktrees allow each agent to have their own working directory on a different branch, while sharing the same Git repository.
+
+### Git Worktree Architecture
+
+```
+project-root/
+├── .git/                          # Shared Git repository
+├── agentic-threejs/               # Main worktree (PM, QA, Game Designer)
+│   ├── src/
+│   ├── package.json
+│   └── ...
+├── agentic-threejs-developer/     # Developer worktree (YOUR WORKSPACE)
+│   ├── src/
+│   ├── package.json
+│   └── .git -> ../agentic-threejs/.git/
+└── agentic-threejs-techartist/   # Tech Artist worktree
+    ├── src/
+    ├── package.json
+    └── .git -> ../agentic-threejs/.git/
+```
+
+Each worktree:
+- Has its own files and working directory
+- Can have a different branch checked out
+- Shares commits through the common `.git` folder
+- Cannot check out the same branch as another worktree
+
+### Startup Worktree Verification
+
+**EVERY TIME you start**, verify you're in the correct worktree:
+
+```powershell
+# 1. Check current directory path
+$pwd = Get-Location
+if ($pwd.Path -notmatch "agentic-threejs-developer") {
+    Write-Host "WARNING: Not in developer worktree!" -ForegroundColor Yellow
+    Write-Host "Current: $pwd" -ForegroundColor Red
+    Write-Host "Expected: .../agentic-threejs-developer" -ForegroundColor Red
+}
+
+# 2. Check current branch
+$branch = git branch --show-current
+Write-Host "Current branch: $branch"
+
+# 3. Verify no other agent has this branch
+git worktree list
+```
+
+### Creating Your Worktree (First Time Setup)
+
+If your worktree doesn't exist, create it:
+
+```powershell
+# Navigate to parent directory
+cd C:\Users\Felip\Projects\gamedev\projects\ThreeJS
+
+# Create developer worktree on a new branch
+git worktree add -b developer-feature-XXX ../agentic-threejs-developer
+
+# Navigate into your worktree
+cd ../agentic-threejs-developer
+
+# Install dependencies (fresh node_modules)
+npm install
+
+# Verify setup
+git worktree list
+# Expected output:
+# C:\Users\Felip\Projects\gamedev\projects\ThreeJS\agentic-threejs      [main]
+# C:\Users\Felip\Projects\gamedev\projects\ThreeJS\agentic-threejs-developer [developer-feature-XXX]
+```
+
+### Daily Worktree Workflow
+
+```
+1. STARTUP: cd into YOUR worktree (agentic-threejs-developer)
+2. VERIFY: git worktree list (ensure you're on a unique branch)
+3. WORK: Implement feature, run feedback loops
+4. COMMIT: Commit in YOUR worktree
+5. NOTIFY: Send implementation_complete message
+6. DONE: Exit (watchdog handles worktree cleanup)
+```
+
+### Important Worktree Rules
+
+| Rule | Why |
+|------|-----|
+| **NEVER work in main worktree** | Other agents (PM, QA, GD) use it |
+| **NEVER share a branch** | Git prevents same branch in multiple worktrees |
+| **ALWAYS commit before exit** | Uncommitted changes block worktree removal |
+| **NEVER cd into another agent's worktree** | Causes merge conflicts |
+
+### Worktree Cleanup (When Task Complete)
+
+After your task is validated and merged:
+
+```powershell
+# Return to main worktree
+cd ../agentic-threejs
+
+# Remove your worktree
+git worktree remove ../agentic-threejs-developer
+
+# Prune any stale worktree references
+git worktree prune
+```
+
+### Troubleshooting Worktrees
+
+| Problem | Solution |
+|---------|----------|
+| "fatal: 'main' is already used by worktree" | Create a new branch: `git worktree add -b feature-name ../path` |
+| Worktree directory deleted manually | Run `git worktree prune` to clean stale references |
+| Uncommitted changes blocking removal | Commit changes or use `git worktree remove --force` |
+| Can't see other agent's commits | Commits appear in all worktrees automatically after push |
+
+### Further Reading
+
+- [Git Worktree Tutorial (DataCamp)](https://www.datacamp.com/tutorial/git-worktree-tutorial)
+- [Git Worktrees for Agentic Development (Reddit)](https://www.reddit.com/r/ClaudeCode/comments/1pzczjn/git_worktrees_are_a_superpower_for_agentic_dev/)
 
 ---
 
@@ -265,6 +401,91 @@ Before marking task complete:
 - [ ] Work committed with Ralph format
 - [ ] NO error suppression used
 
+### ⚠️ CRITICAL: Multiplayer Testing Requirements
+
+**This is a REAL-TIME MULTIPLAYER GAME.** All gameplay features MUST be tested with both client and server running.
+
+#### Server-Authoritative Architecture
+
+The game MUST be **server-authoritative**, not client-authoritative:
+
+| Aspect | Server-Authoritative (REQUIRED) | Client-Authoritative (WRONG) |
+|--------|--------------------------------|------------------------------|
+| Player position | Server calculates, validates | Client sends absolute position |
+| Movement | Client sends input, server simulates | Client updates position directly |
+| Shooting | Server validates hit detection | Client reports hits |
+| Game state | Server is source of truth | Client is source of truth |
+| Anti-cheat | Built-in via validation | Easily exploitable |
+
+#### Mandatory Testing Protocol
+
+**For EVERY gameplay feature:**
+
+1. **Start the Colyseus server**: `npm run server`
+2. **Start the client**: `npm run dev` (in separate terminal)
+3. **Verify connection**: Check browser console for successful WebSocket connection
+4. **Test the feature**: Verify it works through the network, not just locally
+5. **Verify server logs**: Server should show player actions, state updates
+
+```
+# REQUIRED Testing Workflow
+Terminal 1: npm run server  # Start Colyseus on port 2567
+Terminal 2: npm run dev     # Start React client
+Browser:   Check console for "Connected to server" message
+```
+
+#### When Client-Authoritative is Acceptable
+
+**ONLY acceptable for:**
+- Offline development/testing (temporary)
+- Purely visual effects (particles, sounds)
+- UI-only features (menus that don't affect gameplay)
+
+**NEVER acceptable for:**
+- Player movement/position
+- Shooting/hit detection
+- Score calculation
+- Game state changes
+- Paint coverage updates
+- Spawn/death logic
+
+#### Verification Steps
+
+Before marking a task complete:
+
+```bash
+# 1. Start server
+npm run server
+# Expected: "Colyseus WebSocket server listening on wss://localhost:2567"
+
+# 2. In new terminal, start client
+npm run dev
+# Expected: Dev server starts on http://localhost:3000
+
+# 3. Open browser, check console
+# Expected: "Connected to Colyseus server" or similar
+
+# 4. Test your feature through the network
+# - Movement should sync to server
+# - Shooting should create server-side entities
+# - State changes should propagate to all clients
+
+# 5. Check server logs
+# Expected: Player actions visible in server console
+```
+
+#### Failure to Test Multiplayer = Task Rejection
+
+If QA discovers a feature was only tested client-side:
+- **Task will be marked FAILED**
+- **Developer must re-implement with proper server integration**
+- **No excuses** - multiplayer testing is MANDATORY
+
+#### See Also
+
+- [`skills/backend-multiplayer.md`](skills/backend-multiplayer.md) — Server-authoritative patterns
+- [Colyseus Documentation](https://docs.colyseus.io/) — Framework reference
+
 ### Anti-Patterns
 
 | Don't | Do Instead |
@@ -315,6 +536,7 @@ const { phase, setPhase } = useGameStore();
 | Skill | Purpose |
 |-------|---------|
 | [`skills/feedback-loops.md`](skills/feedback-loops.md) | TypeScript, lint, test, build validation |
+| [`skills/backend-multiplayer.md`](skills/backend-multiplayer.md) | **Server-authoritative multiplayer with Colyseus** |
 | [`skills/r3f-fundamentals.md`](skills/r3f-fundamentals.md) | React Three Fiber core patterns |
 | [`skills/r3f-physics.md`](skills/r3f-physics.md) | @react-three/rapier physics integration |
 | [`skills/r3f-materials.md`](skills/r3f-materials.md) | Custom shader materials |
@@ -334,6 +556,7 @@ const { phase, setPhase } = useGameStore();
 
 ### External References
 
+- https://docs.colyseus.io/ — **Colyseus multiplayer framework (REQUIRED for all gameplay)**
 - https://r3f.docs.pmnd.rs/ — React Three Fiber documentation
 - https://drei.docs.pmnd.rs/ — @react-three/drei helpers
 - https://threejs.org/docs/ — Three.js reference

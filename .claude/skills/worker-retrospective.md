@@ -1,6 +1,6 @@
 ---
 name: worker-retrospective
-description: Retrospective contribution format for Developer and QA worker agents
+description: Retrospective contribution format for Developer, Tech Artist, QA, and Game Designer worker agents
 category: orchestration
 depends-on: [ralph-core]
 ---
@@ -25,7 +25,9 @@ depends-on: [ralph-core]
 1. **READ** `.claude/session/retrospective.txt`
 2. **FIND** your section:
    - Developer: `### Developer Perspective`
+   - Tech Artist: `### Tech Artist Perspective`
    - QA: `### QA Perspective`
+   - Game Designer: `### Game Designer Perspective`
 3. **ADD** your contribution replacing the `<!-- WAITING -->` comment
 4. **UPDATE** the completion checkbox in retrospective.txt
 5. **UPDATE** your status in coordinator-state.json to "idle"
@@ -102,6 +104,58 @@ _**Contributed by**: Developer Agent | {{ISO_TIMESTAMP}}_
 - {{Missing tests or coverage?}}
 
 _**Contributed by**: QA Agent | {{ISO_TIMESTAMP}}_
+```
+
+---
+
+## Tech Artist Perspective Format
+
+```markdown
+### Tech Artist Perspective
+
+**Visual Assets Created**:
+
+- {{Assets/materials/shaders created}}
+- {{3D models, textures, effects implemented}}
+
+**Visual Quality Assessment**:
+
+- {{How well visuals match GDD specifications}}
+- {{Artistic direction alignment}}
+- {{Overall visual polish achieved}}
+
+**Performance Metrics**:
+
+- {{Frame rate impact}}
+- {{Draw calls, triangle count}}
+- {{Texture memory usage}}
+- {{Shader complexity}}
+
+**Challenges Faced**:
+
+- {{What was difficult about visual implementation}}
+- {{Shader compilation or optimization issues}}
+- {{Asset integration challenges}}
+
+**What Worked Well**:
+
+- {{Visual techniques that were effective}}
+- {{Performance optimizations that succeeded}}
+- {{Artistic solutions that pleased the Game Designer}}
+
+**Areas for Improvement**:
+
+- {{What could be improved visually}}
+- {{Performance bottlenecks to address}}
+- {{Asset workflow refinements needed}}
+
+**Lessons Learned**:
+
+- {{What would help with similar visual tasks}}
+- {{Shader patterns to reuse}}
+- {{Asset pipeline improvements}}
+
+_**Contributed by**: Tech Artist Agent | {{ISO_TIMESTAMP}}_
 ```
 
 ---

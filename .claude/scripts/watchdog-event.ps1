@@ -32,6 +32,9 @@ if (-not $ProjectRoot) {
 . "$PSScriptRoot\message-queue.ps1"
 # Message-state-manager is already sourced by message-queue.ps1
 
+# Source watchdog common utilities
+. "$PSScriptRoot\Watchdog-Common.ps1"
+
 $config = Get-RalphConfig
 $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
 
@@ -238,13 +241,6 @@ $Script:DeliveryGraceSeconds = 10
 # ============================================================================
 # AGENT MANAGEMENT
 # ============================================================================
-
-# Security: Escape strings for safe embedding in generated scripts
-function Get-SafeScriptString {
-    param([string]$Value)
-    # Escape backticks first, then double quotes, then dollar signs
-    return $Value -replace '`', '``' -replace '"', '`"' -replace '\$', '`$'
-}
 
 function Start-Agent {
     param(
@@ -803,61 +799,6 @@ function Clear-OldArchives {
 }
 
 # ============================================================================
-# PID FILE MANAGEMENT
-# ============================================================================
-
-function Get-PidFilePath {
-    return Join-Path $Script:SessionDir "watchdog.pid"
-}
-
-function Test-WatchdogAlreadyRunning {
-    <#
-    .SYNOPSIS
-    Check if another watchdog instance is already running.
-    Returns $true if conflict detected.
-    #>
-    $pidFile = Get-PidFilePath
-    
-    if (-not (Test-Path $pidFile)) { return $false }
-    
-    try {
-        $existingPid = [int](Get-Content $pidFile -Raw -ErrorAction Stop)
-        $existingProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
-        
-        if ($existingProcess) {
-            # Process exists - check if it's actually a PowerShell/watchdog
-            if ($existingProcess.ProcessName -match 'powershell|pwsh') {
-                return $true
-            }
-        }
-        
-        # PID file is stale - remove it
-        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
-        return $false
-    } catch {
-        # Can't parse PID file - remove it
-        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
-        return $false
-    }
-}
-
-function Write-PidFile {
-    $pidFile = Get-PidFilePath
-    try {
-        $PID | Out-File -FilePath $pidFile -Encoding utf8 -Force
-    } catch {
-        Write-WatchdogLog "Failed to write PID file: $_" -Color Yellow
-    }
-}
-
-function Remove-PidFile {
-    $pidFile = Get-PidFilePath
-    if (Test-Path $pidFile) {
-        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
-    }
-}
-
-# ============================================================================
 # DASHBOARD
 # ============================================================================
 
@@ -924,49 +865,98 @@ function Write-ColoredLineAt {
     [Console]::ForegroundColor = $oldColor
 }
 
-function Show-EventDashboard {
-    try {
-        $width = 80
-        $border = "=" * $width
-        $separator = "  " + ("-" * 74)
-        
-        # First time: clear screen and hide cursor
-        if (-not $Script:DashboardInitialized) {
+# ============================================================================
+# DASHBOARD RENDERING HELPERS
+# ============================================================================
+
+function Initialize-DashboardScreen {
+    <#
+    .SYNOPSIS
+    Initializes the dashboard screen (clears screen, hides cursor).
+    Only runs once on first call.
+    #>
+    if (-not $Script:DashboardInitialized) {
+        try {
             Clear-Host
             [Console]::CursorVisible = $false
-            $Script:DashboardInitialized = $true
-            $Script:LastDashboardContent = @{}
+        } catch {
+            # Non-interactive mode - ignore console errors
         }
-        
-        $row = 0
-        
-        # Header
-        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
-        Write-LineAt -Row $row -Text "  RALPH WATCHDOG - Event-Driven Multi-Agent Mode" -Color Cyan; $row++
-        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
-        Write-LineAt -Row $row -Text "" -Color White; $row++
-        
-        # Uptime
-        $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
-        $uptimeStr = "{0:hh\:mm\:ss}" -f $uptime
-        Write-LineAt -Row $row -Text "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations" -Color White; $row++
-        Write-LineAt -Row $row -Text "" -Color White; $row++
-        
-        # Agent section header
-        Write-LineAt -Row $row -Text "  AGENTS" -Color Yellow; $row++
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
-        Write-LineAt -Row $row -Text ("  " + "Agent".PadRight(10) + "Status".PadRight(12) + "PID".PadRight(10) + "Pending".PadRight(10) + "Current Message") -Color DarkGray; $row++
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
-        
-        # Get message counts once
-        $counts = Get-MessageCount
+        $Script:DashboardInitialized = $true
+        $Script:LastDashboardContent = @{}
+    }
+}
 
-        foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
-            $agent = $Script:Agents[$agentName]
-            $pendingCount = $counts[$agentName]
-            
-            $processRunning = $agent.Process -and (-not $agent.Process.HasExited)
-            $statusText = if ($processRunning) { $agent.WorkStatus.ToUpper() } else { "STOPPED" }
+function Draw-DashboardHeader {
+    <#
+    .SYNOPSIS
+    Draws the dashboard header with title and uptime info.
+
+    .RETURNS
+    The next row number to use.
+    #>
+    param(
+        [int]$StartRow = 0,
+        [int]$Width = 80
+    )
+
+    $border = "=" * $Width
+    $separator = "  " + ("-" * ($Width - 4))
+    $row = $StartRow
+
+    $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
+    $uptimeStr = "{0:hh\:mm\:ss}" -f $uptime
+
+    Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+    Write-LineAt -Row $row -Text "  RALPH WATCHDOG - Event-Driven Multi-Agent Mode" -Color Cyan; $row++
+    Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+    Write-LineAt -Row $row -Text "" -Color White; $row++
+    Write-LineAt -Row $row -Text "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations" -Color White; $row++
+    Write-LineAt -Row $row -Text "" -Color White; $row++
+
+    return $row
+}
+
+function Draw-AgentStatusSection {
+    <#
+    .SYNOPSIS
+    Draws the agent status section of the dashboard.
+
+    .PARAMETER StartRow
+    The starting row number.
+
+    .RETURNS
+    The next row number to use.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$StartRow,
+
+        [int]$Width = 80
+    )
+
+    $separator = "  " + ("-" * ($Width - 4))
+    $row = $StartRow
+
+    Write-LineAt -Row $row -Text "  AGENTS" -Color Yellow; $row++
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+    Write-LineAt -Row $row -Text ("  " + "Agent".PadRight(10) + "Status".PadRight(12) + "PID".PadRight(10) + "Pending".PadRight(10) + "Current Message") -Color DarkGray; $row++
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+
+    $counts = Get-MessageCount
+
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
+        $agent = $Script:Agents[$agentName]
+        $pendingCount = $counts[$agentName]
+
+        $processRunning = $agent.Process -and (-not $agent.Process.HasExited)
+        $statusText = if ($processRunning) { $agent.WorkStatus.ToUpper() } else { "STOPPED" }
+
+        # Use the Get-StatusColor function from Dashboard-Common if available
+        if (Get-Command Get-StatusColor -ErrorAction SilentlyContinue) {
+            $statusColor = Get-StatusColor -Status $agent.WorkStatus
+            if (-not $processRunning) { $statusColor = "Red" }
+        } else {
             $statusColor = switch ($true) {
                 (-not $processRunning) { "Red" }
                 ($agent.WorkStatus -eq "idle") { "Gray" }
@@ -976,81 +966,181 @@ function Show-EventDashboard {
                 ($agent.WorkStatus -eq "starting") { "Magenta" }
                 default { "White" }
             }
-            
-            $pidText = if ($processRunning) { $agent.Process.Id.ToString() } else { "-" }
-            $pendingColor = if ($pendingCount -gt 0) { "Yellow" } else { "Gray" }
-            
-            $currentMsgText = "-"
-            if ($agent.CurrentMessage) {
-                $msgType = $agent.CurrentMessage.type
-                $msgFrom = $agent.CurrentMessage.from
-                $currentMsgText = "$msgType from $msgFrom"
-                if ($currentMsgText.Length -gt 28) {
-                    $currentMsgText = $currentMsgText.Substring(0, 25) + "..."
-                }
-            }
-            $msgColor = if ($currentMsgText -ne "-") { "White" } else { "DarkGray" }
-            
-            Write-ColoredLineAt -Row $row -Segments @(
-                @{Text="  "; Color="White"},
-                @{Text=$agentName.PadRight(10); Color="Cyan"},
-                @{Text=$statusText.PadRight(12); Color=$statusColor},
-                @{Text=$pidText.PadRight(10); Color="White"},
-                @{Text=$pendingCount.ToString().PadRight(10); Color=$pendingColor},
-                @{Text=$currentMsgText.PadRight(28); Color=$msgColor}
-            )
-            $row++
         }
-        
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
-        Write-LineAt -Row $row -Text "" -Color White; $row++
-        
+
+        $pidText = if ($processRunning) { $agent.Process.Id.ToString() } else { "-" }
+        $pendingColor = if ($pendingCount -gt 0) { "Yellow" } else { "Gray" }
+
+        $currentMsgText = "-"
+        if ($agent.CurrentMessage) {
+            $msgType = $agent.CurrentMessage.type
+            $msgFrom = $agent.CurrentMessage.from
+            $currentMsgText = "$msgType from $msgFrom"
+            if ($currentMsgText.Length -gt 28) {
+                $currentMsgText = $currentMsgText.Substring(0, 25) + "..."
+            }
+        }
+        $msgColor = if ($currentMsgText -ne "-") { "White" } else { "DarkGray" }
+
+        Write-ColoredLineAt -Row $row -Segments @(
+            @{Text="  "; Color="White"},
+            @{Text=$agentName.PadRight(10); Color="Cyan"},
+            @{Text=$statusText.PadRight(12); Color=$statusColor},
+            @{Text=$pidText.PadRight(10); Color="White"},
+            @{Text=$pendingCount.ToString().PadRight(10); Color=$pendingColor},
+            @{Text=$currentMsgText.PadRight(28); Color=$msgColor}
+        )
+        $row++
+    }
+
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+    Write-LineAt -Row $row -Text "" -Color White; $row++
+
+    return $row
+}
+
+function Draw-MessageQueueSection {
+    <#
+    .SYNOPSIS
+    Draws the message queue section of the dashboard.
+
+    .PARAMETER StartRow
+    The starting row number.
+
+    .RETURNS
+    The next row number to use.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$StartRow,
+
+        [int]$Width = 80
+    )
+
+    $separator = "  " + ("-" * ($Width - 4))
+    $row = $StartRow
+
+    Write-LineAt -Row $row -Text "  MESSAGE QUEUE" -Color Yellow; $row++
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+
+    $counts = Get-MessageCount
+    $totalPending = ($counts.Values | Measure-Object -Sum).Sum
+
+    foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
+        $count = $counts[$agentName]
+        $countColor = if ($count -gt 0) { "Yellow" } else { "DarkGray" }
+        Write-ColoredLineAt -Row $row -Segments @(
+            @{Text="  "; Color="White"},
+            @{Text=$agentName.PadRight(12); Color="Cyan"},
+            @{Text="$count pending"; Color=$countColor}
+        )
+        $row++
+    }
+
+    Write-LineAt -Row $row -Text "" -Color White; $row++
+    $totalColor = if ($totalPending -gt 0) { "Yellow" } else { "DarkGray" }
+    Write-LineAt -Row $row -Text "  Total: $totalPending pending messages" -Color $totalColor; $row++
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+    Write-LineAt -Row $row -Text "" -Color White; $row++
+
+    return $row
+}
+
+function Draw-ActivityLogSection {
+    <#
+    .SYNOPSIS
+    Draws the activity log section of the dashboard.
+
+    .PARAMETER StartRow
+    The starting row number.
+
+    .RETURNS
+    The next row number to use.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$StartRow
+    )
+
+    $separator = "  " + ("-" * 74)
+    $row = $StartRow
+
+    Write-LineAt -Row $row -Text "  ACTIVITY LOG" -Color Yellow; $row++
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+
+    for ($i = 0; $i -lt $Script:MaxActivityLogSize; $i++) {
+        if ($i -lt $Script:ActivityLog.Count) {
+            $logEntry = $Script:ActivityLog[$i]
+            Write-LineAt -Row $row -Text "  $logEntry" -Color DarkGray
+        } else {
+            Write-LineAt -Row $row -Text "" -Color White
+        }
+        $row++
+    }
+
+    Write-LineAt -Row $row -Text $separator -Color White; $row++
+    Write-LineAt -Row $row -Text "" -Color White; $row++
+
+    return $row
+}
+
+function Draw-DashboardFooter {
+    <#
+    .SYNOPSIS
+    Draws the dashboard footer.
+
+    .PARAMETER StartRow
+    The starting row number.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$StartRow,
+
+        [int]$Width = 80
+    )
+
+    $border = "=" * $Width
+    $row = $StartRow
+
+    Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+    Write-LineAt -Row $row -Text "  Press Ctrl+C to stop watchdog" -Color DarkGray; $row++
+    Write-LineAt -Row $row -Text $border -Color Cyan; $row++
+}
+
+function Show-EventDashboard {
+    <#
+    .SYNOPSIS
+    Main dashboard display function - orchestrates all dashboard sections.
+
+    Uses helper functions for modular rendering:
+    - Initialize-DashboardScreen: First-time setup
+    - Draw-DashboardHeader: Title and uptime
+    - Draw-AgentStatusSection: Agent status table
+    - Draw-MessageQueueSection: Message counts
+    - Draw-ActivityLogSection: Activity log entries
+    - Draw-DashboardFooter: Footer with Ctrl+C prompt
+    #>
+    try {
+        $width = 80
+
+        # First time: clear screen and hide cursor
+        Initialize-DashboardScreen
+
+        # Header section
+        $row = Draw-DashboardHeader -StartRow 0 -Width $width
+
+        # Agent status section
+        $row = Draw-AgentStatusSection -StartRow $row -Width $width
+
         # Message queue section
-        Write-LineAt -Row $row -Text "  MESSAGE QUEUE" -Color Yellow; $row++
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
+        $row = Draw-MessageQueueSection -StartRow $row -Width $width
 
-        $totalPending = ($counts.Values | Measure-Object -Sum).Sum
+        # Activity log section
+        $row = Draw-ActivityLogSection -StartRow $row
 
-        foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
-            $count = $counts[$agentName]
-            $countColor = if ($count -gt 0) { "Yellow" } else { "DarkGray" }
-            Write-ColoredLineAt -Row $row -Segments @(
-                @{Text="  "; Color="White"},
-                @{Text=$agentName.PadRight(12); Color="Cyan"},
-                @{Text="$count pending"; Color=$countColor}
-            )
-            $row++
-        }
-        
-        Write-LineAt -Row $row -Text "" -Color White; $row++
-        $totalColor = if ($totalPending -gt 0) { "Yellow" } else { "DarkGray" }
-        Write-LineAt -Row $row -Text "  Total: $totalPending pending messages" -Color $totalColor; $row++
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
-        Write-LineAt -Row $row -Text "" -Color White; $row++
-        
-        # Activity Log section
-        Write-LineAt -Row $row -Text "  ACTIVITY LOG" -Color Yellow; $row++
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
-        
-        # Show last N activity entries
-        for ($i = 0; $i -lt $Script:MaxActivityLogSize; $i++) {
-            if ($i -lt $Script:ActivityLog.Count) {
-                $logEntry = $Script:ActivityLog[$i]
-                Write-LineAt -Row $row -Text "  $logEntry" -Color DarkGray
-            } else {
-                Write-LineAt -Row $row -Text "" -Color White
-            }
-            $row++
-        }
-        
-        Write-LineAt -Row $row -Text $separator -Color White; $row++
-        Write-LineAt -Row $row -Text "" -Color White; $row++
-        
-        # Footer
-        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
-        Write-LineAt -Row $row -Text "  Press Ctrl+C to stop watchdog" -Color DarkGray; $row++
-        Write-LineAt -Row $row -Text $border -Color Cyan; $row++
-        
+        # Footer section
+        Draw-DashboardFooter -StartRow $row -Width $width
+
     } catch {
         # Silently ignore dashboard errors
     }
@@ -1094,12 +1184,12 @@ function Start-EventWatchdog {
     # Check if another watchdog is already running
     if (Test-WatchdogAlreadyRunning) {
         Write-Host "[WATCHDOG] ERROR: Another watchdog instance is already running!" -ForegroundColor Red
-        Write-Host "[WATCHDOG] Check $(Get-PidFilePath) for the existing process ID." -ForegroundColor Yellow
+        Write-Host "[WATCHDOG] Check $(Get-WatchdogPidFilePath -SessionDir $Script:SessionDir) for the existing process ID." -ForegroundColor Yellow
         exit 1
     }
     
     # Write PID file
-    Write-PidFile
+    Write-WatchdogPidFile -SessionDir $Script:SessionDir
     
     # Register graceful shutdown handler for Ctrl+C and process exit
     $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
@@ -1138,8 +1228,12 @@ function Start-EventWatchdog {
         Invoke-MainLoop
     }
     finally {
-        # Restore cursor visibility
-        [Console]::CursorVisible = $true
+        # Restore cursor visibility (ignore errors in non-interactive mode)
+        try {
+            [Console]::CursorVisible = $true
+        } catch {
+            # Non-interactive mode - ignore console errors
+        }
         $Script:DashboardInitialized = $false
         
         Write-Host ""
@@ -1152,7 +1246,7 @@ function Start-EventWatchdog {
         Invoke-ResourceCleanup -Force
         
         # Remove PID file
-        Remove-PidFile
+        Remove-WatchdogPidFile -SessionDir $Script:SessionDir
         
         # Write summary
         Write-EventSummary
