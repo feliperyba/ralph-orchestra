@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "PATH": "${PATH}"
+      }
+    },
+    "github": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"]
+    },
+    "web-search": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-web-search"]
+    },
+    "brave-search": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-brave-search"]
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": ["/c", "npx", "@playwright/mcp@latest"]
+    },
+    "vision": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@thenomadinorbit/vision-mcp-server"]
+    },
+    "blender": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "blender-mcp"]
+    },
+    "shadertoy": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-shadertoy"]
+    },
+    "image-process": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@x007xyz/image-process-mcp-server"]
+    }
+  }
+}

@@ -23,12 +23,13 @@ Use when:
 2. Set `currentTask.status = "in_retrospective"`
 3. **CRITICAL**: Send `retrospective_initiate` to **ALL THREE** agents (Developer, QA, AND Game Designer)
 4. Send `playtest_request` to Game Designer (separate message for Playwright-based playtesting)
-5. Poll for agent contributions every 30 seconds
-6. Synthesize when Developer, QA, AND Game Designer all contribute
-7. Set `currentTask.status = "prd_analysis"` and reorganize PRD
-8. Set `currentTask.status = "skill_research"` and improve skills
-9. Set `currentTask.status = "completed"`
-10. Delete retrospective.txt and assign next task
+5. **EXIT** - watchdog will restart you when agents send messages
+6. On wake-up, check: Developer contribution, QA contribution, Game Designer contribution, `playtest_report` received
+7. If all conditions met → synthesize; otherwise → **EXIT again** (event-driven, NO waiting)
+8. Set `currentTask.status = "prd_analysis"` and reorganize PRD
+9. Set `currentTask.status = "skill_research"` and improve skills
+10. Set `currentTask.status = "completed"`
+11. Delete retrospective.txt and assign next task
 
 ## State Flow
 
@@ -41,12 +42,15 @@ passed → in_retrospective → prd_analysis → skill_research → completed
 | Status                        | Action                                         |
 | ----------------------------- | ---------------------------------------------- |
 | Just passed QA                | Create retrospective.txt, set in_retrospective |
-| Developer not contributed     | Wait 30s, poll again                           |
-| QA not contributed            | Wait 30s, poll again                           |
-| Game Designer not contributed | Wait 30s, poll again                           |
-| All THREE contributed         | Synthesize and move to prd_analysis            |
+| Sent messages to agents       | **EXIT** - watchdog restarts you when messages arrive |
+| On wake-up: incomplete        | Check state, if incomplete → **EXIT again**    |
+| playtest_report missing       | Check state, if missing → **EXIT again**       |
+| playtest_report invalid       | Send `playtest_reject`, then **EXIT**          |
+| All THREE contributed + playtest_report | Synthesize and move to prd_analysis |
 | PRD analysis complete         | Move to skill_research                         |
 | Skill research complete       | Set status completed, assign next task         |
+
+**Event-driven principle: PM checks state on wake-up and either proceeds or exits. NO polling, NO timers.**
 
 ## Progressive Guide
 
@@ -175,11 +179,89 @@ PM                    Developer               QA               GameDesigner
 | Developer | Writes to retrospective.txt | Implementation challenges, technical insights |
 | QA | Writes to retrospective.txt | Validation findings, test coverage, bugs found |
 | Game Designer | Writes to retrospective.txt | Design perspective, UX considerations |
-| Game Designer | Sends `playtest_report` | Playtest findings via Playwright MCP |
+| Game Designer | Sends `playtest_report` | **MANDATORY** - Playtest findings via Playwright MCP with screenshots |
+
+### Level 2.6: Event-Based Message Checking (CRITICAL - NO LOOPS, NO TIMERS)
+
+**Game Designer playtest is NON-NEGOTIABLE.** PM must verify `playtest_report` message was received.
+
+**Event-driven flow (NO loops, NO timers, NO blocking):**
+
+```powershell
+# After sending retrospective_initiate and playtest_request:
+# 1. EXIT immediately - watchdog will restart you when messages arrive
+# 2. On restart, check state ONCE
+# 3. If all conditions met, synthesize; otherwise, EXIT again
+
+# When PM wakes up (restarted by watchdog):
+. .\\.claude\\scripts\\message-queue.ps1
+
+# Load state
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+
+# Check for playtest_report message from Game Designer (FIRST message only, no loops)
+$playtestReportFile = Get-Item ".claude/session/messages/pm/from-gamedesigner-*.json" -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+
+if ($playtestReportFile) {
+    $msg = Get-Content $playtestReportFile.FullName -Raw | ConvertFrom-Json
+    if ($msg.type -eq "playtest_report" -and $msg.payload.taskId -eq $state.currentTask.id) {
+        # Verify required evidence
+        if (-not $msg.payload.screenshots -or $msg.payload.screenshots.Count -eq 0) {
+            # Reject report without screenshots
+            Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_reject" -Payload @{
+                reason = "No screenshot evidence provided"
+                required = "At least 3 screenshots: start, during, end gameplay"
+                taskId = $state.currentTask.id
+            } -Priority "high"
+            Remove-Item $playtestReportFile.FullName -Force
+            # EXIT - wait for new playtest_report
+            exit 0
+        }
+
+        # Valid playtest received - mark complete in state
+        $state.retro.playtestReportReceived = $true
+        $state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
+        Remove-Item $playtestReportFile.FullName -Force
+    }
+}
+
+# Check retrospective contributions (read file ONCE)
+$retroContent = Get-Content ".claude/session/retrospective.txt" -Raw
+$devContributed = $retroContent -match "### Developer Perspective" -and $retroContent -notmatch "WAITING.*developer"
+$qaContributed = $retroContent -match "### QA Perspective" -and $retroContent -notmatch "WAITING.*QA"
+$gdContributed = $retroContent -match "### Game Designer Perspective" -and $retroContent -notmatch "WAITING.*Game Designer"
+$playtestReportReceived = $state.retro.playtestReportReceived -eq $true
+
+# If NOT all conditions met - EXIT immediately (watchdog restarts on new messages)
+if (-not $devContributed -or -not $qaContributed -or -not $gdContributed -or -not $playtestReportReceived) {
+    $state.retro.status = "waiting_for_agents"
+    $state | ConvertTo-Json -Depth 10 | Set-Content ".claude/session/coordinator-state.json"
+    exit 0
+}
+
+# All conditions met - proceed to synthesis
+```
+
+**Key principles:**
+- **NO loops** - no `while`, no `foreach`, no `for`
+- **NO timers** - no `Start-Sleep`, no timeouts
+- **Single check per wake-up** - process one message max, then exit
+- **Watchdog handles flow** - it restarts PM when new messages arrive
 
 ### Level 3: PM Synthesis
 
-When ALL THREE agents contribute, add synthesis covering:
+**BEFORE synthesizing - verify ALL conditions met:**
+
+1. ✅ Developer contributed to retrospective.txt (check section doesn't contain "WAITING")
+2. ✅ QA contributed to retrospective.txt (check section doesn't contain "WAITING")
+3. ✅ Game Designer contributed to retrospective.txt (check section doesn't contain "WAITING")
+4. ✅ **`playtest_report` message received from Game Designer** (check message queue)
+5. ✅ **playtest_report includes screenshots** (at least 3)
+
+**If any condition NOT met → EXIT and wait for next wake-up**
+
+When ALL conditions met, add synthesis covering:
 
 ```markdown
 ### PM Synthesis
@@ -231,15 +313,24 @@ When ALL THREE agents contribute, add synthesis covering:
 
 - Skip retrospective even for "simple" tasks
 - Synthesize before ALL THREE agents contribute
+- Synthesize without verifying `playtest_report` was received from Game Designer
 - Skip Game Designer playtest report
+- Accept playtest without screenshot evidence
+- Use `Start-Sleep` or timers - **NO polling, NO waiting**
+- Use `while` loops - **blocks the process**
+- Use `foreach` or `for` loops - **blocks the process**
 - Move to skill_research without prd_analysis
 - Delete retrospective.txt without documenting summary
 
 ✅ **DO:**
 
-- Wait patiently for all agent contributions
+- Send messages, then **EXIT** - let watchdog wake you when agents respond
+- Check state on wake-up, proceed or **EXIT again** based on conditions
+- Process ONE message per wake-up max (use `Select-Object -First 1`)
 - Send `retrospective_initiate` to ALL THREE agents (Developer, QA, Game Designer)
 - Send `playtest_request` to Game Designer for Playwright-based playtesting
+- **Verify `playtest_report` message received** with screenshots before synthesis
+- **Reject playtest without evidence** (request again with specific requirements)
 - Support QA's authority to request refactors
 - Document action items from findings
 - Update PRD with discovered risks and new tasks
@@ -253,6 +344,8 @@ Before completing retrospective:
 - [ ] Developer contributed their perspective
 - [ ] QA contributed their perspective
 - [ ] Game Designer contributed playtest report
+- [ ] **`playtest_report` message received** (not just retrospective.txt contribution)
+- [ ] **playtest includes screenshot evidence** (at least 3 screenshots)
 - [ ] PM synthesis includes all sections
 - [ ] Action items documented
 - [ ] GDD compliance analysis completed

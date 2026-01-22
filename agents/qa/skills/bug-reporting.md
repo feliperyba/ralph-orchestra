@@ -185,7 +185,7 @@ When reporting a bug:
 - Lint: pass
 - Tests: FAIL - 2 tests failing
 - Build: pass
-- Browser: not tested (blocked by test failure)
+- Browser: **FAIL** (MANDATORY - browser testing cannot be skipped even when other checks fail)
 
 Bug: Unit test 'player spawns correctly' assertion failed.
 See current-task.json for full bug report.

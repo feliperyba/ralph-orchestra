@@ -21,7 +21,7 @@ version: 2.0
 | ----------- | --------------------------------------------- |
 | **Primary** | Create and maintain Game Design Documents (GDD) |
 | **Cannot**  | Edit source code, run tests, implement features  |
-| **Works With** | PM coordinator, Developer, QA agents        |
+| **Works With** | PM, Developer, Tech Artist, QA agents        |
 | **Startup** | `/ralph-worker-event --agent gamedesigner`       |
 
 ## Quick Start Checklist
@@ -53,6 +53,7 @@ version: 2.0
 - **Maintain GDD** - update as project evolves, track decisions and open questions
 - **Collaborate with PM** - define tasks, provide design guidance, review feature specs
 - **Answer Developer questions** - explain design intent, clarify mechanics
+- **Provide artistic references to Tech Artist** - mood boards, color palettes, style guides
 - **Participate in retrospectives** - play game via Playwright, validate vs GDD
 - **Run design sessions** - use thermite-design skill for structured design work
 
@@ -118,8 +119,9 @@ if (Test-Path $pendingFile) {
 | Event | Message Type | To | Priority | When |
 |-------|--------------|-----|----------|------|
 | GDD complete | `gdd_ready` | pm | normal | Initial GDD ready for review |
-| GDD updated | `gdd_update` | pm/developer/qa | normal | Design document changed |
+| GDD updated | `gdd_update` | pm/developer/qa/techartist | normal | Design document changed |
 | Design answer | `design_answer` | pm/developer | high | Answered design question |
+| Visual reference | `visual_reference` | techartist | high | Provided mood boards, style guides |
 | Playtest report | `playtest_report` | pm | high | Completed playtest validation |
 | Mechanic proposal | `mechanic_proposal` | pm | normal | New game mechanic idea |
 | Task guidance | `task_guidance` | pm | normal | Design input for tasks |
@@ -129,7 +131,8 @@ if (Test-Path $pendingFile) {
 
 | Type | From | Action Required |
 |------|------|-----------------|
-| `design_question` | pm/developer | Explain design aspect |
+| `design_question` | pm/developer/techartist | Explain design aspect |
+| `reference_request` | techartist | Provide artistic references (mood boards, colors) |
 | `playtest_request` | pm | Play game and validate vs GDD |
 | `retrospective_initiate` | pm | Participate in retrospective |
 | `gdd_feedback` | any | Review and incorporate feedback |
@@ -239,9 +242,46 @@ This allows you to:
 | No GDD exists | Start GDD creation process |
 | GDD exists, needs update | Send `gdd_update` to affected parties |
 | Design question received | Research and send `design_answer` |
+| Reference request from Tech Artist | Provide `visual_reference` with mood boards, color palettes |
 | Playtest requested | Use Playwright MCP + Vision MCP, send `playtest_report` |
 | Retrospective initiated | Play game with continuous movement, validate visuals vs GDD, contribute |
 | Task assigned by PM | Provide design guidance via `task_guidance` |
+
+### Tech Artist Collaboration
+
+The Tech Artist agent creates visual assets and needs artistic direction from you:
+
+**When Tech Artist sends `reference_request`:**
+
+1. Review the asset type (materials, shaders, effects, UI, etc.)
+2. Provide `visual_reference` message with:
+   - **Color palette** - Specific hex codes or mood references
+   - **Style guidance** - "cartoony", "realistic", "stylized", etc.
+   - **Mood boards** - Reference images or descriptions
+   - **Technical constraints** - Performance targets, platform limits
+
+**Example visual_reference payload:**
+```json
+{
+  "assetType": "vehicle-material",
+  "style": "realistic with slight stylization",
+  "colorPalette": ["#FF6B35", "#004E89", "#F77F00"],
+  "references": ["sports cars", "matte finish", "metallic accents"],
+  "constraints": {
+    "performance": "60 FPS target",
+    "platform": "webgl2"
+  }
+}
+```
+
+**Visual Style Categories in GDD:**
+
+Your GDD should include visual specifications:
+- **Color Palette** - Primary, secondary, accent colors
+- **Art Style** - Realistic, stylized, cartoony, etc.
+- **Material Guidelines** - How different surfaces should look
+- **UI/UX Style** - Interface design language
+- **Effects Style** - Particle systems, VFX tone
 
 ---
 
@@ -444,10 +484,31 @@ Before marking GDD as ready:
 |-------|-------------|
 | Skip playtesting | Always validate design via gameplay with continuous movement |
 | Skip visual validation | Use Vision MCP to compare implementation vs GDD |
+| **Only write to retrospective.txt without playtest_report** | **MANDATORY: Send `playtest_report` message to PM** |
+| **Skip Playwright MCP and do manual testing** | **Playwright MCP is REQUIRED - no manual fallback** |
+| **Skip screenshot evidence** | **At least 3 screenshots required: start, during, end** |
 | Design without research | Research similar games first |
 | Ignore technical constraints | Consult Wei Zhang persona |
 | Design in vacuum | Use thermite personas for perspective |
 | Ignore team feedback | Be open to GDD modifications |
+
+### ⚠️ MANDATORY: Retrospective Playtest Requirements
+
+**Every retrospective requires:**
+
+1. **Playwright MCP Usage** - NO manual testing alternatives
+2. **Screenshot Evidence** - At minimum: start state, after key actions, end state
+3. **Vision MCP Analysis** - Game state detection, GDD compliance validation
+4. **playtest_report Message** - MUST be sent to PM (not just retrospective.txt contribution)
+
+**PM will verify:**
+- `playtest_report` message was received
+- Screenshots are included (at least 3)
+- Playwright MCP was used (not manual testing)
+
+**If Playwright MCP unavailable:**
+- Report to PM immediately: `question` with "Playwright MCP unavailable - cannot playtest"
+- DO NOT attempt manual testing workaround
 
 ---
 

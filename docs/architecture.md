@@ -11,16 +11,21 @@ Ralph Orchestra is a multi-agent autonomous development framework that coordinat
 │                                                                         │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐     │
 │  │    PM      │───▶│  DEVELOPER  │───▶│           QA             │     │
-│  │ (Coordinator)│    │  (Worker)   │    │        (Worker)          │     │
+│  │ (Coordinator)│    │(Logic Worker)│    │        (Worker)          │     │
 │  └─────────────┘    └─────────────┘    └─────────────────────────┘     │
-│         ▲                                                              │
-│         └──────────────────────────────────────────────────────────┘   │
-│                           (cycle repeats)                               │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                    GAME DESIGNER (On Demand)                    │   │
-│  │              GDD Creation • Design Q&A • Playtesting            │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
+│         │                  ▲                                              │
+│         │                  │                                              │
+│         └──────────────────┴──────────────────────────────────────┐     │
+│                           (cycle repeats)                           │     │
+│                                                                 │     │
+│  ┌─────────────┐    ┌─────────────────────────────────────────┐  │     │
+│  │TECH ARTIST  │    │            GAME DESIGNER                │  │     │
+│  │(Asset Worker)│   │         (On Demand Worker)             │  │     │
+│  │             │    │  GDD • Design Q&A • Playtesting         │  │     │
+│  │Materials    │    │                                     │  │     │
+│  │Shaders      │    │                                     │  │     │
+│  │VFX          │    │                                     │  │     │
+│  └─────────────┘    └─────────────────────────────────────────┘  │     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -63,10 +68,21 @@ The QA agent validates implementations:
 The Game Designer agent handles design-specific tasks:
 
 - Creates Game Design Documents (GDDs) when none exist
-- Answers design questions from Developer/QA
+- Answers design questions from Developer/QA/Tech Artist
 - Designs game mechanics, levels, characters, weapons
 - Performs playtesting via Playwright MCP automation
 - Reports playtest results to PM
+
+### Tech Artist Agent (Asset Worker)
+
+The Tech Artist agent handles visual asset tasks:
+
+- Creates 3D/2D assets and materials
+- Implements GLSL shaders and visual effects
+- Adds UI polish and post-processing
+- Optimizes assets for performance (60 FPS target)
+- Commits work with `[ralph] [techartist]` prefix
+- Sends asset-ready notifications to QA
 
 ## Task Lifecycle
 
@@ -177,6 +193,26 @@ ralph-orchestra/
 │   │       ├── feedback-loops.md     # Type/lint/test/build
 │   │       └── typescript-patterns.md # TS best practices
 │   │
+│   ├── techartist/
+│   │   ├── AGENT.md        # Tech Artist behavior instructions
+│   │   ├── SKILLS.md       # Skills index
+│   │   ├── skills/         # Modular skills
+│   │   │   ├── r3f-fundamentals.md   # R3F scene composition
+│   │   │   ├── r3f-materials.md      # PBR materials & custom shaders
+│   │   │   ├── shader-sdf.md         # SDF primitives for shaders
+│   │   │   ├── postfx-effects.md     # Post-processing effects
+│   │   │   ├── particles-gpu.md      # GPU particle systems
+│   │   │   ├── asset-workflow.md     # Asset pipeline workflow
+│   │   │   ├── shader-development.md  # Shader creation process
+│   │   │   └── visual-polish.md       # UI/visual polish checklist
+│   │   ├── checklists/      # Quality checklists
+│   │   │   ├── asset-quality.md      # Asset quality checks
+│   │   │   ├── shader-review.md      # Shader performance checks
+│   │   │   └── visual-consistency.md # Style consistency
+│   │   └── references/      # Reference material
+│   │       ├── material-presets.md   # Common material setups
+│   │       └── shader-patterns.md    # Reusable shader patterns
+│   │
 │   ├── qa/
 │   │   ├── AGENT.md        # QA behavior instructions
 │   │   ├── SKILLS.md       # Skills index
@@ -213,13 +249,13 @@ ralph-orchestra/
 ## Message Flow (Event-Driven)
 
 ```
-PM assigns task → Developer picks up from inbox
+PM assigns task → Worker (Developer/TechArtist) picks up from inbox
     ↓
-Developer implements → sends validation request to QA
+Worker implements → sends validation request to QA
     ↓
 QA validates → sends result (bug report OR pass) to PM
     ↓
-PM updates PRD, marks task passed or assigns back to Developer
+PM updates PRD, marks task passed or assigns back to worker
 ```
 
 For design questions, any agent can message the Game Designer, who responds with design answers.

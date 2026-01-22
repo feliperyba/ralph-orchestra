@@ -10,7 +10,8 @@
 Ralph Orchestra enables **autonomous software development** by coordinating specialized AI agents:
 
 - **PM Agent** (Coordinator) - Selects tasks, assigns work, runs retrospectives
-- **Developer Agent** (Worker) - Implements features, writes code, runs feedback loops
+- **Developer Agent** (Worker) - Implements game logic, networking, and core systems
+- **Tech Artist Agent** (Worker) - Creates 3D/2D assets, shaders, and visual effects
 - **QA Agent** (Worker) - Validates implementations, runs tests, reports bugs
 - **Game Designer Agent** (Worker) - Creates GDDs, validates design, playtests
 
@@ -63,7 +64,7 @@ Press `Ctrl+C` in the watchdog terminal, or run `/cancel-ralph` in any agent ter
 
 ## Key Features
 
-- **Multi-Agent Coordination** - PM, Developer, QA, and Game Designer agents with modular skills
+- **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
 - **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
 - **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
 - **Message-Based Communication** - File-based messages for agent coordination

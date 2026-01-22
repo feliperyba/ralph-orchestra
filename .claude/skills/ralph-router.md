@@ -27,15 +27,20 @@ Use at:
 | Developer    | `r3f-fundamentals`, `feedback-loops`, `typescript-patterns`              | `pre-commit`, `code-quality`     |
 | QA           | `validation-workflow`, `browser-testing`, `bug-reporting`                | `validation-checks`              |
 | GameDesigner | `gdd-creation`, `thermite-integration`, `mechanic-design`, `level-design`, `character-design`, `weapon-design`, `game-loop-design`, `playtest-validation` | `gdd-review`, `design-validation` |
+| TechArtist   | `r3f-fundamentals`, `r3f-materials`, `r3f-geometry`, `shader-sdf`, `postfx-effects`, `particles-gpu`, `feedback-loops`, `typescript-patterns` | `asset-quality`, `shader-review`, `visual-consistency` |
 
 ### By Task Category
 
-| Category        | Developer Skills                          | QA Focus              |
-| --------------- | ----------------------------------------- | --------------------- |
-| `architectural` | `typescript-patterns`, `r3f-fundamentals` | Full validation suite |
-| `integration`   | Domain-specific (physics, materials)      | Cross-browser testing |
-| `functional`    | `r3f-fundamentals`, `feedback-loops`      | Acceptance criteria   |
-| `polish`        | `r3f-materials`, `r3f-performance`        | Visual + performance  |
+| Category        | Developer Skills                          | QA Focus              | TechArtist Skills                          |
+| --------------- | ----------------------------------------- | --------------------- | ------------------------------------------- |
+| `architectural` | `typescript-patterns`, `r3f-fundamentals` | Full validation suite | `typescript-patterns`, `r3f-fundamentals` |
+| `integration`   | Domain-specific (physics, materials)      | Cross-browser testing | `r3f-materials`, shader integration |
+| `functional`    | `r3f-fundamentals`, `feedback-loops`      | Acceptance criteria   | - |
+| `visual`        | -                                        | Visual QA              | `r3f-materials`, `shader-sdf`, `postfx-effects` |
+| `shader`        | -                                        | Shader testing         | `shader-sdf`, `glsl`, `gpu-cost-optimizer` |
+| `effects`       | -                                        | Effects testing        | `particles-gpu`, `postfx-effects` |
+| `ui-polish`     | -                                        | UI testing             | `r3f-materials`, `visual-polish` |
+| `polish`        | `r3f-materials`, `r3f-performance`        | Visual + performance  | `r3f-materials`, `postfx-effects` |
 
 ### By Signal Keywords
 
@@ -170,4 +175,5 @@ retrospective ────────────▶ skill-improvement
 - [agents/developer/AGENT.md](../../developer/AGENT.md) — Developer full instructions
 - [agents/qa/AGENT.md](../../qa/AGENT.md) — QA full instructions
 - [agents/gamedesigner/AGENT.md](../../gamedesigner/AGENT.md) — Game Designer full instructions
+- [agents/techartist/AGENT.md](../../techartist/AGENT.md) — Tech Artist full instructions
 - [.claude/skills/r3f-router.md](../../../.claude/skills/r3f-router.md) — R3F-specific routing

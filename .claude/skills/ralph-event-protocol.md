@@ -20,11 +20,11 @@ This document defines the message-based communication protocol for event-driven 
 │  - Manages session lifecycle                                     │
 └─────────────────────────────────────────────────────────────────┘
            │                    │                    │                    │
-           ▼                    ▼                    ▼                    ▼
-    ┌───────────┐        ┌───────────┐        ┌───────────┐        ┌───────────┐
-    │    PM     │◄──────►│ Developer │◄──────►│    QA     │◄──────►│GameDesigner│
-    │(Coordinator)       │ (Worker)  │        │ (Worker)  │        │ (Worker)  │
-    └───────────┘        └───────────┘        └───────────┘        └───────────┘
+           ▼                    ▼                    ▼                    ▼                    ▼
+    ┌───────────┐        ┌───────────┐        ┌───────────┐        ┌───────────┐        ┌───────────┐
+    │    PM     │◄──────►│ Developer │◄──────►│    QA     │◄──────►│GameDesigner│◄──────►│TechArtist │
+    │(Coordinator)       │ (Worker)  │        │ (Worker)  │        │ (Worker)  │        │ (Worker)  │
+    └───────────┘        └───────────┘        └───────────┘        └───────────┘        └───────────┘
            │                    │                    │                    │
            └────────────────────┴────────────────────┴────────────────────┘
                          MESSAGE QUEUE
@@ -42,6 +42,8 @@ This document defines the message-based communication protocol for event-driven 
 ├── qa/                 # QA's inbox
 │   └── msg-xxx.json
 ├── gamedesigner/       # Game Designer's inbox
+│   └── msg-xxx.json
+├── techartist/         # Tech Artist's inbox
 │   └── msg-xxx.json
 └── watchdog/           # Watchdog's inbox
     └── msg-xxx.json
@@ -80,7 +82,8 @@ The `message-state.json` file provides idempotency checks and deduplication for 
       }
     ],
     "pm:qa": [],
-    "pm:gamedesigner": []
+    "pm:gamedesigner": [],
+    "pm:techartist": []
   },
   "lastCleanup": "2026-01-21T12:00:00Z",
   "version": "2.0"
@@ -146,13 +149,14 @@ The `sentMessages` section prevents PM from re-sending the same message after a 
 | Type                    | To              | Payload                                                           |
 | ----------------------- | --------------- | ----------------------------------------------------------------- |
 | `task_assign`           | developer       | `{ taskId, title, description, acceptanceCriteria[], testPlan?, worktree? }` |
-| `retrospective_initiate`| developer/qa/gamedesigner | `{ taskId, retrospectiveFile }`          |
+| `retrospective_initiate`| developer/qa/gamedesigner/techartist | `{ taskId, retrospectiveFile }`          |
 | `playtest_request`      | gamedesigner    | `{ taskId, focus, scope }`                                        |
 | `test_plan_request`     | qa/gamedesigner | `{ taskId, title, description, acceptanceCriteria[] }`           |
 | `prd_reorganized`       | developer/qa/gamedesigner | `{ newTasks, updatedTasks, gddVersion }`   |
 | `skill_improvements`    | watchdog        | `{ improvements, agents, timestamp }`                             |
 | `priority_response`     | developer/qa/gamedesigner | `{ decision, reasoning }`               |
-| `prd_update`            | developer/qa/gamedesigner | `{ taskId, changes }`                  |
+| `prd_update`            | developer/qa/gamedesigner/techartist | `{ taskId, changes }`                  |
+| `asset_assign`          | techartist     | `{ taskId, title, description, assetType, references[], acceptanceCriteria[] }` |
 | `regression_request`    | qa              | `{ scope, focus }`                                                |
 | `design_guidance_request`| gamedesigner   | `{ topic, context, taskId }`                                      |
 | `answer`                | any             | `{ answer }`                                                      |
@@ -177,6 +181,17 @@ The `sentMessages` section prevents PM from re-sending the same message after a 
 | `question`              | pm       | `{ question, context, taskId }`                   |
 | `skill_request`         | pm       | `{ requestType, description, reason, taskId }`     |
 | `status_update`         | watchdog | `{ status, currentTask, details }`                |
+
+### Tech Artist Sends
+
+| Type                    | To             | Payload                                                        |
+| ----------------------- | -------------- | -------------------------------------------------------------- |
+| `asset_ready`           | qa             | `{ taskId, assets[], commit, summary }`                     |
+| `asset_question`        | pm/gamedesigner| `{ question, context, taskId, assetType }`                   |
+| `shader_request`        | pm             | `{ shaderType, purpose, requirements, taskId }`               |
+| `reference_request`     | gamedesigner   | `{ assetType, context, taskId }`                               |
+| `design_question`       | pm/gamedesigner| `{ question, context, feature, taskId }`                     |
+| `status_update`         | watchdog       | `{ status, currentTask, details }`                              |
 
 ### Game Designer Sends
 
@@ -309,9 +324,9 @@ Update BOTH when state changes:
 ### Task Completion Flow (with Retrospective and Test Planning)
 
 ```
-PM                    Developer               QA               GameDesigner
- │                        │                    │                     │
- │──task_assign──────────►│ (with test plan)  │                     │
+PM                    Developer               QA               GameDesigner           TechArtist
+ │                        │                    │                     │                        │
+ │──task_assign──────────►│ (with test plan)  │                     │                        │
  │                        │                    │                     │
  │                        ├──validation_request────►│                    │
  │                        │                    │                     │

@@ -18,9 +18,9 @@ version: 2.0
 
 | Aspect      | Description                                   |
 | ----------- | --------------------------------------------- |
-| **Primary** | Coordinate Developer, QA, and Game Designer agents |
+| **Primary** | Coordinate Developer, Tech Artist, QA, and Game Designer agents |
 | **Cannot**  | Edit source code, run tests, implement features |
-| **Works With** | Developer, QA, Game Designer agents            |
+| **Works With** | Developer, Tech Artist, QA, Game Designer agents            |
 | **Startup** | `/ralph-coordinator-event --max-iterations N`  |
 
 ## Quick Start Checklist
@@ -139,6 +139,9 @@ if (Test-Path $pendingFile) {
 | `playtest_report` | gamedesigner | Review findings, add issues to PRD if needed |
 | `design_question` | gamedesigner | Clarify requirements, update PRD |
 | `mechanic_proposal` | gamedesigner | Review, approve/request changes |
+| `asset_ready` | techartist | Asset complete, send to QA validation |
+| `asset_question` | techartist | Clarify asset specifications |
+| `shader_request` | techartist | Review shader task proposal |
 
 ### Message Types You Send
 
@@ -146,8 +149,9 @@ if (Test-Path $pendingFile) {
 |------|------|-----------------|
 | `playtest_request` | gamedesigner | Request playtest validation for retrospective |
 | `test_plan_request` | qa/gamedesigner | Request test plan input for next task |
-| `prd_reorganized` | developer/qa/gamedesigner | Notify workers of PRD changes |
+| `prd_reorganized` | developer/qa/gamedesigner/techartist | Notify workers of PRD changes |
 | `skill_improvements` | watchdog | Summary of skills improved |
+| `asset_assign` | techartist | Assign asset/shader task |
 
 ### Deadlock Prevention
 
@@ -163,6 +167,34 @@ if (Test-Path $pendingFile) {
 ---
 
 ## 3. Main Workflow
+
+### Task Assignment by Agent Type
+
+**⚠️ CRITICAL: Understand the difference between Developer and Tech Artist:**
+
+| Aspect | **Developer** | **Tech Artist** |
+|--------|---------------|-----------------|
+| **Focus** | Logic & Architecture | Visuals & Assets |
+| **Client Work** | Gameplay systems, state, networking | UI components, visual effects |
+| **Server Work** | Multiplayer server, networking APIs | N/A |
+| **Creates** | Features, mechanics, data structures | Materials, shaders, particles, 3D models |
+| **Does NOT create** | Visual assets, UI polish, shaders | Game logic, server code |
+
+**Developer Tasks (Logic/Architecture) - Assign to `developer`:**
+- Game mechanics and systems
+- State management (Zustand stores)
+- Physics integration (Rapier)
+- Network/multiplayer code (client & server)
+- Data structures and APIs
+- Core gameplay features
+
+**Tech Artist Tasks (Visuals/Assets) - Assign to `techartist`:**
+- 3D model integration and materials
+- Shader development (GLSL)
+- Visual effects (particles, VFX)
+- UI styling and polish
+- Post-processing effects
+- Asset optimization (LOD, compression)
 
 ### Task Status Flow (CRITICAL - Never Skip Phases)
 
@@ -195,9 +227,9 @@ if (Test-Path $pendingFile) {
 1. **TEST_PLANNING first** - When `currentTask === null` or after `completed`, ALWAYS run `test_planning` before `assigned`.
 2. **WAIT for QA** - When `status === "ready_for_qa"`, do NOT assign next task. Wait for QA validation.
 3. **RUN retrospective** - When `status === "passed"`, ALWAYS run retrospective before next task.
-4. **WAIT for ALL THREE agents** - Developer, QA, AND Game Designer must contribute before retrospective synthesis.
+4. **WAIT for ALL FOUR agents** - Developer, Tech Artist, QA, AND Game Designer must contribute before retrospective synthesis.
 5. **PRD_ANALYSIS is mandatory** - After retrospective synthesis, always analyze GDD and findings to reorganize PRD.
-6. **SKILL_RESEARCH is mandatory** - After prd_analysis, always research skill improvements for ALL FOUR agents (PM included).
+6. **SKILL_RESEARCH is mandatory** - After prd_analysis, always research skill improvements for ALL FIVE agents (PM included).
 7. **NEVER mark task complete without QA validation** - Only QA can set `passes: true`.
 
 ### Event Loop
@@ -241,13 +273,27 @@ const unblocked = prd.items.filter(item =>
   )
 );
 
-// 2. Sort by category priority (architectural > integration > spike > functional > polish)
-const priorityOrder = { architectural: 1, integration: 2, spike: 3, functional: 4, polish: 5 };
+// 2. Sort by category priority (architectural > integration > spike > functional > visual > polish)
+const priorityOrder = { architectural: 1, integration: 2, spike: 3, functional: 4, visual: 5, shader: 5, effects: 5, polish: 6 };
 const sorted = unblocked.sort((a, b) => priorityOrder[a.category] - priorityOrder[b.category]);
 
 // 3. Select first
 const next = sorted[0];
 ```
+
+**Task Category → Agent Mapping:**
+
+| Category | Default Agent | Examples |
+|----------|---------------|----------|
+| `architectural` | developer | State stores, API design, core systems |
+| `functional` | developer | Gameplay mechanics, features |
+| `integration` | developer | API integration, third-party services |
+| `visual` | techartist | 3D models, materials, textures |
+| `shader` | techartist | GLSL shaders, visual effects |
+| `effects` | techartist | Particles, post-processing, VFX |
+| `ui-polish` | techartist | UI styling, animations, polish |
+| `spike` | developer | Research, technical investigation |
+| `polish` | techartist | Visual refinement, effects |
 
 > See [`skills/task-selection.md`](skills/task-selection.md) for complete selection logic.
 
@@ -262,9 +308,9 @@ const next = sorted[0];
 | `working` | Monitor - wait for worker | (wait) |
 | `ready_for_qa` | **WAIT** - do NOT assign | (wait for QA) |
 | `passed` | Trigger retrospective | `in_retrospective` |
-| `in_retrospective` | Poll for 3 agent contributions (Dev, QA, GD) | (wait) |
+| `in_retrospective` | Poll for 4 agent contributions (Dev, QA, GD, TA) | (wait) |
 | `prd_analysis` | Extract GDD tasks, reorganize PRD | `skill_research` |
-| `skill_research` | Improve ALL 4 agents' skills | `completed` |
+| `skill_research` | Improve ALL 5 agents' skills | `completed` |
 | `completed` | Delete retrospective, select next task | `test_planning` |
 | `needs_fixes` | Reassign to developer | `assigned` |
 
@@ -311,6 +357,60 @@ Game Designer → PM: design_guidance
 PM → Developer/QA: gdd_update (forward relevant info)
 ```
 
+### Tech Artist Collaboration
+
+The Tech Artist agent creates visual assets, shaders, and effects. PM assigns tasks based on task category:
+
+**When to assign to Tech Artist:**
+
+| Trigger | Action |
+|---------|--------|
+| `category: "visual"` | 3D models, materials, visual effects |
+| `category: "shader"` | Shader development, GLSL programming |
+| `category: "effects"` | Particle systems, post-processing |
+| `category: "ui-polish"` | UI styling, visual feedback |
+| Developer sends `asset_request` | Review and create techartist task |
+
+**Task Assignment by Agent Type:**
+
+**Developer Tasks (Logic/Architecture):**
+- Game mechanics
+- State management
+- Physics integration
+- Network code
+- Data structures
+- Core gameplay systems
+
+**Tech Artist Tasks (Visuals/Assets):**
+- 3D model integration
+- Material/shader creation
+- Visual effects
+- UI polish
+- Post-processing
+- Particle systems
+
+**When Developer completes placeholder:**
+
+1. Developer sends `asset_request` with requirements
+2. PM reviews and prioritizes
+3. PM creates techartist task in PRD
+4. Tech Artist implements visual assets
+5. Tech Artist sends `asset_ready` to QA
+6. Developer integrates final assets
+
+**Tech Artist Question Flow:**
+
+```
+Tech Artist → PM: asset_question (specs unclear)
+Tech Artist → Game Designer: design_question (artistic vision)
+PM → Tech Artist: answer (spec clarification)
+Game Designer → Tech Artist: visual_reference (mood boards, style guides)
+```
+
+**Retrospective with Tech Artist:**
+
+When starting retrospective, include Tech Artist in `retrospective_initiate` messages. Tech Artist contributes visual quality perspective and visual performance metrics.
+
 ---
 
 ## 4. Quality Standards
@@ -356,9 +456,9 @@ if (allComplete) {
 |-------|---------|
 | [`skills/task-selection.md`](skills/task-selection.md) | Priority algorithm for selecting next PRD task |
 | [`skills/test-planning.md`](skills/test-planning.md) | Collaborative test planning with QA and Game Designer |
-| [`skills/retrospective.md`](skills/retrospective.md) | File-based retrospective facilitation with 4 agents |
+| [`skills/retrospective.md`](skills/retrospective.md) | File-based retrospective facilitation with 4 workers |
 | [`skills/prd-reorganization.md`](skills/prd-reorganization.md) | GDD-to-PRD task extraction and reorganization |
-| [`skills/skill-improvement.md`](skills/skill-improvement.md) | Multi-agent skill research and updates (ALL 4 agents) |
+| [`skills/skill-improvement.md`](skills/skill-improvement.md) | Multi-agent skill research and updates (ALL 5 agents) |
 | [`skills/pm-self-improvement.md`](skills/pm-self-improvement.md) | PM-specific skill improvement areas |
 | [`skills/scale-adaptive.md`](skills/scale-adaptive.md) | Adjust planning depth based on PRD size |
 
@@ -469,6 +569,11 @@ Send-AgentMessage -From "pm" -To "qa" -Type "retrospective_initiate" -Payload @{
 } -Priority "normal"
 
 Send-AgentMessage -From "pm" -To "gamedesigner" -Type "retrospective_initiate" -Payload @{
+    taskId = $currentTask.id
+    retrospectiveFile = ".claude/session/retrospective.txt"
+} -Priority "normal"
+
+Send-AgentMessage -From "pm" -To "techartist" -Type "retrospective_initiate" -Payload @{
     taskId = $currentTask.id
     retrospectiveFile = ".claude/session/retrospective.txt"
 } -Priority "normal"

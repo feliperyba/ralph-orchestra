@@ -319,11 +319,23 @@ $Script:AgentConfig = @{
         DisplayName = "Developer"
         Color = "Cyan"
     }
+    "techartist" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent techartist"
+        DisplayName = "Tech Artist"
+        Color = "Green"
+    }
     "qa" = @{
         Type = "worker"
         Command = "/ralph-worker-event --agent qa"
         DisplayName = "QA"
         Color = "Yellow"
+    }
+    "gamedesigner" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent gamedesigner"
+        DisplayName = "Game Designer"
+        Color = "Blue"
     }
 }
 
@@ -392,7 +404,7 @@ function Write-SessionLog {
         [string]$Message,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "watchdog")]
+        [ValidateSet("pm", "developer", "techartist", "qa", "gamedesigner", "watchdog")]
         [string]$Agent,
 
         [ValidateSet("INFO", "WARNING", "ERROR", "DEBUG")]

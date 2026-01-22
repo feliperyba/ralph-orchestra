@@ -20,6 +20,12 @@ $Script:AgentConfig = @{
         DisplayName = "Developer"
         Color = "Cyan"
     }
+    "techartist" = @{
+        Type = "worker"
+        Command = "/ralph-worker-event --agent techartist"
+        DisplayName = "Tech Artist"
+        Color = "Green"
+    }
     "qa" = @{
         Type = "worker"
         Command = "/ralph-worker-event --agent qa"
@@ -78,53 +84,66 @@ arguments:
 
 ### Step 1: Create Agent Directory Structure
 
+For example, to add a Tech Artist agent (already included):
+
 ```
-agents/designer/
+agents/techartist/
 ├── AGENT.md              # Core behavior instructions
 ├── SKILLS.md             # Skills index
 ├── skills/               # Modular skills
-│   ├── ui-patterns.md
-│   ├── accessibility.md
-│   └── design-systems.md
+│   ├── r3f-fundamentals.md
+│   ├── r3f-materials.md
+│   ├── shader-sdf.md
+│   ├── postfx-effects.md
+│   ├── particles-gpu.md
+│   ├── asset-workflow.md
+│   ├── shader-development.md
+│   └── visual-polish.md
 ├── checklists/
-│   └── design-review.md
+│   ├── asset-quality.md
+│   ├── shader-review.md
+│   └── visual-consistency.md
 └── references/
-    └── component-library.md
+    ├── material-presets.md
+    └── shader-patterns.md
 ```
 
 ### Step 2: Create AGENT.md
 
 ```markdown
-# YOU ARE THE DESIGNER AGENT
+# YOU ARE THE TECH ARTIST AGENT
 
-# Your job: CREATE and REVIEW UI/UX designs
+# Your job: CREATE 3D/2D ASSETS, SHADERS, AND VISUAL EFFECTS
 
 ## When to Use This Agent
 
-- Task category contains "design", "ui", "ux", "accessibility"
-- PM assigns tasks with agent=designer
-- Design review is needed before implementation
+- Task category contains "visual", "shader", "effects", "ui-polish"
+- PM assigns tasks with agent=techartist
+- Asset creation is needed after Developer completes logic
 
 ## Your Workflow
 
-1. Read design requirements from current-task.json
-2. Create/update UI components following design system
-3. Ensure accessibility standards (WCAG 2.1 AA)
-4. Document design decisions
+1. Read asset requirements from current-task.json
+2. Read GDD for artistic references
+3. Create assets/shaders using R3F patterns
+4. Test in browser via Playwright
+5. Run feedback loops (type-check, lint, build)
+6. Commit work with [ralph] [techartist] prefix
+7. Send asset_ready to QA
 ```
 
 ### Step 3: Update ralph-config.ps1
 
-Add your new agent to the `AgentConfig` hashtable:
+Add your new agent to the `AgentConfig` hashtable (already done for techartist):
 
 ```powershell
 $Script:AgentConfig = @{
     # ... existing agents ...
-    "designer" = @{
+    "techartist" = @{
         Type = "worker"
-        Command = "/ralph-worker-event --agent designer"
-        DisplayName = "Designer"
-        Color = "Blue"
+        Command = "/ralph-worker-event --agent techartist"
+        DisplayName = "Tech Artist"
+        Color = "Green"
     }
 }
 ```
@@ -135,14 +154,15 @@ $Script:AgentConfig = @{
 
 ```powershell
 # Add to valid agents array (around line 102)
-$validAgents = @("pm", "developer", "qa", "designer")
+$validAgents = @("pm", "developer", "techartist", "qa", "gamedesigner")
 
 # Add to switch statement (around line 293)
 $slashCommand = switch ($AgentName) {
     "pm" { "/ralph-coordinator-single" }
     "developer" { "/ralph-worker-single --agent developer" }
+    "techartist" { "/ralph-worker-single --agent techartist" }
     "qa" { "/ralph-worker-single --agent qa" }
-    "designer" { "/ralph-worker-single --agent designer" }
+    "gamedesigner" { "/ralph-worker-single --agent gamedesigner" }
 }
 ```
 
@@ -156,38 +176,53 @@ Modify `.claude/skills/ralph-worker.md` to include your new agent:
 Check the `--agent` argument:
 
 - **"developer"**: Implement features and run feedback loops
+- **"techartist"**: Create visual assets, shaders, and effects
 - **"qa"**: Validate implementations with tests and browser checks
-- **"designer"**: Create and review UI/UX designs
+- **"gamedesigner"**: Create GDDs and answer design questions
 
-## Designer Agent Path
+## Tech Artist Agent Path
 
-**IF `--agent == "designer"`**:
+**IF `--agent == "techartist"`**:
 
 Look for tasks where:
-- `currentTask.assignedAgent == "designer"`
-- `currentTask.status` is "assigned" or "needs_revision"
+- `currentTask.assignedAgent == "techartist"`
+- `currentTask.status` is "assigned" or "needs_fixes"
 
 **When you find work**:
 1. Update your status to "working"
 2. Read task specs from `current-task.json`
-3. Create/update designs following design system
-4. Ensure accessibility (WCAG 2.1 AA)
-5. Document design decisions
-6. Update task status to "ready_for_review"
-7. HANDOFF to qa or developer as appropriate
+3. Read GDD for artistic references
+4. Create assets/shaders using R3F patterns
+5. Test in browser via Playwright
+6. Run feedback loops (type-check, lint, build)
+7. Commit work with [ralph] [techartist] prefix
+8. Update task status to "ready_for_qa"
+9. Resume polling
 ```
 
 ### Step 6: Create Agent-Specific Settings (Optional)
 
-Create `.claude/settings.designer.json`:
+Create `.claude/settings.techartist.json` (already included):
 
 ```json
 {
   "mcpServers": {
     "filesystem": { ... },
-    "figma": {
+    "github": { ... },
+    "web-search": { ... },
+    "playwright": { ... },
+    "vision": { ... },
+    "blender": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-figma"]
+      "args": ["-y", "blender-mcp"]
+    },
+    "shadertoy": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-shadertoy"]
+    },
+    "image-process": {
+      "command": "npx",
+      "args": ["-y", "@x007xyz/image-process-mcp-server"]
     }
   }
 }
@@ -197,16 +232,17 @@ Create `.claude/settings.designer.json`:
 
 ```bash
 # Manual testing (event-driven)
-/ralph-worker-event --agent designer
+/ralph-worker-event --agent techartist
 
 # Sequential mode
-.\.claude\scripts\ralph-single-session.ps1 -InitialAgent designer
+.\.claude\scripts\ralph-single-session.ps1 -InitialAgent techartist
 
 # Add test task to prd.json
 {
-  "id": "design-001",
-  "title": "Design login page",
-  "agent": "designer",
+  "id": "vis-001",
+  "title": "Create vehicle materials",
+  "category": "visual",
+  "agent": "techartist",
   "status": "pending",
   "passes": false
 }
@@ -216,8 +252,8 @@ Create `.claude/settings.designer.json`:
 
 The `.claude/skills/ralph-router.md` skill routes tasks to appropriate domain skills based on:
 
-- **Agent type** - PM, Developer, QA, Game Designer
-- **Task category** - architectural, functional, integration, polish
+- **Agent type** - PM, Developer, Tech Artist, QA, Game Designer
+- **Task category** - architectural, functional, visual, integration, polish
 - **Task content** - Keywords in title/description
 
 ### Adding Custom Routes
@@ -229,7 +265,8 @@ Edit `.claude/skills/ralph-router.md`:
 
 | Signal Pattern | Target Skill |
 |----------------|--------------|
-| agent=designer | agents/designer/ |
+| agent=developer | agents/developer/ |
+| agent=techartist | agents/techartist/ |
 | task contains "ui" | skills/ui-patterns.md |
 | task contains "shader" | skills/shader-creation.md |
 ```
@@ -267,6 +304,7 @@ function Invoke-Handoff {
 
 1. **Use `--agent` for variants** of the same pattern:
    - `/ralph-worker-event --agent developer`
+   - `/ralph-worker-event --agent techartist`
    - `/ralph-worker-event --agent qa`
    - `/ralph-worker-event --agent gamedesigner`
 

@@ -41,6 +41,32 @@ If browser testing cannot be performed:
 
 **This is NON-NEGOTIABLE** - there is NO manual testing fallback.
 
+## ⚠️ MANDATORY GATE: Browser Testing Must Complete
+
+**Browser testing via Playwright MCP is NON-NEGOTIABLE.**
+
+- Browser testing MUST complete even if automated checks (type-check, lint, test, build) fail
+- If automated checks fail → report bugs AND run browser testing to document visual state
+- NO exceptions for "blocked by test failure"
+- If Playwright MCP unavailable → FAIL validation with severity "critical"
+
+**Enforcement Flow:**
+
+```
+[Automated Checks Fail]
+        │
+        ├── Browser Testing NOT run? → ❌ INVALID REPORT
+        │
+        └── Browser Testing COMPLETED → ✅ Valid bug report
+                (includes screenshots, console output, visual state)
+```
+
+**Why browser testing when tests fail:**
+- Visual bugs may exist even when code compiles
+- Console errors only appear in browser
+- Runtime issues not caught by unit tests
+- Screenshot evidence needed for developer to fix
+
 ## Validation Pipeline
 
 ```

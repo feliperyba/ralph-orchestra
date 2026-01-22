@@ -19,6 +19,25 @@ Use when:
 - Validating implementation vs design
 - Testing new features
 
+## ⚠️ MANDATORY: Playtest Requirements
+
+**Every retrospective requires:**
+
+1. **Playwright MCP Usage** - NO manual testing alternatives
+2. **Screenshot Evidence** - At minimum: start state, after key actions, end state
+3. **Vision MCP Analysis** - Game state detection, GDD compliance validation
+4. **playtest_report Message** - MUST be sent to PM (not just retrospective.txt contribution)
+
+**Non-negotiable evidence:**
+- [ ] Screenshots saved to `.claude/session/screenshots/playtest-*.png`
+- [ ] Vision MCP game state analysis performed
+- [ ] At least one continuous movement test (WASD pattern with key down/up)
+- [ ] `playtest_report` message sent to PM
+
+**If Playwright MCP unavailable:**
+- Report to PM immediately: `question` with "Playwright MCP unavailable - cannot playtest"
+- DO NOT attempt manual testing workaround
+
 ## Playtest Process
 
 ### Step 1: Setup

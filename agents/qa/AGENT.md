@@ -289,9 +289,11 @@ Before marking task as passed:
 | Don't | Do Instead |
 |-------|-------------|
 | Skip browser testing "to save time" | Browser testing is MANDATORY |
+| Skip browser testing when automated checks fail | **ALWAYS run browser testing**, even when type-check/lint/test fail |
 | Accept console warnings | Fail validation for warnings |
 | Let code quality slide for speed | Request refactor in retrospective |
 | Skip code review | Code review is MANDATORY before automated checks |
+| Report "Browser: not tested (blocked by test failure)" | **INVALID** - browser testing cannot be skipped |
 
 ### Browser Testing (MANDATORY)
 
