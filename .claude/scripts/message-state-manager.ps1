@@ -17,6 +17,7 @@ $Script:MessageStateDir = $null
 # In-memory cache for fast lookups
 $Script:ProcessedMessagesCache = @{}
 $Script:CompletedTasksCache = @{}
+$Script:SentMessagesCache = @{}  # Tracks messages sent by PM to prevent duplicates
 $Script:StateLoaded = $false
 
 # ============================================================================
@@ -47,8 +48,9 @@ function Initialize-MessageStateManager {
         $initialState = @{
             processedMessages = @{}
             completedTasks = @{}
+            sentMessages = @{}  # Track PM's sent messages to prevent duplicates
             lastCleanup = [DateTime]::UtcNow.ToString("o")
-            version = "1.0"
+            version = "2.0"
         }
         $initialState | ConvertTo-Json -Depth 10 | Out-File -FilePath $Script:MessageStateFile -Encoding UTF8
     }
@@ -86,12 +88,20 @@ function Read-MessageState {
             }
         }
 
+        $Script:SentMessagesCache = @{}
+        if ($content.sentMessages) {
+            foreach ($prop in $content.sentMessages.PSObject.Properties) {
+                $Script:SentMessagesCache[$prop.Name] = $prop.Value
+            }
+        }
+
         $Script:StateLoaded = $true
         return $true
     } catch {
         # File doesn't exist or is corrupt - initialize empty state
         $Script:ProcessedMessagesCache = @{}
         $Script:CompletedTasksCache = @{}
+        $Script:SentMessagesCache = @{}
         $Script:StateLoaded = $false
         return $false
     }
@@ -112,8 +122,9 @@ function Write-MessageState {
         $state = @{
             processedMessages = $Script:ProcessedMessagesCache
             completedTasks = $Script:CompletedTasksCache
+            sentMessages = $Script:SentMessagesCache
             lastCleanup = [DateTime]::UtcNow.ToString("o")
-            version = "1.0"
+            version = "2.0"
         }
 
         # Atomic write: write to temp file, then rename
@@ -390,6 +401,256 @@ function Get-CompletedTask {
 }
 
 # ============================================================================
+# SENT MESSAGE TRACKING (PM deadlock prevention)
+# ============================================================================
+
+function Test-SentMessageToAgent {
+    <#
+    .SYNOPSIS
+    Check if PM already sent a message of this type to this agent for this task.
+
+    .PARAMETER To
+    The recipient agent (developer, qa, gamedesigner).
+
+    .PARAMETER MessageType
+    The message type (task_assign, test_plan_request, etc.).
+
+    .PARAMETER TaskId
+    The optional task ID (for task-related messages).
+
+    .RETURNS
+    $true if already sent, $false otherwise.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$To,
+
+        [Parameter(Mandatory=$true)]
+        [string]$MessageType,
+
+        [string]$TaskId = $null
+    )
+
+    # Reload state if cache is empty
+    if (-not $Script:StateLoaded -or $Script:SentMessagesCache.Count -eq 0) {
+        Read-MessageState
+    }
+
+    # Build key for lookup
+    $key = "pm:$to"
+    if (-not $Script:SentMessagesCache.ContainsKey($key)) {
+        return $false  # No messages sent to this agent yet
+    }
+
+    # Check for matching sent message
+    $sentList = $Script:SentMessagesCache[$key]
+    if ($sentList -is [array]) {
+        foreach ($sent in $sentList) {
+            $match = $true
+
+            # Check message type matches
+            if ($MessageType -and $sent.type -ne $MessageType) {
+                $match = $false
+            }
+
+            # Check task ID matches (if provided)
+            if ($TaskId -and $sent.taskId -ne $TaskId) {
+                $match = $false
+            }
+
+            if ($match) {
+                return $true  # Found matching sent message
+            }
+        }
+    }
+
+    return $false
+}
+
+function Set-SentMessageToAgent {
+    <#
+    .SYNOPSIS
+    Record that PM sent a message to an agent (idempotent).
+
+    .PARAMETER To
+    The recipient agent (developer, qa, gamedesigner).
+
+    .PARAMETER MessageId
+    The message ID that was sent.
+
+    .PARAMETER MessageType
+    The message type (task_assign, test_plan_request, etc.).
+
+    .PARAMETER TaskId
+    The optional task ID (for task-related messages).
+
+    .RETURNS
+    $true if recorded successfully, $false if already exists.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$To,
+
+        [Parameter(Mandatory=$true)]
+        [string]$MessageId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$MessageType,
+
+        [string]$TaskId = $null
+    )
+
+    # Check if already recorded (idempotency)
+    if (Test-SentMessageToAgent -To $To -MessageType $MessageType -TaskId $TaskId) {
+        return $false
+    }
+
+    # Build key
+    $key = "pm:$to"
+
+    # Create sent record
+    $sentRecord = @{
+        messageId = $MessageId
+        type = $MessageType
+        sentAt = [DateTime]::UtcNow.ToString("o")
+        acknowledged = $false
+    }
+
+    if ($TaskId) {
+        $sentRecord.taskId = $TaskId
+    }
+
+    # Add to cache
+    if (-not $Script:SentMessagesCache.ContainsKey($key)) {
+        $Script:SentMessagesCache[$key] = @($sentRecord)
+    } else {
+        $currentList = $Script:SentMessagesCache[$key]
+        if ($currentList -is [array]) {
+            $Script:SentMessagesCache[$key] = $currentList + @($sentRecord)
+        } else {
+            $Script:SentMessagesCache[$key] = @($currentList) + @($sentRecord)
+        }
+    }
+
+    # Persist to disk
+    Write-MessageState
+
+    return $true
+}
+
+function Set-SentMessageAcknowledged {
+    <#
+    .SYNOPSIS
+    Mark a sent message as acknowledged by the agent.
+
+    .PARAMETER MessageId
+    The message ID to mark as acknowledged.
+
+    .PARAMETER To
+    The recipient agent.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$MessageId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$To
+    )
+
+    # Reload state if cache is empty
+    if (-not $Script:StateLoaded -or $Script:SentMessagesCache.Count -eq 0) {
+        Read-MessageState
+    }
+
+    $key = "pm:$to"
+    if (-not $Script:SentMessagesCache.ContainsKey($key)) {
+        return $false
+    }
+
+    $sentList = $Script:SentMessagesCache[$key]
+    $found = $false
+
+    if ($sentList -is [array]) {
+        for ($i = 0; $i -lt $sentList.Count; $i++) {
+            if ($sentList[$i].messageId -eq $MessageId) {
+                $sentList[$i].acknowledged = $true
+                $sentList[$i].acknowledgedAt = [DateTime]::UtcNow.ToString("o")
+                $found = $true
+                break
+            }
+        }
+    }
+
+    if ($found) {
+        $Script:SentMessagesCache[$key] = $sentList
+        Write-MessageState
+    }
+
+    return $found
+}
+
+function Clear-SentMessagesForTask {
+    <#
+    .SYNOPSIS
+    Clear sent messages for a specific task (called when task completes).
+
+    .PARAMETER TaskId
+    The task ID to clear messages for.
+
+    .RETURNS
+    Number of messages cleared.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskId
+    )
+
+    # Reload state if cache is empty
+    if (-not $Script:StateLoaded -or $Script:SentMessagesCache.Count -eq 0) {
+        Read-MessageState
+    }
+
+    $cleared = 0
+
+    foreach ($key in $Script:SentMessagesCache.Keys) {
+        $sentList = $Script:SentMessagesCache[$key]
+        if ($sentList -is [array]) {
+            $newList = @()
+            foreach ($sent in $sentList) {
+                # Keep only messages not related to this task
+                if (-not $sent.taskId -or $sent.taskId -ne $TaskId) {
+                    $newList += $sent
+                } else {
+                    $cleared++
+                }
+            }
+            $Script:SentMessagesCache[$key] = $newList
+        }
+    }
+
+    if ($cleared -gt 0) {
+        Write-MessageState
+    }
+
+    return $cleared
+}
+
+function Clear-AllSentMessages {
+    <#
+    .SYNOPSIS
+    Clear all sent message tracking (useful for fresh start).
+
+    .RETURNS
+    $true if cleared successfully.
+    #>
+    param()
+
+    $Script:SentMessagesCache = @{}
+    Write-MessageState
+    return $true
+}
+
+# ============================================================================
 # STATE CLEANUP
 # ============================================================================
 
@@ -415,6 +676,7 @@ function Invoke-StateCleanup {
 
     $removedMessages = 0
     $removedTasks = 0
+    $removedSent = 0
 
     # Clean old processed messages
     $messagesToRemove = @()
@@ -436,17 +698,49 @@ function Invoke-StateCleanup {
         $removedMessages++
     }
 
+    # Clean old sent messages (these have a shorter retention period)
+    $sentToRemove = @{}
+    foreach ($key in $Script:SentMessagesCache.Keys) {
+        $sentList = $Script:SentMessagesCache[$key]
+        if ($sentList -is [array]) {
+            $newList = @()
+            foreach ($sent in $sentList) {
+                try {
+                    $sentAt = [DateTime]::Parse($sent.sentAt)
+                    # Keep sent messages for 6 hours (shorter than processed messages)
+                    if ($sentAt -ge (Get-Date).AddHours(-6)) {
+                        $newList += $sent
+                    } else {
+                        $removedSent++
+                    }
+                } catch {
+                    $removedSent++  # Invalid date - remove
+                }
+            }
+            if ($newList.Count -eq 0) {
+                $sentToRemove[$key] = $true
+            } else {
+                $Script:SentMessagesCache[$key] = $newList
+            }
+        }
+    }
+
+    foreach ($key in $sentToRemove.Keys) {
+        $Script:SentMessagesCache.Remove($key)
+    }
+
     # Note: Don't auto-remove completedTasks - those are longer-lived
     # They represent actual task completion and are used for deduplication
 
     # Persist changes
-    if ($removedMessages -gt 0) {
+    if ($removedMessages -gt 0 -or $removedSent -gt 0) {
         Write-MessageState
     }
 
     return @{
         processedMessagesRemoved = $removedMessages
         tasksRemoved = $removedTasks
+        sentMessagesRemoved = $removedSent
         cleanupTime = [DateTime]::UtcNow.ToString("o")
     }
 }
@@ -463,6 +757,7 @@ function Clear-MessageState {
 
     $Script:ProcessedMessagesCache = @{}
     $Script:CompletedTasksCache = @{}
+    $Script:SentMessagesCache = @{}
 
     if ($Script:MessageStateFile -and (Test-Path $Script:MessageStateFile)) {
         Remove-Item $Script:MessageStateFile -Force
@@ -506,9 +801,18 @@ function Get-MessageStateReport {
         } catch {}
     }
 
+    # Count sent messages
+    $totalSentMessages = 0
+    foreach ($list in $Script:SentMessagesCache.Values) {
+        if ($list -is [array]) {
+            $totalSentMessages += $list.Count
+        }
+    }
+
     return @{
         totalProcessedMessages = $Script:ProcessedMessagesCache.Count
         totalCompletedTasks = $Script:CompletedTasksCache.Count
+        totalSentMessages = $totalSentMessages
         oldestMessage = if ($oldestMessage) { $oldestMessage.ToString("o") } else { $null }
         newestMessage = if ($newestMessage) { $newestMessage.ToString("o") } else { $null }
         stateFile = $Script:MessageStateFile
@@ -531,6 +835,7 @@ function Show-MessageStateReport {
     Write-Host "=== Message State Report ===" -ForegroundColor Cyan
     Write-Host "Processed Messages: $($report.totalProcessedMessages)" -ForegroundColor White
     Write-Host "Completed Tasks: $($report.totalCompletedTasks)" -ForegroundColor White
+    Write-Host "Sent Messages: $($report.totalSentMessages)" -ForegroundColor White
     Write-Host "State File: $($report.stateFile)" -ForegroundColor Gray
     Write-Host "Cache Size: $($report.cacheSizeBytes) bytes" -ForegroundColor Gray
     if ($report.oldestMessage) {

@@ -49,6 +49,62 @@ This document defines the message-based communication protocol for event-driven 
 
 **Note**: Processed messages are deleted immediately after processing, not archived. An audit log is written to `.claude/session/messages.log` for tracking.
 
+## Message State Tracking (message-state.json)
+
+The `message-state.json` file provides idempotency checks and deduplication for message operations. It survives watchdog restarts.
+
+```json
+{
+  "processedMessages": {
+    "msg-xxx": {
+      "processedAt": "2026-01-21T12:00:00Z",
+      "message": "msg-xxx",
+      "processedBy": "developer"
+    }
+  },
+  "completedTasks": {
+    "feat-001": {
+      "completedAt": "2026-01-21T12:00:00Z",
+      "status": "passed",
+      "completedBy": "qa"
+    }
+  },
+  "sentMessages": {
+    "pm:developer": [
+      {
+        "messageId": "msg-yyy",
+        "type": "task_assign",
+        "taskId": "feat-001",
+        "sentAt": "2026-01-21T12:00:00Z",
+        "acknowledged": true
+      }
+    ],
+    "pm:qa": [],
+    "pm:gamedesigner": []
+  },
+  "lastCleanup": "2026-01-21T12:00:00Z",
+  "version": "2.0"
+}
+```
+
+### Fields
+
+| Section | Purpose | Retention |
+|---------|---------|-----------|
+| `processedMessages` | Track messages each agent has processed | 24 hours |
+| `completedTasks` | Track task completion for deduplication | Persistent (cleared on session restart) |
+| `sentMessages` | Track messages PM has sent (prevents duplicates) | 6 hours |
+
+### Deadlock Prevention
+
+The `sentMessages` section prevents PM from re-sending the same message after a crash/restart:
+
+1. PM sends `task_assign` to Developer
+2. PM records in `sentMessages["pm:developer"]`
+3. PM crashes/restarts
+4. PM checks `sentMessages` before sending - skips duplicate
+5. When task completes, sent messages are cleared via `Clear-SentMessagesForTask`
+
 ## Message Format
 
 ```json

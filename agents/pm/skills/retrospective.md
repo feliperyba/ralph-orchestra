@@ -285,8 +285,14 @@ After PM synthesis is complete:
 ### Complete
 
 1. Set `currentTask.status = "completed"`
-2. Delete retrospective.txt
-3. Assign next task
+2. **Clear sent messages for this task** (prevents stale tracking):
+   ```powershell
+   if (Get-Command Clear-SentMessagesForTask -ErrorAction SilentlyContinue) {
+       Clear-SentMessagesForTask -TaskId $currentTask.id
+   }
+   ```
+3. Delete retrospective.txt
+4. Assign next task
 
 ## Reference
 

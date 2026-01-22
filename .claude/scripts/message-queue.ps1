@@ -553,6 +553,18 @@ function Send-AgentMessageSafe {
         }
     }
 
+    # Check if PM already sent this message type to this agent for this task (deadlock prevention)
+    if ($From -eq "pm" -and (Get-Command Test-SentMessageToAgent -ErrorAction SilentlyContinue)) {
+        $alreadySent = Test-SentMessageToAgent -To $To -MessageType $Type -TaskId $Payload.taskId
+        if ($alreadySent) {
+            # PM already sent this message - skip to prevent duplicate
+            if (-not $Script:MessageQueueSilent) {
+                Write-Host "[Send-AgentMessageSafe] Skipping duplicate: $Type to $to (taskId: $($Payload.taskId))" -ForegroundColor Yellow
+            }
+            return $null
+        }
+    }
+
     # Check if task is already completed (task deduplication)
     $taskId = $Payload.taskId
     if ($taskId -and (Get-Command Test-TaskCompleted -ErrorAction SilentlyContinue)) {
@@ -568,6 +580,11 @@ function Send-AgentMessageSafe {
 
     # Send the message
     $actualMessageId = Send-AgentMessage -From $From -To $To -Type $Type -Payload $Payload -Priority $Priority -ReplyTo $ReplyTo
+
+    # Record that PM sent this message (for deduplication on restart)
+    if ($actualMessageId -and $From -eq "pm" -and (Get-Command Set-SentMessageToAgent -ErrorAction SilentlyContinue)) {
+        Set-SentMessageToAgent -To $To -MessageId $actualMessageId -MessageType $Type -TaskId $Payload.taskId | Out-Null
+    }
 
     return $actualMessageId
 }

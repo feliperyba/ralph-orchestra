@@ -149,6 +149,17 @@ if (Test-Path $pendingFile) {
 | `prd_reorganized` | developer/qa/gamedesigner | Notify workers of PRD changes |
 | `skill_improvements` | watchdog | Summary of skills improved |
 
+### Deadlock Prevention
+
+**CRITICAL**: PM messages are automatically tracked to prevent duplicate sends after crash/restart.
+
+- `Send-AgentMessageSafe` automatically checks if PM already sent a message of the same type to the same agent for the same task
+- If a duplicate is detected, the message is skipped silently
+- Tracking persists in `message-state.json` across PM restarts
+- Sent messages are automatically cleared when tasks complete
+
+**You do NOT need to manually track sent messages** - `Send-AgentMessageSafe` handles this automatically.
+
 ---
 
 ## 3. Main Workflow
