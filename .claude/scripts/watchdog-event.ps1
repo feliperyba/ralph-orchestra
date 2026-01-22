@@ -463,37 +463,19 @@ function Test-AgentHealth {
 }
 
 function Start-AllAgents {
-    Write-WatchdogLog "Starting agents in message queue mode..." -Color Cyan
+    Write-WatchdogLog "Starting agents in PM-first initialization mode..." -Color Cyan
 
-    # Check if consolidation mode is active
-    $mode = Get-ConsolidationMode
-    $needsConsolidation = if ($mode -and $mode.mode -eq "pending_consolidation") { $true } else { $false }
+    # PM-FIRST MODE: Always start PM agent first
+    # PM will assess state, clear stale messages, and send activation messages to workers as needed
+    # This eliminates wasteful idle agent startup - workers only run when they have work
+    Write-WatchdogLog "Starting PM agent to assess session state and activate workers..." -Color Green
+    $null = Start-Agent -AgentName "pm"
 
-    # Or check if there are pending messages (startup consolidation)
-    if (-not $needsConsolidation) {
-        $counts = Get-MessageCount
-        $totalPending = ($counts.Values | Measure-Object -Sum).Sum
-        if ($totalPending -gt 0) {
-            Write-WatchdogLog "Pending messages detected ($totalPending) - entering consolidation mode" -Color Yellow
-            Set-ConsolidationMode -Mode "pending_consolidation" -Reason "startup" -Assignments @{
-                messageCounts = $counts
-            }
-            $needsConsolidation = $true
-        }
-    }
-
-    if ($needsConsolidation) {
-        # CONSOLIDATION MODE: Run ONLY PM agent to handle pending messages
-        Write-WatchdogLog "Consolidation mode active - starting PM to handle messages" -Color Yellow
-        $null = Start-Agent -AgentName "pm"
-    } else {
-        # NORMAL MODE: Start all agents - they will communicate via message queue
-        Write-WatchdogLog "Starting all agents (PM, Developer, QA, GameDesigner)..." -Color Green
-        $null = Start-Agent -AgentName "pm"
-        $null = Start-Agent -AgentName "developer"
-        $null = Start-Agent -AgentName "qa"
-        $null = Start-Agent -AgentName "gamedesigner"
-    }
+    # Note: Workers will be started by watchdog when:
+    # 1. PM sends task_assign → Developer starts
+    # 2. PM sends test_plan_request → QA starts
+    # 3. PM sends retrospective_initiate → Developer, QA, GameDesigner start
+    # 4. PM sends playtest_request → GameDesigner starts
 }
 
 function Invoke-MainLoop {

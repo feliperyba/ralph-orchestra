@@ -11,6 +11,10 @@
     "github": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"]
+    },
+    "vision": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@thenomadinorbit/vision-mcp-server"]
     }
   }
 }

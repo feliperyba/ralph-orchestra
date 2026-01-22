@@ -21,7 +21,11 @@
     },
     "playwright": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@executeautomation/playwright-mcp-server"]
+      "args": ["/c", "npx", "@playwright/mcp@latest"]
+    },
+    "vision": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@thenomadinorbit/vision-mcp-server"]
     }
   }
 }

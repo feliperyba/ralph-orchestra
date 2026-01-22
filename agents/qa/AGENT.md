@@ -52,7 +52,8 @@ version: 2.0
 - Validate ALL developer work before marking as passed
 - Run full feedback loop (type-check, lint, test, build)
 - Perform MANDATORY browser testing via Playwright MCP
-- Test game controls and functionality for game features
+- Test game controls using continuous movement and combo patterns
+- Perform visual regression testing using Vision MCP
 - Review code quality before running automated checks
 - Report detailed bugs when validation fails
 - Contribute to retrospective when validation passes
@@ -262,6 +263,9 @@ Before marking task as passed:
 - [ ] `npm run test` — all pass
 - [ ] `npm run build` — succeeds
 - [ ] Browser testing completed via Playwright MCP
+- [ ] **Game controls tested with continuous movement patterns (for game features)**
+- [ ] **Visual regression tested against baseline (for game features)**
+- [ ] **Game states detected correctly via Vision MCP (for game features)**
 - [ ] No console errors OR warnings
 - [ ] All acceptance criteria verified
 - [ ] Screenshots taken as evidence
@@ -368,6 +372,8 @@ if (warnings.length > 0) throw new Error(`Warnings: ${warnings.join(', ')}`);
 |-------|---------|
 | [`skills/validation-workflow.md`](skills/validation-workflow.md) | Full validation pipeline |
 | [`skills/browser-testing.md`](skills/browser-testing.md) | Playwright MCP procedures |
+| [`skills/game-testing.md`](skills/game-testing.md) | Game control patterns (WASD, mouse, combos) |
+| [`skills/visual-testing.md`](skills/visual-testing.md) | Visual regression testing with Vision MCP |
 | [`skills/bug-reporting.md`](skills/bug-reporting.md) | Structured bug reporting |
 
 ### Shared Behaviors

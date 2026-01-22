@@ -102,6 +102,12 @@ test('keyboard controls work', async ({ page }) => {
 });
 ```
 
+**For game-specific input patterns**, see [`game-testing.md`](game-testing.md) for:
+- Continuous movement (key down/up patterns)
+- Mouse aiming and clicking
+- Combo sequences
+- Special key combinations
+
 ### Level 4: Visual Comparison
 
 ```typescript
@@ -116,6 +122,12 @@ test('visual appearance matches', async ({ page }) => {
   });
 });
 ```
+
+**For advanced visual testing**, see [`visual-testing.md`](visual-testing.md) for:
+- Game state detection (menu, playing, game over, win)
+- Semantic visual comparison with Vision MCP
+- UI element validation (HUD, health bars, minimap)
+- GDD compliance validation
 
 ### Level 5: Performance Metrics
 
@@ -204,4 +216,6 @@ For each validation:
 
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 - [agents/qa/skills/validation-workflow.md](validation-workflow.md) — Full workflow
+- [agents/qa/skills/game-testing.md](game-testing.md) — Game control patterns
+- [agents/qa/skills/visual-testing.md](visual-testing.md) — Visual validation
 - [agents/qa/AGENT.md](../AGENT.md) — Full QA instructions

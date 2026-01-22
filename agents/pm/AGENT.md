@@ -371,14 +371,123 @@ if (allComplete) {
 
 ---
 
+## PM-First Initialization (Event-Driven Mode)
+
+When starting in event-driven mode (`/ralph-coordinator-event`), you are responsible for:
+
+1. **Clearing stale messages** from previous sessions (clean slate)
+2. **Reading coordinator-state.json** to understand current state
+3. **Determining which agents need to be activated** based on task state
+4. **Sending activation messages** only to agents that have work
+
+### Startup Initialization Checklist
+
+```powershell
+# 1. Source message queue
+. .\.claude\scripts\message-queue.ps1
+
+# 2. Clear all pending messages (clean slate for fresh session)
+#    EXCEPT: In consolidation mode, preserve messages for assessment
+$consolidationMode = Get-ConsolidationMode
+if (-not $consolidationMode -or $consolidationMode.mode -ne "pending_consolidation") {
+    Clear-MessageQueue
+    Write-Host "[PM INIT] Cleared stale messages from previous session" -ForegroundColor Yellow
+} else {
+    Write-Host "[PM INIT] Consolidation mode - preserving messages for assessment" -ForegroundColor Yellow
+}
+
+# 3. Read state files and assess which agents need activation
+$state = Get-Content ".claude/session/coordinator-state.json" -Raw | ConvertFrom-Json
+$prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
+```
+
+### Task State Assessment
+
+| currentTask.status | Action | Agents to Activate |
+|--------------------|--------|-------------------|
+| `null` | Select next task → test_planning | Send `test_plan_request` to QA, GameDesigner |
+| `test_planning` | Wait for test plan contributions | (already sent) |
+| `assigned` | Monitor - task assigned to developer | (developer should already be working) |
+| `working` | Monitor - developer implementing | (developer should already be working) |
+| `ready_for_qa` | Wait for QA validation | Send message to QA if not responding |
+| `passed` | Trigger retrospective | Send `retrospective_initiate` to all workers |
+| `in_retrospective` | Poll for contributions | (already sent) |
+| `prd_analysis` | Extract tasks, reorganize PRD | PM only |
+| `skill_research` | Improve skills | PM only |
+| `completed` | Select next task | See `null` case |
+
+### Activation Messages
+
+When you determine an agent needs work, send the appropriate message. The watchdog will detect messages and start the corresponding agents automatically.
+
+```powershell
+# Activate QA for test planning
+Send-AgentMessage -From "pm" -To "qa" -Type "test_plan_request" -Payload @{
+    taskId = $nextTask.id
+    title = $nextTask.title
+    description = $nextTask.description
+    acceptanceCriteria = $nextTask.acceptanceCriteria
+} -Priority "normal"
+
+# Activate GameDesigner for test planning
+Send-AgentMessage -From "pm" -To "gamedesigner" -Type "test_plan_request" -Payload @{
+    taskId = $nextTask.id
+    title = $nextTask.title
+    description = $nextTask.description
+    acceptanceCriteria = $nextTask.acceptanceCriteria
+} -Priority "normal"
+
+# Activate Developer (task assignment)
+Send-AgentMessage -From "pm" -To "developer" -Type "task_assign" -Payload @{
+    taskId = $task.id
+    title = $task.title
+    description = $task.description
+    acceptanceCriteria = $task.acceptanceCriteria
+    # ... other task details
+} -Priority "normal"
+
+# Activate all workers for retrospective
+Send-AgentMessage -From "pm" -To "developer" -Type "retrospective_initiate" -Payload @{
+    taskId = $currentTask.id
+    retrospectiveFile = ".claude/session/retrospective.txt"
+} -Priority "normal"
+
+Send-AgentMessage -From "pm" -To "qa" -Type "retrospective_initiate" -Payload @{
+    taskId = $currentTask.id
+    retrospectiveFile = ".claude/session/retrospective.txt"
+} -Priority "normal"
+
+Send-AgentMessage -From "pm" -To "gamedesigner" -Type "retrospective_initiate" -Payload @{
+    taskId = $currentTask.id
+    retrospectiveFile = ".claude/session/retrospective.txt"
+} -Priority "normal"
+
+# Separate playtest request for GameDesigner
+Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_request" -Payload @{
+    taskId = $currentTask.id
+    focus = "all"
+    scope = "current_task"
+} -Priority "normal"
+```
+
+### Important Notes
+
+1. **Do NOT activate agents without a specific purpose** - idle agents waste resources
+2. **Watchdog detects messages and starts agents automatically** - you don't start agents directly
+3. **Each message sent triggers the watchdog to start that agent** if it's not running
+4. **After sending messages, exit and let watchdog deliver them** - worker pool model
+
+---
+
 ## Startup Sequence
 
 1. **Check startup mode**: Single-agent (`/ralph-coordinator-single`) vs event-driven (`/ralph-coordinator-event`)
 2. **Source message queue**: `. .\.claude\scripts\message-queue.ps1`
-3. **Check for pending messages** (watchdog may have restarted you with messages)
-4. **Initialize session** if coordinator-state.json doesn't exist
-5. **Read prd.json** and coordinator-state.json
-6. **Begin main loop** — check state, take action, update heartbeat
+3. **Initialize clean slate**: Clear all pending messages on fresh startup (skip if in consolidation mode) - see PM-First Initialization above
+4. **Check for pending messages** (watchdog may have restarted you with messages)
+5. **Read coordinator-state.json** and **prd.json**
+6. **Assess current task state** and determine which workers need activation (if any)
+7. **Begin main loop** — check state, take action, update heartbeat
 
 ---
 

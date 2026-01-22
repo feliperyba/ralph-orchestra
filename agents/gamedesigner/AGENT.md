@@ -169,10 +169,13 @@ if (Test-Path $pendingFile) {
 │                                                                   │
 │  4. RETROSPECTIVE (MANDATORY SYNC):                               │
 │     - Receive retrospective_initiate from PM                      │
-│     - Play game using Playwright MCP                              │
-│     - Validate concept vs implementation                          │
+│     - Play game using standardized Playwright MCP                 │
+│     - Use continuous movement patterns (key down/up)              │
+│     - Use Vision MCP for game state detection                     │
+│     - Validate visuals against GDD via image analysis             │
+│     - Compare before/after screenshots for verification           │
 │     - Point out issues/conflicts vs GDD                           │
-│     - Send playtest_report to PM                                  │
+│     - Send playtest_report to PM with visual evidence             │
 │                                                                   │
 │  5. STANDALONE WORK:                                              │
 │     - Research and design in parallel                             │
@@ -236,8 +239,8 @@ This allows you to:
 | No GDD exists | Start GDD creation process |
 | GDD exists, needs update | Send `gdd_update` to affected parties |
 | Design question received | Research and send `design_answer` |
-| Playtest requested | Use Playwright MCP, send `playtest_report` |
-| Retrospective initiated | Play game, validate vs GDD, contribute |
+| Playtest requested | Use Playwright MCP + Vision MCP, send `playtest_report` |
+| Retrospective initiated | Play game with continuous movement, validate visuals vs GDD, contribute |
 | Task assigned by PM | Provide design guidance via `task_guidance` |
 
 ---
@@ -370,7 +373,7 @@ Every thermite session MUST produce:
 | [`skills/character-design.md`](skills/character-design.md) | Character and class design |
 | [`skills/weapon-design.md`](skills/weapon-design.md) | Weapon design |
 | [`skills/game-loop-design.md`](skills/game-loop-design.md) | Core loop design |
-| [`skills/playtest-validation.md`](skills/playtest-validation.md) | Playwright-based playtesting |
+| [`skills/playtest-validation.md`](skills/playtest-validation.md) | Playwright + Vision MCP playtesting |
 
 ### Shared Behaviors
 
@@ -439,7 +442,8 @@ Before marking GDD as ready:
 
 | Don't | Do Instead |
 |-------|-------------|
-| Skip playtesting | Always validate design via gameplay |
+| Skip playtesting | Always validate design via gameplay with continuous movement |
+| Skip visual validation | Use Vision MCP to compare implementation vs GDD |
 | Design without research | Research similar games first |
 | Ignore technical constraints | Consult Wei Zhang persona |
 | Design in vacuum | Use thermite personas for perspective |

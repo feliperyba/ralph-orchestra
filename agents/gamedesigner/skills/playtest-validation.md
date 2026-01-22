@@ -141,6 +141,136 @@ await page.mouse.up();
 await page.touchscreen.tap(x, y);
 ```
 
+### Continuous Movement (Critical for Games)
+
+```javascript
+// For game character movement, use key down/up patterns
+// Single press() only simulates a quick tap
+
+// Forward movement
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(1000);  // Move for 1 second
+await page.keyboard.up('KeyW');
+
+// Diagonal movement with sprint
+await page.keyboard.down('KeyW');
+await page.keyboard.down('KeyD');
+await page.keyboard.down('ShiftLeft');
+await page.waitForTimeout(2000);
+await page.keyboard.up('ShiftLeft');
+await page.keyboard.up('KeyD');
+await page.keyboard.up('KeyW');
+
+// Combo sequence
+async function executeCombo(page, sequence) {
+  for (const action of sequence) {
+    await page.keyboard.down(action.key);
+    await page.waitForTimeout(action.hold);
+    await page.keyboard.up(action.key);
+    await page.waitForTimeout(50); // Combo window
+  }
+}
+
+// Three-hit melee combo
+await executeCombo(page, [
+  { key: 'KeyJ', hold: 100 },
+  { key: 'KeyJ', hold: 100 },
+  { key: 'KeyK', hold: 200 }
+]);
+```
+
+### Game State Detection (Vision MCP)
+
+Use Vision MCP to analyze screenshots and determine current game state:
+
+```javascript
+// Detect game state from screenshot
+async function detectGameState(screenshotPath) {
+  const analysis = await visionAnalyze(screenshotPath, {
+    prompt: `Analyze this game screenshot and determine:
+    1. Is this a menu screen, gameplay, game over, victory, or loading?
+    2. What UI elements are visible? (HUD, health bar, minimap, inventory)
+    3. Is the player character visible?
+    4. Are there any error messages?
+
+    Respond in JSON:
+    {
+      "state": "menu|playing|gameover|win|loading|error",
+      "uiElements": ["hud", "healthBar", ...],
+      "playerVisible": true|false,
+      "details": "description"
+    }`
+  });
+
+  return JSON.parse(analysis);
+}
+
+// Usage during playtest
+await page.screenshot({ path: 'playtest/state-1.png' });
+const state = await detectGameState('playtest/state-1.png');
+console.log('Current state:', state.state);
+```
+
+### Visual GDD Compliance Validation
+
+```javascript
+// Compare implementation against GDD visual requirements
+async function validateVisualGDD(screenshotPath, gddRequirement) {
+  const analysis = await visionAnalyze(screenshotPath, {
+    prompt: `According to this GDD requirement:
+    "${gddRequirement}"
+
+    Does the screenshot match? Check:
+    1. Required elements are present
+    2. Visual style is correct
+    3. Colors/theme match specification
+    4. Layout is as described
+
+    Return {
+      "matches": true|false,
+      "deviations": [
+        { "element": "name", "expected": "spec", "actual": "observed" }
+      ],
+      "severity": "low|medium|high"
+    }`
+  });
+
+  return JSON.parse(analysis);
+}
+
+// Example: Validate character appearance
+const characterGDD = "A knight in silver armor with blue cape, holding sword";
+const result = await validateVisualGDD('playtest/character.png', characterGDD);
+```
+
+### Screenshot Comparison Analysis
+
+```javascript
+// Compare current state with baseline or previous state
+async function comparePlaytestStates(beforePath, afterPath) {
+  const comparison = await visionAnalyze([beforePath, afterPath], {
+    prompt: `Compare these two gameplay screenshots.
+    Image 1 is BEFORE the action.
+    Image 2 is AFTER the action.
+
+    What changed?
+    1. Did player position change?
+    2. Did UI elements change (health, score, ammo)?
+    3. Are there new visual effects?
+    4. Any bugs or glitches visible?
+
+    Return {
+      "playerMoved": true|false,
+      "uiChanges": ["health decreased", "score increased", ...],
+      "newEffects": ["explosion", "particle", ...],
+      "issues": ["list of visual problems"]
+    }`
+  });
+
+  return JSON.parse(comparison);
+}
+```
+
 ### Monitoring State
 
 ```javascript
@@ -273,7 +403,9 @@ Before completing playtest:
 
 - [ ] All core mechanics tested
 - [ ] Edge cases explored
-- [ ] Screenshots captured
+- [ ] Screenshots captured (before/after for key actions)
+- [ ] **Game state detection verified via Vision MCP**
+- [ ] **Visual GDD compliance validated via Vision MCP**
 - [ ] Console checked for errors
 - [ ] Performance monitored
 - [ ] GDD compliance validated

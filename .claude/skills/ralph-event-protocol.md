@@ -398,9 +398,13 @@ PM can request regression testing while developer works:
 
 1. Watchdog starts
 2. Watchdog initializes message queue
-3. Watchdog starts all agents
-4. Each agent sends `agent_ready` to watchdog
-5. PM reads PRD, assigns first task
+3. **Watchdog starts ONLY PM agent** (PM-first initialization)
+4. PM clears stale messages and reads state files (coordinator-state.json, prd.json)
+5. PM determines which workers need activation based on current task state
+6. PM sends activation messages to worker inboxes
+7. Watchdog detects messages and starts the corresponding workers
+8. Each worker sends `agent_ready` to watchdog
+9. Workers process their assigned work
 
 ### Running
 
