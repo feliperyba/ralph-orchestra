@@ -309,6 +309,79 @@ All Ralph work follows these production standards:
 - **Conventional commits** with "Ralph" prefix
 - **All feedback loops must pass** (type-check, lint, test, build)
 
+## Quality Hooks
+
+Quality hooks are scripts that automatically enforce code quality standards by blocking specific operations. Hooks are stored in `.claude/hooks/` and are invoked via the PreToolUse hook mechanism.
+
+### Available Hooks
+
+#### TypeScript Safety Hook
+
+**File:** `.claude/hooks/block-ts-ignore.sh`
+
+Prevents agents from adding `@ts-ignore` or `@ts-expect-error` comments to code:
+
+```bash
+#!/bin/bash
+# Block edits that add @ts-ignore
+# Usage: Called by PreToolUse hook before Edit/Write operations
+
+INPUT=$(cat)
+CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_content // .tool_input.content // empty' 2>/dev/null)
+
+if [[ -z "$CONTENT" ]]; then
+    exit 0
+fi
+
+# Check if content would add @ts-ignore or @ts-expect-error
+if echo "$CONTENT" | grep -i "@ts-ignore\|@ts-expect-error" > /dev/null 2>&1; then
+    echo "Blocked: Cannot add @ts-ignore or @ts-expect-error to code" >&2
+    echo "Use proper TypeScript typing instead" >&2
+    exit 2  # Block with custom message
+fi
+
+exit 0  # Allow
+```
+
+**Exit Codes:**
+- `0` - Allow the operation
+- `1` - Block with default message
+- `2` - Block with custom error message
+
+### Creating Custom Hooks
+
+Create a new `.sh` file in `.claude/hooks/`:
+
+```bash
+#!/bin/bash
+# Hook: block-console-log.sh
+# Blocks console.log statements in production code
+
+INPUT=$(cat)
+CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_content // .tool_input.content // empty' 2>/dev/null)
+
+if echo "$CONTENT" | grep "console.log" > /dev/null 2>&1; then
+    echo "Blocked: Use a proper logging library instead of console.log" >&2
+    exit 2
+fi
+
+exit 0
+```
+
+### Hook Configuration
+
+Hooks are configured in `.claude/hooks.json`:
+
+```json
+{
+  "blockTsIgnore": {
+    "command": "bash",
+    "args": [".claude/hooks/block-ts-ignore.sh"],
+    "onTools": ["Write", "Edit"]
+  }
+}
+```
+
 ## Further Reading
 
 - [Getting Started](./getting-started.md) - Installation and first run

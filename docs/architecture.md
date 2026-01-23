@@ -101,6 +101,96 @@ The Game Designer agent handles design-specific tasks:
 - Performs playtesting via Playwright MCP automation
 - Reports playtest results to PM
 
+## Sub-agent Architecture
+
+Each main agent can delegate work to specialized sub-agents for cost optimization and focused expertise. Sub-agents keep the main agent's context clean and reduce token usage by ~77% for search tasks.
+
+### How Sub-agents Work
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MAIN AGENT (e.g., Developer)                      │
+│                                                                      │
+│  "Use the codebase-explorer subagent to find components using       │
+│   useFrame hook"                                                     │
+│                                 │                                    │
+│                                 ▼                                    │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │           SUB-AGENT (codebase-explorer)                      │   │
+│  │           Model: Haiku (faster, cheaper)                     │   │
+│  │           Tools: Read, Glob, Grep (read-only)                │   │
+│  │                                                                │   │
+│  │   Result: Returns concise file list with line numbers        │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                 │                                    │
+│                                 ▼                                    │
+│  Main agent receives result and continues with main task             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Sub-agent Definitions
+
+Sub-agents are defined in `.claude/agents/{agent}/` with YAML frontmatter:
+
+```yaml
+---
+name: codebase-explorer
+description: Fast codebase search for Developer agent
+model: haiku
+tools: Read, Glob, Grep
+disallowedTools: Write, Edit, Bash
+---
+
+You are a codebase exploration specialist...
+```
+
+### All Sub-agents
+
+| Agent | Sub-agent | Model | Purpose |
+|-------|-----------|-------|---------|
+| **Developer** | codebase-explorer | Haiku | Fast file/pattern search |
+| | gameplay-implementer | Sonnet | Implement game mechanics |
+| | network-implementer | Sonnet | Multiplayer/server code |
+| | state-architect | Sonnet | Zustand stores, data flow |
+| **PM** | task-selector | Sonnet | Analyze PRD, select next task |
+| | prd-analyst | Sonnet | Break down features into tasks |
+| | retro-facilitator | Sonnet | Run retrospective meetings |
+| | skill-researcher | Sonnet | Research skill improvements |
+| | gdd-reviewer | Sonnet | Review GDD from Game Designer |
+| **QA** | test-output-analyzer | Haiku | Parse verbose test results |
+| | code-inspector | Sonnet | Review code quality |
+| | browser-validator | Sonnet | Playwright testing |
+| | multiplayer-validator | Sonnet | Server-authoritative checks |
+| **Tech Artist** | asset-locator | Haiku | Find visual asset files |
+| | shader-creator | Sonnet | Create GLSL shaders |
+| | material-designer | Sonnet | Create PBR materials |
+| | fx-implementer | Sonnet | Particle effects, VFX |
+| | ui-polisher | Sonnet | UI styling, animations |
+| **Game Designer** | gdd-researcher | Haiku | Research game design patterns |
+| | gdd-writer | Sonnet | Create game design docs |
+| | playtest-specialist | Sonnet | Playtest via Playwright |
+| | mechanic-designer | Sonnet | Design game mechanics |
+
+### Cost Optimization
+
+- **Haiku models** for search, research, parsing tasks (~77% cost reduction)
+- **Sonnet models** for implementation, design, validation (higher quality)
+
+Example cost savings:
+- Main model (Sonnet): ~$0.15 per search
+- Haiku subagent: ~$0.05 per search
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+- "Use the codebase-explorer subagent to find components using useFrame hook"
+- "Use the gameplay-implementer subagent to implement player jump mechanics"
+- "Use the asset-locator subagent to find all texture files for the vehicle"
+
 ## Task Lifecycle
 
 ```

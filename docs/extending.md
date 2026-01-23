@@ -275,6 +275,149 @@ Edit `.claude/skills/ralph-router.md`:
 | task contains "shader" | skills/shader-creation.md |
 ```
 
+## Adding Custom Sub-agents
+
+Sub-agents allow main agents to delegate focused work to specialized, lower-cost models. This keeps the main agent's context clean and reduces token usage.
+
+### Sub-agent Benefits
+
+- **Cost Optimization** - Use Haiku for search tasks (~77% cost reduction)
+- **Clean Context** - Main agent doesn't accumulate search results
+- **Specialized Expertise** - Each sub-agent has focused instructions
+
+### When to Use Haiku vs Sonnet
+
+| Model | Use For | Examples |
+|-------|---------|----------|
+| **Haiku** | Fast search, research, parsing | Finding files, parsing test output, locating assets |
+| **Sonnet** | Implementation, design, validation | Creating features, writing GDDs, code review |
+
+### Creating a Sub-agent
+
+Sub-agents are defined in `.claude/agents/{agent}/` with YAML frontmatter:
+
+#### Example 1: Haiku Search Sub-agent
+
+```markdown
+---
+name: asset-locator
+description: Fast asset file discovery for Tech Artist agent. Use proactively when finding textures, models, or shaders.
+model: haiku
+tools: Read, Glob, Grep
+disallowedTools: Write, Edit, Bash
+---
+
+You are an asset file discovery specialist. Your job is to quickly find visual asset files.
+
+## Search Strategy
+
+1. Use **Glob** to find matching files by pattern (e.g., `**/*.png`, `**/*.glb`)
+2. Use **Grep** to search within files for specific asset names
+3. Use **Read** to verify asset metadata if needed
+
+## Output Format
+
+Return concise results:
+- path/to/file.png
+- path/to/shader.glsl (lines 10-25 relevant)
+
+**Keep output brief** - this is a fast search subagent.
+```
+
+#### Example 2: Sonnet Implementation Sub-agent
+
+```markdown
+---
+name: gameplay-implementer
+description: Implement game mechanics and gameplay systems. Use proactively for feature implementation tasks.
+model: sonnet
+tools: Read, Write, Edit, Bash, Grep, Glob
+---
+
+You are a gameplay implementation specialist. Your job is to implement game mechanics.
+
+## Implementation Workflow
+
+1. Read the GDD for mechanic specifications
+2. Read existing similar code for patterns
+3. Implement using TypeScript and R3F patterns
+4. Run type-check and lint
+5. Commit with conventional commit format
+
+## Focus Areas
+
+- Player movement and controls
+- Combat mechanics
+- Inventory systems
+- Game loops
+```
+
+### Sub-agent YAML Frontmatter Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique identifier (used for delegation) |
+| `description` | Yes | Brief description of when to use this sub-agent |
+| `model` | Yes | `haiku` or `sonnet` |
+| `tools` | No | Allowed tools (defaults to all if omitted) |
+| `disallowedTools` | No | Tools to explicitly forbid |
+
+### Invoking Sub-agents from Main Agent
+
+In the main agent's AGENT.md, document available sub-agents:
+
+```markdown
+## Subagent Delegation
+
+| Subagent | Model | Purpose | When to Use |
+|----------|-------|---------|-------------|
+| `codebase-explorer` | Haiku | Fast file search | Finding similar code |
+| `gameplay-implementer` | Sonnet | Game mechanics | Implementing features |
+
+### Delegation Pattern
+
+```
+"Use the {subagent-name} subagent to {brief task description}"
+```
+
+Examples:
+- "Use the codebase-explorer subagent to find components using useFrame hook"
+- "Use the gameplay-implementer subagent to implement player jump mechanics"
+```
+
+### Directory Structure
+
+```
+.claude/agents/
+├── developer/
+│   ├── codebase-explorer.md      # Haiku - Fast search
+│   ├── gameplay-implementer.md   # Sonnet - Mechanics
+│   ├── network-implementer.md    # Sonnet - Multiplayer
+│   └── state-architect.md        # Sonnet - State management
+├── pm/
+│   ├── task-selector.md          # Sonnet - Task selection
+│   ├── prd-analyst.md            # Sonnet - Feature breakdown
+│   ├── retro-facilitator.md      # Sonnet - Retrospectives
+│   ├── skill-researcher.md       # Sonnet - Skill improvements
+│   └── gdd-reviewer.md           # Sonnet - GDD validation
+├── qa/
+│   ├── test-output-analyzer.md   # Haiku - Test parsing
+│   ├── code-inspector.md         # Sonnet - Code review
+│   ├── browser-validator.md      # Sonnet - Browser testing
+│   └── multiplayer-validator.md  # Sonnet - Multiplayer checks
+├── techartist/
+│   ├── asset-locator.md          # Haiku - Asset search
+│   ├── shader-creator.md         # Sonnet - Shaders
+│   ├── material-designer.md      # Sonnet - Materials
+│   ├── fx-implementer.md         # Sonnet - VFX
+│   └── ui-polisher.md            # Sonnet - UI polish
+└── gamedesigner/
+    ├── gdd-researcher.md         # Haiku - Design research
+    ├── gdd-writer.md             # Sonnet - GDD writing
+    ├── playtest-specialist.md    # Sonnet - Playtesting
+    └── mechanic-designer.md      # Sonnet - Mechanic design
+```
+
 ## Thermite Design Integration
 
 The Game Designer agent uses the [thermite-design](.claude/skills/thermite-design.md) skill for structured design sessions:

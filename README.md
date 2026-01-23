@@ -20,12 +20,14 @@ The agents communicate through shared state files and named pipes, and can run i
 ## Key Features
 
 - **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
+- **Sub-agent Delegation** - 22 specialized sub-agents for focused tasks with ~77% cost optimization (Haiku for search, Sonnet for implementation)
 - **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
 - **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
 - **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms delivery)
 - **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
 - **Skill Improvement** - Agents research and propose skill updates during retrospectives
 - **Git Worktrees** - Developer and Tech Artist can work in parallel without conflicts
+- **Quality Hooks** - Automated code quality enforcement (e.g., blocks @ts-ignore)
 
 ## Quick Start
 
@@ -98,6 +100,20 @@ PM receives QA's result
      ↓
 Iteration completes → next task begins
 ```
+
+## Sub-agent Architecture
+
+Each main agent can delegate work to specialized sub-agents for cost optimization and focused expertise:
+
+| Agent | Sub-agents |
+|-------|------------|
+| **Developer** | codebase-explorer (Haiku), gameplay-implementer, network-implementer, state-architect |
+| **PM** | task-selector, prd-analyst, retro-facilitator, skill-researcher, gdd-reviewer |
+| **QA** | test-output-analyzer (Haiku), code-inspector, browser-validator, multiplayer-validator |
+| **Tech Artist** | asset-locator (Haiku), shader-creator, material-designer, fx-implementer, ui-polisher |
+| **Game Designer** | gdd-researcher (Haiku), gdd-writer, playtest-specialist, mechanic-designer |
+
+**Cost Optimization**: Haiku sub-agents handle search/research tasks at ~77% lower cost, keeping main agent context clean.
 
 ## Documentation
 
