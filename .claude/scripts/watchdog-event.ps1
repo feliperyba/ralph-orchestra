@@ -267,7 +267,7 @@ $Script:DeliveryGraceSeconds = 10
 function Start-Agent {
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter")]
         [string]$AgentName,
         
         [array]$PendingMessages = @()  # Messages to deliver to agent on startup

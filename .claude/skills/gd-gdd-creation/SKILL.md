@@ -1,8 +1,7 @@
 ---
-name: gdd-creation
+name: gamedesigner-gdd-creation
 description: Game Design Document creation and structure
 category: gamedesign
-depends-on: []
 ---
 
 # GDD Creation Skill

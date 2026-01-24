@@ -1,0 +1,477 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "prd-starter-state.schema.json",
+  "title": "PRD Starter State File Schema",
+  "description": "JSON schema for the prd-starter state file that tracks progress through setup phases",
+  "type": "object",
+  "required": ["version", "startedAt", "currentPhase", "phases"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "State file version"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the session started"
+    },
+    "completedAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "When the session completed"
+    },
+    "currentPhase": {
+      "type": "string",
+      "enum": [
+        "project_identification",
+        "agent_configuration",
+        "workflow_pattern",
+        "orchestration_mode",
+        "technology_stack",
+        "quality_standards",
+        "initial_features",
+        "review_confirm",
+        "completed"
+      ],
+      "description": "Current active phase"
+    },
+    "currentSubPhase": {
+      "type": ["string", "null"],
+      "description": "Current sub-phase for phases that have them (e.g., agent_configuration)"
+    },
+    "phases": {
+      "type": "object",
+      "description": "All phase data",
+      "properties": {
+        "project_identification": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "projectType": {
+                  "type": "string",
+                  "enum": ["web", "game", "mobile", "backend", "data", "devops", "other"]
+                },
+                "projectName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "projectDescription": {
+                  "type": "string",
+                  "minLength": 10
+                },
+                "customDescription": {
+                  "type": "string"
+                },
+                "researchFindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "source": { "type": "string" },
+                      "findings": { "type": "string" },
+                      "timestamp": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "agent_configuration": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "currentAgentIndex": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "type": {
+                        "type": "string",
+                        "enum": ["pm", "developer", "qa", "techartist", "gamedesigner", "devops", "data", "ml", "security", "ux", "docs", "custom"]
+                      },
+                      "customType": { "type": "string" },
+                      "displayName": { "type": "string" },
+                      "icon": { "type": "string" },
+                      "role": { "type": "string" },
+                      "primaryResponsibility": { "type": "string" },
+                      "cannotDo": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "worksWith": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "skills": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "primaryFocus": { "type": "string" },
+                      "filePermissions": {
+                        "type": "object",
+                        "properties": {
+                          "mayWrite": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          },
+                          "mayNotWrite": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          }
+                        }
+                      },
+                      "mcpServers": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "subAgents": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "completedSubPhases": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["type", "role", "skills", "tools", "permissions"]
+                        }
+                      },
+                      "research": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "object",
+                            "properties": {
+                              "sources": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "findings": { "type": "string" },
+                              "consolidatedWith": { "type": "string" }
+                            }
+                          },
+                          "skills": {
+                            "type": "object",
+                            "properties": {
+                              "sources": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "recommended": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "selected": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "consolidatedWith": { "type": "string" }
+                            }
+                          },
+                          "tools": {
+                            "type": "object",
+                            "properties": {
+                              "templateAgent": { "type": "string" },
+                              "builtinTools": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "mcpServers": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "subAgents": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "consolidatedWith": { "type": "string" }
+                            }
+                          },
+                          "filePermissions": {
+                            "type": "object",
+                            "properties": {
+                              "sources": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "recommended": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "selected": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "workflow_pattern": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "enum": ["waterfall", "collaborative", "autonomous", "custom"]
+                },
+                "customPattern": { "type": "string" },
+                "researchFindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "source": { "type": "string" },
+                      "findings": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "orchestration_mode": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["event-driven", "sequential", "hitl", "custom"]
+                },
+                "customMode": { "type": "string" }
+              }
+            }
+          }
+        },
+        "technology_stack": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "frontend": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "value": { "type": "string" },
+                    "variant": { "type": "string" }
+                  }
+                },
+                "backend": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "value": { "type": "string" },
+                    "variant": { "type": "string" }
+                  }
+                },
+                "database": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "value": { "type": "string" },
+                    "variant": { "type": "string" }
+                  }
+                },
+                "buildTools": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "value": { "type": "string" },
+                    "variant": { "type": "string" }
+                  }
+                },
+                "testing": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "value": { "type": "string" },
+                    "variant": { "type": "string" }
+                  }
+                },
+                "customStack": { "type": "string" },
+                "researchFindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "source": { "type": "string" },
+                      "findings": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "quality_standards": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "typescript": { "type": "boolean" },
+                "testCoverage": { "type": "integer", "minimum": 0, "maximum": 100 },
+                "linting": { "type": "boolean" },
+                "precommit": { "type": "boolean" },
+                "cicd": { "type": "boolean" },
+                "documentation": { "type": "boolean" },
+                "security": { "type": "boolean" },
+                "performance": { "type": "boolean" },
+                "customStandards": { "type": "string" }
+              }
+            }
+          }
+        },
+        "initial_features": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "rawInput": { "type": "string" },
+                "parsedFeatures": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": { "type": "string" },
+                      "description": { "type": "string" },
+                      "priority": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"]
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": ["architectural", "functional", "integration", "polish", "design", "visual"]
+                      },
+                      "acceptanceCriteria": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "agent": { "type": "string" }
+                    }
+                  }
+                },
+                "extractedTasks": {
+                  "type": "array",
+                  "items": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "review_confirm": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "skipped"]
+            },
+            "completedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "confirmed": { "type": "boolean" },
+                "modifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "field": { "type": "string" },
+                      "originalValue": {},
+                      "newValue": {},
+                      "reason": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,10 @@
 {
+  "mcpServers": {
+    "playwright": {
+      "command": "cmd",
+      "args": ["/c", "npx", "@playwright/mcp@latest"]
+    }
+  },
   "permissions": {
     "allow": [
       "mcp__zread__get_repo_structure",

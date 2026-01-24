@@ -89,18 +89,10 @@ For example, to add a new worker agent (techartist is already included as an exa
 
 ```
 agents/techartist/
-├── AGENT.md              # Core behavior instructions
-├── SKILLS.md             # Skills index (documents relevant skills)
-├── checklists/
-│   ├── asset-quality.md
-│   ├── shader-review.md
-│   └── visual-consistency.md
-└── references/
-    ├── material-presets.md
-    └── shader-patterns.md
+└── AGENT.md              # Core behavior instructions
 ```
 
-**Note:** Skills are centralized in `.claude/skills/`, not inside agent folders.
+**Note:** Skills are centralized in `.claude/skills/` (folder-based), and sub-agents are in `.claude/agents/*.agent.md`.
 
 ### Step 2: Create AGENT.md
 
@@ -294,20 +286,20 @@ Sub-agents allow main agents to delegate focused work to specialized, lower-cost
 
 ### Creating a Sub-agent
 
-Sub-agents are defined in `.claude/agents/{agent}/` with YAML frontmatter:
+Sub-agents are defined in `.claude/agents/*.agent.md` with YAML frontmatter:
 
 #### Example 1: Haiku Search Sub-agent
 
 ```markdown
 ---
-name: asset-locator
-description: Fast asset file discovery for Tech Artist agent. Use proactively when finding textures, models, or shaders.
+name: asset-researcher
+description: Research existing assets in src/assets/ before requesting new ones from Tech Artist
 model: haiku
 tools: Read, Glob, Grep
 disallowedTools: Write, Edit, Bash
 ---
 
-You are an asset file discovery specialist. Your job is to quickly find visual asset files.
+You are an asset research specialist. Your job is to quickly find visual asset files.
 
 ## Search Strategy
 
@@ -328,28 +320,30 @@ Return concise results:
 
 ```markdown
 ---
-name: gameplay-implementer
-description: Implement game mechanics and gameplay systems. Use proactively for feature implementation tasks.
+name: implementation
+description: Implement features using R3F/TypeScript patterns following research findings
 model: sonnet
-tools: Read, Write, Edit, Bash, Grep, Glob
+skills:
+  - dev-r3f-r3f-fundamentals
+  - dev-r3f-r3f-physics
+tools: Read, Write, Edit, Bash
 ---
 
-You are a gameplay implementation specialist. Your job is to implement game mechanics.
+You are an implementation specialist. Your job is to implement features following researched patterns.
 
 ## Implementation Workflow
 
-1. Read the GDD for mechanic specifications
-2. Read existing similar code for patterns
-3. Implement using TypeScript and R3F patterns
+1. Read research findings from code-researcher
+2. Load appropriate skills based on task keywords
+3. Implement following existing patterns
 4. Run type-check and lint
 5. Commit with conventional commit format
 
-## Focus Areas
+## Quality Standards
 
-- Player movement and controls
-- Combat mechanics
-- Inventory systems
-- Game loops
+- NO `any` types without justification
+- NO `@ts-ignore` or `@ts-expect-error`
+- Follow existing code conventions
 ```
 
 ### Sub-agent YAML Frontmatter Fields
@@ -371,8 +365,8 @@ In the main agent's AGENT.md, document available sub-agents:
 
 | Subagent | Model | Purpose | When to Use |
 |----------|-------|---------|-------------|
-| `codebase-explorer` | Haiku | Fast file search | Finding similar code |
-| `gameplay-implementer` | Sonnet | Game mechanics | Implementing features |
+| `code-research` | Haiku | Fast file search | Finding similar code |
+| `implementation` | Sonnet | Feature implementation | Implementing features |
 
 ### Delegation Pattern
 
@@ -381,46 +375,30 @@ In the main agent's AGENT.md, document available sub-agents:
 ```
 
 Examples:
-- "Use the codebase-explorer subagent to find components using useFrame hook"
-- "Use the gameplay-implementer subagent to implement player jump mechanics"
+- "Use the code-research subagent to find components using useFrame hook"
+- "Use the implementation subagent to implement player jump mechanics"
+- "Use the asset-researcher subagent to find all texture files for the vehicle"
 ```
 
 ### Directory Structure
 
 ```
-.claude/agents/
-├── developer/
-│   ├── codebase-explorer.md      # Haiku - Fast search
-│   ├── gameplay-implementer.md   # Sonnet - Mechanics
-│   ├── network-implementer.md    # Sonnet - Multiplayer
-│   └── state-architect.md        # Sonnet - State management
-├── pm/
-│   ├── task-selector.md          # Sonnet - Task selection
-│   ├── prd-analyst.md            # Sonnet - Feature breakdown
-│   ├── retro-facilitator.md      # Sonnet - Retrospectives
-│   ├── skill-researcher.md       # Sonnet - Skill improvements
-│   └── gdd-reviewer.md           # Sonnet - GDD validation
-├── qa/
-│   ├── test-output-analyzer.md   # Haiku - Test parsing
-│   ├── code-inspector.md         # Sonnet - Code review
-│   ├── browser-validator.md      # Sonnet - Browser testing
-│   └── multiplayer-validator.md  # Sonnet - Multiplayer checks
-├── techartist/
-│   ├── asset-locator.md          # Haiku - Asset search
-│   ├── shader-creator.md         # Sonnet - Shaders
-│   ├── material-designer.md      # Sonnet - Materials
-│   ├── fx-implementer.md         # Sonnet - VFX
-│   └── ui-polisher.md            # Sonnet - UI polish
-└── gamedesigner/
-    ├── gdd-researcher.md         # Haiku - Design research
-    ├── gdd-writer.md             # Sonnet - GDD writing
-    ├── playtest-specialist.md    # Sonnet - Playtesting
-    └── mechanic-designer.md      # Sonnet - Mechanic design
+.claude/agents/              # FLAT: no subdirectories
+├── implementation.agent.md  # Sonnet - Code implementation
+├── code-quality.agent.md    # Sonnet - Code quality checks
+├── code-research.agent.md   # Haiku - Fast search
+├── validation.agent.md      # Haiku - Pre-commit validation
+├── commit.agent.md          # Sonnet - Git commits
+├── browser-validator.agent.md  # Sonnet - Browser testing
+├── gdd-documenter.agent.md     # Sonnet - GDD creation
+├── prd-organizer.agent.md      # Sonnet - PRD organization
+├── task-researcher.agent.md    # Sonnet - PM task research
+└── ... (16+ more sub-agents)
 ```
 
 ## Thermite Design Integration
 
-The Game Designer agent uses the [thermite-design](.claude/skills/thermite-design.md) skill for structured design sessions:
+The Game Designer agent uses the [thermite-design](.claude/skills/gd-thermite-integration/SKILL.md) skill for structured design sessions:
 
 ### Design Pillars
 

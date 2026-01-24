@@ -337,6 +337,12 @@ $Script:AgentConfig = @{
         DisplayName = "Game Designer"
         Color = "Blue"
     }
+    "prd-starter" = @{
+        Type = "utility"
+        Command = "/ralph-prd-starter"
+        DisplayName = "PRD Starter"
+        Color = "White"
+    }
 }
 
 function Get-AgentConfig {
@@ -404,7 +410,7 @@ function Write-SessionLog {
         [string]$Message,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "techartist", "qa", "gamedesigner", "watchdog")]
+        [ValidateSet("pm", "developer", "techartist", "qa", "gamedesigner", "prd-starter", "watchdog")]
         [string]$Agent,
 
         [ValidateSet("INFO", "WARNING", "ERROR", "DEBUG")]

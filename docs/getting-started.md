@@ -16,6 +16,32 @@ cd ralph-orchestra
 npm install
 ```
 
+## Quick Start: PRD Starter Wizard (Recommended for New Projects)
+
+For new projects or when you want custom agent configuration, use the **PRD Starter Wizard**:
+
+```
+/ralph-prd-starter
+```
+
+This interactive 8-phase wizard guides you through:
+1. **Project Identification** - Project type, name, description
+2. **Agent Configuration** - Define N custom agents with roles and skills
+3. **Workflow Pattern** - Waterfall, Collaborative, or Autonomous
+4. **Orchestration Mode** - Event-driven, Sequential, or HITL
+5. **Technology Stack** - Frontend, backend, database, tools
+6. **Quality Standards** - TypeScript, testing, linting, CI/CD
+7. **Initial Features** - Feature list with acceptance criteria
+8. **Review & Confirm** - Summary and file generation
+
+The wizard generates:
+- Custom agent definitions (`agents/{name}/AGENT.md`)
+- Agent settings (`.claude/settings.{name}.json`)
+- Initial PRD (`prd.json`)
+- Updated orchestration scripts
+
+See [PRD Starter Guide](./prd-starter.md) for complete documentation.
+
 ## Understanding the Interfaces
 
 Ralph Orchestra can be invoked through **three different interfaces**, each with different trade-offs:

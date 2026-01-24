@@ -10,7 +10,7 @@
 #   RALPH_MAX_ITERATIONS - Maximum iterations before forced exit (default: 50)
 #
 # Session State:
-#   .claude/session/coordinator-state.json - Main session state
+#   prd.json.session - Main session state (SINGLE SOURCE OF TRUTH)
 #   .claude/session/last-output.txt - Last Claude output for completion detection
 #   .claude/session/context-reset-count.txt - Track number of context resets
 
@@ -18,7 +18,7 @@ set -e
 
 # Configuration
 SESSION_DIR=".claude/session"
-STATE_FILE="$SESSION_DIR/coordinator-state.json"
+PRD_JSON="prd.json"
 LAST_OUTPUT="$SESSION_DIR/last-output.txt"
 RESET_COUNT_FILE="$SESSION_DIR/context-reset-count.txt"
 COMPLETION_PROMISE=${RALPH_COMPLETION_PROMISE:-"RALPH_COMPLETE"}
@@ -33,42 +33,66 @@ fi
 # Ensure session directory exists
 mkdir -p "$SESSION_DIR"
 
-# Initialize state if doesn't exist
-if [ ! -f "$STATE_FILE" ]; then
-    cat > "$STATE_FILE" << EOF
+# Initialize prd.json.session if doesn't exist
+if [ -f "$PRD_JSON" ]; then
+    # Check if session section exists
+    if ! jq -e '.session' "$PRD_JSON" &> /dev/null; then
+        # Add session section to existing prd.json
+        jq --arg max "$MAX_ITERATIONS" --arg promise "$COMPLETION_PROMISE" \
+            '.session = {
+                sessionId: "ralph-'"$(date +%Y%m%d-%H%M%S)"'",
+                startedAt: "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+                maxIterations: ($max | tonumber),
+                iteration: 1,
+                completionPromise: $promise,
+                status: "running",
+                currentTask: null,
+                stats: {totalTasks: 0, completed: 0, failed: 0, commits: 0}
+            }' "$PRD_JSON" > "$PRD_JSON.tmp" && mv "$PRD_JSON.tmp" "$PRD_JSON"
+    fi
+else
+    # Create new prd.json with session section
+    cat > "$PRD_JSON" << EOF
 {
-  "sessionId": "ralph-$(date +%Y%m%d-%H%M%S)",
-  "startedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "maxIterations": $MAX_ITERATIONS,
-  "iteration": 1,
-  "completionPromise": "$COMPLETION_PROMISE",
-  "status": "running",
-  "currentTask": null,
-  "agents": {
-    "pm": {"status": "idle", "lastSeen": null},
-    "developer": {"status": "idle", "lastSeen": null},
-    "qa": {"status": "idle", "lastSeen": null}
+  "project": "",
+  "version": "1.0.0",
+  "session": {
+    "sessionId": "ralph-$(date +%Y%m%d-%H%M%S)",
+    "startedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "maxIterations": $MAX_ITERATIONS,
+    "iteration": 1,
+    "completionPromise": "$COMPLETION_PROMISE",
+    "status": "running",
+    "currentTask": null,
+    "stats": {
+      "totalTasks": 0,
+      "completed": 0,
+      "failed": 0,
+      "commits": 0
+    }
   },
-  "stats": {
-    "totalTasks": 0,
-    "completed": 0,
-    "failed": 0,
-    "commits": 0
-  }
+  "agents": {
+    "pm": {"status": "idle", "lastSeen": null, "currentTaskId": null, "pid": 0},
+    "developer": {"status": "idle", "lastSeen": null, "currentTaskId": null, "pid": 0},
+    "techartist": {"status": "idle", "lastSeen": null, "currentTaskId": null, "pid": 0},
+    "qa": {"status": "idle", "lastSeen": null, "currentTaskId": null, "pid": 0},
+    "gamedesigner": {"status": "idle", "lastSeen": null, "currentTaskId": null, "pid": 0}
+  },
+  "items": []
 }
 EOF
 fi
 
 # Read current state (using jq if available, otherwise basic parsing)
 if command -v jq &> /dev/null; then
-    STATUS=$(jq -r '.status' "$STATE_FILE" 2>/dev/null || echo "running")
-    ITERATION=$(jq -r '.iteration // 1' "$STATE_FILE" 2>/dev/null || echo "1")
-    MAX=$(jq -r '.maxIterations // '"$MAX_ITERATIONS" "$STATE_FILE" 2>/dev/null || echo "$MAX_ITERATIONS")
+    STATUS=$(jq -r '.session.status // "running"' "$PRD_JSON" 2>/dev/null || echo "running")
+    ITERATION=$(jq -r '.session.iteration // 1' "$PRD_JSON" 2>/dev/null || echo "1")
+    MAX=$(jq -r '.session.maxIterations // '"$MAX_ITERATIONS" "$PRD_JSON" 2>/dev/null || echo "$MAX_ITERATIONS")
 else
-    # Fallback without jq - simple grep
-    STATUS=$(grep -o '"status":[[:space:]]*"[^"]*"' "$STATE_FILE" 2>/dev/null | cut -d'"' -f4 || echo "running")
-    ITERATION=$(grep -o '"iteration":[[:space:]]*[0-9]*' "$STATE_FILE" 2>/dev/null | grep -o '[0-9]*$' || echo "1")
-    MAX=$(grep -o '"maxIterations":[[:space:]]*[0-9]*' "$STATE_FILE" 2>/dev/null | grep -o '[0-9]*$' || echo "$MAX_ITERATIONS")
+    # Fallback without jq - simple grep (looks for session.status)
+    STATUS=$(grep -o '"status":[[:space:]]*"[^"]*"' "$PRD_JSON" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "running")
+    ITERATION=$(grep -o '"iteration":[[:space:]]*[0-9]*' "$PRD_JSON" 2>/dev/null | head -1 | grep -o '[0-9]*$' || echo "1")
+    MAX=$(grep -o '"maxIterations":[[:space:]]*[0-9]*' "$PRD_JSON" 2>/dev/null | head -1 | grep -o '[0-9]*$' || echo "$MAX_ITERATIONS")
 fi
 
 # ============================================================================
@@ -83,9 +107,9 @@ fi
 if [ "$ITERATION" -gt "$MAX" ]; then
     echo "=== Max iterations reached ($ITERATION/$MAX) ==="
     echo "Ralph loop stopping..."
-    # Update status
+    # Update status in prd.json.session
     if command -v jq &> /dev/null; then
-        jq ".status = \"max_iterations_reached\"" "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+        jq '.session.status = "max_iterations_reached"' "$PRD_JSON" > "$PRD_JSON.tmp" && mv "$PRD_JSON.tmp" "$PRD_JSON"
     fi
     exit 0
 fi
@@ -115,15 +139,15 @@ if [ -f "$LAST_OUTPUT" ]; then
     if grep -q "<promise>$COMPLETION_PROMISE</promise>" "$LAST_OUTPUT" 2>/dev/null; then
         echo "--- Completion promise detected, updating status ---"
         if command -v jq &> /dev/null; then
-            jq ".status = \"completed\"" "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+            jq '.session.status = "completed"' "$PRD_JSON" > "$PRD_JSON.tmp" && mv "$PRD_JSON.tmp" "$PRD_JSON"
         fi
         # Note: We still continue - external loop will detect "completed" status
     fi
 fi
 
-# Increment iteration counter
+# Increment iteration counter in prd.json.session
 if command -v jq &> /dev/null; then
-    jq ".iteration += 1" "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+    jq '.session.iteration += 1' "$PRD_JSON" > "$PRD_JSON.tmp" && mv "$PRD_JSON.tmp" "$PRD_JSON"
 fi
 
 # ALWAYS signal restart - exit code 42 means "run again with same prompt"

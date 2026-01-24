@@ -26,12 +26,59 @@
       "description": "Production build must succeed"
     }
   },
+  "session": {
+    "sessionId": "",
+    "startedAt": "",
+    "maxIterations": 200,
+    "iteration": 0,
+    "completionPromise": "RALPH_COMPLETE",
+    "status": "running",
+    "currentTask": null,
+    "stats": {
+      "totalTasks": 0,
+      "completed": 0,
+      "failed": 0,
+      "commits": 0
+    }
+  },
   "qualityStandards": {
     "typeSafety": "strict - no 'any' types without justification",
     "testCoverage": "80% minimum for new code",
     "documentation": "Required for complex shaders, game logic, and public APIs",
     "commitStyle": "Conventional commits with Ralph prefix",
     "codeReview": "All code must pass feedback loops before QA"
+  },
+  "agents": {
+    "pm": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "developer": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "techartist": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "qa": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "gamedesigner": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    }
   },
   "items": [
     {

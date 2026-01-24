@@ -121,11 +121,11 @@ function Send-AgentMessage {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$To,
         
         [Parameter(Mandatory=$true)]
@@ -395,7 +395,7 @@ function Get-PendingMessages {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$Agent,
 
         [string]$Type = $null,
@@ -668,11 +668,11 @@ function Send-AgentMessageSafe {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$To,
 
         [Parameter(Mandatory=$true)]
@@ -1151,7 +1151,7 @@ function Get-AgentMessages {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$Agent,
 
         [string]$Type = $null,
@@ -1176,7 +1176,7 @@ function Remove-AgentMessage {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
         [string]$Agent,
 
         [Parameter(Mandatory=$true)]

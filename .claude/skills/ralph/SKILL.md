@@ -72,7 +72,7 @@ echo "## Session Log" >> .claude/session/progress.txt
 
 1. Read `prd.json` to see all tasks
 2. **Read `progress.txt` FIRST** to understand what's been done (this skips expensive re-exploration)
-3. Initialize session state in `.claude/session/coordinator-state.json`
+3. Session state is in `prd.json.session`
 
 ## Your Loop
 

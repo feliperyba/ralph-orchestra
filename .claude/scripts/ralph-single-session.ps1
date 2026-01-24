@@ -28,8 +28,8 @@ Write-Host "Dashboard: $(if ($NoDashboard) { 'DISABLED' } else { 'ENABLED' })"
 Write-Host ""
 
 # Validate initial agent
-if ($InitialAgent -notin @("pm", "developer", "qa")) {
-    Write-Host "ERROR: InitialAgent must be 'pm', 'developer', or 'qa'" -ForegroundColor Red
+if ($InitialAgent -notin @("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter")) {
+    Write-Host "ERROR: InitialAgent must be a valid agent (pm, developer, qa, gamedesigner, techartist, prd-starter)" -ForegroundColor Red
     exit 1
 }
 

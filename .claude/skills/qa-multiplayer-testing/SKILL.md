@@ -1,8 +1,7 @@
 ---
-name: multiplayer-testing
+name: qa-multiplayer-testing
 description: Multiplayer testing with multi-client browser contexts for server-authoritative validation
 category: validation
-depends-on: [browser-testing]
 ---
 
 # Multiplayer Testing Skill
@@ -18,6 +17,7 @@ Use for **EVERY task** marked with `serverAuthoritative: true` or `multiplayerTe
 **Single-browser testing is INSUFFICIENT for multiplayer validation.**
 
 You must verify:
+
 - Server receives input from clients
 - Server validates and processes input
 - Server broadcasts state to all clients
@@ -60,28 +60,26 @@ test('server-authoritative movement sync', async ({ browser }) => {
 
 ## Test Categories
 
-| Category | What to Validate |
-|----------|------------------|
-| Connection | Multiple clients connect to same room |
-| State Sync | All clients see same server state |
-| Movement | Client input → Server validate → All clients see result |
-| Shooting | Client fires → Server validates → All clients see paint |
-| Spawning | Server assigns spawn → All clients see same location |
-| Tamper Detection | Server rejects invalid inputs |
-| Latency | Client prediction + server reconciliation |
+| Category         | What to Validate                                        |
+| ---------------- | ------------------------------------------------------- |
+| Connection       | Multiple clients connect to same room                   |
+| State Sync       | All clients see same server state                       |
+| Movement         | Client input → Server validate → All clients see result |
+| Shooting         | Client fires → Server validates → All clients see paint |
+| Spawning         | Server assigns spawn → All clients see same location    |
+| Tamper Detection | Server rejects invalid inputs                           |
+| Latency          | Client prediction + server reconciliation               |
 
 ## Server Validation Checklist
 
 Before writing multiplayer tests, verify server is running:
 
 ```bash
-# Terminal 1: Start server
-npm run server
-# Expected output: "listening on wss://localhost:2567"
-
-# Terminal 2: Start client
-npm run dev
+# Terminal 1: Start servers
+npm run dev:all:sh
+# Expected output: "listening on ws://localhost:2567"
 # Expected output: "Local: http://localhost:3000"
+
 ```
 
 **If server is NOT running, FAIL the validation immediately.**
@@ -181,7 +179,7 @@ test('server validates input (anti-cheat)', async ({ browser }) => {
       input: {
         forward: true,
         speed: 999999, // Impossible speed - server should reject
-      }
+      },
     });
   });
 
@@ -229,7 +227,7 @@ test('shooting syncs between clients', async ({ browser }) => {
 test('client prediction works with latency', async ({ browser, context }) => {
   // Simulate high latency
   await context.route('**/*', async (route) => {
-    await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
+    await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay
     route.continue();
   });
 
@@ -279,7 +277,7 @@ describe('GameRoom Server Authority', () => {
     // Send input with impossible speed
     room.onMessage(mockClient, {
       type: 'player_input',
-      input: { speed: 9999 }
+      input: { speed: 9999 },
     });
 
     // Position should NOT have changed dramatically
@@ -296,7 +294,7 @@ describe('GameRoom Server Authority', () => {
     // Try to shoot again immediately (should be rejected)
     room.onMessage(mockClient, {
       type: 'shoot',
-      aim: { x: 1, y: 0, z: 0 }
+      aim: { x: 1, y: 0, z: 0 },
     });
 
     // No projectile should have been created
@@ -355,13 +353,13 @@ For each multiplayer validation:
 
 ## Common Mistakes
 
-| ❌ Wrong | ✅ Right |
-|----------|----------|
-| Test with 1 browser context | Test with 2+ contexts (multi-client) |
-| Don't check server logs | Verify server receives and processes input |
-| Assume state syncs | Assert state values match across clients |
-| Test local state only | Test REMOTE player state from other client |
-| Ignore server validation | Test that invalid inputs are rejected |
+| ❌ Wrong                    | ✅ Right                                   |
+| --------------------------- | ------------------------------------------ |
+| Test with 1 browser context | Test with 2+ contexts (multi-client)       |
+| Don't check server logs     | Verify server receives and processes input |
+| Assume state syncs          | Assert state values match across clients   |
+| Test local state only       | Test REMOTE player state from other client |
+| Ignore server validation    | Test that invalid inputs are rejected      |
 
 ## Anti-Patterns
 
@@ -393,9 +391,174 @@ For each multiplayer validation:
 - Console errors on any client
 - Server crashes or throws errors
 
+## Server-Authoritative Shooting Validation
+
+Shooting validation requires checking both client AND server behavior:
+
+### Client-Side Validation
+
+```typescript
+test('client sends aim+fire command (not hit reporting)', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+
+  // Expose shooting service for testing
+  const shootingService = await page.evaluate(() => window.shootingService);
+
+  // Verify client sends aim direction + fire command
+  const messages: any[] = [];
+  await page.evaluate(() => {
+    const originalSend = window.networkManager?.send;
+    window.networkManager.send = (data) => {
+      window.testMessages.push(data);
+      return originalSend?.call(window.networkManager, data);
+    };
+  });
+
+  // Trigger shoot
+  await page.click('canvas');
+  await page.mouse.click(400, 300);
+
+  // Verify paint_fire message structure
+  const fireMessage = await page.evaluate(() => {
+    return window.testMessages.find((m) => m.type === 'paint_fire');
+  });
+
+  expect(fireMessage).toBeDefined();
+  expect(fireMessage.direction).toBeDefined(); // Client sends AIM
+  expect(fireMessage.hitPosition).toBeUndefined(); // NOT hit reporting
+  expect(fireMessage.sequence).toBeDefined(); // For rollback
+});
+```
+
+### Server-Side Validation
+
+```typescript
+test('server validates ammo and fire rate', async ({ browser }) => {
+  const page = await browser.newPage();
+  await page.goto('http://localhost:3000');
+
+  // Get initial ammo from server state
+  const initialAmmo = await page.evaluate(() => {
+    return window.gameState?.localPlayer?.ammo || 30;
+  });
+
+  // Fire all ammo
+  for (let i = 0; i < initialAmmo + 5; i++) {
+    await page.mouse.click(400, 300);
+    await page.waitForTimeout(50); // Faster than fire rate
+  }
+
+  // Verify server enforced ammo limit
+  const finalAmmo = await page.evaluate(() => {
+    return window.gameState?.localPlayer?.ammo;
+  });
+  expect(finalAmmo).toBe(0);
+
+  // Verify server enforced fire rate (600 RPM = 100ms between shots)
+  // Fast clicks should be throttled by server
+  const paintCount = await page.evaluate(() => {
+    return window.gameState?.paintSplats?.size || 0;
+  });
+  // With 50ms clicks, server should reject some (600 RPM = max 10 per second)
+  expect(paintCount).toBeLessThan(initialAmmo);
+});
+```
+
+### Rollback Verification
+
+```typescript
+test('optimistic decals rollback on server rejection', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+
+  // Deplete ammo
+  await page.evaluate(() => {
+    window.gameState.localPlayer.ammo = 0;
+  });
+
+  // Count optimistic decals before
+  const optimisticBefore = await page.evaluate(() => {
+    return document.querySelectorAll('.decal.optimistic').length;
+  });
+
+  // Try to shoot (should be rejected by server)
+  await page.mouse.click(400, 300);
+  await page.waitForTimeout(200); // Wait for round-trip
+
+  // Verify optimistic decal was rolled back
+  const optimisticAfter = await page.evaluate(() => {
+    return document.querySelectorAll('.decal.optimistic').length;
+  });
+  expect(optimisticAfter).toBe(optimisticBefore);
+});
+```
+
+## Logger Integration for Debugging
+
+**CRITICAL LESSON from validate-002**: The logger library (feat-logger-001) significantly improved debugging visibility.
+
+### Enable Logging During Tests
+
+```typescript
+test('debugging server-authoritative behavior', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+
+  // Set log level to TRACE for detailed visibility
+  await page.evaluate(() => {
+    window.logger?.setLevel('trace');
+  });
+
+  // Capture logs for analysis
+  const logs: string[] = [];
+  page.on('console', (msg) => {
+    logs.push(msg.text());
+  });
+
+  // Perform action
+  await page.mouse.click(400, 300);
+
+  // Verify key events were logged
+  expect(logs.some((l) => l.includes('PaintGun: Fire') || l.includes('shoot'))).toBe(true);
+  expect(logs.some((l) => l.includes('NetworkManager: send') || l.includes('paint_fire'))).toBe(
+    true
+  );
+});
+```
+
+### Server Log Monitoring
+
+```bash
+# When testing server-authoritative features, ALWAYS monitor server logs
+npm run server | grep -E "(player_input|paint_fire|Projectile)"
+
+# Expected output pattern:
+# [INFO] Received paint_fire from client abc123
+# [INFO] Validated ammo: 29/30
+# [INFO] Created projectile proj-abc123-1
+# [INFO] Paint spawned at (10, 0, 5)
+```
+
+### Key Logging Points for Server-Authoritative Features
+
+| Component         | What to Log                             |
+| ----------------- | --------------------------------------- |
+| Client Input      | Input state, sequence number, timestamp |
+| Network Send      | Message type, payload size, destination |
+| Server Receive    | Client ID, message type, sequence       |
+| Server Validate   | Validation result (pass/reject), reason |
+| Server Process    | State changes, created entities         |
+| Network Broadcast | Event type, affected clients            |
+| Client Receive    | Event type, sequence confirmation       |
+
 ## Reference
 
 - [agents/developer/skills/backend-multiplayer.md](../developer/skills/backend-multiplayer.md) — Server-authoritative architecture
+- [agents/developer/skills/client-prediction.md](../developer/skills/client-prediction.md) — Prediction and rollback patterns
 - [agents/qa/skills/browser-testing.md](browser-testing.md) — Single-client browser testing
 - [agents/qa/skills/validation-workflow.md](validation-workflow.md) — Full validation workflow
 - [Colyseus Testing Guide](https://docs.colyseus.io/colyseus/server/testing/) — Server-side testing
+
+## Changelog
+
+- **2026-01-22**: Added server-authoritative shooting validation section (from validate-002 retrospective)
+- **2026-01-22**: Added logger integration for debugging visibility (from validate-002 retrospective)
+- **2026-01-22**: Added rollback verification pattern

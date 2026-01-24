@@ -1,8 +1,7 @@
 ---
-name: validation-workflow
+name: qa-validation-workflow
 description: Full validation workflow for QA agent - automated checks and browser testing
 category: validation
-depends-on: []
 ---
 
 # Validation Workflow Skill
@@ -62,6 +61,7 @@ If browser testing cannot be performed:
 ```
 
 **Why browser testing when tests fail:**
+
 - Visual bugs may exist even when code compiles
 - Console errors only appear in browser
 - Runtime issues not caught by unit tests
@@ -123,7 +123,7 @@ npm run build
 
 **Every validation MUST include browser testing:**
 
-1. Start dev server: `npm run dev`
+1. Start dev server: `npm run dev:all:sh`
 2. Navigate to `http://localhost:3000`
 3. Verify acceptance criteria visually
 4. Check console for errors
@@ -151,7 +151,7 @@ npm run build
 
 ### Level 3: Acceptance Criteria Verification
 
-For each acceptance criterion in `current-task.json`:
+For each acceptance criterion in `prd.json.items[{taskId}]`:
 
 ```markdown
 ## Acceptance Criteria Verification
@@ -218,32 +218,33 @@ For each acceptance criterion in `current-task.json`:
 
 When ALL checks pass:
 
-**Step 1: Delete validation screenshots** (no longer needed for passing tasks)
+**Step 1: Delete validation screenshots** (always clean up after validation)
 
 ```bash
 # PowerShell
-Remove-Item ".claude/session/screenshots/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
+Remove-Item ".claude/session/playwright-test/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
 
 # Bash
-rm .claude/session/screenshots/${taskId}-*.png 2>/dev/null || true
+rm .claude/session/playwright-test/${taskId}-*.png 2>/dev/null || true
 ```
 
 **Step 2: Update task files**
 
 ```json
-// Update current-task.json
+// Update prd.json.items[{taskId}]
 {
+  "id": "{{TASK_ID}}",
+  "passes": true,
   "status": "passed",
   "validatedAt": "{{ISO_TIMESTAMP}}"
 }
 
-// Update prd.json
+// Update prd.json.session
 {
-  "items": [{
-    "id": "{{TASK_ID}}",
-    "passes": true,
-    "status": "passed"
-  }]
+  "qa": {
+    "status": "idle",
+    "lastActivity": "{{ISO_TIMESTAMP}}"
+  }
 }
 ```
 
@@ -267,12 +268,29 @@ PRD: feat-XXX | Agent: qa | Iteration: N
 
 When ANY check fails:
 
+**Step 1: Clean up screenshots**
+
+```bash
+# PowerShell
+Remove-Item ".claude/session/playwright-test/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
+
+# Bash
+rm .claude/session/playwright-test/${taskId}-*.png 2>/dev/null || true
+```
+
+**Step 2: Update prd.json.items[{taskId}]**
+
 ```json
-// Update current-task.json
 {
   "status": "needs_fixes",
   "bugNotes": "Detailed description of failures...",
   "retryCount": {{PREVIOUS + 1}}
+}
+
+// Update prd.json.agents.qa
+{
+  "status": "idle",
+  "lastActivity": "{{ISO_TIMESTAMP}}"
 }
 ```
 
@@ -297,6 +315,42 @@ Before marking as passed:
 - [ ] All acceptance criteria verified
 - [ ] Performance acceptable
 - [ ] Screenshots taken
+
+## Integration Smoke Test (MANDATORY for Polish/Asset Tasks)
+
+**For ANY task involving assets (models, textures, audio, shaders):**
+
+Run this quick visual verification before starting full validation:
+
+```bash
+# Integration Smoke Test Checklist
+# 1. Character model visible? (not placeholder box/capsule)
+# 2. Weapon model visible? (not placeholder geometry)
+# 3. Projectiles/Effects visible? (not debug-gated)
+# 4. Textures loaded? (not solid colors)
+# 5. Audio plays? (if audio task)
+# 6. Shaders applied? (not default materials)
+```
+
+**CRITICAL: Check for debug-gated features**
+
+If assets appear missing or invisible:
+
+```bash
+# Search for debug conditionals hiding features
+grep -r "{debug &&" src/components/
+grep -r "debug.*&&" src/
+```
+
+**Learned from polish-001 retrospective (2026-01-22):**
+QA did not catch that paint projectiles were invisible because they were gated behind `debug &&` conditional. Always verify player-facing features are visible, not debug-hidden.
+
+**Integration Test Questions:**
+
+1. Can I see the asset in the browser? (not just that code compiles)
+2. Is it the actual asset or a placeholder?
+3. Does it animate/function as expected?
+4. Are there any debug flags hiding the feature?
 
 ## Reference
 

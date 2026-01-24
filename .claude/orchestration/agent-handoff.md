@@ -2,6 +2,8 @@
 
 This document defines the protocol for handoffs between PM, Developer, and QA agents in the Ralph multi-session system.
 
+> **NOTE**: All session state is now in `prd.json`. Previous versions used separate `coordinator-state.json` and `current-task.json` files.
+
 ## Handoff Types
 
 ### 1. PM → Developer (Task Assignment)
@@ -11,37 +13,36 @@ This document defines the protocol for handoffs between PM, Developer, and QA ag
 **PM Action**:
 
 ```json
-// Update: .claude/session/coordinator-state.json
+// Update: prd.json (atomic update with all three sections)
 {
-  "currentTask": {
-    "id": "feat-001",
-    "assignedAgent": "developer",
-    "status": "assigned",
-    "assignedAt": "2026-01-19T10:05:00Z"
+  "session": {
+    "currentTask": {
+      "id": "feat-001",
+      "status": "assigned",
+      "assignedAt": "2026-01-19T10:05:00Z"
+    }
   },
   "agents": {
     "developer": {
-      "status": "assigned",
-      "currentTask": "feat-001"
+      "status": "working",
+      "currentTaskId": "feat-001",
+      "lastSeen": "2026-01-19T10:05:00Z"
     }
-  }
+  },
+  "items": [{
+    "id": "feat-001",
+    "status": "assigned",
+    "agent": "developer",
+    "assignedAt": "2026-01-19T10:05:00Z"
+  }]
 }
 ```
 
-**Create**: `.claude/session/current-task.json`
-
-```json
-{
-  "prdId": "feat-001",
-  "title": "Vehicle Physics Implementation",
-  "assignedTo": "developer",
-  "assignedAt": "2026-01-19T10:05:00Z",
-  "specifications": "Full task description from PRD...",
-  "acceptanceCriteria": [...],
-  "verificationSteps": [...],
-  "context": {...}
-}
-```
+**Task details** are stored in `prd.json.items[{taskId}]`:
+- `specifications` - Full task description from PRD
+- `acceptanceCriteria` - Array of acceptance criteria
+- `verificationSteps` - Array of verification steps
+- `dependencies` - Array of task dependencies
 
 **Log**: `.claude/session/handoff-log.json`
 
@@ -59,11 +60,11 @@ This document defines the protocol for handoffs between PM, Developer, and QA ag
 }
 ```
 
-**Developer Detects**: On next poll (within 30 seconds)
+**Developer Detects**: On next poll or message receipt
 
-1. Sees `currentTask.assignedAgent === "developer"`
-2. Reads `current-task.json` for details
-3. Updates own status to "working"
+1. Sees `prd.json.session.currentTask.assignedAgent === "developer"`
+2. Reads task details from `prd.json.items[{taskId}]`
+3. Updates own `prd.json.agents.developer.status` to "working"
 4. Begins implementation
 
 ### 2. Developer → QA (Validation Request)
@@ -84,35 +85,29 @@ git commit -m "[ralph] [developer] feat-001: Implement vehicle physics
 PRD: feat-001 | Agent: developer | Iteration: 3"
 ```
 
-**Update**: `.claude/session/coordinator-state.json`
-
-```json
-{
-  "currentTask": {
-    "status": "ready_for_qa",
-    "completedAt": "2026-01-19T10:15:00Z",
-    "commit": "a1b2c3d"
-  },
-  "agents": {
-    "developer": {
-      "status": "idle",
-      "lastCompletedTask": "feat-001"
-    }
-  }
-}
-```
-
 **Update**: `prd.json`
 
 ```json
 {
-  "items": [
-    {
+  "session": {
+    "currentTask": {
       "id": "feat-001",
       "status": "ready_for_qa",
-      "lastCommit": "a1b2c3d"
+      "completedAt": "2026-01-19T10:15:00Z"
     }
-  ]
+  },
+  "agents": {
+    "developer": {
+      "status": "idle",
+      "currentTaskId": null,
+      "lastSeen": "2026-01-19T10:15:00Z"
+    }
+  },
+  "items": [{
+    "id": "feat-001",
+    "status": "ready_for_qa",
+    "lastCommit": "a1b2c3d"
+  }]
 }
 ```
 
@@ -133,11 +128,11 @@ PRD: feat-001 | Agent: developer | Iteration: 3"
 }
 ```
 
-**QA Detects**: On next poll (within 30 seconds)
+**QA Detects**: On next poll or message receipt
 
-1. Sees `currentTask.status === "ready_for_qa"`
-2. Reads `current-task.json` for validation requirements
-3. Updates own status to "working"
+1. Sees `prd.json.session.currentTask.status === "ready_for_qa"`
+2. Reads task details from `prd.json.items[{taskId}]`
+3. Updates own `prd.json.agents.qa.status` to "working"
 4. Begins validation
 
 ### 3. QA → PM (Pass - Task Complete)
@@ -159,78 +154,46 @@ git commit --allow-empty -m "[ralph] [qa] feat-001: Validation PASSED
 PRD: feat-001 | Agent: qa | Iteration: 4"
 ```
 
-**Update**: `.claude/session/coordinator-state.json`
-
-```json
-{
-  "currentTask": {
-    "status": "passed",
-    "validatedAt": "2026-01-19T10:20:00Z",
-    "validatedBy": "qa"
-  },
-  "agents": {
-    "qa": {
-      "status": "idle",
-      "lastCompletedTask": "feat-001"
-    }
-  },
-  "stats": {
-    "completed": 1
-  }
-}
-```
-
 **Update**: `prd.json`
 
 ```json
 {
-  "items": [
-    {
+  "session": {
+    "currentTask": {
       "id": "feat-001",
-      "passes": true,
-      "status": "completed",
-      "validatedAt": "2026-01-19T10:20:00Z",
-      "validationResults": {
-        "typescript": "pass",
-        "lint": "pass",
-        "test": "pass",
-        "build": "pass",
-        "manual": "pass"
-      }
+      "status": "passed",
+      "validationPassed": true,
+      "completedAt": "2026-01-19T10:20:00Z"
     }
-  ]
+  },
+  "items": [{
+    "id": "feat-001",
+    "passes": true,
+    "status": "completed",
+    "qaValidatedAt": "2026-01-19T10:20:00Z",
+    "validationResults": {
+      "typescript": "pass",
+      "lint": "pass",
+      "test": "pass",
+      "build": "pass",
+      "manual": "pass"
+    }
+  }],
+  "agents": {
+    "qa": {
+      "status": "idle",
+      "currentTaskId": null,
+      "lastSeen": "2026-01-19T10:20:00Z"
+    }
+  }
 }
-```
-
-**Append**: `.claude/session/progress.txt`
-
-```markdown
-### [2026-01-19T10:20:00Z] feat-001: Vehicle Physics Implementation - COMPLETE
-
-Implemented by: developer
-Validated by: qa
-Commit: a1b2c3d
-
-Acceptance criteria:
-✓ Vehicle spawns at origin on game start
-✓ WASD keys control vehicle movement
-✓ Physics simulation runs smoothly at 60fps
-
-Validation results:
-
-- TypeScript: pass
-- Lint: pass
-- Tests: pass
-- Build: pass
-- Manual: pass
 ```
 
 **PM Detects**: On next poll
 
-1. Sees `currentTask.status === "passed"`
-2. Updates PRD item `passes: true`
-3. Checks if all items complete
-4. If not, selects next task
+1. Sees `prd.json.session.currentTask.status === "passed"`
+2. Enters retrospective phase
+3. After retrospective, updates stats and selects next task
 
 ### 4. QA → Developer (Fail - Bug Fix Required)
 
@@ -251,20 +214,22 @@ git commit --allow-empty -m "[ralph] [qa] feat-001: Validation FAILED
 Bug: feat-001 | Agent: qa | Iteration: 4"
 ```
 
-**Update**: `.claude/session/coordinator-state.json`
+**Update**: `prd.json`
 
 ```json
 {
-  "currentTask": {
+  "session": {
+    "currentTask": {
+      "id": "feat-001",
+      "status": "needs_fixes",
+      "validationPassed": false
+    }
+  },
+  "items": [{
+    "id": "feat-001",
+    "passes": false,
     "status": "needs_fixes",
-    "validatedAt": "2026-01-19T10:20:00Z",
-    "validationResults": {
-      "typescript": "pass",
-      "lint": "pass",
-      "test": "fail: 2 tests failing",
-      "build": "pass",
-      "manual": "fail: vehicle falls through floor"
-    },
+    "notes": "Bugs: Vehicle falls through floor after 5 seconds (critical)",
     "bugs": [
       {
         "severity": "critical",
@@ -274,49 +239,18 @@ Bug: feat-001 | Agent: qa | Iteration: 4"
         "actual": "Vehicle falls through"
       }
     ]
-  },
+  }],
   "agents": {
     "qa": {
-      "status": "idle"
+      "status": "idle",
+      "currentTaskId": null
+    },
+    "developer": {
+      "status": "working",
+      "currentTaskId": "feat-001",
+      "lastSeen": "2026-01-19T10:20:00Z"
     }
   }
-}
-```
-
-**Update**: `prd.json`
-
-```json
-{
-  "items": [
-    {
-      "id": "feat-001",
-      "passes": false,
-      "status": "needs_fixes",
-      "bugs": [
-        {
-          "severity": "critical",
-          "description": "Vehicle falls through floor",
-          "steps": "Press W for 5 seconds"
-        }
-      ],
-      "validationResults": {
-        "test": "fail",
-        "manual": "fail"
-      }
-    }
-  ]
-}
-```
-
-**Update**: `.claude/session/current-task.json`
-
-```json
-{
-  "prdId": "feat-001",
-  "assignedTo": "developer",
-  "status": "bug_fix",
-  "bugs": [...],
-  "retryCount": 1
 }
 ```
 
@@ -337,12 +271,12 @@ Bug: feat-001 | Agent: qa | Iteration: 4"
 }
 ```
 
-**Developer Detects**: On next poll
+**Developer Detects**: On next poll or message receipt
 
-1. Sees task reassigned with `status: "bug_fix"`
-2. Reads bug details from `current-task.json`
+1. Sees `prd.json.items[{taskId}].status === "needs_fixes"`
+2. Reads bug details from `prd.json.items[{taskId}].notes` or `.bugs`
 3. Fixes bugs and re-runs validation
-4. Increments `retryCount`
+4. Updates status back to "ready_for_qa"
 
 ### 5. PM → All (Session Complete)
 
@@ -358,17 +292,19 @@ npm run type-check && npm run lint && npm run test && npm run build
 echo "<promise>RALPH_COMPLETE</promise>"
 ```
 
-**Update**: `.claude/session/coordinator-state.json`
+**Update**: `prd.json.session`
 
 ```json
 {
-  "status": "completed",
-  "completedAt": "2026-01-19T12:00:00Z",
-  "stats": {
-    "totalTasks": 10,
-    "completed": 10,
-    "failed": 0,
-    "commits": 15
+  "session": {
+    "status": "completed",
+    "completedAt": "2026-01-19T12:00:00Z",
+    "stats": {
+      "totalTasks": 10,
+      "completed": 10,
+      "failed": 0,
+      "commits": 15
+    }
   }
 }
 ```
@@ -409,7 +345,7 @@ Iterations: 15
 - Build: Successful
 ```
 
-**Signal**: All workers detect `status: "completed"` and exit gracefully.
+**Signal**: All workers detect `prd.json.session.status === "completed"` and exit gracefully.
 
 ## State Transition Diagram
 
@@ -511,16 +447,7 @@ If an agent doesn't pick up a task within timeout:
 1. **Coordinator detects timeout**: 60 seconds after assignment
 2. **Log warning**: Add to handoff log
 3. **Reassign task**: Return to pending, reassign to same or different agent
-4. **Increment retry counter**: Track retries per task
-
-```json
-{
-  "currentTask": {
-    "assignmentRetries": 1,
-    "lastAssignmentAttempt": "2026-01-19T10:05:00Z"
-  }
-}
-```
+4. **Track retries**: Track retries in `prd.json.items[{taskId}]`
 
 After 3 failed assignments, coordinator may:
 
@@ -534,14 +461,14 @@ All agents must use atomic file updates to prevent corruption:
 
 ```bash
 # Read current state
-STATE=$(cat coordinator-state.json)
+STATE=$(cat prd.json)
 
 # Modify (using jq or similar)
-NEW_STATE=$(echo "$STATE" | jq '.iteration += 1')
+NEW_STATE=$(echo "$STATE" | jq '.session.iteration += 1')
 
 # Write atomically
-echo "$NEW_STATE" > coordinator-state.json.tmp
-mv coordinator-state.json.tmp coordinator-state.json
+echo "$NEW_STATE" > prd.json.tmp
+mv prd.json.tmp prd.json
 ```
 
 This ensures that concurrent reads never see partially-written state files.

@@ -2,7 +2,6 @@
 name: r3f-router
 description: Routes to specialized R3F skills based on task requirements
 category: development
-depends-on: []
 ---
 
 # R3F Skill Router

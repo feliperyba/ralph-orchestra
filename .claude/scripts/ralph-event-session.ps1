@@ -31,7 +31,7 @@ $scriptsDir = Join-Path $ProjectRoot ".claude\scripts"
 
 # Create directories
 $directories = @($sessionDir, $messagesDir, $logsDir)
-$directories += @("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
+$directories += @("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
 
 foreach ($dir in $directories) {
     if (-not (Test-Path $dir)) {
@@ -98,7 +98,7 @@ if (-not (Test-Path $stateFile)) {
         startTime = [DateTime]::UtcNow.ToString("o")
         maxIterations = $maxIter
         iteration = 0
-        activeAgents = @("pm", "developer", "qa", "gamedesigner", "techartist")
+        activeAgents = @("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter")
         currentTasks = @{
             pm = $null
             developer = $null

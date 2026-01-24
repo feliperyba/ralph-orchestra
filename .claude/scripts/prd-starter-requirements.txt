@@ -1,0 +1,6 @@
+# PRD Starter Generator - Python Dependencies
+# Install with: pip install -r prd-starter-requirements.txt
+
+jinja2>=3.1.0
+pyyaml>=6.0
+jsonschema>=4.17.0

@@ -1,0 +1,41 @@
+{#-
+  Settings Template for PRD Starter
+  This template generates .claude/settings.{agent}.json files.
+
+  Variables:
+    agent_name: Name of the agent
+    mcp_servers: List of MCP server names
+-#}
+{
+{% if 'filesystem' in mcp_servers %}
+  "@modelcontextprotocol/server-filesystem": {
+    "args": {
+      "path": "."
+    }
+  },
+{% endif %}
+{% if 'github' in mcp_servers %}
+  "github": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"]
+  },
+{% endif %}
+{% if 'web-search' in mcp_servers or 'brave-search' in mcp_servers %}
+  "brave-search": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-brave-search"]
+  },
+{% endif %}
+{% if 'playwright' in mcp_servers %}
+  "@modelcontextprotocol/server-playwright": {},
+{% endif %}
+{% if 'memory' in mcp_servers %}
+  "memory": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-memory"]
+  }
+{% endif %}
+  "mcpServers": {
+    "_comment": "Additional MCP servers can be added here"
+  }
+}

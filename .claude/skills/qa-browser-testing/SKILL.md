@@ -1,8 +1,7 @@
 ---
-name: browser-testing
+name: qa-browser-testing
 description: Browser testing with Playwright MCP for visual and functional validation
 category: validation
-depends-on: [validation-workflow]
 ---
 
 # Browser Testing Skill
@@ -58,7 +57,7 @@ test('page loads correctly', async ({ page }) => {
   await expect(canvas).toBeVisible();
 
   // Take screenshot
-  await page.screenshot({ path: 'screenshots/load.png' });
+  await page.screenshot({ path: 'playwright-test/load.png' });
 });
 ```
 
@@ -94,15 +93,16 @@ test('keyboard controls work', async ({ page }) => {
   // Press WASD keys
   await page.keyboard.press('KeyW');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: 'screenshots/after-w.png' });
+  await page.screenshot({ path: 'playwright-test/after-w.png' });
 
   await page.keyboard.press('KeyA');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: 'screenshots/after-a.png' });
+  await page.screenshot({ path: 'playwright-test/after-a.png' });
 });
 ```
 
 **For game-specific input patterns**, see [`game-testing.md`](game-testing.md) for:
+
 - Continuous movement (key down/up patterns)
 - Mouse aiming and clicking
 - Combo sequences
@@ -124,6 +124,7 @@ test('visual appearance matches', async ({ page }) => {
 ```
 
 **For advanced visual testing**, see [`visual-testing.md`](visual-testing.md) for:
+
 - Game state detection (menu, playing, game over, win)
 - Semantic visual comparison with Vision MCP
 - UI element validation (HUD, health bars, minimap)
@@ -149,6 +150,109 @@ test('performance is acceptable', async ({ page }) => {
   expect(metrics.domContentLoaded).toBeLessThan(2000);
 });
 ```
+
+### Level 6: Pointer Lock Testing (FPS/TPS Controls)
+
+For games with FPS/TPS mouse controls, test the Pointer Lock API:
+
+```typescript
+test('pointer lock activates on game start', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForSelector('canvas');
+
+  // Wait for auto-lock timeout (typically 100ms)
+  await page.waitForTimeout(200);
+
+  // Check if pointer lock is active
+  const isLocked = await page.evaluate(() => {
+    return document.pointerLockElement === document.body;
+  });
+
+  expect(isLocked).toBe(true);
+});
+
+test('mouse movement controls camera when locked', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForSelector('canvas');
+
+  // Request pointer lock explicitly
+  await page.click('canvas');
+
+  // Wait for lock to engage
+  await page.waitForTimeout(200);
+
+  // Simulate mouse movement (movementX/Y only work when locked)
+  await page.mouse.move(100, 100);
+  await page.mouse.move(200, 150); // movementX: 100, movementY: 50
+
+  await page.waitForTimeout(100);
+  await page.screenshot({ path: 'playwright-test/after-mouse-move.png' });
+});
+
+test('ESC key unlocks pointer and shows PAUSED', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForSelector('canvas');
+
+  // Ensure pointer is locked first
+  await page.click('canvas');
+  await page.waitForTimeout(200);
+
+  // Press ESC to unlock
+  await page.keyboard.press('Escape');
+
+  // Check pointer is unlocked
+  const isLocked = await page.evaluate(() => {
+    return document.pointerLockElement === document.body;
+  });
+  expect(isLocked).toBe(false);
+
+  // Check for PAUSED overlay
+  const pausedVisible = await page
+    .locator('text=PAUSED')
+    .isVisible()
+    .catch(() => false);
+  expect(pausedVisible).toBe(true);
+
+  await page.screenshot({ path: 'playwright-test/paused-overlay.png' });
+});
+
+test('click re-engages pointer lock', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForSelector('canvas');
+
+  // Lock initially
+  await page.click('canvas');
+  await page.waitForTimeout(200);
+
+  // Unlock with ESC
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+
+  // Verify unlocked
+  let isLocked = await page.evaluate(() => {
+    return document.pointerLockElement === document.body;
+  });
+  expect(isLocked).toBe(false);
+
+  // Click to re-lock
+  await page.click('body');
+  await page.waitForTimeout(200);
+
+  // Verify re-locked
+  isLocked = await page.evaluate(() => {
+    return document.pointerLockElement === document.body;
+  });
+  expect(isLocked).toBe(true);
+});
+```
+
+**Key Pointer Lock Validation Points:**
+
+- Pointer locks automatically on mount (100ms timeout)
+- `movementX/Y` values are processed for camera rotation
+- ESC key unlocks and shows PAUSED overlay
+- Click-to-resume functionality works
+- Cursor is hidden when locked (visible when unlocked)
 
 ## ⚠️ CRITICAL: Playwright MCP is REQUIRED
 
@@ -203,7 +307,7 @@ Browser testing via Playwright MCP is **NON-NEGOTIABLE**.
 
 For each validation:
 
-- [ ] Dev server running (`npm run dev`)
+- [ ] Dev server running (`npm run dev:all:sh`)
 - [ ] Navigate to app URL
 - [ ] Canvas loads and renders
 - [ ] No console errors
@@ -219,3 +323,7 @@ For each validation:
 - [agents/qa/skills/game-testing.md](game-testing.md) — Game control patterns
 - [agents/qa/skills/visual-testing.md](visual-testing.md) — Visual validation
 - [agents/qa/AGENT.md](../AGENT.md) — Full QA instructions
+- [bugfix-003](../../prd.json) — Pointer Lock implementation reference
+
+**Learned from bugfix-003 retrospective (2026-01-22):**
+Pointer Lock API E2E testing patterns using Playwright. Tests should verify auto-lock on mount, mouse movement processing, ESC unlock handling, PAUSED overlay visibility, and click-to-resume functionality.

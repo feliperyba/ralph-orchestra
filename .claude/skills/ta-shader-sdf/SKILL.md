@@ -1,8 +1,7 @@
 ---
-name: shader-sdf
+name: techartist-shader-sdf
 description: Signed Distance Functions for shader-based 3D primitives
 category: visual
-depends-on: [r3f-materials]
 ---
 
 # Shader SDF Skill

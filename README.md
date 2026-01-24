@@ -20,7 +20,8 @@ The agents communicate through shared state files and named pipes, and can run i
 ## Key Features
 
 - **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
-- **Sub-agent Delegation** - 22 specialized sub-agents for focused tasks with ~77% cost optimization (Haiku for search, Sonnet for implementation)
+- **Sub-agent Delegation** - 26+ specialized sub-agents for focused tasks with ~77% cost optimization (Haiku for search, Sonnet for implementation)
+- **PRD Starter Wizard** - Interactive setup for custom agents and project configuration
 - **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
 - **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
 - **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms delivery)
@@ -103,15 +104,15 @@ Iteration completes → next task begins
 
 ## Sub-agent Architecture
 
-Each main agent can delegate work to specialized sub-agents for cost optimization and focused expertise:
+Each main agent can delegate to 26+ specialized sub-agents defined in `.claude/agents/*.agent.md`:
 
-| Agent | Sub-agents |
-|-------|------------|
-| **Developer** | codebase-explorer (Haiku), gameplay-implementer, network-implementer, state-architect |
-| **PM** | task-selector, prd-analyst, retro-facilitator, skill-researcher, gdd-reviewer |
-| **QA** | test-output-analyzer (Haiku), code-inspector, browser-validator, multiplayer-validator |
-| **Tech Artist** | asset-locator (Haiku), shader-creator, material-designer, fx-implementer, ui-polisher |
-| **Game Designer** | gdd-researcher (Haiku), gdd-writer, playtest-specialist, mechanic-designer |
+| Agent | Sub-agents | Purpose |
+|-------|------------|---------|
+| **Developer** | code-research, implementation, code-quality, validation, commit, task-researcher | Research, code, validate, commit workflow |
+| **PM** | task-researcher, retrospective-facilitator, skill-researcher, prd-organizer, test-planner, architecture-validator | Task selection, retrospectives, skill improvement |
+| **QA** | browser-validator, multiplayer-validator, visual-regression-tester, gameplay-tester, code-review, visual-tester | Specialized validation types |
+| **Tech Artist** | asset-researcher, asset-creator, shader-compiler, particle-system-designer, visual-validator, visual-tester, performance-profiler, code-quality | Asset creation pipeline |
+| **Game Designer** | asset-analyst, visual-reference-researcher, reference-game-researcher, thermite-facilitator, gdd-documenter, playtest-evidence-collector | Design and research |
 
 **Cost Optimization**: Haiku sub-agents handle search/research tasks at ~77% lower cost, keeping main agent context clean.
 
@@ -125,12 +126,16 @@ Each main agent can delegate work to specialized sub-agents for cost optimizatio
 | [Configuration](./docs/configuration.md) | PRD format, agent settings, watchdog config |
 | [Extending](./docs/extending.md) | Adding custom agents, skills, routing |
 | [Monitoring](./docs/monitoring.md) | Dashboard, logs, troubleshooting |
+| [PRD Starter Guide](./docs/prd-starter.md) | Interactive setup wizard |
+| [Protocol Reference](./docs/protocols.md) | Communication protocols |
 
 ### Additional Resources
 
 - [.claude/scripts/README.md](./.claude/scripts/README.md) - Script reference
 - [agents/\*/AGENT.md](./agents/) - Per-agent behavior instructions
-- [.claude/skills/](./.claude/skills/) - Centralized orchestration skills (56+ skills)
+- [.claude/skills/](./.claude/skills/) - Centralized orchestration skills (70+ folder-based skills)
+- [.claude/protocols/](./.claude/protocols/) - Communication protocol documentation
+- [.claude/agents/\*.agent.md](./.claude/agents/) - Sub-agent definitions (26+ specialized agents)
 
 ## Example PRD Item
 

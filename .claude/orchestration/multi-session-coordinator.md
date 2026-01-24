@@ -16,59 +16,74 @@ This document describes the protocol for coordinating three Ralph agents (PM, De
          └────────────────────────┴────────────────────────┘
                                     │
                          ┌──────────▼──────────┐
-                         │  Shared State Files │
-                         │  .claude/session/   │
+                         │  Shared State File  │
+                         │    prd.json         │
+                         │  (with .session)    │
                          └─────────────────────┘
 ```
 
 ## Session State File
 
-**Location**: `.claude/session/coordinator-state.json`
+**Location**: `prd.json.session`
 
-This is the single source of truth for all agent coordination.
+The `prd.json` file contains both task definitions and session state. The `session` field is the single source of truth for all agent coordination.
 
 ### State Structure
 
 ```json
 {
-  "sessionId": "threejs-sprint-1-20260119",
-  "startedAt": "2026-01-19T10:00:00Z",
-  "maxIterations": 50,
-  "iteration": 1,
-  "completionPromise": "RALPH_COMPLETE",
-  "status": "running",
-  "currentTask": {
-    "id": "feat-001",
-    "title": "Vehicle Physics",
-    "assignedAgent": "developer",
-    "status": "in_progress",
-    "assignedAt": "2026-01-19T10:05:00Z"
-  },
-  "agents": {
-    "pm": {
-      "status": "idle",
-      "lastSeen": "2026-01-19T10:05:00Z",
-      "terminal": "coordinator"
+  "project": "my-project",
+  "version": "1.0.0",
+  "session": {
+    "sessionId": "threejs-sprint-1-20260119",
+    "startedAt": "2026-01-19T10:00:00Z",
+    "maxIterations": 50,
+    "iteration": 1,
+    "completionPromise": "RALPH_COMPLETE",
+    "status": "running",
+    "currentTask": {
+      "id": "feat-001",
+      "title": "Vehicle Physics",
+      "assignedAgent": "developer",
+      "status": "in_progress",
+      "assignedAt": "2026-01-19T10:05:00Z"
     },
-    "developer": {
-      "status": "working",
-      "currentTask": "feat-001",
-      "lastSeen": "2026-01-19T10:05:30Z",
-      "terminal": "worker-1"
+    "agents": {
+      "pm": {
+        "status": "idle",
+        "lastSeen": "2026-01-19T10:05:00Z",
+        "terminal": "coordinator"
+      },
+      "developer": {
+        "status": "working",
+        "currentTask": "feat-001",
+        "lastSeen": "2026-01-19T10:05:30Z",
+        "terminal": "worker-1"
+      },
+      "qa": {
+        "status": "waiting",
+        "lastSeen": "2026-01-19T10:04:00Z",
+        "terminal": "worker-2"
+      }
     },
-    "qa": {
-      "status": "waiting",
-      "lastSeen": "2026-01-19T10:04:00Z",
-      "terminal": "worker-2"
+    "stats": {
+      "totalTasks": 10,
+      "completed": 2,
+      "failed": 0,
+      "commits": 5,
+      "lastUpdate": "2026-01-19T10:05:30Z"
     }
   },
-  "stats": {
-    "totalTasks": 10,
-    "completed": 2,
-    "failed": 0,
-    "commits": 5,
-    "lastUpdate": "2026-01-19T10:05:30Z"
-  }
+  "items": [
+    {
+      "id": "feat-001",
+      "status": "in_progress",
+      "assignedAgent": "developer",
+      "title": "Vehicle Physics",
+      "passes": false,
+      ...
+    }
+  ]
 }
 ```
 
@@ -118,8 +133,8 @@ This is the single source of truth for all agent coordination.
 
 **YOU ARE ALLOWED TO:**
 
-- Edit `.claude/session/*` state files only
-- Edit `prd.json` ONLY for task status updates (passes, status, assignment metadata)
+- Edit `prd.json` for session state (session field) and task status updates (items array)
+- Edit `.claude/session/handoff-signal.json` for sequential mode coordination
 - Read source files to understand context for task assignment
 - Research online for technical specifications to improve PRD
 - Coordinate between Developer and QA agents
@@ -127,10 +142,10 @@ This is the single source of truth for all agent coordination.
 
 **Responsibilities**:
 
-1. Initialize session state on startup
-2. Review `prd.json` for incomplete items
+1. Initialize `prd.json.session` on startup
+2. Review `prd.json.items` for incomplete items (where `passes: false`)
 3. Select next task using priority algorithm
-4. Assign tasks to workers via state file
+4. Assign tasks to workers via `prd.json.session.currentTask` and item status
 5. Monitor worker status via heartbeat polling
 6. Process QA validation results (AFTER QA completes testing)
 7. Detect completion (all PRD items `passes: true`)
@@ -155,12 +170,13 @@ This is the single source of truth for all agent coordination.
 
 **Responsibilities**:
 
-1. Poll state file for tasks assigned to "developer"
-2. On assignment, explore codebase and implement
-3. Run feedback loops (type-check, lint)
-4. Commit work with Ralph format
-5. Update task status to "ready_for_qa"
-6. Update own agent status to "idle"
+1. Poll `prd.json.session` for tasks assigned to "developer"
+2. On assignment, read full task details from `prd.json.items[{taskId}]`
+3. Explore codebase and implement
+4. Run feedback loops (type-check, lint)
+5. Commit work with Ralph format
+6. Update `prd.json.items[{taskId}].status` to "ready_for_qa"
+7. Update `prd.json.session.agents.developer.status` to "idle"
 
 **Polling Interval**: Every 30 seconds (unified)
 
@@ -182,17 +198,18 @@ PRD: feat-XXX | Agent: developer | Iteration: N
 
 **Responsibilities**:
 
-1. Poll state file for tasks with status "ready_for_qa"
-2. On assignment, run full validation:
+1. Poll `prd.json.session` for tasks with status "ready_for_qa"
+2. On assignment, read full task details from `prd.json.items[{taskId}]`
+3. Run full validation:
    - `npm run type-check`
    - `npm run lint`
    - `npm run test`
    - `npm run build`
    - Browser test with Playwright MCP
-3. Update PRD item `passes` field
-4. If fail, add bug notes, return task to "pending"
-5. Commit validation results
-6. Update own agent status to "idle"
+4. Update `prd.json.items[{taskId}].passes` field
+5. If fail, add bug notes, return `prd.json.items[{taskId}].status` to "pending"
+6. Commit validation results
+7. Update `prd.json.session.agents.qa.status` to "idle"
 
 **Polling Interval**: Every 30 seconds (unified)
 
@@ -223,9 +240,9 @@ claude --agent pm --settings .claude/settings.pm.json
 
 **Coordinator initializes**:
 
-1. Creates `.claude/session/coordinator-state.json`
-2. Reads `prd.json` for task list
-3. Sets own status to "idle"
+1. Creates `prd.json.session` if not exists
+2. Reads `prd.json.items` for task list
+3. Sets `prd.json.session.agents.pm.status` to "idle"
 4. Waits for workers to connect
 
 ### Step 2: Start Developer Worker
@@ -239,8 +256,8 @@ claude --agent developer --settings .claude/settings.developer.json
 
 **Worker initializes**:
 
-1. Registers presence in state file
-2. Sets own status to "waiting"
+1. Registers presence in `prd.json.session.agents.developer`
+2. Sets `prd.json.session.agents.developer.status` to "waiting"
 3. Begins polling for assignments
 
 ### Step 3: Start QA Worker
@@ -260,47 +277,47 @@ claude --agent qa --settings .claude/settings.qa.json
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          PM COORDINATOR                                 │
 │                                                                         │
-│  1. Review prd.json for incomplete items (passes: false)               │
+│  1. Review prd.json.items for incomplete items (passes: false)         │
 │  2. Filter by unblocked dependencies                                    │
 │  3. Sort by priority (architectural → integration → functional)         │
 │  4. Select highest priority item                                       │
-│  5. Create task assignment in current-task.json                         │
-│  6. Update coordinator-state.json: currentTask = assigned              │
-│  7. Set coordinator status: "idle" (waiting for workers)                │
+│  5. Update prd.json.session.currentTask with assignment                │
+│  6. Update prd.json.items[{taskId}].status to "assigned"               │
+│  7. Set prd.json.session.agents.pm.status to "idle" (waiting)          │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         DEVELOPER WORKER                                │
 │                                                                         │
-│  1. Poll coordinator-state.json every 5 seconds                         │
-│  2. Detect task assigned to "developer"                                 │
-│  3. Read current-task.json for full specifications                      │
-│  4. Set own status: "working"                                          │
+│  1. Poll prd.json.session every 5 seconds                              │
+│  2. Detect task assigned to "developer" (via session.currentTask)       │
+│  3. Read prd.json.items[{taskId}] for full specifications               │
+│  4. Set prd.json.session.agents.developer.status: "working"            │
 │  5. Explore codebase, implement feature                                 │
 │  6. Run: npm run type-check, npm run lint                              │
 │  7. Commit: [ralph] [developer] feat-XXX: description                  │
-│  8. Update task status: "ready_for_qa"                                  │
-│  9. Set own status: "idle"                                              │
+│  8. Update prd.json.items[{taskId}].status: "ready_for_qa"             │
+│  9. Set prd.json.session.agents.developer.status: "idle"               │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                            QA WORKER                                    │
 │                                                                         │
-│  1. Poll coordinator-state.json every 5 seconds                         │
-│  2. Detect task status: "ready_for_qa"                                  │
-│  3. Read current-task.json for validation requirements                  │
-│  4. Set own status: "working"                                          │
+│  1. Poll prd.json.session every 5 seconds                              │
+│  2. Detect task with status: "ready_for_qa"                             │
+│  3. Read prd.json.items[{taskId}] for validation requirements           │
+│  4. Set prd.json.session.agents.qa.status: "working"                   │
 │  5. Run validation:                                                    │
 │     - npm run type-check                                                │
 │     - npm run lint                                                      │
 │     - npm run test                                                      │
 │     - npm run build                                                     │
 │     - Browser test with Playwright MCP                                  │
-│  6. Update PRD item passes field                                       │
+│  6. Update prd.json.items[{taskId}].passes field                       │
 │  7. Commit: [ralph] [qa] feat-XXX: Validation PASSED/FAILED           │
-│  8. Set own status: "idle"                                              │
+│  8. Set prd.json.session.agents.qa.status: "idle"                      │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                     ┌───────────────┴───────────────┐
@@ -331,7 +348,7 @@ claude --agent qa --settings .claude/settings.qa.json
 
 ## Heartbeat Protocol
 
-Each agent updates its `lastSeen` timestamp in the state file during each poll cycle.
+Each agent updates its `lastSeen` timestamp in `prd.json.session.agents.{agent}` during each poll cycle.
 
 ### Dead Agent Detection
 
@@ -351,21 +368,31 @@ for (const [agent, data] of Object.entries(state.agents)) {
 }
 ```
 
-## Task Assignment File
+## Task Assignment
 
-**Location**: `.claude/session/current-task.json`
+**Location**: `prd.json.items[{taskId}]` and `prd.json.session.currentTask`
 
-This file contains the full details of the currently assigned task.
+The currently assigned task details are stored directly in the PRD items array, with `prd.json.session.currentTask` containing a reference to the active task.
 
+**Session Reference** (`prd.json.session.currentTask`):
 ```json
 {
-  "prdId": "feat-001",
+  "id": "feat-001",
+  "title": "Vehicle Physics",
+  "assignedAgent": "developer",
+  "status": "in_progress",
+  "assignedAt": "2026-01-19T10:05:00Z"
+}
+```
+
+**Full Task Details** (`prd.json.items[{id: "feat-001"}]`):
+```json
+{
+  "id": "feat-001",
   "title": "Vehicle Physics Implementation",
-  "assignedTo": "developer",
-  "assignedAt": "2026-01-19T10:05:00Z",
   "category": "architectural",
   "priority": "high",
-  "specifications": "Implement player vehicle using @react-three/rapier...",
+  "description": "Implement player vehicle using @react-three/rapier...",
   "acceptanceCriteria": [
     "Vehicle spawns at origin on game start",
     "WASD keys control vehicle movement",
@@ -376,21 +403,19 @@ This file contains the full details of the currently assigned task.
     "Verify vehicle appears on screen",
     "Test all direction keys (WASD)"
   ],
-  "context": {
-    "relatedFiles": ["src/components/game/player/Vehicle.tsx"],
-    "similarFeatures": "See Floor.tsx for R3F pattern",
-    "risks": "Physics can be unstable, test edge cases"
-  },
+  "files": ["src/components/game/player/Vehicle.tsx"],
+  "agent": "developer",
   "dependencies": [],
-  "status": "in_progress"
+  "status": "in_progress",
+  "passes": false
 }
 ```
 
 ## Handoff Log
 
-**Location**: `.claude/session/handoff-log.json`
+**Location**: `prd.json.session.handoffs` (optional)
 
-Records all handoffs between agents for debugging and audit.
+Records all handoffs between agents for debugging and audit. This is stored within the session object in prd.json.
 
 ```json
 {
@@ -430,8 +455,8 @@ const completedItems = allItems.filter(item => item.passes === true);
 
 if (completedItems.length === allItems.length) {
   // All tasks complete!
-  state.status = "completed";
-  console.log("<promise>" + state.completionPromise + "</promise>");
+  prd.session.status = "completed";
+  console.log("<promise>" + prd.session.completionPromise + "</promise>");
 } else {
   // Select next task and continue
   selectNextTask();
@@ -447,7 +472,7 @@ if (completedItems.length === allItems.length) {
 
 When QA marks a task as "passed":
 
-1. **PM sets `mode` to "retrospective"** in coordinator-state.json
+1. **PM sets `prd.json.session.mode` to "retrospective"**
 2. **All agents enter retrospective mode**
 3. **PM facilitates discussion** with all agents
 4. **Discussion covers**:
@@ -459,7 +484,7 @@ When QA marks a task as "passed":
 
 5. **PM documents** in `progress.txt`
 6. **PM updates PRD** with findings
-7. **PM resets mode** to "normal"
+7. **PM resets `prd.json.session.mode` to "normal"**
 8. **Continue** to next task selection
 
 ### Quality Over Speed Principles
@@ -505,8 +530,8 @@ Each agent brings their perspective:
 
 1. **PM discusses** with Developer and QA
 2. **Estimates effort** for refactor
-3. **Updates** `current-task.json` with refactor request
-4. **Reassigns** to Developer with status "refactor_needed"
+3. **Updates** `prd.json.items[{taskId}]` with refactor notes
+4. **Updates** `prd.json.items[{taskId}].status` to "refactor_needed"
 5. **Developer** implements refactor
 6. **QA** re-validates
 
@@ -529,9 +554,9 @@ After ~10-20 iterations, an agent's context window approaches capacity. This cau
 - Truncated recent context
 - Potential failure to continue
 
-### Solution: State Files as External Memory
+### Solution: prd.json as External Memory
 
-The `.claude/session/` files and `prd.json` ARE the persistent memory. Agents can "forget" conversation history and reload from state files.
+The `prd.json` file (with its `session` field and `items` array) IS the persistent memory. Agents can "forget" conversation history and reload from prd.json.
 
 ### When to Clear Context
 
@@ -545,8 +570,8 @@ The `.claude/session/` files and `prd.json` ARE the persistent memory. Agents ca
 When an agent needs to clear context:
 
 1. **Before clearing**, ensure state is synchronized:
-   - `coordinator-state.json` is up to date
-   - `prd.json` has latest task status
+   - `prd.json.session` is up to date
+   - `prd.json.items` has latest task status
    - `progress.txt` has current summary
 
 2. **Clear context** (user can manually trigger, or agent can signal)
@@ -554,9 +579,8 @@ When an agent needs to clear context:
 3. **After clearing**, reload essential state:
 ```
 
-READ .claude/session/coordinator-state.json
-READ .claude/session/progress.txt
 READ prd.json
+READ .claude/session/progress.txt
 
 ````
 
@@ -566,18 +590,18 @@ READ prd.json
 
 State files contain all information needed to resume:
 
-**coordinator-state.json**:
+**prd.json.session**:
 ```json
 {
-"sessionId": "ralph-XXX",
-"status": "running",
-"currentTask": {"id": "iter1-002", ...},
-"iteration": 15,
-"stats": {"total": 36, "completed": 15, ...}
+  "sessionId": "ralph-XXX",
+  "status": "running",
+  "currentTask": {"id": "iter1-002", ...},
+  "iteration": 15,
+  "stats": {"total": 36, "completed": 15, ...}
 }
 ````
 
-**prd.json**:
+**prd.json.items**:
 
 ```json
 {
@@ -617,22 +641,22 @@ iter1-003: Define Game State Schema (in progress)
 - **Clear after each task completion**
 - **Keep**: Current task specs, recently edited files context
 - **Can forget**: Past task details, completed work context
-- **Reload**: Read task from `current-task.json`, read related files
+- **Reload**: Read task from `prd.json.items[{taskId}]`, read related files
 
 **QA Agent**:
 
 - **Clear after each validation**
 - **Keep**: Current task validation criteria
 - **Can forget**: Past validation details
-- **Reload**: Read task from `current-task.json`
+- **Reload**: Read task from `prd.json.items[{taskId}]`
 
 ### Minimal Context Needed to Resume
 
 | Agent     | Essential Context to Keep                                                                  |
 | --------- | ------------------------------------------------------------------------------------------ |
-| PM        | `prd.json` (task list), `coordinator-state.json` (session state), `progress.txt` (summary) |
-| Developer | `current-task.json` (current task), files being edited, `prd.json` (for context)           |
-| QA        | `current-task.json` (task to validate), `prd.json` (acceptance criteria)                   |
+| PM        | `prd.json` (task list + session state), `progress.txt` (summary)                           |
+| Developer | `prd.json.items[{taskId}]` (current task), files being edited                              |
+| QA        | `prd.json.items[{taskId}]` (task to validate)                                              |
 
 ### Context Reset Signals
 
@@ -654,17 +678,16 @@ Iteration: {{N}}
 
 If context is accidentally cleared:
 
-1. Agent reloads from `.claude/session/` files
-2. Reads `prd.json` for task list
-3. Reads `progress.txt` for recent history
-4. Continues from last known state
+1. Agent reloads from `prd.json` (session + items)
+2. Reads `progress.txt` for recent history
+3. Continues from last known state
 
 ---
 
 ## Worker Errors
 
-1. Update agent status to "error"
-2. Add error details to state file
+1. Update `prd.json.session.agents.{agent}.status` to "error"
+2. Add error details to `prd.json.session`
 3. Coordinator detects error and may:
    - Log the error
    - Reassign the task
@@ -672,38 +695,37 @@ If context is accidentally cleared:
 
 ### State File Corruption
 
-If state file is corrupted or unreadable:
+If prd.json is corrupted or unreadable:
 
 1. Workers enter "safe mode" - stop processing
 2. Coordinator detects via missing heartbeats
-3. Coordinator can reinitialize state file from PRD
+3. Coordinator can reinitialize from git history or backup
 
 ## File Locking
 
 To prevent concurrent write issues, all agents should:
 
-1. Read state file
+1. Read prd.json
 2. Make modifications in memory
 3. Write to temporary file
-4. Atomic rename to actual state file
+4. Atomic rename to actual prd.json
 
 ```bash
 # Example atomic update pattern
-jq '.iteration += 1' coordinator-state.json > coordinator-state.json.tmp
-mv coordinator-state.json.tmp coordinator-state.json
+jq '.session.iteration += 1' prd.json > prd.json.tmp
+mv prd.json.tmp prd.json
 ```
 
 ## Session Cleanup
 
 On normal completion:
 
-1. Set status to "completed"
+1. Set `prd.json.session.status` to "completed"
 2. Write final summary to `progress.txt`
-3. Archive handoff log with timestamp
-4. Keep state file for reference
+3. Keep prd.json for reference
 
 On cancellation:
 
-1. Set status to "terminated"
-2. Preserve current progress
-3. Enable resume via `--session` parameter
+1. Set `prd.json.session.status` to "terminated"
+2. Preserve current progress in prd.json
+3. Enable resume by reading prd.json state

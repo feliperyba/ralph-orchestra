@@ -1,8 +1,7 @@
 ---
-name: thermite-integration
+name: gamedesigner-thermite-integration
 description: Integration with thermite-design skill for structured game design sessions
 category: gamedesign
-depends-on: []
 ---
 
 # Thermite Design Integration

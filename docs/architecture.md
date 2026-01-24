@@ -101,6 +101,18 @@ The Game Designer agent handles design-specific tasks:
 - Performs playtesting via Playwright MCP automation
 - Reports playtest results to PM
 
+## PRD Starter - Quick Setup
+
+Use `/ralph-prd-starter` for automated project setup:
+
+- **8-phase interactive wizard** - Guides through project ID, agent config, workflow, orchestration, tech stack, quality standards, and features
+- **Generates custom configuration** - Creates agents, skills, settings files tailored to your project
+- **Cross-platform support** - Works on Windows, macOS, and Linux
+- **State persistence** - Resume from any phase if interrupted
+- **Research-backed** - Researches best practices between phases
+
+See [PRD Starter Guide](./prd-starter.md) for complete documentation.
+
 ## Sub-agent Architecture
 
 Each main agent can delegate work to specialized sub-agents for cost optimization and focused expertise. Sub-agents keep the main agent's context clean and reduce token usage by ~77% for search tasks.
@@ -111,12 +123,12 @@ Each main agent can delegate work to specialized sub-agents for cost optimizatio
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    MAIN AGENT (e.g., Developer)                      │
 │                                                                      │
-│  "Use the codebase-explorer subagent to find components using       │
+│  "Use the code-research subagent to find components using           │
 │   useFrame hook"                                                     │
 │                                 │                                    │
 │                                 ▼                                    │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │           SUB-AGENT (codebase-explorer)                      │   │
+│  │           SUB-AGENT (code-research)                          │   │
 │  │           Model: Haiku (faster, cheaper)                     │   │
 │  │           Tools: Read, Glob, Grep (read-only)                │   │
 │  │                                                                │   │
@@ -130,55 +142,36 @@ Each main agent can delegate work to specialized sub-agents for cost optimizatio
 
 ### Sub-agent Definitions
 
-Sub-agents are defined in `.claude/agents/{agent}/` with YAML frontmatter:
+Sub-agents are defined in `.claude/agents/*.agent.md` with YAML frontmatter:
 
 ```yaml
 ---
-name: codebase-explorer
-description: Fast codebase search for Developer agent
-model: haiku
-tools: Read, Glob, Grep
-disallowedTools: Write, Edit, Bash
+name: implementation
+description: Implement features using R3F/TypeScript patterns
+model: sonnet
+skills:
+  - dev-r3f-r3f-fundamentals
+  - dev-r3f-r3f-physics
+tools: Read, Write, Edit, Bash
 ---
 
-You are a codebase exploration specialist...
+You are an implementation specialist...
 ```
 
 ### All Sub-agents
 
-| Agent | Sub-agent | Model | Purpose |
-|-------|-----------|-------|---------|
-| **Developer** | codebase-explorer | Haiku | Fast file/pattern search |
-| | gameplay-implementer | Sonnet | Implement game mechanics |
-| | network-implementer | Sonnet | Multiplayer/server code |
-| | state-architect | Sonnet | Zustand stores, data flow |
-| **PM** | task-selector | Sonnet | Analyze PRD, select next task |
-| | prd-analyst | Sonnet | Break down features into tasks |
-| | retro-facilitator | Sonnet | Run retrospective meetings |
-| | skill-researcher | Sonnet | Research skill improvements |
-| | gdd-reviewer | Sonnet | Review GDD from Game Designer |
-| **QA** | test-output-analyzer | Haiku | Parse verbose test results |
-| | code-inspector | Sonnet | Review code quality |
-| | browser-validator | Sonnet | Playwright testing |
-| | multiplayer-validator | Sonnet | Server-authoritative checks |
-| **Tech Artist** | asset-locator | Haiku | Find visual asset files |
-| | shader-creator | Sonnet | Create GLSL shaders |
-| | material-designer | Sonnet | Create PBR materials |
-| | fx-implementer | Sonnet | Particle effects, VFX |
-| | ui-polisher | Sonnet | UI styling, animations |
-| **Game Designer** | gdd-researcher | Haiku | Research game design patterns |
-| | gdd-writer | Sonnet | Create game design docs |
-| | playtest-specialist | Sonnet | Playtest via Playwright |
-| | mechanic-designer | Sonnet | Design game mechanics |
+| Agent | Sub-agents | Purpose |
+|-------|------------|---------|
+| **Developer** | code-research, implementation, code-quality, validation, commit, task-researcher | Research, code, validate, commit workflow |
+| **PM** | task-researcher, retrospective-facilitator, skill-researcher, prd-organizer, test-planner, architecture-validator | Task selection, retrospectives, skill improvement |
+| **QA** | browser-validator, multiplayer-validator, visual-regression-tester, gameplay-tester, code-review, visual-tester | Specialized validation types |
+| **Tech Artist** | asset-researcher, asset-creator, shader-compiler, particle-system-designer, visual-validator, visual-tester, performance-profiler, code-quality | Asset creation pipeline |
+| **Game Designer** | asset-analyst, visual-reference-researcher, reference-game-researcher, thermite-facilitator, gdd-documenter, playtest-evidence-collector | Design and research |
 
 ### Cost Optimization
 
 - **Haiku models** for search, research, parsing tasks (~77% cost reduction)
 - **Sonnet models** for implementation, design, validation (higher quality)
-
-Example cost savings:
-- Main model (Sonnet): ~$0.15 per search
-- Haiku subagent: ~$0.05 per search
 
 ### Delegation Pattern
 
@@ -187,9 +180,9 @@ Example cost savings:
 ```
 
 Examples:
-- "Use the codebase-explorer subagent to find components using useFrame hook"
-- "Use the gameplay-implementer subagent to implement player jump mechanics"
-- "Use the asset-locator subagent to find all texture files for the vehicle"
+- "Use the code-research subagent to find components using useFrame hook"
+- "Use the implementation subagent to implement player jump mechanics"
+- "Use the asset-researcher subagent to find all texture files for the vehicle"
 
 ## Task Lifecycle
 
@@ -294,6 +287,7 @@ ralph-orchestra/
 │   │   ├── ralph-worker-event.md       # Worker event-driven mode
 │   │   ├── ralph-worker-single.md      # Worker sequential mode
 │   │   ├── ralph-hitl.md               # Human-in-the-loop mode
+│   │   ├── ralph-prd-starter.md        # Project setup wizard
 │   │   └── cancel-ralph.md             # Graceful shutdown
 │   │
 │   ├── scripts/            # Orchestration scripts
@@ -301,75 +295,64 @@ ralph-orchestra/
 │   │   ├── watchdog-single.ps1       # Sequential mode orchestrator
 │   │   ├── ralph-event-session.ps1   # Event-driven launcher
 │   │   ├── ralph-single-session.ps1  # Sequential launcher
-│   │   ├── ralph-multi-session.ps1   # Polling mode launcher
-│   │   ├── pipe-transport.ps1        # Named pipe messaging
-│   │   ├── message-queue.ps1         # Message queue functions
-│   ├── message-state-manager.ps1 # Message state tracking
+│   │   ├── prd-starter-generator.ps1 # Project setup generator
 │   │   └── ralph-config.ps1          # Shared configuration
 │   │
-│   ├── skills/             # Centralized skills (56+ skill directories)
-│   │   ├── ralph-core.md             # Core orchestration concepts
-│   │   ├── ralph-router.md           # Routes to agent skills
-│   │   ├── ralph-handoff.md          # Handoff protocol
-│   │   ├── ralph-event-protocol.md   # Event-driven messaging
-│   │   ├── file-permissions.md       # File write permissions
-│   │   ├── heartbeat-protocol.md     # Agent heartbeat updates
-│   │   ├── message-handling.md       # Pending message processing
-│   │   ├── worker-protocol.md        # Worker pool model
-│   │   ├── context-management.md     # Context window auto-reset
-│   │   ├── dev-backend-multiplayer  # Developer: Server-authoritative
-│   │   ├── dev-client-prediction    # Developer: Client prediction
-│   │   ├── qa-validation-workflow   # QA: Validation pipeline
-│   │   ├── qa-browser-testing       # QA: Playwright testing
-│   │   ├── thermite-design          # Game Designer: Design sessions
-│   │   └── ... (56+ total skills)
+│   ├── agents/              # SUB-AGENT DEFINITIONS (FLAT)
+│   │   │                    # 26+ .agent.md files, NOT organized by agent
+│   │   ├── implementation.agent.md     # Code implementation specialist
+│   │   ├── code-quality.agent.md       # Code quality specialist
+│   │   ├── code-research.agent.md      # Code research specialist (Haiku)
+│   │   ├── commit.agent.md             # Git commit specialist
+│   │   ├── validation.agent.md         # Validation specialist
+│   │   ├── browser-validator.agent.md  # Browser testing specialist
+│   │   ├── multiplayer-validator.agent.md # Multiplayer validation
+│   │   ├── visual-tester.agent.md      # Visual regression testing
+│   │   ├── gdd-documenter.agent.md     # GDD documentation specialist
+│   │   ├── prd-organizer.agent.md      # PRD organization specialist
+│   │   ├── task-researcher.agent.md    # PM task research specialist
+│   │   └── ... (16+ more sub-agents)
+│   │
+│   ├── protocols/           # NEW: Communication protocols
+│   │   ├── event-driven.md           # Event-driven orchestration protocol
+│   │   ├── sequential.md             # Sequential agent coordination
+│   │   └── worktree-setup.md         # Git worktree setup protocol
+│   │
+│   ├── schemas/             # NEW: Configuration validation
+│   │   ├── agent-config.schema.json  # Agent configuration schema
+│   │   └── prd-starter-state.schema.json # PRD Starter state schema
+│   │
+│   ├── templates/           # NEW: Agent/skill templates
+│   │   ├── agent-template.md        # Agent definition template
+│   │   ├── SKILL_TEMPLATE.md        # Skill template
+│   │   ├── SUBAGENT_TEMPLATE.md     # Sub-agent template
+│   │   └── settings-template.json   # Settings configuration template
+│   │
+│   ├── skills/             # Folder-based skills (70+)
+│   │   ├── dev-r3f-r3f-fundamentals/SKILL.md
+│   │   ├── dev-multiplayer-colyseus-server/SKILL.md
+│   │   ├── ta-shader-development/SKILL.md
+│   │   ├── qa-browser-testing/SKILL.md
+│   │   ├── pm-workflow/SKILL.md
+│   │   ├── shared-ralph-core/SKILL.md
+│   │   └── ... (70+ skill folders)
 │   │
 │   ├── session/            # Runtime state (gitignored)
-│   │   ├── state/                   # Split state files (Phase 2)
-│   │   │   ├── agents.json          # Agent statuses
-│   │   │   ├── prd.json             # PRD state
-│   │   │   ├── current-task.json    # Active task
-│   │   │   └── metrics.json         # Performance metrics
+│   │   ├── state/                   # Split state files
 │   │   ├── pipes/                   # Named pipe endpoints
-│   │   ├── coordinator-state.json    # Main coordination state
-│   │   ├── current-task.json         # Active task details
-│   │   ├── handoff-signal.json       # Agent switching signals
-│   │   ├── messages/                 # Event-driven message queues
-│   │   │   ├── pm/                   # PM inbox
-│   │   │   ├── developer/            # Developer inbox
-│   │   │   ├── techartist/           # Tech Artist inbox
-│   │   │   ├── qa/                   # QA inbox
-│   │   │   ├── gamedesigner/         # Game Designer inbox
-│   │   │   └── watchdog/             # Watchdog inbox
-│   │   └── logs/                     # Agent output logs
+│   │   ├── coordinator-state.json   # Main coordination state
+│   │   ├── handoff-signal.json      # Agent switching signals
+│   │   ├── messages/                # Event-driven message queues
+│   │   └── logs/                    # Agent output logs
 │   │
 │   └── settings.*.json     # Per-agent Claude settings
 │
-├── agents/                 # Agent definitions
-│   ├── pm/
-│   │   ├── AGENT.md        # PM behavior instructions
-│   │   ├── SKILLS.md       # Skills documentation
-│   │   ├── checklists/      # PM checklists
-│   │   └── references/      # PM reference materials
-│   ├── developer/
-│   │   ├── AGENT.md        # Developer behavior instructions
-│   │   ├── SKILLS.md       # Skills documentation
-│   │   ├── checklists/      # Developer checklists
-│   │   └── references/      # Developer reference materials
-│   ├── techartist/
-│   │   ├── AGENT.md        # Tech Artist behavior instructions
-│   │   ├── SKILLS.md       # Skills documentation
-│   │   ├── checklists/      # Tech Artist checklists
-│   │   └── references/      # Tech Artist reference materials
-│   ├── qa/
-│   │   ├── AGENT.md        # QA behavior instructions
-│   │   ├── SKILLS.md       # Skills documentation
-│   │   ├── checklists/      # QA checklists
-│   │   └── references/      # QA reference materials
-│   └── gamedesigner/
-│       ├── AGENT.md        # Game Designer behavior instructions
-│       ├── checklists/      # Game Designer checklists
-│       └── references/      # Game Designer reference materials
+├── agents/                 # Main agent definitions
+│   ├── pm/AGENT.md         # PM behavior instructions
+│   ├── developer/AGENT.md  # Developer behavior instructions
+│   ├── techartist/AGENT.md # Tech Artist behavior instructions
+│   ├── qa/AGENT.md         # QA behavior instructions
+│   └── gamedesigner/AGENT.md # Game Designer behavior instructions
 │
 ├── prd.json                # Product Requirements Document (tasks)
 ├── CLAUDE.md               # Project context for Claude
@@ -455,3 +438,5 @@ The Game Designer agent uses the [thermite-design](.claude/skills/thermite-desig
 - [Orchestration Modes](./orchestration-modes.md) - Deep dive into each mode
 - [Configuration](./configuration.md) - PRD format and settings
 - [Extending](./extending.md) - Adding custom agents and skills
+- [PRD Starter Guide](./prd-starter.md) - Interactive setup wizard
+- [Protocol Reference](./protocols.md) - Communication protocols

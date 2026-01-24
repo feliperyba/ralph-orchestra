@@ -27,28 +27,29 @@ cat .claude/session/pending-handoff.json 2>/dev/null || echo "No pending handoff
 ### Step 2: Read task details
 
 ```bash
-cat .claude/session/current-task.json
-cat .claude/session/coordinator-state.json
+# All state is in prd.json (single source of truth)
+cat prd.json
 ```
 
 ### Step 3: Do your work
 
 **If you are DEVELOPER:**
 
-1. Read the task specifications from current-task.json
+1. Read the task specifications from prd.json.items[{taskId}]
 2. Implement the feature/fix
 3. Run feedback loops: `npx tsc --noEmit`, `npm run lint`
 4. Commit your changes: `git add -A && git commit -m "feat: ..."`
-5. Update current-task.json with status "ready_for_qa"
-6. HANDOFF to QA
+5. Update prd.json.items[{taskId}].status to "ready_for_qa"
+6. Update prd.json.agents.developer status to "idle"
+7. HANDOFF to QA
 
 **If you are QA:**
 
-1. Read what was implemented from current-task.json
+1. Read what was implemented from prd.json.items[{taskId}]
 2. Run validation: `npm run build`, `npm run test`
 3. Check code quality and acceptance criteria
-4. If PASS → Update status to "passed", HANDOFF to PM
-5. If FAIL → Document bugs in current-task.json, HANDOFF to Developer
+4. If PASS → Update prd.json.items[{taskId}].status to "passed", HANDOFF to PM
+5. If FAIL → Document bugs in prd.json.items[{taskId}].notes, HANDOFF to Developer
 
 ### Step 4: HANDOFF (MANDATORY - Do this when work is complete)
 
@@ -57,7 +58,7 @@ cat .claude/session/coordinator-state.json
 **Developer → QA (after implementation):**
 
 ```bash
-echo '{"targetAgent": "qa", "context": "Validate TASK_ID - Implementation complete. See current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "qa", "context": "Validate TASK_ID - Implementation complete. See prd.json.items[{taskId}].", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:qa:Ready for validation`
@@ -73,7 +74,7 @@ Then output: `HANDOFF:pm:Validation passed`
 **QA → Developer (if bugs found):**
 
 ```bash
-echo '{"targetAgent": "developer", "context": "Fix bugs in TASK_ID - See bugs array in current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "developer", "context": "Fix bugs in TASK_ID - See prd.json.items[{taskId}].notes.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:developer:Bugs found - fix needed`
@@ -112,7 +113,7 @@ HANDOFF:qa:Ready for validation
 
 1. **Write handoff-signal.json** - this is how agents switch
 2. **Also print HANDOFF:agent:context** - backup detection
-3. **Update current-task.json** with your changes before handoff
+3. **Update prd.json** with your changes before handoff (items[{taskId}] and agents.{your-agent})
 4. **Commit code changes** (Developer) before handoff
 
 **BEGIN NOW** - Read pending-handoff.json, do your work, then HANDOFF!
