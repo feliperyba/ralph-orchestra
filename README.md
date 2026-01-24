@@ -9,7 +9,7 @@
 
 ## What is Ralph Orchestra?
 
-Ralph Orchestra is a **framework for orchestrating AI agents** - not a hard-coded template for any specific technology. It provides:
+Ralph Orchestra is a **framework for orchestrating AI agents**. It provides:
 
 - **PRD Starter Wizard** - Generate custom agent configurations for YOUR project
 - **Multi-Agent Coordination** - PM, Developer, Specialist, QA agents working together
