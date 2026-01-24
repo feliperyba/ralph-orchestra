@@ -6,7 +6,10 @@
     },
     "filesystem": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"]
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "PATH": "${PATH}"
+      }
     },
     "github": {
       "command": "cmd",

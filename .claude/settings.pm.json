@@ -10,14 +10,10 @@
     },
     "filesystem": {
       "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "C:\\Users\\Felip\\Projects\\gamedev\\projects\\ThreeJS\\agentic-threejs",
-        "C:\\Users\\Felip\\Projects\\gamedev\\projects\\ThreeJS\\agentic-threejs\\.claude\\session"
-      ]
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "PATH": "${PATH}"
+      }
     }
   }
 }

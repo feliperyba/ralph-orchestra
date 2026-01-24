@@ -7,7 +7,7 @@
 ### Key Features
 
 - **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
-- **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
+- **Three Orchestration Modes** - Event-driven, Sequential, or HITL
 - **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
 - **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms delivery)
 - **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
@@ -32,18 +32,18 @@
 
 ### Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [README.md](README.md) | Project overview and quick start |
-| [docs/getting-started.md](docs/getting-started.md) | Installation, prerequisites, first run |
-| [docs/orchestration-modes.md](docs/orchestration-modes.md) | All 4 orchestration modes explained |
-| [docs/architecture.md](docs/architecture.md) | System architecture, agent roles, message flow |
-| [docs/configuration.md](docs/configuration.md) | PRD format, agent settings, watchdog config |
-| [docs/extending.md](docs/extending.md) | Adding custom agents, skills, routing |
-| [docs/monitoring.md](docs/monitoring.md) | Dashboard, logs, troubleshooting |
-| [.claude/scripts/README.md](.claude/scripts/README.md) | Script reference |
-| [agents/\*/AGENT.md](agents/) | Per-agent behavior instructions |
-| [.claude/skills/](.claude/skills/) | Centralized orchestration skills (56+ skills) |
+| Document                                                   | Purpose                                        |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| [README.md](README.md)                                     | Project overview and quick start               |
+| [docs/getting-started.md](docs/getting-started.md)         | Installation, prerequisites, first run         |
+| [docs/orchestration-modes.md](docs/orchestration-modes.md) | All 4 orchestration modes explained            |
+| [docs/architecture.md](docs/architecture.md)               | System architecture, agent roles, message flow |
+| [docs/configuration.md](docs/configuration.md)             | PRD format, agent settings, watchdog config    |
+| [docs/extending.md](docs/extending.md)                     | Adding custom agents, skills, routing          |
+| [docs/monitoring.md](docs/monitoring.md)                   | Dashboard, logs, troubleshooting               |
+| [.claude/scripts/README.md](.claude/scripts/README.md)     | Script reference                               |
+| [agents/\*/AGENT.md](agents/)                              | Per-agent behavior instructions                |
+| [.claude/skills/](.claude/skills/)                         | Centralized orchestration skills (56+ skills)  |
 
 ---
 
@@ -110,14 +110,14 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 
 ### Commands
 
-| Command                     | Purpose                                      |
-| --------------------------- | -------------------------------------------- |
-| `/ralph-coordinator-event`  | Start PM agent in event-driven mode          |
-| `/ralph-coordinator-single` | Start PM agent in sequential mode            |
-| `/ralph-worker-event --agent X` | Start worker agent (developer/techartist/qa/gamedesigner) in event-driven |
-| `/ralph-worker-single --agent X` | Start worker agent (developer/techartist/qa/gamedesigner) in sequential |
-| `/ralph-hitl`               | Single iteration mode for learning           |
-| `/cancel-ralph`             | Cancel active loop                           |
+| Command                          | Purpose                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `/ralph-coordinator-event`       | Start PM agent in event-driven mode                                       |
+| `/ralph-coordinator-single`      | Start PM agent in sequential mode                                         |
+| `/ralph-worker-event --agent X`  | Start worker agent (developer/techartist/qa/gamedesigner) in event-driven |
+| `/ralph-worker-single --agent X` | Start worker agent (developer/techartist/qa/gamedesigner) in sequential   |
+| `/ralph-hitl`                    | Single iteration mode for learning                                        |
+| `/cancel-ralph`                  | Cancel active loop                                                        |
 
 ### How Ralph Works
 
