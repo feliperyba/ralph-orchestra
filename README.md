@@ -93,10 +93,11 @@ You customize which agents are enabled and what skills they have during wizard s
 
 **Complete documentation:** [docs/README.md](docs/README.md)
 
-| Quick Start                                | Core                                               | Wizard Reference                              |
-| ------------------------------------------ | -------------------------------------------------- | --------------------------------------------- |
-| [Getting Started](docs/getting-started.md) | [Framework Architecture](docs/architecture.md)     | [Wizard Presets](docs/wizard-presets.md)      |
-| [Framework Guide](docs/framework.md)       | [Orchestration Modes](docs/orchestration-modes.md) | [Skill Catalog](docs/wizard-skill-catalog.md) |
+| Quick Start                                | Core                                                 | Wizard Reference                              |
+| ------------------------------------------ | ---------------------------------------------------- | --------------------------------------------- |
+| [Getting Started](docs/getting-started.md) | [Framework Architecture](docs/architecture.md)       | [Wizard Presets](docs/wizard-presets.md)      |
+| [Framework Guide](docs/framework.md)       | [PowerShell Scripts Guide](docs/powershell-guide.md) | [Skill Catalog](docs/wizard-skill-catalog.md) |
+|                                            | [Orchestration Modes](docs/orchestration-modes.md)   |                                               |
 
 ---
 
