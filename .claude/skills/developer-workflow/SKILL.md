@@ -221,6 +221,13 @@ changelog: "MAJOR: Added PRD Status Synchronization as golden rule. PRD must be 
 - Design question → Send to Game Designer via PM
 - Asset needed → Request from Tech Artist via PM
 
+**⚠️ TIMEOUT PROTECTION:** Setting `awaiting_pm` is SAFE because:
+- The watchdog monitors `prd.json.agents.developer.lastSeen`
+- After 10 minutes (configurable), watchdog sends `agent_timeout` to PM
+- PM will receive notification and take action (reassign, clarify, or escalate)
+- You won't be stuck forever waiting for a response
+- **Never implement your own timeout logic** - the watchdog handles this
+
 ## Server-Authoritative Architecture
 
 **MUST be server-authoritative for:**

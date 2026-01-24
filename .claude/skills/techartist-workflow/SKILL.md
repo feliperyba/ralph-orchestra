@@ -33,6 +33,13 @@ changelog: "ADDED: PRD Status Synchronization as golden rule. PRD must be update
 
 **Rule of thumb: If your state changes, PRD changes. IMMEDIATELY.**
 
+**⚠️ TIMEOUT PROTECTION:** Setting `awaiting_gd_clarification` or `awaiting_gd` is SAFE because:
+- The watchdog monitors `prd.json.agents.techartist.lastSeen`
+- After 10 minutes (configurable), watchdog sends `agent_timeout` to PM
+- PM will receive notification and take action (reassign, clarify, or escalate)
+- You won't be stuck forever waiting for Game Designer response
+- **Never implement your own timeout logic** - the watchdog handles this
+
 ## Startup Workflow
 
 ```

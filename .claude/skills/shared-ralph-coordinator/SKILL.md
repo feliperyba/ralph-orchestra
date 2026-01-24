@@ -39,44 +39,6 @@ Max Iterations: {{MAX}}
 
 **Note**: Session state (sessionId, iteration, currentTask, stats) is stored in `prd.json.session`. Agent status is stored in `prd.json.agents.{agent}`.
 
-## Project Initialization Check (First Run Only)
-
-After creating session directory, check if project needs initialization:
-
-**Check `prd.json.projectInitialization.status`**:
-
-IF "pending" OR "failed" AND attempts < maxAttempts:
-  a. Detect OS platform (Windows vs Unix)
-  b. Run initialization script:
-     - Windows: `.\.claude\scripts\init-project.ps1`
-     - Unix: `bash .claude/scripts/init-project.sh`
-  c. Capture output
-  d. IF success (exit code 0):
-     - Set status: "completed"
-     - Set completedAt: timestamp
-     - Update prd.json
-     - Log to coordinator-progress.txt
-     - Continue to main loop
-  e. IF failure:
-     - Increment attempts
-     - Set error: output message
-     - Set lastAttemptAt: timestamp
-     - IF attempts < maxAttempts:
-         - Try to diagnose and fix common issues
-         - Check for missing package managers
-         - Check network connectivity
-         - Retry
-     - ELSE:
-         - Set status: "failed"
-         - Output: `<promise>INITIALIZATION_FAILED</promise>`
-         - Tell user what needs fixing
-         - Stop
-
-IF "completed" OR "skipped":
-  - Continue to main loop
-
-**Only proceed with task coordination after init completes.**
-
 ---
 
 ## How It Works

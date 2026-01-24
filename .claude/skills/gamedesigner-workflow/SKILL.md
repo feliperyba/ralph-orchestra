@@ -1,14 +1,24 @@
 ---
 name: gamedesigner-workflow
-description: Complete Game Designer workflow - skill invocation protocol, GDD creation, playtest flow, design sessions. MUST load before starting assignments.
+description: Complete Game Designer workflow - skill invocation protocol, GDD creation, playtest flow with GDD review, design sessions. MUST load before starting assignments.
 category: workflow
-version: 1.2
-changelog: "ADDED: PRD Status Synchronization as golden rule. PRD must be updated immediately on EVERY status change to keep system in sync."
+version: 3.0
+changelog: "v3.0: ADDED GDD REVIEW PHASE during playtest. After gameplay testing, GD must review retrospective pain points, compare implementation vs GDD, identify skill gaps, and propose priority changes. playtest_session_report now includes gddReview, skillGaps, and priorityRecommendations fields. v2.0: Reorganized - Centralized ALL detailed workflows in skill file. AGENT.md is now a quick reference card only."
 ---
 
 # Game Designer Workflow
 
-> "This skill contains the complete workflow for the Game Designer Agent. Load this BEFORE starting any task."
+> "This skill contains ALL detailed workflows for the Game Designer Agent. Load this BEFORE starting any task."
+
+## File Organization
+
+| File            | Purpose                                   | Size     |
+| --------------- | ----------------------------------------- | -------- |
+| `AGENT.md`      | Quick Reference: routing, permissions, messages | ~180 lines |
+| `this skill`    | ALL detailed workflows: playtest, GDD, design sessions | ~400 lines |
+
+**Use AGENT.md** for: Task routing table, communication protocol, status values, file permissions
+**Use this skill** for: Playtest checklist, GDD creation flow, task research, design sessions, retrospective
 
 ## 🚨 GOLDEN RULE: PRD Status Synchronization
 
@@ -21,7 +31,8 @@ changelog: "ADDED: PRD Status Synchronization as golden rule. PRD must be update
 | **Starting design work** | `prd.json.agents.gamedesigner.status = "working"` | PM knows you're designing |
 | **GDD created/updated** | `prd.json.agents.gamedesigner.gddPath = "docs/design/gdd.md"` | PM knows GDD is ready |
 | **Playtest requested** | `prd.json.agents.gamedesigner.status = "playtesting"` | PM knows you're testing |
-| **Playtest complete** | Send `playtest_session_report` + `prd.json.agents.gamedesigner.status = "idle"` | PM receives findings |
+| **Playtest complete, starting GDD review** | `prd.json.agents.gamedesigner.status = "reviewing"` | PM knows you're reviewing |
+| **GDD review complete** | Send `playtest_session_report` + `prd.json.agents.gamedesigner.status = "idle"` | PM receives findings + GDD gaps |
 | **Providing acceptance criteria** | Send `acceptance_criteria` with task details | PM uses for task definition |
 | **Self-reporting progress** | `prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}` | Watchdog knows you're alive |
 
@@ -42,22 +53,30 @@ changelog: "ADDED: PRD Status Synchronization as golden rule. PRD must be update
 2. Check pending messages
    - Read .claude/session/messages/gamedesigner/msg-*.json
 
-3. Check if GDD exists in docs/design/
+3. ⚠️ PROACTIVE PLAYTEST CHECK (MANDATORY - EVERY STARTUP)
+   - Read .claude/session/retrospective.txt → Check Action Items for "[ ] Request playtest"
+   - Read prd.json → Check session.currentTask.status for "playtest_phase"
+   - IF playtest needed → JUMP TO PLAYTEST FLOW immediately (skip to step 9)
 
-4. Read prd.json for current task
+4. Check if GDD exists in docs/design/
+
+5. Read prd.json for current task
    - Check prd.json.session.currentTask for your assignment
    - Check prd.json.agents.gamedesigner for your status
    - Update your status and lastSeen timestamp
 
-5. **SKILL CHECK** - Match task to skill/sub-agent
+6. **SKILL CHECK** - Match task to skill/sub-agent
 
-6. **TASK RESEARCH (MANDATORY)**
+7. **TASK RESEARCH (MANDATORY)**
    - Read GDD, check reference games
    - Check src/assets/ before requesting new assets
 
-7. Invoke appropriate skill/sub-agent
+8. Invoke appropriate skill/sub-agent
 
-8. Complete design work, commit with Ralph format, send message, exit
+9. PLAYTEST FLOW (if triggered in step 3)
+   - See Playtest Flow section below
+
+10. Complete design work, commit with Ralph format, send message, exit
 ```
 
 ## Task Research (MANDATORY - First Step)
@@ -128,32 +147,146 @@ changelog: "ADDED: PRD Status Synchronization as golden rule. PRD must be update
    - Send gdd_ready message
 ```
 
-## Playtest Flow (MANDATORY for Retrospective)
+## Playtest Flow (MANDATORY for Retrospective - v3.0 with GDD Review)
+
+**⚠️ PROACTIVE INITIATION**: Don't wait for a message! Check these conditions on EVERY startup:
+
+**COMPREHENSIVE PLAYTEST EXECUTION CHECKLIST (13 steps - includes GDD review):**
 
 ```
-1. RECEIVE playtest_session_request from PM
-   → CREATE/UPDATE task memory file for playtest session
+STEP 1: DETECT playtest needed (proactive check - EVERY STARTUP)
+   - Read .claude/session/retrospective.txt
+   - Look for "[ ] Request playtest session from Game Designer" in Action Items
+   - Read prd.json
+   - Look for session.currentTask.status = "playtest_phase"
+   - Look for session.retro.active = true with pending playtest action
+   - Read prd.json items.{taskId}.acceptanceCriteria
+   - IF any condition true → IMMEDIATELY INITIATE PLAYTESTING
 
-2. USE PLAYWRIGHT MCP
+STEP 2: START DEV SERVERS (MANDATORY - must be running for full playtest)
+   - Run: npm run dev:all:sh (starts both client on :3000 and server on :2567)
+   - Wait for: "Vite ready" and "Colyseus server listening" messages
+   - Verify: http://localhost:3000 is accessible
+   - IF servers fail to start → Report infrastructure issue to PM
+
+STEP 3: UPDATE PRD status
+   → prd.json.agents.gamedesigner.status = "playtesting"
+   → prd.json.agents.gamedesigner.currentTaskId = "{taskId from retrospective/PRD}"
+
+STEP 4: CREATE task memory file
+   → .claude/session/agents/gamedesigner/task-{taskId}-playtest-memory.md
+
+STEP 5: CHARACTER SELECTION TEST
    - Navigate to localhost:3000
-   - Test gameplay mechanics
-   - Take 3+ screenshots: start, during, end
-   → WRITE TO MEMORY: Document gameplay observations, issues found
+   - Take screenshot: character-selection.png
+   - Verify: Character model visible (3D rendered)
+   - Verify: All character types load (navigate with arrows)
+   - Check console: NO FBXLoader errors, NO "Cannot find version number"
+   - Enter player name, click "Select Character"
 
-3. USE VISION MCP
-   - Analyze screenshots for GDD compliance
-   - Validate game state
-   → WRITE TO MEMORY: Document compliance findings, deviations
+STEP 6: LOBBY TEST
+   - Verify: Lobby loads, player name displayed
+   - Verify: Server connection succeeds (no "Connection Error")
+   - Check console: Colyseus connection successful
+   - Take screenshot: lobby.png
+   - Proceed to game when ready
 
-4. SEND playtest_session_report with:
+STEP 7: GAME SCENE TEST (CRITICAL - Full gameplay validation)
+   - Verify: Game scene renders with character
+   - Take screenshot: game-scene.png
+   - Check console: NO errors, character loaded successfully
+
+   KEYBOARD/MOUSE CONTROLS TEST (MUST test each):
+   - W/A/S/D: Movement in all directions
+   - Space: Jump (character moves up)
+   - Space x2: Double jump (if applicable)
+   - Mouse: Camera rotation (left/right look)
+   - Shift: Sprint (if applicable)
+   - RMB: Aim mode (camera zooms in)
+   - X key: Shoulder swap (if applicable)
+   - Esc: Pause menu (if applicable)
+
+STEP 8: ACCEPTANCE CRITERIA VALIDATION
+   - Read prd.json items.{currentTask}.acceptanceCriteria
+   - For EACH criterion:
+     * Test in game
+     * Mark pass/fail in memory
+     * Document evidence (screenshot/console log)
+   - Calculate: pass % = (passed / total) * 100
+
+STEP 9: VISION MCP ANALYSIS
+   - Analyze all screenshots for visual quality
+   - Check: Character proportions, animation smoothness
+   - Check: UI readability, HUD clarity
+   - Check: Visual glitches, missing assets
+
+STEP 10: GDD REVIEW PHASE (NEW v3.0 - MANDATORY BEFORE SENDING REPORT)
+   → prd.json.agents.gamedesigner.status = "reviewing"
+
+   10.1 RETROSPECTIVE ANALYSIS:
+   - Read: .claude/session/retrospective.txt
+   - Extract: Pain points from Developer, Tech Artist, QA sections
+   - Identify: Worker struggles with GDD (unclear specs, missing references)
+   - Catalog: Repeated questions about design
+   - Note: Implementation deviations from GDD
+
+   10.2 GAME STATE REVIEW:
+   - Compare: Actual gameplay vs GDD specifications
+   - Check: docs/design/gdd/ modules for outdated content
+   - Verify: Acceptance criteria alignment with GDD
+   - Use: Vision MCP to analyze screenshots vs GDD visual specs
+
+   10.3 GAP ANALYSIS:
+   - Identify: GDD sections needing updates (modules, acceptance criteria, specs)
+   - Catalog: Missing specifications (values, patterns, behaviors)
+   - Identify: Missing skills workers need (use gd-skill-gap-analysis)
+   - Propose: Task priority adjustments based on playtest findings
+   - Update: GDD files if changes are clear and unambiguous
+
+   Use Skills:
+   - Skill("gd-playtest-gdd-review") for GDD review process
+   - Skill("gd-skill-gap-analysis") for skill gap identification
+
+STEP 11: SEND playtest_session_report with NEW STRUCTURE:
+   - taskId: "{taskId}"
+   - taskTitle: "{title}"
+   - playedBy: "gamedesigner"
+   - playedAt: "{ISO_TIMESTAMP}"
+   - result: "PASS" | "FAIL"
+   - criteriaTested: [list of criteria with results]
+   - issuesFound: [problems identified]
    - screenshots: [filenames]
-   - playwrightUsed: true
-   - visionMcpUsed: true
-   - findings: observations
-   - gddCompliance: "pass" | "fail"
-   - issues: problems found
-   - recommendations: improvements
+   - **gddReview (NEW):**
+     - modulesReviewed: [GDD sections checked]
+     - updatesNeeded: [tasks requiring GDD clarification]
+     - gddUpdatesMade: [GDD files updated directly]
+   - **skillGaps (NEW):**
+     - agent: "developer" | "techartist"
+     - missingSkill: "skill-name"
+     - description: "what workers struggled with"
+     - proposedSkill: {skill structure}
+   - **priorityRecommendations (NEW):**
+     - taskId: "task-id"
+     - currentTier: "TIER_X"
+     - recommendedTier: "TIER_Y"
+     - reason: "justification for change"
+   - overallAssessment: "summary of findings"
+   → Send to: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
+
+STEP 12: UPDATE PRD status
+   → prd.json.agents.gamedesigner.status = "idle"
+   → prd.json.agents.gamedesigner.currentTaskId = null
+   → prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}
 ```
+
+**⚠️ CRITICAL REMINDER (v3.0):**
+- Start servers with `npm run dev:all:sh` BEFORE playtesting
+- Test ALL keyboard/mouse controls in game scene
+- Validate against acceptance criteria in PRD
+- **MANDATORY: Conduct GDD review BEFORE sending report (STEP 10)**
+- **MANDATORY: Include gddReview, skillGaps, priorityRecommendations in report**
+- Game must be PLAYABLE to pass playtest
+- Document EVERYTHING for retrospective contribution
 
 ## Design Session Flow
 
@@ -237,6 +370,8 @@ Every design decision must serve at least one pillar:
 | `gamedesigner/design/weapon` | Weapon and item design |
 | `gamedesigner/design/game-loop` | Core gameplay loop design |
 | `gamedesigner/validation/playtest` | Playwright + Vision MCP playtesting |
+| **`gd-playtest-gdd-review` (NEW v3.0)** | **GDD review during playtest phase** |
+| **`gd-skill-gap-analysis` (NEW v3.0)** | **Analyze pain points, identify skill gaps** |
 
 ## Commit Format
 

@@ -10,27 +10,27 @@ Ralph Orchestra is an agnostic multi-agent orchestration framework that coordina
 │                   (Agnostic Orchestration Framework)                    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐     │
-│  │COORDINATOR  │───▶│  WORKER 1   │───▶│         VALIDATOR         │     │
-│  │  (PM Agent) │    │(Developer)  │    │        (QA Agent)        │     │
-│  └─────────────┘    └─────────────┘    └─────────────────────────┘     │
-│         │                  ▲                                              │
-│         │                  │                                              │
-│         └──────────────────┴──────────────────────────────────────┐     │
-│                           (cycle repeats)                           │     │
-│                                                                 │     │
-│  ┌─────────────┐    ┌─────────────────────────────────────────┐  │     │
-│  │ SPECIALIST  │    │            DESIGNER                      │  │     │
-│  │(Optional)   │    │         (Optional)                      │  │     │
-│  │             │    │  Specifications • Research • Validation  │  │     │
-│  │Domain-      │    │                                         │  │     │
-│  │Specific     │    │  Configured during wizard setup          │  │     │
-│  │Skills       │    │                                         │  │     │
-│  └─────────────┘    └─────────────────────────────────────────┘  │     │
-│                                                                 │     │
-│  Note: Agent roles, names, and skills are configurable via       │     │
-│  the PRD Starter wizard. The above shows a typical configuration │     │
-│  after running /ralph-prd-starter                                │     │
+│  ┌──────────────┐      ┌──────────────┐      ┌─────────────────────┐    │
+│  │ COORDINATOR  │─────▶│   WORKER 1   │─────▶│      VALIDATOR       │    │
+│  │  (PM Agent)   │      │ (Developer)  │      │     (QA Agent)      │    │
+│  └──────┬───────┘      └──────┬───────┘      └─────────────────────┘    │
+│         │                     │                                             │
+│         │                     ▲                                             │
+│         └─────────────────────┴─────────────────────────────────────┐   │
+│                           (cycle repeats)                          │   │
+│                                                                 │   │
+│  ┌──────────────┐      ┌─────────────────────────────────────────┐  │   │
+│  │ SPECIALIST   │      │              DESIGNER                      │  │   │
+│  │  (Optional)  │      │           (Optional)                       │  │   │
+│  │              │      │  Specifications • Research • Validation  │  │   │
+│  │ Domain-      │      │                                             │  │   │
+│  │ Specific     │      │  Configured during wizard setup           │  │   │
+│  │ Skills       │      │                                             │  │   │
+│  └──────────────┘      └─────────────────────────────────────────┘  │   │
+│                                                                 │   │
+│  Note: Agent roles, names, and skills are configurable via          │  │
+│  the PRD Starter wizard. The above shows a typical configuration   │  │
+│  after running /ralph-prd-starter                                  │  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -157,24 +157,24 @@ The framework includes 28+ sub-agents. Examples:
 │                         TASK LIFECYCLE                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐  │
-│  │ 1. SELECT   │───▶│ 2. ASSIGN   │───▶│ 3. IMPLEMENT            │  │
-│  │(Coordinator)│    │(→Worker)    │    │   (Worker Agent)         │  │
-│  │             │    │             │    │                         │  │
-│  │ Read PRD    │    │ Update      │    │   - Domain skills       │  │
-│  │ Find next   │    │ state       │    │   - Feedback loops      │  │
-│  └─────────────┘    └─────────────┘    └───────────┬─────────────┘  │
-│                                                     │                │
-│  ┌─────────────┐    ┌─────────────────────────────┐│                │
-│  │ 5. RETRO    │◀───│ 4. VALIDATE                 ││                │
-│  │(Coordinator)│    │   (Validator)                │◀┘                │
-│  │             │    │                             │                  │
-│  │ Mark passed │    │   - Type check               │                  │
-│  │ Update PRD  │    │   - Lint                     │                  │
-│  │ Next task   │    │   - Tests                    │                  │
-│  └─────────────┘    │   - Build                    │                  │
-│                     │   - Bug report OR pass       │                  │
-│                     └─────────────────────────────┘                  │
+│  ┌──────────────┐      ┌──────────────┐      ┌─────────────────────┐ │
+│  │  1. SELECT   │─────▶│  2. ASSIGN   │─────▶│  3. IMPLEMENT       │ │
+│  │ (Coordinator)│      │  (→Worker)   │      │  (Worker Agent)     │ │
+│  │              │      │              │      │                     │ │
+│  │  Read PRD    │      │  Update      │      │  - Domain skills    │ │
+│  │  Find next   │      │  state       │      │  - Feedback loops   │ │
+│  └──────────────┘      └──────────────┘      └──────────┬──────────┘ │
+│                                                       │              │
+│  ┌──────────────┐      ┌─────────────────────────────┐              ││
+│  │  5. RETRO    │◀─────│  4. VALIDATE                 │◀─────────────┘│
+│  │ (Coordinator)│      │  (Validator)                 │               │
+│  │              │      │                              │               │
+│  │  Mark passed │      │  - Type check                │               │
+│  │  Update PRD  │      │  - Lint                      │               │
+│  │  Next task   │      │  - Tests                     │               │
+│  └──────────────┘      │  - Build                     │               │
+│                        │  - Bug report OR pass         │               │
+│                        └───────────────────────────────┘               │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
 ```

@@ -110,7 +110,79 @@ This document defines the message-based communication protocol for event-driven 
 - `timestamp`: Compact format `yyyyMMdd-HHmmss` (e.g., `20240120-120000`)
 - `seq`: 3-digit sequence number (001, 002, etc.) prevents collisions
 
+## Message Acknowledgment Protocol (P0-4 Fix)
+
+**Purpose:** Prevent circular wait conditions, especially PM ↔ Game Designer communication.
+
+### When to Send ACK
+
+Send an ACK message when you receive:
+1. **Critical messages** that require confirmation of receipt
+2. **Messages from Game Designer** (prevents PM circular wait)
+3. **Messages that start a new phase** (retrospective_initiate, playtest_session_request)
+4. **Messages with explicit `requiresAck: true` in payload**
+
+### ACK Message Format
+
+```json
+{
+  "id": "msg-pm-20240120-120500-003",
+  "from": "pm",
+  "to": "gamedesigner",
+  "type": "ack",
+  "priority": "normal",
+  "payload": {
+    "acknowledges": "msg-gamedesigner-20240120-120455-001",
+    "originalType": "prd_analysis_response",
+    "timestamp": "2024-01-20T12:00:00.000Z"
+  },
+  "timestamp": "2024-01-20T12:05:00.000Z",
+  "status": "completed"
+}
+```
+
+### ACK Processing Pattern
+
+**When receiving a message that requires ACK:**
+1. Process the message content
+2. Send ACK to confirm receipt
+3. Exit (watchdog will restart you if needed)
+
+**When you receive an ACK:**
+- Update message status to `completed` (if tracking)
+- No further action needed
+- Continue processing other messages or exit
+
+### Critical ACK Pairs
+
+| Sender → Receiver | Message Type | ACK Required | ACK Type |
+|-------------------|--------------|--------------|----------|
+| Game Designer → PM | `prd_analysis_response` | Yes | `ack` |
+| Game Designer → PM | `acceptance_criteria` | Yes | `ack` |
+| Game Designer → PM | `playtest_session_report` | Yes | `ack` |
+| PM → Game Designer | `prd_analysis_request` | Optional | `ack` |
+| PM → Game Designer | `acceptance_criteria_request` | Optional | `ack` |
+| Worker → PM | `question` | Yes | `ack` |
+| PM → Worker | `priority_response` | Optional | `ack` |
+
+### Preventing Circular Wait
+
+**Problem:** PM sends `prd_analysis_request` to GD → GD responds → PM waits → no one moves forward.
+
+**Solution with ACK:**
+1. PM sends `prd_analysis_request` to GD
+2. PM exits (doesn't wait)
+3. GD receives, processes, sends `prd_analysis_response`
+4. PM receives response, sends ACK immediately
+5. PM exits to process response
+
 ## Message Types
+
+### All Agents Send
+
+| Type | To | Purpose |
+|------|-----|---------|
+| `ack` | any | Acknowledge message receipt (prevents circular wait) |
 
 ### PM Sends
 

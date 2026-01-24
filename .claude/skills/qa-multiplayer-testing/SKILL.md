@@ -339,8 +339,7 @@ test('server rejects position hacks', async ({ browser }) => {
 
 For each multiplayer validation:
 
-- [ ] Server running (`npm run server`)
-- [ ] Dev server running (`npm run dev`)
+- [ ] Server running (`npm run dev:all:sh`)
 - [ ] 2+ browser contexts created
 - [ ] All clients connect to same room
 - [ ] Client input sends to server (not local state)

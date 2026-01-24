@@ -39,11 +39,16 @@ changelog: 'ADDED: PRD Status Synchronization as golden rule. PRD must be update
 1. Source message queue script
    . .\.claude\scripts\message-queue.ps1
 
-2. Check pending messages
+2. **CHECK PENDING MESSAGES FIRST (P1 FIX - Race condition prevention)**
    - Read .claude/session/messages/qa/msg-*.json
+   - **IF MESSAGES FOUND:**
+     - Process message immediately
+     - Skip PRD auto-assignment check
+     - Go to step 4
 
-3. **IF NO PENDING MESSAGES: Check PRD for awaiting_qa tasks**
+3. **ONLY IF NO MESSAGES AND status == "idle": Check PRD for awaiting_qa tasks**
    - Read prd.json
+   - Check prd.json.agents.qa.status - if not "idle", exit (don't auto-assign)
    - Find items with status: "awaiting_qa" OR agent: "qa" with status indicating readiness
    - IF task found → Auto-assign and start validation
    - IF no tasks → Signal "idle" to watchdog and exit
@@ -70,7 +75,20 @@ changelog: 'ADDED: PRD Status Synchronization as golden rule. PRD must be update
 
 ## Auto-Assignment Protocol (When No Pending Messages)
 
-**CRITICAL: In event-driven mode, if you receive no task_assignment message, you MUST check the PRD directly.**
+**CRITICAL (P1 FIX - Race condition prevention): Message priority order:**
+
+1. **Messages ALWAYS take priority** - If you have pending messages, process them first
+2. **Auto-assign ONLY if:**
+   - No pending messages in `.claude/session/messages/qa/`
+   - `prd.json.agents.qa.status == "idle"`
+   - Found task with `status: "awaiting_qa"`
+
+**This prevents the race condition where:**
+- PM sends `task_assignment` message to QA
+- QA wakes up and checks PRD first
+- QA auto-assigns a different task instead of processing the assigned task
+
+**In event-driven mode, if you receive no task_assignment message, you MUST check the PRD directly.**
 
 ### Finding Work in PRD
 

@@ -2,7 +2,8 @@
 name: pm-retrospective
 description: Facilitate file-based retrospective after task completion with worker agents (Developer, Tech Artist, QA). Playtest session is now a separate phase.
 category: coordination
-version: 2.0.0
+version: 2.1.0
+changelog: "P1 FIX: Changed to separate contribution files per agent to prevent race conditions."
 ---
 
 # Retrospective Skill
@@ -25,10 +26,16 @@ Use when:
 2. Set `prd.json.items[{taskId}].status = "in_retrospective"`
 3. Send `retrospective_initiate` to Developer, Tech Artist, QA (**NOT Game Designer**)
 4. **EXIT** - watchdog will restart you when messages arrive
-5. On wake-up: If all 3 workers contributed → synthesize
+5. On wake-up: If all 3 workers contributed → read separate files → merge → synthesize
 6. **Commit changes with git**: `[ralph] [pm] {taskId} retrospective: Worker contributions synthesized`
 7. Set status to `retrospective_synthesized`
 8. **EXIT** (context reset for next phase)
+
+**P1 FIX: Workers now write to separate contribution files (prevents race conditions):**
+- `.claude/session/retrospective-developer.json`
+- `.claude/session/retrospective-techartist.json`
+- `.claude/session/retrospective-qa.json`
+- PM reads all 3 files and merges them into final retrospective.txt
 
 **⚠️ CRITICAL: Playtest is a SEPARATE Phase**
 
@@ -253,13 +260,86 @@ if ($devContributed -and $taContributed -and $qaContributed) {
 
 ### Level 3: PM Synthesis
 
+**P1 FIX: Workers now contribute to separate JSON files - read and merge them.**
+
 **BEFORE synthesizing - verify ALL conditions met:**
 
-1. ✅ Developer contributed to retrospective.txt (check section doesn't contain "WAITING")
-2. ✅ Tech Artist contributed to retrospective.txt (check section doesn't contain "WAITING")
-3. ✅ QA contributed to retrospective.txt (check section doesn't contain "WAITING")
+1. ✅ `.claude/session/retrospective-developer.json` exists
+2. ✅ `.claude/session/retrospective-techartist.json` exists
+3. ✅ `.claude/session/retrospective-qa.json` exists
 
 **If any condition NOT met → EXIT and wait for next wake-up**
+
+**Step 1: Read all contribution files**
+
+```powershell
+# Read contribution files
+$devRetro = Get-Content ".claude/session/retrospective-developer.json" -Raw | ConvertFrom-Json
+$taRetro = Get-Content ".claude/session/retrospective-techartist.json" -Raw | ConvertFrom-Json
+$qaRetro = Get-Content ".claude/session/retrospective-qa.json" -Raw | ConvertFrom-Json
+```
+
+**Step 2: Merge into retrospective.txt**
+
+```powershell
+# Build markdown from JSON contributions
+$devSection = @"
+### Developer Perspective
+
+**Implementation Decisions**:
+$($devRetro.contribution.implementationDecisions | ForEach-Object { "- $_" } | Out-String)
+
+**Technical Challenges Faced**:
+$($devRetro.contribution.technicalChallenges | ForEach-Object { "- $_" } | Out-String)
+
+**What Worked Well**:
+$($devRetro.contribution.whatWorkedWell | ForEach-Object { "- $_" } | Out-String)
+
+**Areas for Improvement**:
+$($devRetro.contribution.areasForImprovement | ForEach-Object { "- $_" } | Out-String)
+
+**Lessons Learned**:
+$($devRetro.contribution.lessonsLearned | ForEach-Object { "- $_" } | Out-String)
+
+_**Contributed by**: Developer Agent | $($devRetro.timestamp)_
+"@
+
+# Build similar sections for Tech Artist and QA...
+
+# Write merged retrospective.txt
+$retroContent = @"
+# Retrospective: $($currentTask.id) - $($currentTask.title)
+
+**Started**: $($prd.session.retro.startedAt)
+**Task**: $($currentTask.id)
+
+---
+
+$devSection
+
+$taSection
+
+$qaSection
+
+### PM Synthesis
+
+**Summary**:
+- Task accomplished: $($currentTask.title)
+- Contributors: Developer, Tech Artist, QA
+- All contributions received via separate files (P1 FIX - no race conditions)
+
+"@
+
+# Write merged file
+$retroContent | Out-File -FilePath ".claude/session/retrospective.txt" -Encoding UTF8
+
+# Clean up contribution files
+Remove-Item ".claude/session/retrospective-developer.json" -ErrorAction SilentlyContinue
+Remove-Item ".claude/session/retrospective-techartist.json" -ErrorAction SilentlyContinue
+Remove-Item ".claude/session/retrospective-qa.json" -ErrorAction SilentlyContinue
+```
+
+**Step 3: Add PM synthesis**
 
 When ALL conditions met, add synthesis covering:
 

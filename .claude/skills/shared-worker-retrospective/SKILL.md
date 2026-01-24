@@ -2,6 +2,8 @@
 name: worker-retrospective
 description: Retrospective contribution format for Developer, Tech Artist, QA, and Game Designer worker agents
 category: orchestration
+version: 2.0
+changelog: "P1 FIX: Changed from single shared file to separate contribution files per agent to prevent race conditions."
 ---
 
 # Worker Retrospective Contributions
@@ -21,45 +23,79 @@ category: orchestration
 
 ## What to Do When Retrospective is Triggered
 
-1. **READ ALL your task memory files** (NEW - MANDATORY FIRST STEP)
+**P1 FIX: Race condition prevention - Use separate contribution files**
+
+1. **READ ALL your task memory files** (MANDATORY FIRST STEP)
    - Directory: `.claude/session/agents/{agent}/`
    - Pattern: `task-*.md` (e.g., task-P1-004-memory.md, task-P1-005-memory.md)
    - Read all sections from all files (Good Points, Pain Points, Technical Decisions, Notes)
    - These files contain everything you noted during task execution
    - Multiple files = you worked on multiple tasks
 
-2. **READ** `.claude/session/retrospective.txt`
+2. **READ** `.claude/session/retrospective.txt` to get task context
 
-3. **FIND** your section:
-   - Developer: `### Developer Perspective`
-   - Tech Artist: `### Tech Artist Perspective`
-   - QA: `### QA Perspective`
-   - Game Designer: `### Game Designer Perspective`
+3. **CREATE YOUR OWN CONTRIBUTION FILE** (P1 FIX - Separate file per agent):
+   - Developer: `.claude/session/retrospective-developer.json`
+   - Tech Artist: `.claude/session/retrospective-techartist.json`
+   - QA: `.claude/session/retrospective-qa.json`
+   - Game Designer: `.claude/session/retrospective-gamedesigner.json`
 
-4. **USE task memory contents to populate your contribution**:
-   - Good Points → "What Worked Well" / "Quality Observations" / "Design Decisions That Worked"
-   - Pain Points → "Technical Challenges Faced" / "Quality Concerns" / "Design Challenges"
-   - Technical Decisions → "Implementation Decisions" / "Validation Approach" / "Design Rationale"
-   - Notes → "Lessons Learned" / "Suggestions for Improvement"
-   - Combine contents from ALL task memory files
+4. **WRITE your contribution to your file** (JSON format):
+   ```json
+   {
+     "taskId": "feat-001",
+     "agent": "developer",
+     "timestamp": "2024-01-20T12:00:00.000Z",
+     "contribution": {
+       "implementationDecisions": [
+         "Used React Three Fiber for scene composition",
+         "Chose Rapier for physics simulation"
+       ],
+       "technicalChallenges": [
+         "Synchronizing physics with rendering loop",
+         "Managing object pooling for performance"
+       ],
+       "whatWorkedWell": [
+         "Component-based architecture made testing easier",
+         "TypeScript caught potential runtime errors"
+       ],
+       "areasForImprovement": [
+         "Need better error handling in physics sync",
+         "Object pooling could be more generic"
+       ],
+       "lessonsLearned": [
+         "Prefer R3F abstractions over raw Three.js",
+         "Always validate physics state before using"
+       ]
+     }
+   }
+   ```
 
-5. **ADD** your contribution replacing the `<!-- WAITING -->` comment
-   - Use specific examples from task memory (file names, error messages, etc.)
-   - Be honest about challenges and shortcuts taken
-
-6. **DELETE ALL your task memory files** (NEW - MANDATORY CLEANUP)
+5. **DELETE ALL your task memory files** (MANDATORY CLEANUP)
    - Delete: `.claude/session/agents/{agent}/task-*.md`
    - Verify files are removed
 
-7. **UPDATE** the completion checkbox in retrospective.txt
+6. **UPDATE** your status in prd.json.agents.{agent}.status to "idle"
 
-8. **UPDATE** your status in prd.json.agents.{agent}.status to "idle"
+7. **LOG** in your progress file
 
-9. **LOG** in your progress file
-
-10. **CONTINUE** polling for next task
+8. **EXIT** - PM will merge all contribution files
 
 **⚠️ CRITICAL: Your retrospective contribution will be GENERIC and USELESS without reading task memory first!**
+
+---
+
+## Why Separate Files? (P1 Fix)
+
+**Previous Problem:** All workers writing to single `retrospective.txt` caused race conditions
+- Two workers write simultaneously → last write wins
+- File watcher triggers multiple times → inconsistent state
+- No atomic write guarantees
+
+**Solution:** Each agent writes to their own file
+- No contention between agents
+- PM reads all files and merges atomically
+- Clear ownership of each contribution
 
 ---
 

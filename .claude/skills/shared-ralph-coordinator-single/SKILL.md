@@ -69,40 +69,6 @@ If starting fresh (no handoff context received):
    { "handoffs": [], "orchestrationMode": "single-agent" }
    ```
 
-4. **Project Initialization Check (FIRST RUN ONLY)**
-
-   Check `prd.json.projectInitialization.status`:
-
-   IF "pending" OR "failed" AND attempts < maxAttempts:
-     a. Detect OS platform (Windows vs Unix)
-     b. Run initialization script:
-        - Windows: `.\.claude\scripts\init-project.ps1`
-        - Unix: `bash .claude/scripts/init-project.sh`
-     c. Capture output
-     d. IF success (exit code 0):
-        - Set status: "completed"
-        - Set completedAt: timestamp
-        - Update prd.json
-        - Log to coordinator-progress.txt
-        - Continue to main workflow
-     e. IF failure:
-        - Increment attempts
-        - Set error: output message
-        - Set lastAttemptAt: timestamp
-        - IF attempts < maxAttempts:
-            - Try to diagnose and fix common issues
-            - Retry
-        - ELSE:
-            - Set status: "failed"
-            - Output: `<promise>INITIALIZATION_FAILED</promise>`
-            - Tell user what needs fixing
-            - Stop
-
-   IF "completed" OR "skipped":
-     - Continue to main workflow
-
-   **Only proceed with task coordination after init completes.**
-
 ### 2. Receiving Handoff Context
 
 If you receive handoff context (from QA or Developer):

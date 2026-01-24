@@ -34,6 +34,20 @@ Welcome to the Ralph Orchestra documentation. Start with the **Quick Start** gui
 | **[Protocols](./protocols.md)** | Communication protocols |
 | **[Monitoring](./monitoring.md)** | Dashboard, logs, troubleshooting |
 
+## PowerShell Orchestration (Technical)
+
+> **Note:** This section covers the PowerShell scripts that implement Ralph's orchestration infrastructure.
+
+| Document | Description |
+|----------|-------------|
+| **[PowerShell Architecture](./powershell-architecture.md)** | Core orchestration architecture overview |
+| **[Event-Driven Mode](./powershell-event-mode.md)** | Event-driven parallel mode deep dive |
+| **[Sequential Mode](./powershell-sequential-mode.md)** | Sequential handoff mode deep dive |
+| **[Message System](./powershell-messaging.md)** | Message queue and pipe transport |
+| **[Configuration Reference](./powershell-configuration.md)** | Environment variables and settings |
+| **[Testing Guide](./powershell-testing.md)** | Test scripts and troubleshooting |
+| **[Scripts README](../.claude/scripts/README.md)** | Quick script reference |
+
 ## Best Practices
 
 | Document | Description |
@@ -83,6 +97,14 @@ docs/
 │   ├── extending.md             # Custom agents and skills
 │   ├── protocols.md             # Communication protocols
 │   └── monitoring.md            # Dashboard and troubleshooting
+│
+├── PowerShell/                  # PowerShell orchestration (technical)
+│   ├── powershell-architecture.md   # Orchestration architecture overview
+│   ├── powershell-event-mode.md      # Event-driven mode deep dive
+│   ├── powershell-sequential-mode.md  # Sequential mode deep dive
+│   ├── powershell-messaging.md        # Message system documentation
+│   ├── powershell-configuration.md    # Configuration reference
+│   └── powershell-testing.md          # Testing and debugging
 │
 ├── Best Practices/
 │   ├── subagent-best-practices.md

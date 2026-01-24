@@ -52,43 +52,6 @@ user-invocable: true
    - Check prd.json.agents.pm for your status
    - Update your lastSeen timestamp
 
-2.5. PROJECT INITIALIZATION CHECK (FIRST RUN ONLY)
-
-   Check prd.json.projectInitialization.status:
-
-   IF "pending" OR "failed" AND attempts < maxAttempts:
-     a. Detect OS platform (Windows vs Unix)
-     b. Run initialization script:
-        - Windows: .\.claude\scripts\init-project.ps1
-        - Unix: bash .claude/scripts/init-project.sh
-     c. Capture output
-     d. IF success (exit code 0):
-        - Set status: "completed"
-        - Set completedAt: timestamp
-        - Update prd.json
-        - Log to coordinator-progress.txt
-        - Continue to step 3
-     e. IF failure:
-        - Increment attempts
-        - Set error: output message
-        - Set lastAttemptAt: timestamp
-        - IF attempts < maxAttempts:
-            - Try to diagnose and fix common issues
-            - Check for missing package managers
-            - Check network connectivity for package installs
-            - Retry
-        - ELSE:
-            - Set status: "failed"
-            - Output: <promise>INITIALIZATION_FAILED</promise>
-            - Tell user what needs fixing
-            - Stop
-
-   IF "completed":
-     - Continue to step 3
-
-   IF "skipped":
-     - Continue to step 3 (user opted out of auto-init)
-
 3. VALIDATE WORKER STATES (MANDATORY in event-driven mode)
    - Check if assigned worker has active task with status "working" or "needs_fixes"
    - Check worker's lastSeen timestamp (compare to current time)
@@ -190,13 +153,13 @@ Get-ChildItem .claude/session/messages/{worker}/msg-*.json
 | `assigned` | Send task message, exit | (wait for worker) |
 | `awaiting_qa` | Wait for QA validation | (wait) |
 | `passed` (QA) | Use Task with `pm-retrospective-facilitator` sub-agent | `in_retrospective` |
-| `in_retrospective` | Poll for contributions | (wait) |
+| `in_retrospective` | **Wait for `retrospective_complete` message from watchdog** (exit after initiating) | `retrospective_synthesized` |
 | `retrospective_synthesized` | Use `pm-retrospective-playtest-session` skill | `playtest_phase` |
 | `playtest_complete` | Use Task with `pm-prd-organizer` sub-agent | `prd_refinement` |
 | `prd_analysis_with_gd` | Send prd_analysis_request | (wait for GD) |
 | `task_ready` | Use Task with `pm-skill-researcher` sub-agent | `skill_research` |
 | `completed` | Select next task | `test_planning` |
-| `needs_fixes` | Reassign to worker | `assigned` |
+| `needs_fixes` | **Check attempts first**:<br>• If `attempts >= maxAttempts` → mark `blocked`, escalate<br>• If `attempts < maxAttempts` → reassign to worker | `assigned` or `blocked` |
 
 ## Task Status Lifecycle
 
@@ -208,6 +171,7 @@ Get-ChildItem .claude/session/messages/{worker}/msg-*.json
 | `"completed"` | **QA PASSED validation** | true | PM (after QA pass) |
 | `"needs_fixes"` | QA found bugs | false | PM (after QA fail) |
 | `"in_progress"` | Worker actively working | false | Worker (self-report) |
+| `"blocked"` | Max attempts reached, needs escalation | false | PM (after max attempts) |
 
 **CRITICAL: When worker sends `implementation_complete`:**
 - ✅ Set `status: "awaiting_qa"` + `passes: false`
@@ -224,9 +188,15 @@ Get-ChildItem .claude/session/messages/{worker}/msg-*.json
      "id": "{taskId}",
      "status": "assigned",
      "assignedAt": "{ISO_TIMESTAMP}",
-     "agent": "{developer|qa|techartist}"
+     "agent": "{developer|qa|techartist}",
+     "attempts": {N},
+     "maxAttempts": 3,
+     "firstAssignedAt": "{ISO_TIMESTAMP}",
+     "lastAttemptAt": "{ISO_TIMESTAMP}"
    }
    ```
+
+   **For reassignment after `needs_fixes`:** Increment `attempts`, update `lastAttemptAt`
 
 2. **Update session currentTask**
 
@@ -260,10 +230,40 @@ Get-ChildItem .claude/session/messages/{worker}/msg-*.json
    - File: `.claude/session/messages/{agent}/msg-{agent}-{timestamp}-{seq}.json`
    - Type: `task_assignment`
    - Include task details and acceptance criteria
+   - For reassignments: include QA feedback and current attempt number
 
 5. **Log to handoff-log**
    - File: `.claude/session/handoff-log.json`
    - Record: timestamp, from: "pm", to: "{agent}", taskId: "{taskId}"
+
+## Task Attempts Tracking (P0-3 Fix)
+
+**Purpose:** Prevent infinite reassignment loops when tasks repeatedly fail QA validation.
+
+**Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `attempts` | number | Current attempt count (starts at 1) |
+| `maxAttempts` | number | Maximum allowed attempts (default: 3) |
+| `firstAssignedAt` | string | ISO timestamp of first assignment |
+| `lastAttemptAt` | string | ISO timestamp of most recent assignment |
+
+**When reassigning after `needs_fixes`:**
+1. Check if `attempts >= maxAttempts`
+2. If yes → mark task as `blocked`, notify user for escalation
+3. If no → increment `attempts`, update `lastAttemptAt`, reassign
+
+**Example escalation:**
+```json
+{
+  "id": "feat-001",
+  "status": "blocked",
+  "attempts": 3,
+  "maxAttempts": 3,
+  "blockReason": "Max attempts reached - requires manual review",
+  "blockedAt": "{ISO_TIMESTAMP}"
+}
+```
 
 ## Priority Order for Task Selection
 
@@ -304,8 +304,10 @@ passed → in_retrospective (use pm-retrospective-facilitation)
 1. Create `retrospective.txt` with template
 2. Set `currentTask.status = "in_retrospective"`
 3. Send `retrospective_initiate` to workers (NOT Game Designer)
-4. Exit - watchdog restarts when contributions arrive
-5. Synthesize and commit when all contributed
+4. **Exit - wait for `retrospective_complete` message from watchdog**
+5. When watchdog restarts you with `retrospective_complete`: synthesize and commit
+
+**IMPORTANT**: This is purely event-driven. Exit after initiating and wait for watchdog to deliver the completion message. Do NOT poll or loop.
 
 ### Phase 2: Playtest
 
@@ -398,6 +400,52 @@ passed → in_retrospective (use pm-retrospective-facilitation)
 | `prd_analysis_response` | Review, select task together |
 | `success_criteria` | Incorporate into task definition |
 | `task_confirmed` | Enter skill_research phase |
+
+### From Watchdog
+
+| Type | Action |
+|------|--------|
+| `retrospective_complete` | All workers contributed → synthesize and move to next phase |
+| `agent_timeout` | Worker stuck in awaiting_* state → assess and reassign or escalate |
+
+### Handling `retrospective_complete` (Event-Driven - NO POLLING)
+
+When you receive `retrospective_complete` from watchdog:
+
+1. Read `retrospective.txt` - all contributions should be complete
+2. Synthesize the retrospective into a structured format
+3. Update PRD:
+   - `prd.session.currentTask.status = "retrospective_synthesized"`
+   - `prd.agents.pm.status = "idle"`
+4. Move to next phase (playtest or skill_research)
+
+**IMPORTANT**: Do NOT poll or check repeatedly. Exit and wait for watchdog to deliver this message.
+
+### Handling `agent_timeout` (Watchdog Timeout Protection)
+
+When you receive `agent_timeout` from watchdog:
+
+1. **Extract timeout details** from message payload:
+   - `agent`: Which worker timed out (developer, qa, techartist, gamedesigner)
+   - `originalStatus`: What state they were stuck in (awaiting_pm, awaiting_gd, waiting)
+   - `elapsedMinutes`: How long they were waiting
+   - `taskId`: Task they were working on (if any)
+
+2. **Assess the situation**:
+   - Was the worker waiting for PM response? → Review pending messages, respond if needed
+   - Was the worker waiting for Game Designer? → Check if GD response is still needed
+   - Is the task still valid? → Reassign if yes, close if no
+
+3. **Take action**:
+   - If task still needs work: Reassign to appropriate worker
+   - If waiting for response: Provide clarification or reassign with new context
+   - If task no longer valid: Update status, log to handoff-log
+
+4. **Update PRD**:
+   - `prd.agents.{agent}.status = "idle"` (already reset by watchdog)
+   - `prd.session.currentTask.status = "assigned"` if reassigning
+
+**Timeout Threshold**: 10 minutes (configurable via `RALPH_AWAITING_TIMEOUT`)
 
 ## Commit Format
 

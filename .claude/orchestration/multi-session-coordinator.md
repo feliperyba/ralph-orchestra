@@ -375,6 +375,7 @@ for (const [agent, data] of Object.entries(state.agents)) {
 The currently assigned task details are stored directly in the PRD items array, with `prd.json.session.currentTask` containing a reference to the active task.
 
 **Session Reference** (`prd.json.session.currentTask`):
+
 ```json
 {
   "id": "feat-001",
@@ -386,6 +387,7 @@ The currently assigned task details are stored directly in the PRD items array, 
 ```
 
 **Full Task Details** (`prd.json.items[{id: "feat-001"}]`):
+
 ```json
 {
   "id": "feat-001",
@@ -399,7 +401,7 @@ The currently assigned task details are stored directly in the PRD items array, 
     "Physics simulation runs smoothly at 60fps"
   ],
   "verificationSteps": [
-    "Start dev server: npm run dev",
+    "Start dev server: npm run dev:all:sh",
     "Verify vehicle appears on screen",
     "Test all direction keys (WASD)"
   ],
@@ -652,11 +654,11 @@ iter1-003: Define Game State Schema (in progress)
 
 ### Minimal Context Needed to Resume
 
-| Agent     | Essential Context to Keep                                                                  |
-| --------- | ------------------------------------------------------------------------------------------ |
-| PM        | `prd.json` (task list + session state), `progress.txt` (summary)                           |
-| Developer | `prd.json.items[{taskId}]` (current task), files being edited                              |
-| QA        | `prd.json.items[{taskId}]` (task to validate)                                              |
+| Agent     | Essential Context to Keep                                        |
+| --------- | ---------------------------------------------------------------- |
+| PM        | `prd.json` (task list + session state), `progress.txt` (summary) |
+| Developer | `prd.json.items[{taskId}]` (current task), files being edited    |
+| QA        | `prd.json.items[{taskId}]` (task to validate)                    |
 
 ### Context Reset Signals
 

@@ -2,6 +2,14 @@
 
 This directory contains all orchestration scripts for the Ralph multi-agent system.
 
+> **📘 Comprehensive Documentation:** For in-depth technical documentation covering architecture, orchestration modes, messaging, configuration, and troubleshooting, see:
+> - **[PowerShell Architecture](../../docs/powershell-architecture.md)** - Complete orchestration architecture overview
+> - **[Event-Driven Mode](../../docs/powershell-event-mode.md)** - Parallel orchestration deep dive
+> - **[Sequential Mode](../../docs/powershell-sequential-mode.md)** - Handoff-based orchestration
+> - **[Message System](../../docs/powershell-messaging.md)** - Message queue and pipe transport
+> - **[Configuration Reference](../../docs/powershell-configuration.md)** - Environment variables and settings
+> - **[Testing Guide](../../docs/powershell-testing.md)** - Test scripts and troubleshooting
+
 ## 📋 Script Overview
 
 | Script                       | Purpose                           | Mode         |

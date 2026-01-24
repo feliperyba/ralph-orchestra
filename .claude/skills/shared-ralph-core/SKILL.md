@@ -133,9 +133,11 @@ Each agent MUST update their heartbeat every **30 seconds** (unified interval):
 **Core Task Flow (during implementation):**
 
 ```
-assigned → working → ready_for_qa → passed
-                        ↓
-                   needs_fixes
+pending → assigned → in_progress → awaiting_qa → passed
+                                        ↓
+                                   needs_fixes
+                                        ↓
+                                   blocked (after max attempts)
 ```
 
 **Post-Validation Phased Workflow (after QA validates):**
@@ -143,6 +145,55 @@ assigned → working → ready_for_qa → passed
 ```
 passed → in_retrospective → retrospective_synthesized → playtest_phase → playtest_complete → prd_refinement → task_ready → skill_research → completed
 ```
+
+---
+
+## Unified Status Values Reference (P1 Fix - Single Source of Truth)
+
+**This is the authoritative reference for ALL status values used in Ralph.**
+
+### Task Status Values (`prd.json.items[{taskId}].status`)
+
+| Status | Used By | Meaning | passes |
+|--------|---------|---------|--------|
+| `pending` | PM | Task not yet started | false |
+| `assigned` | PM | Task assigned to worker, waiting for worker to start | false |
+| `in_progress` | Worker (self-report) | Worker actively working on task | false |
+| `awaiting_qa` | PM | Worker finished implementation, waiting for QA validation | false |
+| `passed` | QA (set), PM (reads) | **QA PASSED validation** - triggers retrospective | true |
+| `needs_fixes` | PM (after QA fail) | QA found bugs, task must be reassigned | false |
+| `blocked` | PM | Max attempts reached, requires manual escalation | false |
+| `in_retrospective` | PM | Worker retrospective phase active | true |
+| `retrospective_synthesized` | PM | Worker retrospective complete, committed | true |
+| `playtest_phase` | PM | Game Designer playtest active | true |
+| `playtest_complete` | PM | Playtest findings reviewed | true |
+| `prd_refinement` | PM | PRD reorganization in progress | true |
+| `task_ready` | PM | Acceptance criteria received, ready for skill research | true |
+| `skill_research` | PM | PM improving ALL agents' skills | true |
+| `completed` | PM | All phases complete, task archived | true |
+
+### Agent Status Values (`prd.json.agents.{agent}.status`)
+
+| Status | Meaning | Who Sets |
+|--------|---------|----------|
+| `idle` | Agent not working on any task | Self/PM |
+| `working` | Agent actively working on task | Self |
+| `working_on_retrospective` | Agent contributing to retrospective | Self |
+| `awaiting_pm` | Worker waiting for PM response | Self |
+| `awaiting_gd` | Worker waiting for Game Designer response | Self |
+| `waiting` | General waiting state | Self |
+
+**⚠️ IMPORTANT:** When a worker sets `awaiting_*` status, watchdog has 10-minute timeout (configurable via `RALPH_AWAITING_TIMEOUT`) before sending agent_timeout to PM.
+
+### Status Transition Rules
+
+1. **Only PM can set task status** (except `in_progress` which workers self-report)
+2. **Only QA can set `passed` status** (PM then transitions to `in_retrospective`)
+3. **Only PM can transition to `completed`** (after skill_research phase)
+4. **`blocked` is terminal** - requires manual intervention to resolve
+5. **All `awaiting_*` agent statuses** have watchdog timeout protection
+
+---
 
 **Phase Descriptions:**
 

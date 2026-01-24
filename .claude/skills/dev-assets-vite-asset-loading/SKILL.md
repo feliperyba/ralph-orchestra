@@ -1,315 +1,200 @@
 ---
-name: vite-asset-loading
-description: Vite 6 asset loading patterns for React Three Fiber with TypeScript
-category: asset
-keywords: [vite, asset, fbx, loader, drei, suspense]
-version: "3.0"
-changelog: "MAJOR: Project uses FBX format exclusively. Removed all GLTF/GLB references. Standardized on useFBX from @react-three/drei."
+name: dev-assets-vite-asset-loading
+description: Vite 6 asset loading patterns that avoid '?import' query parameter pollution. Use when working with static assets (FBX models, images, fonts), dealing with Vite 6's new asset handling, or loading assets from public vs src/assets directories.
+category: development
 ---
 
-# Vite 6 Asset Loading for R3F
+# Vite 6 Asset Loading Patterns
 
-> "PROJECT STANDARD: FBX format only. Use `useFBX` from drei, not manual loaders"
+## When to Use
 
-## Project Format Decision
-
-**THIS PROJECT USES FBX FORMAT EXCLUSIVELY**
-
-- Characters: FBX format
-- Weapons: FBX format
-- Accessories: FBX format
-- Animations: FBX format
-
-**DO NOT** use GLTF/GLB format or `useGLTF` in this project.
-
-## Critical Anti-Pattern (UPDATED)
-
-**❌ DON'T: Manual FBXLoader.load() in useEffect**
-```typescript
-// WRONG - This does NOT work with R3F's loading system!
-import { FBXLoader } from 'three-stdlib'
-
-useEffect(() => {
-  const loader = new FBXLoader();
-  loader.load(url, (object) => {
-    setFbx(object);
-  }, (error) => {
-    console.error(error);
-  });
-}, [url]);
-```
-
-**Why this fails:**
-1. Bypasses R3F's suspense boundary system
-2. Doesn't work with Vite's asset URL generation
-3. Causes "Cannot find the version number for the file given" error
-4. React may unmount before async load completes
-
-**✅ DO: useFBX from @react-three/drei**
-```typescript
-import { useFBX } from '@react-three/drei';
-
-function CharacterModel({ url }) {
-  const fbx = useFBX(url);
-  return <primitive object={fbx} />;
-}
-```
+- Working with static assets (FBX models, images, fonts)
+- Dealing with Vite 6's new asset handling
+- Avoiding '?import' query parameter pollution
+- Loading assets from public directory vs src/assets
 
 ## Quick Start
 
+### For FBX Models (public/ directory)
 ```typescript
-// CORRECT FBX model loading with drei
 import { useFBX } from '@react-three/drei';
 
-function CharacterModel({ url }: { url: string }) {
-  const fbx = useFBX(url);
+// CORRECT - Uses public directory with absolute path
+function CharacterModel({ characterType }: { characterType: string }) {
+  const fbx = useFBX(`/assets/${characterType}.fbx`);
   return <primitive object={fbx} />;
 }
 
-// Weapon model loading example
-function WeaponModel({ weaponType }: { weaponType: string }) {
-  const fbx = useFBX(`/assets/Blaster Kit/Models/FBX format/${weaponType}.fbx`);
-  return <primitive object={fbx} />;
+// For public assets that need URL
+const imageUrl = new URL('/assets/images/splash.png', import.meta.url);
+```
+
+### For CSS/JS Assets (src/assets/ directory)
+```typescript
+// For assets that need processing
+import backgroundImage from '@/assets/images/background.jpg';
+
+// For CSS imports
+import '@/styles/global.css';
+```
+
+## Anti-Patterns
+
+❌ **DON'T:** Use `import` statements for public directory assets
+```typescript
+import characterModel from '/assets/character.fbx'; // Creates '?import' query
+```
+
+✅ **DO:** Use absolute paths for public assets
+```typescript
+// In JSX
+<img src="/assets/logo.png" alt="Logo" />
+
+// Or with URL constructor
+const assetUrl = new URL('/assets/data.json', import.meta.url);
+```
+
+❌ **DON'T:** Mix public and src/assets references arbitrarily
+```typescript
+// Bad - inconsistent approach
+function MixedAsset() {
+  // This should be in public/ with absolute path
+  const localAsset = require('@/assets/icon.png');
+  // This should be imported properly
+  const publicAsset = '/assets/icon.png';
 }
 ```
 
-## Core Patterns
-
-### 1. FBX Model Loading - THE CORRECT R3F WAY
-
+✅ **DO:** Consistent directory strategy
 ```typescript
-import { useFBX } from '@react-three/drei';
-import { Suspense } from 'react';
-
-function CharacterModel({ url }: { url: string }) {
-  // useFBX handles loading through R3F's useLoader system
-  // Works correctly with Vite's ?url imports
-  const fbx = useFBX(url);
-
-  return <primitive object={fbx} />;
-}
-
-// Wrap in Suspense for loading states
-function Scene() {
+// All public assets use absolute paths
+function ConsistentAssets() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <CharacterModel url="/models/character.fbx" />
-    </Suspense>
+    <div>
+      <img src="/assets/public-image.jpg" alt="Public" />
+      <Model assetUrl="/assets/model.fbx" />
+    </div>
   );
 }
 ```
 
-### 2. Loading Multiple FBX Animations
+## Asset Directory Strategy
 
+### Public Directory (`public/`)
+**Use for:**
+- Static files that won't change (favicons, fonts)
+- Third-party assets (Blaster Kit, Animated Characters)
+- Files served as-is without processing
+
+**Reference pattern:**
 ```typescript
-import { useFBX } from '@react-three/drei';
-
-function AnimationLoader({ animationUrls }: { animationUrls: Record<string, string> }) {
-  // Load each animation separately using useFBX
-  const idleFbx = useFBX(animationUrls.idle);
-  const walkFbx = useFBX(animationUrls.walk);
-  const runFbx = useFBX(animationUrls.run);
-
-  // Extract animation clips from loaded FBX objects
-  const clips = useMemo(() => {
-    const clips = new Map<string, THREE.AnimationClip>();
-
-    const extractClip = (fbx: THREE.Object3D, name: string) => {
-      if (fbx.animations && fbx.animations.length > 0) {
-        const clip = fbx.animations[0];
-        clip.name = name;
-        clips.set(name, clip);
-      }
-    };
-
-    if (idleFbx) extractClip(idleFbx, 'idle');
-    if (walkFbx) extractClip(walkFbx, 'walk');
-    if (runFbx) extractClip(runFbx, 'run');
-
-    return clips;
-  }, [idleFbx, walkFbx, runFbx]);
-
-  return null; // Pass clips up via callback
-}
+// Always use absolute paths starting with /
+const assetPath = '/assets/Blaster Kit/Models/FBX format/rifle.fbx';
+const fbx = useFBX(assetPath);
 ```
 
-### 3. Vite 6 Asset Import Suffixes
+### Src Assets Directory (`src/assets/`)
+**Use for:**
+- Application-specific assets
+- Assets that need processing (images, CSS)
+- Assets bundled with your code
 
-**For FBX models with useFBX:**
+**Import pattern:**
 ```typescript
-// Use ?url to get the URL string that useFBX can process
-import characterModelUrl from '@/assets/models/character.fbx?url';
-
-// Then pass to useFBX
-const fbx = useFBX(characterModelUrl);
+import processedImage from '@/assets/images/hero.png';
+import styles from '@/styles/component.module.css';
 ```
 
-**What NOT to do:**
-```typescript
-// ❌ ?raw imports corrupts binary FBX data
-import characterModel from '@/assets/models/character.fbx?raw';
+## Vite 6 Specific Considerations
 
-// ❌ Manual imports without suffix won't work in Vite 6
-import characterModel from '@/assets/models/character.fbx';
+### Base URL Configuration
+```javascript
+// vite.config.js
+export default defineConfig({
+  base: '/your-app-path/', // Important for public assets
+  assetsInclude: ['**/*.fbx', '**/*.glb'],
+  // ... other config
+});
 ```
 
-### 4. Audio Asset Loading
+### Asset Optimization
+- Vite 6 automatically optimizes images, fonts, and media
+- Use modern formats (WebP, AVIF when supported)
+- Consider lazy loading for non-critical assets
 
+### Cache Busting
 ```typescript
-import { useRef, useEffect } from 'react'
+// For cache busting on public assets
+const versionedAsset = `/assets/image.jpg?v=${APP_VERSION}`;
 
-function SoundEffect({ url, volume = 1 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (!audioRef.current) return;
-
-    const audio = audioRef.current;
-    audio.src = url;
-    audio.volume = volume;
-
-    audio.onended = () => {
-      audio.currentTime = 0;
-    };
-
-    return () => {
-      audio.pause();
-      audio.src = '';
-    };
-  }, [url, volume]);
-
-  return <audio ref={audioRef} />;
-}
+// Or for dynamic assets
+const dynamicAsset = new URL(`/assets/${assetId}.png?theme=${theme}`, import.meta.url);
 ```
 
-### 5. Texture Loading with Optimization
+## Environment-Specific Paths
 
+### Development
 ```typescript
-import { useLoader } from '@react-three/fiber'
-import { TextureLoader } from 'three'
-import { useMemo } from 'react'
+// Absolute paths work in dev
+const devAsset = '/assets/development-only.json';
+```
 
-function TexturedMaterial({ textureUrl, color = '#ffffff' }) {
-  const texture = useLoader(TextureLoader, textureUrl)
+### Production
+```typescript
+// Ensure base path is correct for production deployment
+const prodAsset = `${import.meta.env.BASE_URL}assets/production.json`;
+```
 
-  // Optimize texture settings
-  useMemo(() => {
-    if (texture) {
-      texture.generateMipmaps = true
-      texture.minFilter = THREE.LinearMipmapLinearFilter
-      texture.magFilter = THREE.LinearFilter
-      texture.anisotropy = 4
-    }
-  }, [texture])
+## FBX Model Loading Pattern
 
+### Sequential Loading (Recommended)
+```typescript
+import { useFBX, useProgress } from '@react-three/drei';
+import { Suspense } from 'react';
+
+function SequentialLoader({ characters }: { characters: string[] }) {
   return (
-    <meshBasicMaterial
-      map={texture}
-      color={color}
-      transparent={true}
-    />
-  )
-}
-```
-
-## Advanced Patterns
-
-### 1. Conditional Asset Loading
-
-```typescript
-import { Suspense, lazy } from 'react'
-
-// Load models only when needed
-const HeavyModel = lazy(() => import('./HeavyModel'))
-const LightModel = lazy(() => import('./LightModel'))
-
-function ModelSwitcher({ useHighDetail }) {
-  return (
-    <Suspense fallback={<LoadingSpinner />}>
-      {useHighDetail ? <HeavyModel /> : <LightModel />}
+    <Suspense fallback={<LoadingScreen />}>
+      {characters.map((char, index) => (
+        <CharacterModel key={index} characterType={char} />
+      ))}
     </Suspense>
-  )
+  );
+}
+
+function CharacterModel({ characterType }: { characterType: string }) {
+  const fbx = useFBX(`/assets/${characterType}.fbx`);
+
+  // Process and return the model
+  return (
+    <primitive
+      object={fbx}
+      position={[0, 0, 0]}
+      scale={[1, 1, 1]}
+    />
+  );
 }
 ```
 
-### 2. Asset Preloading
-
+### Loading State Management
 ```typescript
-import { useEffect, useRef, useState } from 'react'
+function AssetLoader() {
+  const { active, progress, errors, item } = useProgress();
 
-function AssetPreloader({ assets }) {
-  const [loaded, setLoaded] = useState(false)
-  const [progress, setProgress] = useState(0)
+  if (errors.length > 0) {
+    return <div>Error loading assets</div>;
+  }
 
-  useEffect(() => {
-    const loadedCount = new Set()
-    const totalAssets = assets.length
-
-    assets.forEach(({ type, url, onLoad }) => {
-      let loader;
-
-      switch (type) {
-        case 'fbx':
-          // Use drei's preloading
-          preload(url, typeof url === 'string' ? url : url.default);
-          onLoad?.(url);
-          break;
-        case 'texture':
-          loader = new TextureLoader()
-          loader.load(url, (asset) => {
-            loadedCount.add(url)
-            onLoad?.(asset)
-            setProgress((loadedCount.size / totalAssets) * 100)
-
-            if (loadedCount.size === totalAssets) {
-              setLoaded(true)
-            }
-          })
-          break;
-      }
-    })
-  }, [assets])
-
-  return loaded ? null : <LoadingProgress progress={progress} />
+  return (
+    <div>
+      {active && <div>Loading: {item} - {progress.toFixed(0)}%</div>}
+    </div>
+  );
 }
 ```
-
-## TypeScript Integration
-
-### Asset Type Definitions
-
-```typescript
-// types/assets.d.ts
-declare module '*.fbx' {
-  const value: string
-  export default value
-}
-
-declare module '*.ogg' {
-  const value: string
-  export default value
-}
-
-declare module '*.mp3' {
-  const value: string
-  export default value
-}
-```
-
-## Checklist
-
-Before using asset loading:
-
-- [ ] Using `useFBX` from drei (not manual loaders)
-- [ ] Assets in `src/assets/` or `public/` folder
-- [ ] Using `/assets/` path prefix (mapped by Vite plugin)
-- [ ] Suspense boundary wraps asset-using components
-- [ ] Error handling for failed loads
-- [ ] Proper cleanup on component unmount
-- [ ] Textures are power-of-2 for mipmaps
 
 ## Reference
 
-- [Vite Asset Handling Documentation](https://vite.dev/guide/assets)
-- [React Three Fiber useLoader Hook](https://docs.pmnd.rs/react-three-fiber/api/hooks#useloader)
-- `developer/r3f/r3f-fundamentals.md` — R3F basics
+- [Vite Static Asset Handling](https://vite.dev/guide/assets) — Official documentation
+- [React Three Fiber Loading Models](https://r3f.docs.pmnd.rs/tutorials/loading-models) — R3F model loading patterns
+- [Vite 6 Public Directory Usage](https://stackoverflow.com/questions/78811027/when-to-use-public-vs-assets-for-images-and-files-in-a-vite-project) — Community best practices
