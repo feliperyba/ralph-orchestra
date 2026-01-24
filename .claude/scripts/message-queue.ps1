@@ -121,33 +121,21 @@ function Send-AgentMessage {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$To,
         
         [Parameter(Mandatory=$true)]
-        [ValidateSet(
-            "task_assign", "validation_request", "bug_report", "task_complete",
-            "question", "answer", "research_update", "regression_request",
-            "prd_update", "status_update", "priority_review", "agent_ready",
-            "work_complete", "error", "shutdown",
-            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
-            "retrospective_initiate", "retrospective_contribution", "research_request", "research_response",
-            "prd_reorganized", "skill_improvements", "priority_response", "skill_request",
-            "gdd_ready", "gdd_update", "design_question", "design_answer",
-            "playtest_request", "playtest_report", "mechanic_proposal", "design_guidance",
-            "design_guidance_request", "test_plan_request", "test_plan_contribution",
-            "asset_assign", "asset_ready", "asset_question", "shader_request", "reference_request"
-        )]
+        [ValidateSet("agent_ready", "answer", "asset_assign", "asset_question", "asset_ready", "bug_report", "design_answer", "design_guidance", "design_guidance_request", "design_question", "error", "gdd_ready", "gdd_update", "implementation_complete", "mechanic_proposal", "playtest_report", "playtest_request", "prd_reorganized", "prd_update", "priority_response", "priority_review", "quality_concern", "question", "reference_request", "regression_request", "research_request", "research_response", "research_update", "retrospective_contribution", "retrospective_initiate", "shader_request", "shutdown", "skill_improvements", "skill_request", "status_update", "task_abandoned", "task_assign", "task_complete", "test-developer", "test_plan_contribution", "test_plan_request", "validation_request", "work_blocked", "work_complete")]
         [string]$Type,
         
         [Parameter(Mandatory=$true)]
         [hashtable]$Payload,
         
-        [ValidateSet("low", "normal", "high", "urgent")]
+        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
         [string]$Priority = "normal",
         
         [string]$ReplyTo = $null
@@ -395,12 +383,12 @@ function Get-PendingMessages {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$Agent,
 
         [string]$Type = $null,
 
-        [ValidateSet("low", "normal", "high", "urgent")]
+        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
         [string]$MinPriority = "low",
 
         [int]$TimeoutMs = 300
@@ -516,7 +504,7 @@ function Set-MessageStatus {
         [string]$MessageId,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pending", "processing", "completed", "failed")]
+        [ValidateSet("completed", "failed", "pending", "processing", "test-developer")]
         [string]$Status,
 
         [string]$Agent = $null
@@ -668,33 +656,21 @@ function Send-AgentMessageSafe {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$To,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet(
-            "task_assign", "validation_request", "bug_report", "task_complete",
-            "question", "answer", "research_update", "regression_request",
-            "prd_update", "status_update", "priority_review", "agent_ready",
-            "work_complete", "error", "shutdown",
-            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
-            "retrospective_initiate", "retrospective_contribution", "research_request", "research_response",
-            "prd_reorganized", "skill_improvements", "priority_response", "skill_request",
-            "gdd_ready", "gdd_update", "design_question", "design_answer",
-            "playtest_request", "playtest_report", "mechanic_proposal", "design_guidance",
-            "design_guidance_request", "test_plan_request", "test_plan_contribution",
-            "asset_assign", "asset_ready", "asset_question", "shader_request", "reference_request"
-        )]
+        [ValidateSet("agent_ready", "answer", "asset_assign", "asset_question", "asset_ready", "bug_report", "design_answer", "design_guidance", "design_guidance_request", "design_question", "error", "gdd_ready", "gdd_update", "implementation_complete", "mechanic_proposal", "playtest_report", "playtest_request", "prd_reorganized", "prd_update", "priority_response", "priority_review", "quality_concern", "question", "reference_request", "regression_request", "research_request", "research_response", "research_update", "retrospective_contribution", "retrospective_initiate", "shader_request", "shutdown", "skill_improvements", "skill_request", "status_update", "task_abandoned", "task_assign", "task_complete", "test-developer", "test_plan_contribution", "test_plan_request", "validation_request", "work_blocked", "work_complete")]
         [string]$Type,
 
         [Parameter(Mandatory=$true)]
         [hashtable]$Payload,
 
-        [ValidateSet("low", "normal", "high", "urgent")]
+        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
         [string]$Priority = "normal",
 
         [string]$ReplyTo = $null
@@ -986,7 +962,7 @@ function Send-StatusUpdate {
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("idle", "working", "waiting", "error", "completed")]
+        [ValidateSet("completed", "error", "idle", "test-developer", "waiting", "working")]
         [string]$Status,
 
         [string]$CurrentTask = $null,
@@ -1122,7 +1098,7 @@ function Send-QualityConcern {
         [Parameter(Mandatory=$true)]
         [string]$Concern,
 
-        [ValidateSet("low", "medium", "high")]
+        [ValidateSet("high", "low", "medium", "test-developer")]
         [string]$Severity = "medium"
     )
 
@@ -1151,12 +1127,12 @@ function Get-AgentMessages {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$Agent,
 
         [string]$Type = $null,
 
-        [ValidateSet("low", "normal", "high", "urgent")]
+        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
         [string]$MinPriority = "low"
     )
 
@@ -1176,7 +1152,7 @@ function Remove-AgentMessage {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
         [string]$Agent,
 
         [Parameter(Mandatory=$true)]

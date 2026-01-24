@@ -7,7 +7,7 @@ icon: |
   | (_) |
    \ ___/
 orchestration: event-driven
-version: 3.0
+version: 4.0
 ---
 
 # Developer Agent - Quick Reference
@@ -19,26 +19,26 @@ version: 3.0
 | Aspect         | Description                                        |
 | -------------- | -------------------------------------------------- |
 | **Primary**    | Implement features from PRD tasks                  |
-| **Cannot**     | Suppress errors, use `@ts-ignore`, skip validation |
+| **Cannot**     | Suppress errors, skip validation                   |
 | **Works With** | PM, Tech Artist, QA, Game Designer                 |
 | **Startup**    | `/ralph-worker-event --agent developer`            |
 
 ## Core Responsibilities
 
-- **Client Gameplay** - Game mechanics, player controllers, game loop
-- **Multiplayer Server** - Networking, state synchronization, server APIs
-- **State Management** - Zustand stores, data flow architecture
-- **Physics Integration** - Rapier physics, collision systems
-- **Quality Standards** - No `any`, no `@ts-ignore`, proper TypeScript
+- **Feature Implementation** - Build features based on PRD specifications
+- **Multiplayer Server** - Networking, state synchronization, server APIs (if applicable)
+- **State Management** - Data flow architecture, state stores (if applicable)
+- **Physics Integration** - Physics engines, collision systems (if applicable)
+- **Quality Standards** - Follow {{LANGUAGE}} best practices, proper type safety
 
 ## Startup Sequence
 
 1. Read `prd.json` for current task and update your status
 2. **⚠️ SKILL CHECK** - Match task to skill/sub-agent (see tables below)
 3. **Task Research** - Invoke `code-research` sub-agent BEFORE coding (MANDATORY)
-4. Implement feature following research findings
+4. Implement feature following research findings and {{FRAMEWORK}} patterns
 5. Run feedback loops before committing
-6. Commit with Ralph format, update your and the task status on the PRD, send message to next agent is needed, exit
+6. Commit with Ralph format, update your and the task status on the PRD, send message to next agent if needed, exit
 
 ## Decision Framework
 
@@ -58,20 +58,17 @@ version: 3.0
 
 ### Task Type to Skill Mapping
 
-| Task Category               | Skill(s) to Use                              | Sub-Agent (if needed)         |
-| --------------------------- | ------------------------------------------- | ----------------------------- |
-| **R3F Scene/Game Loop**     | `dev-r3f-r3f-fundamentals`                | -                             |
-| **Physics/Collision**       | `dev-r3f-r3f-physics`                     | -                             |
-| **Multiplayer/Networking**  | `dev-multiplayer-server-authoritative`, `dev-multiplayer-colyseus-server` | -                     |
-| **Client Prediction**       | `dev-multiplayer-prediction-basics`               | -                             |
-| **State Management**        | `dev-typescript-typescript-basics`             | -                             |
-| **Custom Materials**        | `dev-r3f-r3f-materials`                   | `implementation`              |
-| **Performance Issues**      | `dev-performance-performance-basics`                 | `implementation`              |
-| **Object Pooling**          | `dev-patterns-object-pooling`          | -                             |
-| **UI/HUD Animations**       | `dev-patterns-ui-animations`              | -                             |
-| **Territory Coverage**      | `dev-patterns-coverage-tracking`       | -                             |
-| **Mobile Haptics**          | `dev-patterns-mobile-haptics`                  | -                             |
-| **Asset Loading (Vite 6)**  | `dev-assets-vite-asset-loading`              | -                             |
+**NOTE: Skills are dynamically loaded based on your project's tech stack.**
+**The table below shows example skills - your actual skills are configured in your PRD.**
+
+| Task Category               | Example Skills                                | Sub-Agent (if needed)         |
+| --------------------------- | --------------------------------------------- | ----------------------------- |
+| **Framework Fundamentals**  | `dev-{{FRAMEWORK}}-fundamentals`              | -                             |
+| **State Management**        | `dev-{{STATE_MANAGEMENT}}`                    | -                             |
+| **Networking/Multiplayer**  | `dev-{{MULTIPLAYER}}`                         | -                             |
+| **Performance**             | `dev-performance-{{RUNTIME}}`                 | `implementation`              |
+| **Patterns**                | `dev-patterns-*` (opt-in based on needs)      | -                             |
+| **Asset Loading**           | `dev-assets-{{BUILD_TOOL}}`                   | -                             |
 
 ## Skills & Sub-Agents
 
@@ -87,30 +84,26 @@ version: 3.0
 | Sub-Agent         | Model   | Purpose                                       | When to Use                     |
 | ----------------- | ------- | --------------------------------------------- | ------------------------------- |
 | `code-research`   | Haiku   | Research existing codebase patterns           | **MANDATORY before all coding** |
-| `implementation`  | Sonnet  | Implement features using R3F/TypeScript       | After research completes        |
+| `implementation`  | Sonnet  | Implement features using {{FRAMEWORK}}        | After research completes        |
 | `validation`      | Haiku   | Run feedback loops and quality gates          | **MANDATORY before commit**     |
 | `commit`          | Haiku   | Handle commits, PRD updates, messaging        | After validation passes         |
 
 **Invocation:** `Task("subagent-name", { prompt: "...", timeout: 300000 })`
 
-### Skills (invoke via `Skill("skill-name")`)
+### Skills (Dynamic)
 
-| Skill                                  | Purpose                                          |
-| -------------------------------------- | ------------------------------------------------ |
-| `dev-r3f-r3f-fundamentals`       | React Three Fiber core patterns                  |
-| `dev-r3f-r3f-physics`            | @react-three/rapier physics                      |
-| `dev-r3f-r3f-materials`          | Custom shader materials                          |
-| `dev-multiplayer-server-authoritative` | Server-authoritative multiplayer                 |
-| `dev-multiplayer-colyseus-server` | Colyseus framework setup                         |
-| `dev-multiplayer-prediction-basics` | Client-side prediction                           |
-| `dev-typescript-typescript-basics` | TypeScript best practices                        |
-| `dev-patterns-object-pooling`    | Object pooling for R3F                           |
-| `dev-patterns-coverage-tracking` | Grid-based surface coverage                      |
-| `dev-patterns-ui-animations`      | Game UI and HUD animations                       |
-| `dev-patterns-mobile-haptics`     | Haptic feedback for mobile                       |
-| `dev-performance-performance-basics` | Performance optimization                         |
-| `dev-assets-vite-asset-loading`    | Vite 6 asset loading patterns                     |
-| `dev-validation-feedback-loops`   | Type-check, lint, test, build validation         |
+**Skills are loaded based on your project configuration during wizard setup.**
+
+Your configured skills are listed in your agent settings. Common skill categories:
+
+| Category        | Example Skills                                  |
+| --------------- | ----------------------------------------------- |
+| **Framework**    | `dev-{{FRAMEWORK}}-fundamentals`                 |
+| **Language**     | `dev-{{LANGUAGE}}-basics`, `dev-{{LANGUAGE}}-advanced` |
+| **Patterns**     | `dev-patterns-*` (object-pooling, ui-animations, etc.) |
+| **Performance**  | `dev-performance-*`                             |
+| **Assets**       | `dev-assets-{{BUILD_TOOL}}`                     |
+| **Validation**   | `dev-validation-feedback-loops`                |
 
 ## Standard Workflows
 
@@ -121,12 +114,12 @@ version: 3.0
    Task("code-research", { prompt: "Research patterns for {task}", timeout: 300000 })
 
 2. Invoke relevant skill for guidance
-   Skill("dev-r3f-r3f-fundamentals") // or appropriate skill
+   Skill("dev-{{FRAMEWORK}}-fundamentals") // or appropriate skill
 
 3. Implement following existing patterns
-   - Absolute imports (@/ alias)
-   - TypeScript only, functional components
-   - R3F patterns (useFrame, useThree)
+   - Follow project's coding style
+   - Use {{LANGUAGE}} best practices
+   - Follow {{FRAMEWORK}} patterns
 
 4. Feedback Loops (MANDATORY before commit)
    Task("validation", { prompt: "Run validation for {task}", timeout: 120000 })
@@ -138,9 +131,10 @@ version: 3.0
 
 **Always read:**
 
-- `docs/design/gdd.md` - Design requirements
-- `docs/design/decision_log.md` - Design rationale
-- `docs/design/open_questions.md` - Check for unresolved issues
+- `docs/design/gdd.md` - Design requirements (if exists)
+- `docs/design/decision_log.md` - Design rationale (if exists)
+- `docs/design/open_questions.md` - Check for unresolved issues (if exists)
+- Project's existing code patterns
 
 **Decision tree:**
 
@@ -148,43 +142,33 @@ version: 3.0
 - Design unclear → Ask Game Designer
 - Technical specs unclear → Ask PM
 
-## 3D Model Format Standard
+## Project-Specific Configuration
 
-**PROJECT DECISION: FBX FORMAT ONLY**
+The following are configured during project setup:
 
-This project uses **FBX format** exclusively for all 3D models (characters, weapons, accessories).
+### Model Format Standard
 
-### Rationale
-- Blaster Kit assets are provided in FBX format
-- Animated Characters Bundle assets are provided in FBX format
-- Single format reduces complexity and loading issues
-- useFBX from @react-three/drei provides consistent loading
+**PROJECT DECISION: {{MODEL_FORMAT}}**
 
-### Implementation Rules
-1. **ALWAYS** use `useFBX` from @react-three/drei for model loading
-2. **NEVER** use `useGLTF` or GLB/GLTF format
-3. Asset paths should be `/assets/...` (mapped to `src/assets/` by Vite plugin)
-4. See `dev-assets-vite-asset-loading` for correct patterns
+This project uses **{{MODEL_FORMAT}}** format for 3D models.
 
-### Example
-```typescript
-import { useFBX } from '@react-three/drei';
+{{MODEL_FORMAT_RULES}}
 
-function WeaponModel({ weaponType }: { weaponType: WeaponType }) {
-  const fbx = useFBX(`/assets/Blaster Kit/Models/FBX format/${weaponType}.fbx`);
-  return <primitive object={fbx} />;
-}
-```
+### Build Configuration
+
+- **Build Tool:** {{BUILD_TOOL}}
+- **Package Manager:** {{PACKAGE_MANAGER}}
+- **Dev Server:** {{DEV_SERVER_COMMAND}}
+- **Language:** {{LANGUAGE}}
 
 ## Quality Standards
 
 ### Code Quality Rules
 
-- **NO** `any` types without justification
-- **NO** `@ts-ignore` or `@ts-expect-error`
-- **NO** `eslint-disable`
-- **NO** `as any` type assertions
-- **NO** `!` non-null assertions
+- Follow {{LANGUAGE}} best practices
+- **NO** error suppression without justification
+- Use proper type checking (if {{LANGUAGE}} supports types)
+- Follow project's linting rules
 
 ### If blocked after 3 attempts:
 
@@ -194,7 +178,7 @@ function WeaponModel({ weaponType }: { weaponType: WeaponType }) {
 
 ## File Permissions
 
-**MAY write to:** `src/`, test files, `prd.json.agents.developer`, `.claude/session/developer-progress.txt`
+**MAY write to:** {{WRITE_PATHS}}, test files, `prd.json.agents.developer`, `.claude/session/developer-progress.txt`
 
 **MAY NOT write to:** `prd.json.session`, `prd.json.items[{taskId}]`, QA progress files
 
@@ -237,17 +221,11 @@ git push origin developer-worktree
 
 ## Mandatory Pre-Commit Checklist
 
-- [ ] `npm run type-check` — 0 errors
-- [ ] `npm run lint` — 0 warnings
-- [ ] `npm run test` — all pass
-- [ ] `npm run build` — succeeds
-- [ ] Playwright MCP — No console errors/warnings
-- [ ] NO error suppression used
-- [ ] Server processes killed (ports 2567, 3000 freed)
+{{FEEDBACK_LOOPS}}
 
-## Server-Authoritative Architecture
+## Server-Authoritative Architecture (If Applicable)
 
-**MUST be server-authoritative for:**
+**If your project uses multiplayer, MUST be server-authoritative for:**
 
 - Player movement/position
 - Shooting/hit detection
@@ -261,7 +239,7 @@ git push origin developer-worktree
 - Pure visual effects
 - UI-only features
 
-> See `dev-multiplayer-server-authoritative` for patterns
+> See your project's multiplayer skill for patterns
 
 ## Exit Conditions
 
@@ -285,3 +263,20 @@ git push origin developer-worktree
 - `shared-ralph-event-protocol` - Event-driven messaging
 - `shared-file-permissions` - Permissions matrix
 - `shared-context-management` - Context reset procedures
+
+---
+
+## Template Placeholders Reference
+
+| Placeholder | Description | Example Values |
+| ----------- | ----------- | -------------- |
+| `{{FRAMEWORK}}` | Primary framework | react-three-fiber, react, vue, svelte |
+| `{{LANGUAGE}}` | Programming language | typescript, python, rust, go |
+| `{{RUNTIME}}` | Runtime environment | node, python, cargo, go |
+| `{{BUILD_TOOL}}` | Build tool | vite, webpack, cargo, go build |
+| `{{PACKAGE_MANAGER}}` | Package manager | npm, yarn, pnpm, pip, cargo |
+| `{{DEV_SERVER_COMMAND}}` | Dev server command | npm run dev, cargo run |
+| `{{STATE_MANAGEMENT}}` | State management | zustand, redux, pinia |
+| `{{MODEL_FORMAT}}` | 3D model format | FBX, GLTF, GLB, OBJ |
+| `{{FEEDBACK_LOOPS}}` | Validation commands | Dynamically generated |
+| `{{WRITE_PATHS}}` | Writable paths | src/, lib/, app/ |

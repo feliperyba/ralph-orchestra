@@ -1,190 +1,163 @@
 # Ralph Orchestra
 
-> A multi-agent autonomous development framework that coordinates multiple Claude CLI agents to work together on software development tasks.
+> An **agnostic orchestration framework** for multi-agent AI development using Claude Code. Configure once, then let specialized agents build your project autonomously.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude CLI](https://img.shields.io/badge/Claude-CLI-blue.svg)](https://docs.anthropic.com/en/docs/claude-cli)
 
+---
+
 ## What is Ralph Orchestra?
 
-Ralph Orchestra enables **autonomous software development** by coordinating specialized AI agents:
+Ralph Orchestra is a **framework for orchestrating AI agents** - not a hard-coded template for any specific technology. It provides:
 
-- **PM Agent** (Coordinator) - Selects tasks, assigns work, runs retrospectives
-- **Developer Agent** (Worker) - Implements game logic, networking, and core systems
-- **Tech Artist Agent** (Worker) - Creates 3D/2D assets, shaders, and visual effects
-- **QA Agent** (Worker) - Validates implementations, runs tests, reports bugs
-- **Game Designer Agent** (Worker) - Creates GDDs, validates design, playtests
+- **PRD Starter Wizard** - Generate custom agent configurations for YOUR project
+- **Multi-Agent Coordination** - PM, Developer, Specialist, QA agents working together
+- **Technology Agnostic** - Works with any stack (Node.js, Python, Rust, Go, Java, .NET, etc.)
+- **Modular Skills** - 100+ reusable skills for common development tasks
+- **Orchestration Modes** - Event-driven (parallel), Sequential (token-efficient), or HITL (learning)
+- **Quality Enforcement** - Automated feedback loops and code quality gates
 
-The agents communicate through shared state files and named pipes, and can run indefinitely until all tasks are complete.
+The included agents and skills are **templates** - starting points that demonstrate how to configure the framework for your needs. The wizard generates customized configurations based on your project type.
 
-## Key Features
-
-- **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
-- **Sub-agent Delegation** - 26+ specialized sub-agents for focused tasks with ~77% cost optimization (Haiku for search, Sonnet for implementation)
-- **PRD Starter Wizard** - Interactive setup for custom agents and project configuration
-- **Four Orchestration Modes** - Event-driven, Sequential, Polling, or HITL
-- **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
-- **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms delivery)
-- **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
-- **Skill Improvement** - Agents research and propose skill updates during retrospectives
-- **Git Worktrees** - Developer and Tech Artist can work in parallel without conflicts
-- **Quality Hooks** - Automated code quality enforcement (e.g., blocks @ts-ignore)
+---
 
 ## Quick Start
 
-### Prerequisites
-
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) installed and authenticated
-- PowerShell 5.1+ (Windows) or Bash (Linux/macOS)
-
-### Installation
-
-```bash
-git clone https://github.com/feliperyba/ralph-orchestra
-cd ralph-orchestra
-npm install
-```
-
-### Running Agents
-
-#### Event-Driven Mode (Recommended)
-
-All agents run in parallel with message-based communication:
-
-```powershell
-.\.claude\scripts\ralph-event-session.ps1
-```
-
-#### Sequential Mode (Token-Efficient)
-
-One agent at a time with ~70% lower token usage:
-
-```powershell
-.\.claude\scripts\ralph-single-session.ps1
-```
-
-#### HITL Mode (Learning)
-
-Single iteration for learning the flow:
+**Start here** - Run the PRD Starter wizard to configure agents for your project:
 
 ```
-/ralph-hitl
+/ralph-prd-starter
 ```
 
-#### Stopping Agents
+The wizard guides you through:
 
-Press `Ctrl+C` in the watchdog terminal, or run `/cancel-ralph` in any agent terminal.
+1. **Quick Start** (5 min) - Choose from 14+ presets (web, game, mobile, backend, etc.)
+2. **Standard** (15 min) - Guided configuration with AI recommendations
+3. **Expert** (30+ min) - Full control over every setting
 
-#### Manual Agent Startup
+After setup, agents work autonomously until your PRD is complete.
 
-For individual agent sessions:
+---
 
-```powershell
-/ralph-coordinator-event           # Start PM (coordinator)
-/ralph-worker-event --agent developer   # Start Developer
-/ralph-worker-event --agent techartist  # Start Tech Artist
-/ralph-worker-event --agent qa          # Start QA
-/ralph-worker-event --agent gamedesigner # Start Game Designer
-```
-
-## Architecture
+## How It Works
 
 ```
-PM selects task → assigns to developer or techartist
-     ↓
-Developer implements feature (logic)
-Tech Artist creates assets (visuals)
-     ↓
-QA validates implementation (reports bugs OR passes)
-     ↓
-PM receives QA's result
-     ↓
-Iteration completes → next task begins
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Ralph Orchestra                              │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   1. Run /ralph-prd-starter → Configure agents for your project      │
+│                                                                      │
+│   2. Define PRD → List features, requirements, acceptance criteria   │
+│                                                                      │
+│   3. Start agents → PM assigns tasks, workers implement, QA validates│
+│                                                                      │
+│   4. Iterate → Agents work until all PRD items are complete          │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-## Sub-agent Architecture
+---
 
-Each main agent can delegate to 26+ specialized sub-agents defined in `.claude/agents/*.agent.md`:
+## Supported Project Types
 
-| Agent | Sub-agents | Purpose |
-|-------|------------|---------|
-| **Developer** | code-research, implementation, code-quality, validation, commit, task-researcher | Research, code, validate, commit workflow |
-| **PM** | task-researcher, retrospective-facilitator, skill-researcher, prd-organizer, test-planner, architecture-validator | Task selection, retrospectives, skill improvement |
-| **QA** | browser-validator, multiplayer-validator, visual-regression-tester, gameplay-tester, code-review, visual-tester | Specialized validation types |
-| **Tech Artist** | asset-researcher, asset-creator, shader-compiler, particle-system-designer, visual-validator, visual-tester, performance-profiler, code-quality | Asset creation pipeline |
-| **Game Designer** | asset-analyst, visual-reference-researcher, reference-game-researcher, thermite-facilitator, gdd-documenter, playtest-evidence-collector | Design and research |
+The PRD Starter includes presets for:
 
-**Cost Optimization**: Haiku sub-agents handle search/research tasks at ~77% lower cost, keeping main agent context clean.
+| Category             | Presets                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| **Game Development** | Indie Game Dev, Game Studio, Mobile Game, Multiplayer Arena        |
+| **Web Applications** | Modern Web App, Full Stack SaaS, Dashboard Analytics               |
+| **Business**         | E-Commerce Store, SaaS Product, Enterprise Suite, Content Platform |
+| **Technical**        | API Server, Data/ML Pipeline, DevOps/Infrastructure                |
+
+...or create a **custom configuration** for any project type.
+
+---
+
+### Agent Roles (Configurable)
+
+The framework supports configurable agent roles. The default templates include:
+
+- **PM** (Coordinator) - Task selection, assignment, retrospectives
+- **Developer** (Worker) - Feature implementation, code quality
+- **Specialist** (Worker) - Domain-specific work (configurable - Tech Artist, Data Scientist, etc.)
+- **QA** (Worker) - Testing, validation, bug reporting
+- **Designer** (Worker) - Specifications, research, playtesting
+
+You customize which agents are enabled and what skills they have during wizard setup.
+
+---
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Getting Started](./docs/getting-started.md) | Installation, prerequisites, first run |
-| [Orchestration Modes](./docs/orchestration-modes.md) | All 4 modes explained in detail |
-| [Architecture](./docs/architecture.md) | System architecture, agent roles, message flow |
-| [Configuration](./docs/configuration.md) | PRD format, agent settings, watchdog config |
-| [Extending](./docs/extending.md) | Adding custom agents, skills, routing |
-| [Monitoring](./docs/monitoring.md) | Dashboard, logs, troubleshooting |
-| [PRD Starter Guide](./docs/prd-starter.md) | Interactive setup wizard |
-| [Protocol Reference](./docs/protocols.md) | Communication protocols |
+**Complete documentation:** [docs/README.md](docs/README.md)
 
-### Additional Resources
+| Quick Start                                | Core                                               | Wizard Reference                              |
+| ------------------------------------------ | -------------------------------------------------- | --------------------------------------------- |
+| [Getting Started](docs/getting-started.md) | [Framework Architecture](docs/architecture.md)     | [Wizard Presets](docs/wizard-presets.md)      |
+| [Framework Guide](docs/framework.md)       | [Orchestration Modes](docs/orchestration-modes.md) | [Skill Catalog](docs/wizard-skill-catalog.md) |
 
-- [.claude/scripts/README.md](./.claude/scripts/README.md) - Script reference
-- [agents/\*/AGENT.md](./agents/) - Per-agent behavior instructions
-- [.claude/skills/](./.claude/skills/) - Centralized orchestration skills (70+ folder-based skills)
-- [.claude/protocols/](./.claude/protocols/) - Communication protocol documentation
-- [.claude/agents/\*.agent.md](./.claude/agents/) - Sub-agent definitions (26+ specialized agents)
+---
 
-## Example PRD Item
+## Commands Reference
 
-```json
-{
-  "id": "feat-001",
-  "title": "User Authentication",
-  "priority": "high",
-  "status": "pending",
-  "passes": false,
-  "agent": "developer",
-  "acceptanceCriteria": [
-    "Users can register with email/password",
-    "Users can log in and receive JWT token",
-    "Protected routes require valid token"
-  ]
-}
-```
+| Command                               | Purpose                                     |
+| ------------------------------------- | ------------------------------------------- |
+| `/ralph-prd-starter`                  | **Setup wizard** - First-time configuration |
+| `/ralph-hitl`                         | Single iteration - Learn the flow           |
+| `/ralph-coordinator-event`            | Start PM (parallel mode)                    |
+| `/ralph-coordinator-single`           | Start PM (sequential mode)                  |
+| `/ralph-worker-event --agent <name>`  | Start worker (parallel)                     |
+| `/ralph-worker-single --agent <name>` | Start worker (sequential)                   |
+| `/cancel-ralph`                       | Cancel active session                       |
 
-## Contributing
+---
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run the agents to validate
-5. Submit a pull request
+## Framework vs Templates
+
+**Ralph Orchestra** is the orchestration infrastructure:
+
+- Communication protocols (named pipes, message queues)
+- Agent lifecycle management (watchdog, health monitoring)
+- Quality enforcement (feedback loops, code gates)
+- Modular skill system (compose capabilities)
+- PRD Starter wizard (generate configurations)
+
+**Included templates** are examples:
+
+- Agent definitions in `agents/` - Show structure, customize for your needs
+- Presets in `.claude/presets/` - Starting points for common project types
+- Skills in `.claude/skills/` - Reusable building blocks
+
+**Don't copy templates directly** - run the wizard to generate custom configurations.
+
+---
+
+## Key Features
+
+- **Multi-Agent Coordination** - 5+ agents with 100+ modular skills
+- **Sub-agent Delegation** - 28+ specialized sub-agents for focused tasks
+- **Four Orchestration Modes** - Event-driven, Sequential, Polling, HITL
+- **Watchdog Process** - Never-exit orchestrator for long-running sessions
+- **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms)
+- **Scale-Adaptive Planning** - PM adjusts approach based on task count
+- **Git Worktrees** - Parallel workers without merge conflicts
+- **Quality Hooks** - Blocks @ts-ignore, enforces standards
+
+---
+
+## References
+
+Inspired by and built upon:
+
+- [Ralph Wiggum Plugin](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) - Official Anthropic multi-agent framework
+- [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) - Breakthrough Make And Deliver
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) - Command-line interface
+- [MCP Protocol](https://modelcontextprotocol.io/) - Model Context Protocol
+
+---
 
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
-
-## References and Inspiration
-
-This project was conceived and developed based on the following resources:
-
-### Core Multi-Agent Frameworks
-
-- [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) - Breakthrough Make And Deliver method
-- [Agents.md](https://agents.md/) - Comprehensive guide on AI agent architectures
-- [Agent Skills.md](https://agent-skills.md/) - Best practices for agent skills
-
-### Ralph Wiggum Autonomous Development
-
-- [Ralph Wiggum - Claude Code](https://github.com/anthropics/claude-code/blob/main/plugins/ralph-wiggum/README.md) - Official plugin documentation
-- [Tips for AI Coding with Ralph Wiggum](https://www.aihero.dev/tips-for-ai-coding-with-ralph-wiggum) - Practical usage guide
-- [Ralph Multi-Session Architecture](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum) - Multi-agent patterns
-
-### Claude AI & MCP
-
-- [Claude CLI Documentation](https://docs.anthropic.com/en/docs/claude-cli) - Official CLI reference
-- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) - Standard for AI-tool connections
-- [MCP Servers](https://github.com/modelcontextprotocol) - Official server implementations

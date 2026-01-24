@@ -24,10 +24,16 @@ import argparse
 import json
 import re
 import sys
+import io
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+
+# Set UTF-8 encoding for Windows console
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 from typing import Any, Optional
 
 try:
@@ -47,6 +53,97 @@ try:
 except ImportError:
     print("Error: jsonschema is required. Install with: pip install jsonschema", file=sys.stderr)
     sys.exit(1)
+
+
+# ============================================================================
+# Tech Stack Commands Configuration
+# ============================================================================
+
+# Tech stack command mappings for agnostic project initialization
+TECH_STACK_COMMANDS = {
+    "node": {
+        "package_manager": "npm",
+        "init": "npm init -y",
+        "install": "npm install",
+        "dev": "npm run dev",
+        "build": "npm run build",
+        "test": "npm run test",
+        "type_check": "tsc --noEmit"  # For TypeScript projects
+    },
+    "python": {
+        "package_manager": "pip",
+        "init": "python -m venv venv && source venv/bin/activate",
+        "install": "pip install -r requirements.txt",
+        "dev": "python main.py",
+        "build": "python -m build",
+        "test": "pytest",
+        "type_check": "mypy --strict ."
+    },
+    "rust": {
+        "package_manager": "cargo",
+        "init": "cargo init",
+        "install": "cargo build",
+        "dev": "cargo run",
+        "build": "cargo build --release",
+        "test": "cargo test",
+        "type_check": "cargo clippy"
+    },
+    "go": {
+        "package_manager": "go mod",
+        "init": "go mod init {PROJECT_NAME}",
+        "install": "go mod tidy",
+        "dev": "go run main.go",
+        "build": "go build",
+        "test": "go test ./...",
+        "type_check": "go vet ./..."
+    },
+    "java": {
+        "package_manager": "mvn",
+        "init": "mvn archetype:generate",
+        "install": "mvn install",
+        "dev": "mvn spring-boot:run",
+        "build": "mvn package",
+        "test": "mvn test",
+        "type_check": "mvn compile"
+    },
+    "dotnet": {
+        "package_manager": "dotnet",
+        "init": "dotnet new console",
+        "install": "dotnet restore",
+        "dev": "dotnet run",
+        "build": "dotnet build",
+        "test": "dotnet test",
+        "type_check": "dotnet build"
+    }
+}
+
+# Feedback loop commands by tech stack
+FEEDBACK_LOOP_COMMANDS = {
+    "node": {
+        "type-check": {"command": "npm run type-check", "required": True, "description": "TypeScript type checking"},
+        "lint": {"command": "npm run lint", "required": True, "description": "ESLint linting"},
+        "test": {"command": "npm run test", "required": True, "description": "Run test suite"},
+        "build": {"command": "npm run build", "required": True, "description": "Production build"}
+    },
+    "python": {
+        "type-check": {"command": "mypy --strict .", "required": True, "description": "Type checking with mypy"},
+        "lint": {"command": "ruff check .", "required": True, "description": "Linting with ruff"},
+        "test": {"command": "pytest", "required": True, "description": "Run test suite"},
+        "build": {"command": "python -m build", "required": True, "description": "Build package"}
+    },
+    "rust": {
+        "type-check": {"command": "cargo clippy", "required": True, "description": "Clippy linting"},
+        "lint": {"command": "cargo clippy", "required": True, "description": "Clippy linting"},
+        "test": {"command": "cargo test", "required": True, "description": "Run test suite"},
+        "build": {"command": "cargo build", "required": True, "description": "Debug build"}
+    },
+    "go": {
+        "type-check": {"command": "go vet ./...", "required": True, "description": "Go vet analysis"},
+        "lint": {"command": "golangci-lint run", "required": True, "description": "Linting"},
+        "test": {"command": "go test ./...", "required": True, "description": "Run test suite"},
+        "build": {"command": "go build", "required": True, "description": "Build binary"}
+    }
+}
 
 
 # ============================================================================
@@ -379,11 +476,12 @@ depends-on: {skill_config.get("depends_on", [])}
             "mcpServers": mcp_configs
         }, indent=2)
 
-    def render_prd_json(self, project_config: ProjectConfig) -> str:
+    def render_prd_json(self, project_config: ProjectConfig, tech_stack: dict | None = None) -> str:
         """Render initial prd.json from template.
 
         Args:
             project_config: Project configuration
+            tech_stack: Technology stack configuration
 
         Returns:
             Rendered prd.json content
@@ -391,9 +489,19 @@ depends-on: {skill_config.get("depends_on", [])}
         if self.env:
             try:
                 template = self.env.get_template("prd-template.json")
-                return template.render(project=project_config, now=datetime.now())
+                return template.render(
+                    project=project_config,
+                    tech_stack=tech_stack or {},
+                    now=datetime.now()
+                )
             except Exception:
                 pass
+
+        # Get feedback loops based on tech stack
+        feedback_loops = {}
+        if tech_stack:
+            runtime = tech_stack.get("runtime", "node")
+            feedback_loops = FEEDBACK_LOOP_COMMANDS.get(runtime, FEEDBACK_LOOP_COMMANDS["node"])
 
         # Generate PRD items from features
         prd_items = []
@@ -405,16 +513,86 @@ depends-on: {skill_config.get("depends_on", [])}
                 "title": feature.get("title", "Feature"),
                 "description": feature.get("description", ""),
                 "acceptanceCriteria": feature.get("acceptanceCriteria", []),
+                "verificationSteps": feature.get("verificationSteps", []),
                 "agent": self._assign_agent_to_feature(feature, project_config),
+                "dependencies": feature.get("dependencies", []),
+                "status": "pending",
                 "passes": False
             })
 
-        return json.dumps({
+        # Build tech stack description
+        tech_desc = tech_stack.get("description", "") if tech_stack else ""
+        if not tech_desc and tech_stack:
+            runtime = tech_stack.get("runtime", "").title()
+            framework = tech_stack.get("framework", "")
+            language = tech_stack.get("language", "")
+            tech_desc = f"Built with {runtime}"
+            if framework:
+                tech_desc += f" + {framework}"
+            if language:
+                tech_desc += f" ({language})"
+
+        # Determine type safety standard
+        type_safety = "strict"
+        if tech_stack:
+            if tech_stack.get("runtime") == "python":
+                type_safety = "mypy-strict"
+            elif tech_stack.get("runtime") in ["go", "rust"]:
+                type_safety = "compiler-strict"
+
+        # Determine test coverage target
+        test_coverage = 80
+        if project_config.quality_standards:
+            test_coverage = project_config.quality_standards.get("testCoverageTarget", 80)
+
+        prd_data = {
             "project": project_config.name,
             "version": "1.0.0",
-            "created": datetime.now().isoformat(),
+            "lastUpdated": datetime.now().isoformat(),
+            "quality": "production",
+            "description": tech_desc or "Custom project configuration",
+            "feedbackLoops": feedback_loops,
+            "session": {
+                "sessionId": "",
+                "startedAt": "",
+                "maxIterations": 200,
+                "iteration": 0,
+                "completionPromise": "RALPH_COMPLETE",
+                "status": "running",
+                "currentTask": None,
+                "stats": {
+                    "totalTasks": len(prd_items),
+                    "completed": 0,
+                    "failed": 0,
+                    "commits": 0
+                }
+            },
+            "qualityStandards": {
+                "typeSafety": type_safety,
+                "testCoverage": f"{test_coverage}%",
+                "documentation": "Required for complex logic, game logic, and public APIs",
+                "commitStyle": "Conventional commits with Ralph prefix",
+                "codeReview": "All code must pass feedback loops before QA"
+            },
+            "agents": {
+                "pm": {"status": "idle", "lastSeen": "", "currentTaskId": None, "pid": 0},
+                "developer": {"status": "idle", "lastSeen": "", "currentTaskId": None, "pid": 0},
+                "techartist": {"status": "idle", "lastSeen": "", "currentTaskId": None, "pid": 0},
+                "qa": {"status": "idle", "lastSeen": "", "currentTaskId": None, "pid": 0},
+                "gamedesigner": {"status": "idle", "lastSeen": "", "currentTaskId": None, "pid": 0}
+            },
+            "projectInitialization": {
+                "status": "pending",
+                "scriptPath": ".claude/scripts/init-project.sh",
+                "attempts": 0,
+                "maxAttempts": 3,
+                "autoInitialize": tech_stack.get("autoInitialize", True) if tech_stack else True,
+                "techStack": tech_stack or {}
+            },
             "items": prd_items
-        }, indent=2)
+        }
+
+        return json.dumps(prd_data, indent=2)
 
     def _format_mcp_list(self, mcp_servers: list[str]) -> str:
         """Format MCP server list for documentation."""
@@ -593,7 +771,7 @@ class ScriptUpdater:
             content = script_path.read_text(encoding='utf-8')
 
             # Check if agent already exists
-            if f'{agent_name}\s*=' in content:
+            if f'{agent_name}\\s*=' in content:
                 return True
 
             # Find the Agents hashtable and add entry
@@ -897,37 +1075,19 @@ class PRDStarterGenerator:
             agent_dir = self.agents_dir / config.name
             agent_dir.mkdir(parents=True, exist_ok=True)
 
-            # Generate AGENT.md
+            # Generate AGENT.md (only file in new architecture)
             agent_md = self.renderer.render_agent_md(config, project_config)
             (agent_dir / "AGENT.md").write_text(agent_md, encoding='utf-8')
 
-            # Generate SKILLS.md with skill index
-            skills_md = self._generate_skills_index(config)
-            (agent_dir / "SKILLS.md").write_text(skills_md, encoding='utf-8')
-
-            # Create subdirectories
-            (agent_dir / "checklists").mkdir(exist_ok=True)
-            (agent_dir / "references").mkdir(exist_ok=True)
+            # Note: SKILLS.md, checklists/, and references/ are no longer created
+            # Skills are now centralized in .claude/skills/ (folder-based)
+            # Sub-agents are now in .claude/agents/*.agent.md (flat structure)
 
             return True
 
         except Exception as e:
             print(f"Error generating agent {config.name}: {e}", file=sys.stderr)
             return False
-
-    def _generate_skills_index(self, config: AgentConfig) -> str:
-        """Generate SKILLS.md index for an agent."""
-        skills = config.skills or []
-        if not skills:
-            return "# Skills\n\nNo specific skills configured.\n"
-
-        content = ["# Skills\n", "This agent has access to the following skills:\n"]
-
-        for skill in skills:
-            content.append(f"- **{skill}**")
-
-        content.append("\nSee [../.claude/skills/](../.claude/skills/) for full skill documentation.")
-        return '\n'.join(content)
 
     # ========================================================================
     # Settings Generation
@@ -1028,22 +1188,176 @@ class PRDStarterGenerator:
     # PRD Generation
     # ========================================================================
 
-    def generate_prd(self, project_config: ProjectConfig) -> bool:
-        """Generate initial prd.json from project configuration.
+    def generate_init_script(self, project_config: ProjectConfig, tech_stack: dict) -> bool:
+        """Generate project initialization script based on tech stack.
 
         Args:
             project_config: Project configuration
+            tech_stack: Technology stack configuration with runtime, packageManager, etc.
 
         Returns:
             True if generation was successful
         """
         try:
-            prd_content = self.renderer.render_prd_json(project_config)
+            runtime = tech_stack.get("runtime", "node")
+            commands = TECH_STACK_COMMANDS.get(runtime, TECH_STACK_COMMANDS["node"])
+
+            package_manager = tech_stack.get("packageManager", commands["package_manager"])
+            init_command = tech_stack.get("initCommand", commands["init"])
+            install_command = tech_stack.get("installCommand", commands["install"])
+
+            # Replace placeholder in init command
+            init_command = init_command.replace("{PROJECT_NAME}", project_config.name)
+
+            script_content = f"""#!/bin/bash
+# Auto-generated by Ralph Orchestra PRD Starter
+# Project initialization script for {project_config.name}
+
+set -e  # Exit on error
+
+PROJECT_NAME="{project_config.name}"
+RUNTIME="{runtime}"
+PACKAGE_MANAGER="{package_manager}"
+
+echo "🚀 Initializing $PROJECT_NAME..."
+
+# 1. Check if package manager is available
+if ! command -v $PACKAGE_MANAGER &> /dev/null; then
+    echo "❌ Error: $PACKAGE_MANAGER not found. Please install it first."
+    echo "   Visit: https://{"devguide.python.org" if runtime == "python" else "nodejs.org" if runtime == "node" else "rustup.rs" if runtime == "rust" else "go.dev" if runtime == "go" else "docs.microsoft.com" if runtime == "dotnet" else "maven.apache.org"}"
+    exit 1
+fi
+
+# 2. Initialize project (if not already)
+if [ ! -f "package.json" ] && [ ! -f "requirements.txt" ] && [ ! -f "Cargo.toml" ] && [ ! -f "go.mod" ] && [ ! -f "pom.xml" ] && [ ! -f "*.csproj" ]; then
+    echo "📁 Initializing project structure..."
+    {init_command}
+else
+    echo "ℹ️  Project already initialized, skipping init step."
+fi
+
+# 3. Install dependencies
+echo "📦 Installing dependencies..."
+{install_command}
+
+# 4. Verify installation
+echo "✅ Project initialization complete!"
+echo ""
+echo "Next steps:"
+echo "  - Run your dev server: {tech_stack.get('devCommand', commands.get('dev', 'npm run dev'))}"
+echo "  - Start Ralph coordinator: /ralph-coordinator-event"
+"""
+
+            script_path = self.scripts_dir / "init-project.sh"
+            script_path.write_text(script_content, encoding='utf-8')
+
+            # Also create PowerShell version for Windows
+            ps_script_content = f"""# Auto-generated by Ralph Orchestra PRD Starter
+# Project initialization script for {project_config.name}
+
+$ErrorActionPreference = "Stop"
+
+$PROJECT_NAME = "{project_config.name}"
+$RUNTIME = "{runtime}"
+$PACKAGE_MANAGER = "{package_manager}"
+
+Write-Host "🚀 Initializing $PROJECT_NAME..." -ForegroundColor Green
+
+# 1. Check if package manager is available
+$packageCmd = Get-Command $PACKAGE_MANAGER -ErrorAction SilentlyContinue
+if (-not $packageCmd) {{
+    Write-Host "❌ Error: $PACKAGE_MANAGER not found. Please install it first." -ForegroundColor Red
+    Write-Host "   Visit: https://{"devguide.python.org" if runtime == "python" else "nodejs.org" if runtime == "node" else "rustup.rs" if runtime == "rust" else "go.dev" if runtime == "go" else "docs.microsoft.com" if runtime == "dotnet" else "maven.apache.org"}"
+    exit 1
+}}
+
+# 2. Initialize project (if not already)
+$hasProjectFile = Test-Path "package.json" -or Test-Path "requirements.txt" -or Test-Path "Cargo.toml" -or Test-Path "go.mod" -or Test-Path "pom.xml" -or (Get-ChildItem -Filter "*.csproj" -ErrorAction SilentlyContinue)
+if (-not $hasProjectFile) {{
+    Write-Host "📁 Initializing project structure..." -ForegroundColor Cyan
+    {init_command.replace('source venv/bin/activate', '.\\venv\\Scripts\\Activate.ps1')}
+}} else {{
+    Write-Host "ℹ️  Project already initialized, skipping init step." -ForegroundColor Yellow
+}}
+
+# 3. Install dependencies
+Write-Host "📦 Installing dependencies..." -ForegroundColor Cyan
+{install_command}
+
+# 4. Verify installation
+Write-Host "✅ Project initialization complete!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Next steps:"
+Write-Host "  - Run your dev server: {tech_stack.get('devCommand', commands.get('dev', 'npm run dev'))}"
+Write-Host "  - Start Ralph coordinator: /ralph-coordinator-event"
+"""
+
+            ps_script_path = self.scripts_dir / "init-project.ps1"
+            ps_script_path.write_text(ps_script_content, encoding='utf-8')
+
+            return True
+        except Exception as e:
+            print(f"Error generating init script: {e}", file=sys.stderr)
+            return False
+
+    def generate_prd(self, project_config: ProjectConfig, tech_stack: dict | None = None) -> bool:
+        """Generate initial prd.json from project configuration.
+
+        Args:
+            project_config: Project configuration
+            tech_stack: Technology stack configuration
+
+        Returns:
+            True if generation was successful
+        """
+        try:
+            prd_content = self.renderer.render_prd_json(project_config, tech_stack)
             prd_file = self.project_root / "prd.json"
             prd_file.write_text(prd_content, encoding='utf-8')
             return True
         except Exception as e:
             print(f"Error generating PRD: {e}", file=sys.stderr)
+            return False
+
+    def setup_workflow_docs_directory(self, project_config: ProjectConfig) -> bool:
+        """Setup workflow documentation directory and copy template.
+
+        Note: Actual workflow generation happens via the wizard skill (shared-workflow-generation).
+        This method ensures the directory exists and template is available.
+
+        Args:
+            project_config: Project configuration
+
+        Returns:
+            True if setup was successful
+        """
+        try:
+            # Create workflows directory in the target project
+            workflows_dir = self.project_root / "docs" / "workflows"
+            workflows_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy template if it doesn't exist in target project
+            # This allows generated projects to have the template for future updates
+            template_src = Path(__file__).parent.parent / "docs" / "workflows" / "_template.md"
+            template_dst = workflows_dir / "_template.md"
+
+            if template_src.exists() and not template_dst.exists():
+                import shutil
+                shutil.copy(template_src, template_dst)
+                print(f"✓ Copied workflow template to docs/workflows/_template.md")
+
+            # Copy README if it doesn't exist
+            readme_src = Path(__file__).parent.parent / "docs" / "workflows" / "README.md"
+            readme_dst = workflows_dir / "README.md"
+
+            if readme_src.exists() and not readme_dst.exists():
+                import shutil
+                shutil.copy(readme_src, readme_dst)
+                print(f"✓ Copied workflow README to docs/workflows/README.md")
+
+            return True
+        except Exception as e:
+            print(f"Warning: Could not setup workflow docs directory: {e}", file=sys.stderr)
             return False
 
     # ========================================================================
@@ -1065,11 +1379,12 @@ class PRDStarterGenerator:
     # Batch Operations
     # ========================================================================
 
-    def generate_all(self, project_config: ProjectConfig) -> ValidationResult:
+    def generate_all(self, project_config: ProjectConfig, tech_stack: dict | None = None) -> ValidationResult:
         """Generate all files from project configuration.
 
         Args:
             project_config: Complete project configuration
+            tech_stack: Technology stack configuration
 
         Returns:
             ValidationResult with any errors encountered
@@ -1100,10 +1415,21 @@ class PRDStarterGenerator:
             self.update_message_queue(agent_names)
             self.update_session_scripts(agent_names)
 
+        # Generate initialization script
+        if tech_stack:
+            if not self.generate_init_script(project_config, tech_stack):
+                errors.append("Failed to generate initialization script")
+            else:
+                print("✓ Generated initialization scripts")
+
         # Generate PRD
         if project_config.features:
-            if not self.generate_prd(project_config):
+            if not self.generate_prd(project_config, tech_stack):
                 errors.append("Failed to generate PRD")
+
+        # Setup workflow documentation directory
+        if not self.setup_workflow_docs_directory(project_config):
+            errors.append("Failed to setup workflow docs directory")
 
         return ValidationResult(
             valid=len(errors) == 0,
@@ -1208,8 +1534,270 @@ def load_config_file(config_path: Path) -> dict | None:
         return None
 
 
-def state_to_project_config(state: dict) -> ProjectConfig:
+def load_preset(preset_name: str, project_root: Path) -> dict | None:
+    """Load preset configuration from .claude/presets/.
+
+    Args:
+        preset_name: Name of the preset (e.g., "indie-game-dev")
+        project_root: Project root directory
+
+    Returns:
+        Preset configuration dict or None if error
+    """
+    presets_dir = project_root / ".claude" / "presets"
+    preset_file = presets_dir / f"{preset_name}.json"
+
+    if not preset_file.exists():
+        print(f"Error: Preset file not found: {preset_file}", file=sys.stderr)
+        return None
+
+    try:
+        return json.loads(preset_file.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Error: Failed to load preset: {e}", file=sys.stderr)
+        return None
+
+
+def state_to_project_config(state: dict, project_root: Path = Path(".")) -> ProjectConfig:
     """Convert state file format to ProjectConfig.
+
+    Args:
+        state: State dictionary from prd-starter-state.json
+        project_root: Project root directory
+
+    Returns:
+        ProjectConfig object
+    """
+    # Version 3.0+ state format (with wizardMode and direct agent config)
+    if state.get("version", "1.0.0").startswith("3."):
+        return _state_v3_to_project_config(state, project_root)
+
+    # Legacy state format (v2.x with phases)
+    return _state_v2_to_project_config(state)
+
+
+def _state_v3_to_project_config(state: dict, project_root: Path) -> ProjectConfig:
+    """Convert v3.0+ state format to ProjectConfig.
+
+    Args:
+        state: State dictionary from prd-starter-state.json
+        project_root: Project root directory
+
+    Returns:
+        ProjectConfig object
+    """
+    # Handle preset selection first
+    if state.get("selectedPreset"):
+        preset = load_preset(state["selectedPreset"], project_root)
+        if preset:
+            return _preset_to_project_config(preset, state)
+
+    # Extract project info
+    project = state.get("project", {})
+    project_name = project.get("name", "My Project")
+    project_description = project.get("description", "")
+
+    # Map project category to ProjectType
+    category_map = {
+        "game-development": ProjectType.GAME,
+        "web-application": ProjectType.WEB,
+        "mobile-app": ProjectType.MOBILE,
+        "api-backend": ProjectType.BACKEND,
+        "data-ml": ProjectType.DATA,
+        "ecommerce": ProjectType.WEB,
+        "saas": ProjectType.WEB,
+        "devops-infrastructure": ProjectType.DEVOPS
+    }
+    project_type = category_map.get(project.get("category", "other"), ProjectType.OTHER)
+
+    # Extract agents from v3.0 format
+    agents_dict = state.get("agents", {})
+    agents = []
+
+    for agent_name, agent_data in agents_dict.items():
+        if not agent_data.get("enabled", False):
+            continue
+
+        # Get agent role mapping
+        role_map = {
+            "pm": "pm",
+            "developer": "developer",
+            "techartist": "techartist",
+            "qa": "qa",
+            "gamedesigner": "gamedesigner"
+        }
+
+        role = agent_data.get("role", agent_name)
+        if role not in role_map.values():
+            role = agent_name
+
+        # Build icon (default icons based on role)
+        icons = {
+            "pm": "📋",
+            "developer": "💻",
+            "techartist": "🎨",
+            "qa": "🔍",
+            "gamedesigner": "🎮"
+        }
+        icon = agent_data.get("icon", icons.get(role, "•"))
+
+        agents.append(AgentConfig(
+            name=agent_name,
+            display_name=agent_data.get("display_name", agent_name.title()),
+            role=role,
+            icon=icon,
+            primary_responsibility=agent_data.get("primary_responsibility", f"{role} agent responsibilities"),
+            cannot_do=agent_data.get("cannot_do", []),
+            works_with=agent_data.get("works_with", []),
+            may_write=agent_data.get("may_write", []),
+            may_not_write=agent_data.get("may_not_write", []),
+            mcp_servers=agent_data.get("mcpServers", ["filesystem"]),
+            skills=agent_data.get("skills", []),
+            sub_agents=agent_data.get("subAgents", [])
+        ))
+
+    # Extract orchestration
+    orchestration_data = state.get("orchestration", {})
+    orchestration_mode_map = {
+        "event-driven": OrchestrationMode.EVENT_DRIVEN,
+        "sequential": OrchestrationMode.SEQUENTIAL,
+        "polling": OrchestrationMode.EVENT_DRIVEN,
+        "hitl": OrchestrationMode.HITL
+    }
+    orchestration = orchestration_mode_map.get(
+        orchestration_data.get("mode", "sequential"),
+        OrchestrationMode.SEQUENTIAL
+    )
+
+    # Extract features
+    features = state.get("features", [])
+
+    # Build tech stack from project info
+    tech_stack = {
+        "frontend": {
+            "enabled": bool(project.get("techStack")),
+            "value": project.get("techStack", ""),
+            "variant": project.get("customTechStack", "")
+        }
+    }
+
+    # Extract quality standards
+    quality_standards = state.get("qualityStandards", {})
+
+    return ProjectConfig(
+        name=project_name,
+        description=project_description,
+        project_type=project_type,
+        custom_type=project.get("customCategory", ""),
+        agents=agents,
+        workflow_pattern=WorkflowPattern.COLLABORATIVE,
+        orchestration_mode=orchestration,
+        technology_stack=tech_stack,
+        quality_standards=quality_standards,
+        features=features
+    )
+
+
+def _preset_to_project_config(preset: dict, state: dict) -> ProjectConfig:
+    """Convert preset configuration to ProjectConfig.
+
+    Args:
+        preset: Preset configuration dictionary
+        state: State dictionary for overrides
+
+    Returns:
+        ProjectConfig object
+    """
+    project = state.get("project", {})
+
+    # Map preset category to ProjectType
+    category_map = {
+        "Game Development": ProjectType.GAME,
+        "Web Application": ProjectType.WEB,
+        "Technical": ProjectType.OTHER
+    }
+    project_type = category_map.get(preset.get("category", "other"), ProjectType.OTHER)
+
+    # Extract agents from preset
+    agents_dict = preset.get("agents", {})
+    agents = []
+
+    for agent_name, agent_data in agents_dict.items():
+        if not agent_data.get("enabled", False):
+            continue
+
+        icons = {
+            "pm": "📋",
+            "developer": "💻",
+            "techartist": "🎨",
+            "qa": "🔍",
+            "gamedesigner": "🎮"
+        }
+        icon = agent_data.get("icon", icons.get(agent_data.get("role", ""), "•"))
+
+        # Handle preset customizations
+        skills = list(agent_data.get("skills", []))
+        sub_agents = list(agent_data.get("subAgents", []))
+
+        customizations = state.get("presetCustomizations", {})
+        if customizations:
+            skills.extend(customizations.get("additionalSkills", []))
+            for skill in customizations.get("removedSkills", []):
+                if skill in skills:
+                    skills.remove(skill)
+
+            sub_agents.extend(customizations.get("additionalSubAgents", []))
+            for sub_agent in customizations.get("removedSubAgents", []):
+                if sub_agent in sub_agents:
+                    sub_agents.remove(sub_agent)
+
+        agents.append(AgentConfig(
+            name=agent_name,
+            display_name=agent_data.get("display_name", agent_name.title()),
+            role=agent_data.get("role", agent_name),
+            icon=icon,
+            primary_responsibility=agent_data.get("primary_responsibility", ""),
+            cannot_do=agent_data.get("cannot_do", []),
+            works_with=agent_data.get("works_with", []),
+            may_write=agent_data.get("may_write", []),
+            may_not_write=agent_data.get("may_notWrite", []),
+            mcp_servers=agent_data.get("mcpServers", ["filesystem"]),
+            skills=skills,
+            sub_agents=sub_agents
+        ))
+
+    # Orchestration from preset or override
+    orchestration_data = state.get("orchestration", {})
+    preset_orchestration = preset.get("orchestration", {})
+
+    orchestration_mode_map = {
+        "event-driven": OrchestrationMode.EVENT_DRIVEN,
+        "sequential": OrchestrationMode.SEQUENTIAL,
+        "polling": OrchestrationMode.EVENT_DRIVEN,
+        "hitl": OrchestrationMode.HITL
+    }
+
+    mode = orchestration_data.get("mode") or preset_orchestration.get("recommendedMode", "sequential")
+    orchestration = orchestration_mode_map.get(mode, OrchestrationMode.SEQUENTIAL)
+
+    # Features from state (user input)
+    features = state.get("features", [])
+
+    return ProjectConfig(
+        name=project.get("name", preset.get("displayName", "My Project")),
+        description=project.get("description", preset.get("description", "")),
+        project_type=project_type,
+        agents=agents,
+        workflow_pattern=WorkflowPattern.COLLABORATIVE,
+        orchestration_mode=orchestration,
+        technology_stack={"frontend": {"enabled": True, "value": project.get("techStack", "")}},
+        quality_standards=preset.get("qualityStandards", {}),
+        features=features
+    )
+
+
+def _state_v2_to_project_config(state: dict) -> ProjectConfig:
+    """Convert v2.x state format to ProjectConfig (legacy support).
 
     Args:
         state: State dictionary from prd-starter-state.json
@@ -1335,10 +1923,27 @@ def main() -> int:
             return 1
 
         # Convert state to ProjectConfig
-        project_config = state_to_project_config(state)
+        project_config = state_to_project_config(state, Path(args.project_root))
+
+        # Extract tech stack from state (for v3.0+ format)
+        tech_stack = None
+        if state.get("version", "1.0.0").startswith("3."):
+            # Try to get tech stack from projectInitialization section
+            project_init = state.get("projectInitialization", {})
+            if project_init.get("techStack"):
+                tech_stack = project_init["techStack"]
+            # Or from project initialization direct config
+            elif "projectInitialization" in state:
+                tech_stack = state["projectInitialization"].get("techStack", {})
+
+        # For presets, extract tech stack from preset config
+        if state.get("selectedPreset"):
+            preset = load_preset(state["selectedPreset"], Path(args.project_root))
+            if preset and preset.get("techStack"):
+                tech_stack = preset["techStack"]
 
         # Generate all files
-        result = generator.generate_all(project_config)
+        result = generator.generate_all(project_config, tech_stack)
 
         # Report results
         if args.verbose or result.errors or result.warnings:

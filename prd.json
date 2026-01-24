@@ -1,9 +1,9 @@
 {
-  "project": "threejs-examples-tps",
-  "version": "2.0.0",
+  "project": "threejs-examples",
+  "version": "1.0.0",
   "lastUpdated": "2026-01-19",
   "quality": "production",
-  "description": "Third-person shooter with Splatoon mechanics and Arc Raiders controls",
+  "description": "Three.js game inspired by Bruno Simon's folio-2025, built with React Three Fiber and TypeScript",
   "feedbackLoops": {
     "typescript": {
       "command": "npm run type-check",
@@ -24,11 +24,21 @@
       "command": "npm run build",
       "required": true,
       "description": "Production build must succeed"
-    },
-    "server": {
-      "command": "npm run server",
-      "required": true,
-      "description": "Colyseus server must start successfully"
+    }
+  },
+  "session": {
+    "sessionId": "",
+    "startedAt": "",
+    "maxIterations": 200,
+    "iteration": 0,
+    "completionPromise": "RALPH_COMPLETE",
+    "status": "running",
+    "currentTask": null,
+    "stats": {
+      "totalTasks": 0,
+      "completed": 0,
+      "failed": 0,
+      "commits": 0
     }
   },
   "qualityStandards": {
@@ -38,999 +48,251 @@
     "commitStyle": "Conventional commits with Ralph prefix",
     "codeReview": "All code must pass feedback loops before QA"
   },
+  "agents": {
+    "pm": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "developer": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "techartist": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "qa": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "gamedesigner": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    }
+  },
   "items": [
     {
-      "id": "iter1-001",
+      "id": "feat-001",
       "category": "architectural",
       "priority": "high",
-      "title": "Install and Configure Colyseus.js Server",
-      "description": "Set up Node.js server with Colyseus.js framework for multiplayer game",
+      "title": "Vehicle Physics Integration",
+      "description": "Implement player vehicle using @react-three/rapier with realistic physics controls",
       "acceptanceCriteria": [
-        "Colyseus.js server runs on specified port (2567)",
-        "WebSocket connection established",
-        "Basic room creation works",
-        "Server logs connections and disconnections",
-        "Server can be started with 'npm run server'"
+        "Vehicle spawns at origin on game start",
+        "WASD keys control vehicle movement",
+        "Physics simulation runs smoothly at 60fps",
+        "Vehicle stays within floor boundaries",
+        "No console errors during gameplay"
       ],
       "verificationSteps": [
-        "Run: npm install colyseus",
-        "Create server/index.ts with basic Colyseus setup",
-        "Create server/rooms/GameRoom.ts extending Room",
-        "Add server script to package.json",
-        "Run: npm run server",
-        "Verify server starts and listens on port 2567"
+        "Start dev server: npm run dev",
+        "Verify vehicle appears on screen at origin",
+        "Press W to move forward, S for reverse",
+        "Test all direction keys (WASD)",
+        "Check browser console for errors"
       ],
       "files": [
-        "server/index.ts",
-        "server/rooms/GameRoom.ts",
-        "server/package.json",
-        "package.json"
+        "src/components/game/player/Vehicle.tsx",
+        "src/hooks/useKeyboard.ts"
       ],
       "agent": "developer",
       "dependencies": [],
-      "notes": "Foundation for all multiplayer features"
+      "status": "pending",
+      "passes": false,
+      "notes": "Core gameplay mechanic - highest priority"
     },
     {
-      "id": "iter1-002",
+      "id": "feat-002",
       "category": "architectural",
       "priority": "high",
-      "title": "Implement ECS Architecture with tick-knock",
-      "description": "Set up Entity Component System using tick-knock library on server",
+      "title": "Camera Follow System",
+      "description": "Implement smooth camera that follows player vehicle with appropriate offset and damping",
       "acceptanceCriteria": [
-        "tick-knock integrated into server",
-        "Entity creation and destruction works",
-        "Component registration system functional",
-        "System update loop runs at 60Hz",
-        "Entities can have multiple components",
-        "Systems query entities by component types"
+        "Camera follows vehicle position",
+        "Smooth damping on movement (no jittering)",
+        "Camera maintains playable angle",
+        "Camera respects scene bounds"
       ],
       "verificationSteps": [
-        "Run: npm install @jodel-latam/tick-knock",
-        "Create server/ecs/Entity.ts",
-        "Create server/ecs/Component.ts",
-        "Create server/ecs/System.ts",
-        "Create server/ecs/World.ts",
-        "Write unit tests for ECS core",
-        "Run: npm run test"
+        "Move vehicle around the scene",
+        "Verify camera tracks smoothly",
+        "Check for visual artifacts or stuttering"
       ],
-      "files": ["server/ecs/", "server/systems/"],
+      "files": [
+        "src/components/game/camera/PlayerCamera.tsx"
+      ],
       "agent": "developer",
-      "dependencies": ["iter1-001"],
-      "notes": "ECS is critical for 32-player performance"
+      "dependencies": ["feat-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Depends on Vehicle existing"
     },
     {
-      "id": "iter1-003",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Define Game State Schema",
-      "description": "Create Colyseus state schema for Splatoon game rules",
-      "acceptanceCriteria": [
-        "PlayerState defined (position, rotation, team, paint score)",
-        "MapState defined (voxel data, paint coverage per team)",
-        "MatchState defined (time remaining, scores, game phase)",
-        "State serializes correctly for network sync",
-        "Schema uses Colyseus Schema types for efficiency"
-      ],
-      "verificationSteps": [
-        "Create server/schema/PlayerState.ts",
-        "Create server/schema/MapState.ts",
-        "Create server/schema/MatchState.ts",
-        "Test serialization with Colyseus",
-        "Verify network bandwidth usage"
-      ],
-      "files": ["server/schema/"],
-      "agent": "developer",
-      "dependencies": ["iter1-002"]
-    },
-    {
-      "id": "iter1-004",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Implement Message Types",
-      "description": "Define all WebSocket message types for client-server communication",
-      "acceptanceCriteria": [
-        "PlayerInputMessage (move, shoot, jump, aim)",
-        "GameStateChangedMessage (match start, end, score update)",
-        "PaintMessage (paint projectile, paint splat)",
-        "PlayerStateMessage (spawn, death, team assignment)",
-        "Messages are type-safe"
-      ],
-      "verificationSteps": [
-        "Create server/messages/PlayerInputMessage.ts",
-        "Create server/messages/PaintMessage.ts",
-        "Define message handlers in GameRoom",
-        "Test message serialization"
-      ],
-      "files": ["server/messages/"],
-      "agent": "developer",
-      "dependencies": ["iter1-003"]
-    },
-    {
-      "id": "iter1-005",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Create Game Room Logic",
-      "description": "Implement main game room with match management",
-      "acceptanceCriteria": [
-        "Room accepts up to 32 players",
-        "3-minute match timer implemented",
-        "Score tracking per team (orange vs blue)",
-        "Match end detection and winner determination",
-        "Room reset between matches",
-        "Player disconnection handled gracefully"
-      ],
-      "verificationSteps": [
-        "Implement onCreate, onJoin, onLeave in GameRoom",
-        "Add match timer logic",
-        "Implement score calculation",
-        "Test with multiple clients",
-        "Verify match end conditions"
-      ],
-      "files": ["server/rooms/GameRoom.ts"],
-      "agent": "developer",
-      "dependencies": ["iter1-003", "iter1-004"],
-      "notes": "Core game logic - must be thoroughly tested"
-    },
-    {
-      "id": "iter2-001",
+      "id": "feat-003",
       "category": "functional",
-      "priority": "high",
-      "title": "Create Resource Manager",
-      "description": "Implement efficient asset loading system with web optimization",
-      "acceptanceCriteria": [
-        "Loads character models from Animated Characters Bundle",
-        "Loads UI assets from UI Pack folders",
-        "Progress tracking for loading",
-        "Asset caching for reuse",
-        "Error handling for failed loads",
-        "Supports GLB and FBX formats"
-      ],
-      "verificationSteps": [
-        "Create src/utils/ResourceManager.ts",
-        "Implement loadModel, loadTexture, loadAudio methods",
-        "Add progress callback support",
-        "Test loading characterMedium.fbx",
-        "Test loading UI assets"
-      ],
-      "files": ["src/utils/ResourceManager.ts", "src/test-setup.ts"],
-      "agent": "developer",
-      "dependencies": []
-    },
-    {
-      "id": "iter2-002",
-      "category": "functional",
-      "priority": "high",
-      "title": "Character Selection Screen UI",
-      "description": "Create carousel-style character selection screen",
-      "acceptanceCriteria": [
-        "3D character model preview at center",
-        "Carousel navigation (left/right arrows)",
-        "Character name input field",
-        "Select button to confirm",
-        "Uses Fantasy UI Borders for styling",
-        "Uses fonts from fonts folder",
-        "Responsive layout"
-      ],
-      "verificationSteps": [
-        "Create src/components/ui/CharacterSelection.tsx",
-        "Implement carousel state management",
-        "Add character name input",
-        "Style with Fantasy UI Borders assets",
-        "Test navigation and selection"
-      ],
-      "files": ["src/components/ui/CharacterSelection.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter2-001"]
-    },
-    {
-      "id": "iter2-003",
-      "category": "functional",
-      "priority": "high",
-      "title": "Character Preview 3D",
-      "description": "Display characterMedium.fbx with all available skins in 3D",
-      "acceptanceCriteria": [
-        "Loads characterMedium.fbx with all skins",
-        "Smooth rotation in preview",
-        "Skins change via carousel",
-        "Lighting shows model clearly",
-        "Auto-rotation when idle"
-      ],
-      "verificationSteps": [
-        "Create src/components/ui/CharacterPreview.tsx",
-        "Load characterMedium.fbx",
-        "Implement rotation logic",
-        "Add skin variants",
-        "Test skin switching"
-      ],
-      "files": ["src/components/ui/CharacterPreview.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter2-001"]
-    },
-    {
-      "id": "iter2-004",
-      "category": "integration",
       "priority": "medium",
-      "title": "Character Selection State Management",
-      "description": "Integrate selection with game state using Zustand",
+      "title": "Loading Screen with Progress",
+      "description": "Create loading screen that shows asset loading progress",
       "acceptanceCriteria": [
-        "Selected character stored in Zustand",
-        "Player name stored",
-        "Transition to game on select",
-        "State persists until connection"
+        "Loading screen appears on app start",
+        "Progress bar updates as assets load",
+        "Screen fades out when loading complete",
+        "Handles loading errors gracefully"
       ],
       "verificationSteps": [
-        "Update src/store/gameStore.ts",
-        "Add character selection state",
-        "Implement transition logic",
-        "Test state persistence"
+        "Start app with cleared cache",
+        "Observe loading screen",
+        "Verify progress updates",
+        "Confirm smooth transition to game"
       ],
-      "files": ["src/store/gameStore.ts"],
+      "files": [
+        "src/components/LoadingScreen.tsx",
+        "src/hooks/useAssetLoader.ts"
+      ],
       "agent": "developer",
-      "dependencies": ["iter2-002", "iter2-003"]
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
     },
     {
-      "id": "iter3-001",
+      "id": "feat-004",
       "category": "architectural",
       "priority": "high",
-      "title": "Install Colyseus.js Client SDK",
-      "description": "Add colyseus.js client package for WebSocket connection",
+      "title": "Phase-Based Game Loop",
+      "description": "Implement game loop with phase counter (0-999) inspired by Bruno Simon's pattern",
       "acceptanceCriteria": [
-        "colyseus.js package installed",
-        "Type definitions available",
-        "Compatible with React Three Fiber"
+        "Phase counter increments at 60Hz",
+        "Game state updates on specific phases",
+        "Systems can subscribe to phase updates",
+        "Phase transitions logged for debugging"
       ],
       "verificationSteps": [
-        "Run: npm install colyseus.js",
-        "Verify types are available",
-        "Check compatibility with R3F"
+        "Check Leva debug panel for phase value",
+        "Verify phase increments smoothly",
+        "Test phase-based callbacks fire correctly"
       ],
-      "files": ["package.json"],
+      "files": [
+        "src/components/game/GameLoop.tsx",
+        "src/store/gameStore.ts"
+      ],
       "agent": "developer",
-      "dependencies": ["iter1-005"]
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
     },
     {
-      "id": "iter3-002",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Client Connection Manager",
-      "description": "Create service for connecting to Colyseus server",
+      "id": "feat-005",
+      "category": "functional",
+      "priority": "medium",
+      "title": "Debug Panel with Leva",
+      "description": "Integrate Leva debug panel for runtime parameter tuning",
       "acceptanceCriteria": [
-        "Connects to WebSocket server (ws://localhost:2567)",
-        "joinOrCreate room logic",
-        "Connection state tracking",
-        "Reconnection handling",
-        "Error handling and display"
+        "Leva panel visible in development",
+        "Key game parameters exposed",
+        "Changes reflect in real-time",
+        "Panel hidden in production"
       ],
       "verificationSteps": [
-        "Create src/services/NetworkManager.ts",
-        "Implement connection logic",
-        "Add state management",
-        "Test connection to server",
-        "Test reconnection on disconnect"
+        "Start dev server",
+        "Verify Leva panel appears",
+        "Adjust a parameter and verify effect"
       ],
-      "files": ["src/services/NetworkManager.ts"],
+      "files": [
+        "src/components/DebugPanel.tsx"
+      ],
       "agent": "developer",
-      "dependencies": ["iter3-001"]
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
     },
     {
-      "id": "iter3-003",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Client-Side ECS Integration",
-      "description": "Port ECS structure to client for prediction",
-      "acceptanceCriteria": [
-        "Client ECS mirrors server structure",
-        "Entity component definitions match",
-        "System update loop synchronized",
-        "Client-side prediction enabled"
-      ],
-      "verificationSteps": [
-        "Create src/ecs/ directory",
-        "Port Entity, Component, System classes",
-        "Integrate with useFrame hook",
-        "Test prediction accuracy"
-      ],
-      "files": ["src/ecs/"],
-      "agent": "developer",
-      "dependencies": ["iter3-002", "iter1-002"]
-    },
-    {
-      "id": "iter3-004",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Player Entity Sync",
-      "description": "Synchronize player entity between client and server",
-      "acceptanceCriteria": [
-        "Local player state sent to server",
-        "Remote players received from server",
-        "Interpolation for smooth movement",
-        "Team assignment handled",
-        "Spawn position set correctly"
-      ],
-      "verificationSteps": [
-        "Create src/ecs/entities/PlayerEntity.ts",
-        "Implement state sync",
-        "Add interpolation",
-        "Test with multiple players"
-      ],
-      "files": ["src/ecs/entities/PlayerEntity.ts"],
-      "agent": "developer",
-      "dependencies": ["iter3-003"]
-    },
-    {
-      "id": "iter3-005",
+      "id": "test-001",
       "category": "integration",
       "priority": "high",
-      "title": "End-to-End Connection Test",
-      "description": "QA validates full connection flow",
+      "title": "E2E Test Suite Setup",
+      "description": "Set up Playwright E2E tests for core game functionality",
       "acceptanceCriteria": [
-        "Client connects to server",
-        "Character selection data sent",
-        "Player spawned in game world",
-        "No console errors",
-        "Connection stable for 5 minutes"
+        "Playwright configured for Three.js canvas",
+        "Test for canvas rendering passes",
+        "Test for no console errors passes",
+        "Tests can run in CI/CD pipeline"
       ],
       "verificationSteps": [
-        "Start server: npm run server",
-        "Start client: npm run dev",
-        "Complete character selection",
-        "Verify connection in browser console",
-        "Monitor connection stability"
+        "Run: npm run test:e2e",
+        "Verify all tests pass",
+        "Check coverage report"
       ],
-      "files": ["tests/e2e/connection.spec.ts"],
+      "files": [
+        "tests/e2e/canvas.spec.ts",
+        "tests/e2e/console.spec.ts",
+        "playwright.config.ts"
+      ],
       "agent": "qa",
-      "dependencies": ["iter3-004", "iter2-004"]
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "Foundation for validation feedback loop"
     },
     {
-      "id": "iter4-001",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Arc Raiders Style TPS Camera",
-      "description": "Implement third-person camera matching Arc Raiders feel",
-      "acceptanceCriteria": [
-        "Over-the-shoulder view (right shoulder)",
-        "Smooth camera rotation with mouse",
-        "Camera follow with damping",
-        "Right mouse button for aim mode (zoom in)",
-        "Camera collision detection",
-        "Recoil handling when shooting"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/camera/TPSCamera.tsx",
-        "Implement mouse look",
-        "Add follow logic with damping",
-        "Add aim mode toggle",
-        "Test collision detection"
-      ],
-      "files": ["src/components/game/camera/TPSCamera.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter3-005"],
-      "notes": "Critical for game feel - reference Arc Raiders extensively"
-    },
-    {
-      "id": "iter4-002",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Arc Raiders Style Movement",
-      "description": "Implement character movement matching Arc Raiders",
-      "acceptanceCriteria": [
-        "WASD for movement",
-        "Space for jump (with double jump)",
-        "Shift for sprint",
-        "C key for crouch/slide",
-        "Vaulting over obstacles",
-        "Mantling onto ledges",
-        "Smooth animation transitions",
-        "Physics-based collision with Rapier"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/player/PlayerController.tsx",
-        "Implement WASD movement",
-        "Add jump and double jump",
-        "Add sprint and crouch",
-        "Implement vaulting",
-        "Test with Rapier physics"
-      ],
-      "files": ["src/components/game/player/PlayerController.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter4-001"],
-      "notes": "Core gameplay - must feel like Arc Raiders"
-    },
-    {
-      "id": "iter4-003",
+      "id": "test-002",
       "category": "functional",
-      "priority": "high",
-      "title": "Mobile Touch Controls",
-      "description": "Implement virtual joystick and touch controls",
+      "priority": "medium",
+      "title": "Unit Tests for Game Store",
+      "description": "Add Vitest unit tests for Zustand game store",
       "acceptanceCriteria": [
-        "Left virtual joystick for movement",
-        "Right virtual joystick for camera",
-        "Tap buttons for jump, shoot, crouch",
-        "Touch sensitivity settings",
-        "Uses Mobile Controls assets",
-        "Works on iOS and Android"
+        "State actions tested",
+        "State persistence tested",
+        "Reset functionality tested",
+        "Coverage > 80%"
       ],
       "verificationSteps": [
-        "Create src/components/ui/TouchControls.tsx",
-        "Implement virtual joysticks",
-        "Add action buttons",
-        "Load Mobile Controls assets",
-        "Test on mobile viewport"
+        "Run: npm run test",
+        "Check coverage for store files",
+        "Verify all edge cases covered"
       ],
-      "files": ["src/components/ui/TouchControls.tsx"],
+      "files": [
+        "src/store/gameStore.test.ts"
+      ],
       "agent": "developer",
-      "dependencies": ["iter4-002"]
-    },
-    {
-      "id": "iter4-004",
-      "category": "functional",
-      "priority": "high",
-      "title": "Paint Shooting Mechanics",
-      "description": "Implement Splatoon-style paint shooting",
-      "acceptanceCriteria": [
-        "Left click to shoot paint",
-        "Paint projectiles with gravity",
-        "Paint decals on surfaces",
-        "Team-colored paint (orange vs blue)",
-        "Ink tank ammunition system",
-        "Reload mechanic when empty"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/weapons/PaintGun.tsx",
-        "Implement shooting logic",
-        "Add projectile physics",
-        "Create paint decals",
-        "Implement ammo system"
-      ],
-      "files": ["src/components/game/weapons/PaintGun.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter4-002"]
-    },
-    {
-      "id": "iter4-005",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Paint Shader with TSL",
-      "description": "Create Splatoon-like paint shader using Three Shading Language",
-      "acceptanceCriteria": [
-        "Gooey, liquid appearance",
-        "Team color interpolation",
-        "Fresh paint wet effect",
-        "Drying over time",
-        "Splat pattern variation",
-        "Performance optimized (WebGPU)"
-      ],
-      "verificationSteps": [
-        "Create src/components/shaders/PaintMaterial.ts",
-        "Implement TSL shader",
-        "Add wet effect",
-        "Add drying animation",
-        "Test performance with WebGPU"
-      ],
-      "files": ["src/components/shaders/PaintMaterial.ts"],
-      "agent": "developer",
-      "dependencies": ["iter4-004"],
-      "notes": "Complex shader - research TSL documentation"
-    },
-    {
-      "id": "iter4-006",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Paint Decal System",
-      "description": "Implement persistent paint decals on map surfaces",
-      "acceptanceCriteria": [
-        "Decals spawned on paint impact",
-        "Decals persist through match",
-        "Decal pooling for performance",
-        "UV-based placement on surfaces",
-        "Team color tracking per pixel",
-        "Coverage calculation for scoring"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/effects/PaintDecalManager.tsx",
-        "Implement decal spawning",
-        "Add decal pooling",
-        "Implement coverage calculation",
-        "Test performance with many decals"
-      ],
-      "files": ["src/components/game/effects/PaintDecalManager.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter4-005"],
+      "dependencies": [],
       "status": "pending",
       "passes": false
     },
     {
-      "id": "iter4-007",
+      "id": "feat-006",
       "category": "functional",
-      "priority": "high",
-      "title": "Character Animation System",
-      "description": "Implement skeletal animation with blending",
-      "acceptanceCriteria": [
-        "Load characterMedium.fbx animations",
-        "Idle, walk, run, jump, crouch states",
-        "Smooth state transitions",
-        "Aiming animation layers",
-        "Shooting animation trigger",
-        "Skeletal animation implementation"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/player/CharacterAnimator.tsx",
-        "Load FBX animations",
-        "Implement state machine",
-        "Add blending",
-        "Test all states"
-      ],
-      "files": ["src/components/game/player/CharacterAnimator.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter4-002"],
-      "status": "pending",
-      "passes": false
-    },
-    {
-      "id": "iter4-008",
-      "category": "functional",
-      "priority": "medium",
-      "title": "Weapon Models Integration",
-      "description": "Attach weapon models from Weapon Pack/Blaster Kit",
-      "acceptanceCriteria": [
-        "Weapon attached to character hand",
-        "Follows hand animation",
-        "First-person view attachment for aim mode",
-        "Multiple weapon types supported"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/weapons/WeaponModel.tsx",
-        "Load weapon models",
-        "Attach to hand bone",
-        "Test with different weapons"
-      ],
-      "files": ["src/components/game/weapons/WeaponModel.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter4-007"]
-    },
-    {
-      "id": "iter4-009",
-      "category": "integration",
-      "priority": "high",
-      "title": "Character Logic E2E Test",
-      "description": "QA validates full character gameplay",
-      "acceptanceCriteria": [
-        "Movement smooth and responsive",
-        "Camera feels like Arc Raiders",
-        "Shooting creates paint decals",
-        "Animations transition smoothly",
-        "Mobile controls work",
-        "60 FPS maintained"
-      ],
-      "verificationSteps": [
-        "Run full character test",
-        "Test movement responsiveness",
-        "Test camera feel",
-        "Test shooting",
-        "Test mobile controls",
-        "Monitor performance"
-      ],
-      "files": ["tests/e2e/character.spec.ts"],
-      "agent": "qa",
-      "dependencies": ["iter4-001", "iter4-002", "iter4-003", "iter4-006", "iter4-007"]
-    },
-    {
-      "id": "iter5-001",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Server-Side Map Generator",
-      "description": "Create random map generation on server",
-      "acceptanceCriteria": [
-        "Random seed-based generation",
-        "16x16x16 voxel map structure",
-        "6 chunks of 64x128 units",
-        "Height variation for terrain",
-        "Two spawn points (opposite sides)",
-        "Mountain boundary walls",
-        "POI placement (houses, castles)"
-      ],
-      "verificationSteps": [
-        "Create server/map/MapGenerator.ts",
-        "Implement voxel generation",
-        "Add height variation",
-        "Add spawn points",
-        "Add POI placement",
-        "Test different seeds"
-      ],
-      "files": ["server/map/MapGenerator.ts"],
-      "agent": "developer",
-      "dependencies": ["iter1-005"]
-    },
-    {
-      "id": "iter5-002",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Map Data Serialization",
-      "description": "Efficiently transmit map data to clients",
-      "acceptanceCriteria": [
-        "Voxel data compressed",
-        "POI data serialized",
-        "Team spawn positions included",
-        "Network bandwidth optimized",
-        "Delta updates for changes"
-      ],
-      "verificationSteps": [
-        "Create server/map/MapSerializer.ts",
-        "Implement compression",
-        "Test bandwidth usage",
-        "Verify data integrity"
-      ],
-      "files": ["server/map/MapSerializer.ts"],
-      "agent": "developer",
-      "dependencies": ["iter5-001"]
-    },
-    {
-      "id": "iter5-003",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Client-Side Raymarching Terrain",
-      "description": "Render voxel terrain using raymarching shader",
-      "acceptanceCriteria": [
-        "TSL shader for raymarching",
-        "Smooth voxel surfaces (not blocky)",
-        "LOD system for distance",
-        "Paint texture overlay",
-        "WebGPU optimized",
-        "60 FPS with full visibility"
-      ],
-      "verificationSteps": [
-        "Create src/components/shaders/TerrainShader.ts",
-        "Implement raymarching",
-        "Add smooth voxels",
-        "Add LOD",
-        "Test performance"
-      ],
-      "files": ["src/components/shaders/TerrainShader.ts"],
-      "agent": "developer",
-      "dependencies": ["iter5-002"],
-      "notes": "Complex shader - prioritize performance"
-    },
-    {
-      "id": "iter5-004",
-      "category": "functional",
-      "priority": "high",
-      "title": "Environment Prefabs",
-      "description": "Create POI prefabs from asset kits",
-      "acceptanceCriteria": [
-        "House prefab from Building Kit",
-        "Castle prefab from Castle Kit",
-        "Graveyard props from Graveyard Kit",
-        "Foliage from Foliage Pack",
-        "Colliders set correctly",
-        "Optimized instancing"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/environment/Prefabs.tsx",
-        "Load asset kits",
-        "Create prefabs",
-        "Add colliders",
-        "Test instancing"
-      ],
-      "files": ["src/components/game/environment/Prefabs.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter2-001"]
-    },
-    {
-      "id": "iter5-005",
-      "category": "functional",
-      "priority": "medium",
-      "title": "Spawn Point Visuals",
-      "description": "Create team spawn area indicators",
-      "acceptanceCriteria": [
-        "Team-colored spawn zones",
-        "Respawn timer display",
-        "Spawn protection (3 seconds)",
-        "Visual barrier at map edges"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/environment/SpawnArea.tsx",
-        "Add team colors",
-        "Add timer UI",
-        "Add protection logic",
-        "Test spawning"
-      ],
-      "files": ["src/components/game/environment/SpawnArea.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter5-003"]
-    },
-    {
-      "id": "iter5-006",
-      "category": "integration",
-      "priority": "high",
-      "title": "Map Generation E2E Test",
-      "description": "QA validates map generation and rendering",
-      "acceptanceCriteria": [
-        "Each map seed creates unique map",
-        "Terrain renders smoothly",
-        "No holes in terrain",
-        "Spawn points accessible",
-        "Boundaries block player",
-        "POIs placed correctly",
-        "Paint applies to terrain"
-      ],
-      "verificationSteps": [
-        "Test multiple map seeds",
-        "Verify terrain rendering",
-        "Test spawn accessibility",
-        "Test boundaries",
-        "Test paint application"
-      ],
-      "files": ["tests/e2e/map.spec.ts"],
-      "agent": "qa",
-      "dependencies": ["iter5-003", "iter5-004", "iter5-005"]
-    },
-    {
-      "id": "iter6-001",
-      "category": "architectural",
-      "priority": "high",
-      "title": "Bot Architecture",
-      "description": "Server-side AI bot system",
-      "acceptanceCriteria": [
-        "Bot entities in ECS",
-        "Bot input simulation",
-        "Bot network messages",
-        "Bot state management",
-        "Configurable difficulty"
-      ],
-      "verificationSteps": [
-        "Create server/bots/BotSystem.ts",
-        "Add bot entities",
-        "Implement input simulation",
-        "Test difficulty levels"
-      ],
-      "files": ["server/bots/BotSystem.ts"],
-      "agent": "developer",
-      "dependencies": ["iter1-005", "iter1-002"],
-      "status": "pending",
-      "passes": false
-    },
-    {
-      "id": "iter6-002",
-      "category": "functional",
-      "priority": "high",
-      "title": "Bot Decision Making",
-      "description": "Implement AI for Splatoon strategy",
-      "acceptanceCriteria": [
-        "Navigate to unpainted areas",
-        "Prioritize strategic locations",
-        "Avoid enemy fire",
-        "Team up with nearby allies",
-        "Return to spawn when low on ink",
-        "Cover spawn point first"
-      ],
-      "verificationSteps": [
-        "Create server/bots/BotAI.ts",
-        "Implement decision tree",
-        "Add strategic priorities",
-        "Test bot behavior"
-      ],
-      "files": ["server/bots/BotAI.ts"],
-      "agent": "developer",
-      "dependencies": ["iter6-001", "iter5-001"]
-    },
-    {
-      "id": "iter6-003",
-      "category": "functional",
-      "priority": "high",
-      "title": "Bot Aiming and Shooting",
-      "description": "Human-like bot combat behavior",
-      "acceptanceCriteria": [
-        "Lead targets when shooting",
-        "Inaccuracy based on difficulty",
-        "Reaction time variation",
-        "Prioritize shooting over painting when enemy near",
-        "Aim at feet for splat damage"
-      ],
-      "verificationSteps": [
-        "Create server/bots/BotCombat.ts",
-        "Implement aiming logic",
-        "Add inaccuracy simulation",
-        "Test combat scenarios"
-      ],
-      "files": ["server/bots/BotCombat.ts"],
-      "agent": "developer",
-      "dependencies": ["iter6-002"],
-      "status": "pending",
-      "passes": false
-    },
-    {
-      "id": "iter6-004",
-      "category": "functional",
-      "priority": "high",
-      "title": "Bot Pathfinding",
-      "description": "Navigation for voxel terrain",
-      "acceptanceCriteria": [
-        "A* or navigation mesh",
-        "Handles terrain height",
-        "Avoids enemy painted areas",
-        "Jumps over gaps",
-        "Climbs ledges"
-      ],
-      "verificationSteps": [
-        "Create server/bots/Pathfinding.ts",
-        "Implement A* or navmesh",
-        "Add terrain awareness",
-        "Test pathfinding"
-      ],
-      "files": ["server/bots/Pathfinding.ts"],
-      "agent": "developer",
-      "dependencies": ["iter6-002", "iter5-001"],
-      "status": "pending",
-      "passes": false
-    },
-    {
-      "id": "iter6-005",
-      "category": "integration",
-      "priority": "high",
-      "title": "Lobby Fill Logic",
-      "description": "Auto-fill with bots after 15 seconds",
-      "acceptanceCriteria": [
-        "15-second timer on lobby start",
-        "Fills to 32 players with bots",
-        "Balances teams (16 vs 16)",
-        "Bots replaced when real players join",
-        "Bots have realistic names"
-      ],
-      "verificationSteps": [
-        "Update server/rooms/GameRoom.ts",
-        "Add fill timer",
-        "Implement bot creation",
-        "Test team balancing",
-        "Test player replacement"
-      ],
-      "files": ["server/rooms/GameRoom.ts"],
-      "agent": "developer",
-      "dependencies": ["iter6-002", "iter6-003", "iter6-004"]
-    },
-    {
-      "id": "iter6-006",
-      "category": "integration",
-      "priority": "high",
-      "title": "Bot E2E Test",
-      "description": "QA validates bot gameplay",
-      "acceptanceCriteria": [
-        "Bots fill lobby correctly",
-        "Bots play like humans",
-        "Bots contribute to team score",
-        "Bots respond to player actions",
-        "Bots don't lag server"
-      ],
-      "verificationSteps": [
-        "Test lobby fill",
-        "Play match with bots",
-        "Monitor bot behavior",
-        "Check server performance"
-      ],
-      "files": ["tests/e2e/bots.spec.ts"],
-      "agent": "qa",
-      "dependencies": ["iter6-005"]
-    },
-    {
-      "id": "polish-001",
-      "category": "polish",
-      "priority": "medium",
-      "title": "Audio Integration",
-      "description": "Add sound effects and music",
-      "acceptanceCriteria": [
-        "Shooting sounds from Sci-Fi Sounds",
-        "Impact sounds from Impact Sounds",
-        "Voice lines from Voiceover Pack Fighter",
-        "Background music from Music Loops",
-        "UI sounds from Interface Sounds",
-        "3D spatial audio"
-      ],
-      "verificationSteps": [
-        "Create src/audio/",
-        "Load audio assets",
-        "Implement spatial audio",
-        "Test all sounds"
-      ],
-      "files": ["src/audio/"],
-      "agent": "developer",
-      "dependencies": ["iter4-009"]
-    },
-    {
-      "id": "polish-002",
-      "category": "polish",
-      "priority": "medium",
-      "title": "Particle Effects",
-      "description": "Add juice to gameplay",
-      "acceptanceCriteria": [
-        "Paint impact particles",
-        "Enemy death particles",
-        "Environmental effects (smoke, dust)",
-        "Uses Particle Pack assets",
-        "GPU particles when possible"
-      ],
-      "verificationSteps": [
-        "Create src/components/game/effects/Particles.tsx",
-        "Implement particle systems",
-        "Load Particle Pack assets",
-        "Test performance"
-      ],
-      "files": ["src/components/game/effects/Particles.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter4-009"]
-    },
-    {
-      "id": "polish-003",
-      "category": "polish",
-      "priority": "medium",
-      "title": "HUD and Score Display",
-      "description": "Match information display",
-      "acceptanceCriteria": [
-        "Team scores visible",
-        "Match timer countdown",
-        "Minimap with paint coverage",
-        "Kill feed",
-        "Ink tank indicator",
-        "Uses UI Pack assets"
-      ],
-      "verificationSteps": [
-        "Create src/components/ui/HUD.tsx",
-        "Implement score display",
-        "Add timer",
-        "Add minimap",
-        "Style with UI Pack"
-      ],
-      "files": ["src/components/ui/HUD.tsx"],
-      "agent": "developer",
-      "dependencies": ["iter2-002"]
-    },
-    {
-      "id": "polish-004",
-      "category": "polish",
       "priority": "low",
-      "title": "Post-Processing",
-      "description": "Visual polish effects",
+      "title": "Environment with Floor",
+      "description": "Create game environment with floor and basic lighting",
       "acceptanceCriteria": [
-        "Bloom for paint glow",
-        "Color grading per team",
-        "Vignette",
-        "Motion blur on sprint",
-        "Toggles via debug panel"
+        "Floor renders at correct position",
+        "Lighting provides good visibility",
+        "Materials use appropriate colors",
+        "Performance acceptable"
       ],
       "verificationSteps": [
-        "Update src/components/effects/PostProcessing.tsx",
-        "Add effects",
-        "Test performance",
-        "Add debug toggles"
+        "Start dev server",
+        "Verify floor renders",
+        "Check lighting quality"
       ],
-      "files": ["src/components/effects/PostProcessing.tsx"],
+      "files": [
+        "src/components/game/environment/Floor.tsx",
+        "src/components/game/environment/Lighting.tsx"
+      ],
       "agent": "developer",
-      "dependencies": ["iter5-006"]
-    },
-    {
-      "id": "final-001",
-      "category": "integration",
-      "priority": "high",
-      "title": "Full Game E2E Test",
-      "description": "Complete match validation",
-      "acceptanceCriteria": [
-        "Complete 3-minute match",
-        "32 players (mix of real and bots)",
-        "Score calculated correctly",
-        "Winner determined properly",
-        "Rematch works",
-        "No memory leaks",
-        "No console errors"
-      ],
-      "verificationSteps": [
-        "Start full match",
-        "Monitor game flow",
-        "Test scoring",
-        "Test rematch",
-        "Check for leaks",
-        "Verify no errors"
-      ],
-      "files": ["tests/e2e/fullmatch.spec.ts"],
-      "agent": "qa",
-      "dependencies": ["iter6-006", "polish-001", "polish-002", "polish-003", "polish-004"]
+      "dependencies": [],
+      "status": "pending",
+      "passes": false
     }
   ]
 }

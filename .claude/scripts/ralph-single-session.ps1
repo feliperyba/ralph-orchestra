@@ -28,7 +28,7 @@ Write-Host "Dashboard: $(if ($NoDashboard) { 'DISABLED' } else { 'ENABLED' })"
 Write-Host ""
 
 # Validate initial agent
-if ($InitialAgent -notin @("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter")) {
+if ($InitialAgent -notin @("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer")) {
     Write-Host "ERROR: InitialAgent must be a valid agent (pm, developer, qa, gamedesigner, techartist, prd-starter)" -ForegroundColor Red
     exit 1
 }
@@ -76,7 +76,7 @@ if (-not (Test-Path $handoffFile)) {
     $handoffLog = @{
         sessionId = "ralph-single-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         orchestrationMode = "single-agent"
-        handoffs = @()
+        handoffs = @('test-developer')
     }
     
     $handoffLog | ConvertTo-Json -Depth 10 | Out-File -FilePath $handoffFile -Encoding UTF8
@@ -88,13 +88,7 @@ Write-Host "Starting single-agent watchdog..." -ForegroundColor Yellow
 Write-Host ""
 
 # Build arguments
-$watchdogArgs = @(
-    "-File", "$PSScriptRoot\watchdog-single.ps1",
-    "-ProjectRoot", $ProjectRoot,
-    "-InitialAgent", $InitialAgent,
-    "-GracefulShutdownSeconds", $GracefulShutdownSeconds,
-    "-MaxRestarts", $MaxRestarts
-)
+$watchdogArgs = @("-File", "-GracefulShutdownSeconds", "-InitialAgent", "-MaxRestarts", "-ProjectRoot", "test-developer")
 
 if ($NoDashboard) {
     $watchdogArgs += "-NoDashboard"

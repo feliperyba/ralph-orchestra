@@ -2,6 +2,7 @@
 name: sub-agent-name
 description: Brief description of what this sub-agent does and when to use it.
 model: haiku | sonnet | opus | inherit
+skills: (optional - list of skills this sub-agent can use)
 tools: Read, Write, Edit, Bash, Task, Skill, AskUserQuestion, ExitPlanMode
 disallowedTools: (optional - list of tools this sub-agent cannot use)
 ---

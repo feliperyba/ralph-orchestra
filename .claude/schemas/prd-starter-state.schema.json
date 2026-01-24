@@ -1,14 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "prd-starter-state.schema.json",
-  "title": "PRD Starter State File Schema",
-  "description": "JSON schema for the prd-starter state file that tracks progress through setup phases",
+  "title": "PRD Starter State File Schema v3.1",
+  "description": "JSON schema for the prd-starter state file with Quick Start, Standard, and Expert modes",
   "type": "object",
-  "required": ["version", "startedAt", "currentPhase", "phases"],
+  "required": ["version", "startedAt", "currentPhase"],
   "properties": {
     "version": {
       "type": "string",
-      "description": "State file version"
+      "description": "State file version",
+      "pattern": "^3\\.0\\."
     },
     "startedAt": {
       "type": "string",
@@ -20,458 +21,500 @@
       "format": "date-time",
       "description": "When the session completed"
     },
+    "wizardMode": {
+      "type": "string",
+      "enum": ["quick-start", "standard", "expert"],
+      "description": "Wizard configuration mode"
+    },
+    "selectedPreset": {
+      "type": ["string", "null"],
+      "enum": [
+        "indie-game-dev",
+        "game-studio",
+        "mobile-game",
+        "multiplayer-arena",
+        "modern-web-app",
+        "full-stack-saas",
+        "dashboard-analytics",
+        "content-platform",
+        "ecommerce-store",
+        "saas-product",
+        "enterprise-suite",
+        "api-server",
+        "data-ml-pipeline",
+        "devops-infrastructure",
+        "custom",
+        null
+      ],
+      "description": "Selected preset name (Quick Start mode)"
+    },
+    "presetCustomizations": {
+      "type": "object",
+      "description": "Customizations applied to preset",
+      "properties": {
+        "additionalSkills": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "removedSkills": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "additionalSubAgents": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "removedSubAgents": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "currentPhase": {
       "type": "string",
       "enum": [
-        "project_identification",
-        "agent_configuration",
-        "workflow_pattern",
-        "orchestration_mode",
-        "technology_stack",
+        "entry_point_selection",
+        "preset_selection",
+        "project_identity",
+        "project_scope",
+        "agent_selection",
+        "skill_configuration",
+        "subagent_configuration",
+        "orchestration_configuration",
+        "mcp_configuration",
         "quality_standards",
         "initial_features",
-        "review_confirm",
+        "review_generate",
+        "project_initialization",
         "completed"
       ],
       "description": "Current active phase"
     },
     "currentSubPhase": {
       "type": ["string", "null"],
-      "description": "Current sub-phase for phases that have them (e.g., agent_configuration)"
+      "description": "Current sub-phase for multi-step phases"
     },
-    "phases": {
+    "project": {
       "type": "object",
-      "description": "All phase data",
+      "description": "Project configuration",
       "properties": {
-        "project_identification": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Project name"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Project description"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "game-development",
+            "web-application",
+            "mobile-app",
+            "api-backend",
+            "data-ml",
+            "ecommerce",
+            "saas",
+            "devops-infrastructure",
+            "other"
+          ],
+          "description": "Project category"
+        },
+        "customCategory": {
+          "type": "string",
+          "description": "Custom category if 'other' selected"
+        },
+        "techStack": {
+          "type": "string",
+          "description": "Primary technology stack"
+        },
+        "customTechStack": {
+          "type": "string",
+          "description": "Custom tech stack if 'Custom' selected"
+        },
+        "teamSize": {
+          "type": "string",
+          "enum": ["solo", "small-team", "medium-team", "enterprise"],
+          "description": "Team size"
+        },
+        "projectScale": {
+          "type": "string",
+          "enum": ["prototype-mvp", "startup-product", "production-system"],
+          "description": "Project scale"
+        },
+        "successFactors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "speed-to-market",
+              "code-quality",
+              "visual-excellence",
+              "multiplayer-reliability",
+              "mobile-performance",
+              "accessibility",
+              "seo-optimization",
+              "real-time-features",
+              "data-processing"
+            ]
+          },
+          "description": "Critical success factors"
+        }
+      }
+    },
+    "agents": {
+      "type": "object",
+      "description": "Agent configurations",
+      "properties": {
+        "pm": {
+          "$ref": "#/definitions/agentConfig"
+        },
+        "developer": {
+          "$ref": "#/definitions/agentConfig"
+        },
+        "techartist": {
+          "$ref": "#/definitions/agentConfig"
+        },
+        "qa": {
+          "$ref": "#/definitions/agentConfig"
+        },
+        "gamedesigner": {
+          "$ref": "#/definitions/agentConfig"
+        }
+      }
+    },
+    "orchestration": {
+      "type": "object",
+      "description": "Orchestration settings",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["event-driven", "sequential", "polling", "hitl"],
+          "description": "Orchestration mode"
+        },
+        "maxIterations": {
+          "type": "integer",
+          "default": 200,
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Max iterations before auto-stop"
+        },
+        "contextResetThreshold": {
+          "type": "integer",
+          "default": 70,
+          "minimum": 50,
+          "maximum": 90,
+          "description": "Context reset threshold percentage"
+        }
+      }
+    },
+    "qualityStandards": {
+      "type": "object",
+      "description": "Quality standards",
+      "properties": {
+        "typescriptStrictness": {
+          "type": "string",
+          "enum": ["strict", "standard", "loose"],
+          "default": "strict"
+        },
+        "testCoverageTarget": {
+          "type": "integer",
+          "enum": [95, 80, 60, 0],
+          "default": 80
+        },
+        "lintRules": {
+          "type": "string",
+          "enum": ["eslint-recommended", "custom", "none"],
+          "default": "eslint-recommended"
+        },
+        "commitConvention": {
+          "type": "string",
+          "enum": ["ralph", "conventional", "custom"],
+          "default": "ralph"
+        },
+        "cicdIntegration": {
+          "type": "string",
+          "enum": ["github-actions", "gitlab-ci", "none"],
+          "default": "github-actions"
+        },
+        "noAnyTypes": {
+          "type": "boolean",
+          "default": true
+        },
+        "noTsIgnore": {
+          "type": "boolean",
+          "default": true
+        },
+        "allFeedbackLoopsMustPass": {
+          "type": "boolean",
+          "default": true
+        },
+        "visualRegressionTesting": {
+          "type": "boolean",
+          "default": false
+        },
+        "serverAuthoritativeValidation": {
+          "type": "boolean",
+          "default": false
+        },
+        "mobilePerformanceChecks": {
+          "type": "boolean",
+          "default": false
+        },
+        "accessibilityAuditing": {
+          "type": "boolean",
+          "default": false
+        },
+        "securityScanning": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "features": {
+      "type": "array",
+      "description": "Parsed PRD features",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^^(feat|fix|chore|test|arch|doc)-\\d+$"
+          },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["architectural", "functional", "integration", "chore", "design", "visual"]
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "agent": {
+            "type": "string",
+            "enum": ["pm", "developer", "techartist", "qa", "gamedesigner"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "completed"],
+            "default": "pending"
+          },
+          "passes": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": ["id", "title", "description", "priority", "category", "agent"]
+      }
+    },
+    "projectInitialization": {
+      "type": "object",
+      "description": "Project initialization state and configuration",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "completed", "failed", "skipped"],
+          "default": "pending",
+          "description": "Current initialization status"
+        },
+        "scriptPath": {
+          "type": "string",
+          "description": "Path to initialization script relative to project root"
+        },
+        "attempts": {
+          "type": "integer",
+          "default": 0,
+          "maximum": 3,
+          "description": "Number of initialization attempts made"
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of retry attempts"
+        },
+        "lastAttemptAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp of last initialization attempt"
+        },
+        "completedAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp when initialization completed successfully"
+        },
+        "error": {
+          "type": ["string", "null"],
+          "description": "Error message if initialization failed"
+        },
+        "errorDetails": {
+          "type": ["string", "null"],
+          "description": "Detailed error output for debugging"
+        },
+        "autoInitialize": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether coordinator should auto-run initialization"
+        },
+        "techStack": {
           "type": "object",
+          "description": "Technology stack configuration for initialization",
           "properties": {
-            "status": {
+            "runtime": {
               "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
+              "enum": ["node", "python", "rust", "go", "java", "dotnet", "other"],
+              "description": "Primary runtime environment"
             },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
+            "packageManager": {
+              "type": "string",
+              "description": "Package manager command (npm, yarn, pnpm, pip, poetry, cargo, go mod, etc.)"
             },
-            "data": {
-              "type": "object",
-              "properties": {
-                "projectType": {
-                  "type": "string",
-                  "enum": ["web", "game", "mobile", "backend", "data", "devops", "other"]
-                },
-                "projectName": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "projectDescription": {
-                  "type": "string",
-                  "minLength": 10
-                },
-                "customDescription": {
-                  "type": "string"
-                },
-                "researchFindings": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "source": { "type": "string" },
-                      "findings": { "type": "string" },
-                      "timestamp": { "type": "string", "format": "date-time" }
-                    }
-                  }
-                }
-              }
+            "framework": {
+              "type": "string",
+              "description": "Framework name (react, vue, svelte, fastapi, django, etc.)"
+            },
+            "language": {
+              "type": "string",
+              "description": "Programming language (typescript, python, rust, go, etc.)"
+            },
+            "devCommand": {
+              "type": "string",
+              "description": "Command to start development server"
+            },
+            "buildCommand": {
+              "type": "string",
+              "description": "Command to build project"
+            },
+            "testCommand": {
+              "type": "string",
+              "description": "Command to run tests"
+            },
+            "installCommand": {
+              "type": "string",
+              "description": "Command to install dependencies"
+            },
+            "initCommand": {
+              "type": "string",
+              "description": "Command to initialize new project"
             }
           }
         },
-        "agent_configuration": {
+        "feedbackLoops": {
           "type": "object",
+          "description": "Feedback loop commands for quality checks",
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
-            },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "currentAgentIndex": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "data": {
+            "typeCheck": {
               "type": "object",
               "properties": {
-                "agents": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string" },
-                      "type": {
-                        "type": "string",
-                        "enum": ["pm", "developer", "qa", "techartist", "gamedesigner", "devops", "data", "ml", "security", "ux", "docs", "custom"]
-                      },
-                      "customType": { "type": "string" },
-                      "displayName": { "type": "string" },
-                      "icon": { "type": "string" },
-                      "role": { "type": "string" },
-                      "primaryResponsibility": { "type": "string" },
-                      "cannotDo": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "worksWith": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "skills": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "primaryFocus": { "type": "string" },
-                      "filePermissions": {
-                        "type": "object",
-                        "properties": {
-                          "mayWrite": {
-                            "type": "array",
-                            "items": { "type": "string" }
-                          },
-                          "mayNotWrite": {
-                            "type": "array",
-                            "items": { "type": "string" }
-                          }
-                        }
-                      },
-                      "mcpServers": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "subAgents": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "quantity": {
-                        "type": "integer",
-                        "minimum": 1
-                      },
-                      "completedSubPhases": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["type", "role", "skills", "tools", "permissions"]
-                        }
-                      },
-                      "research": {
-                        "type": "object",
-                        "properties": {
-                          "role": {
-                            "type": "object",
-                            "properties": {
-                              "sources": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "findings": { "type": "string" },
-                              "consolidatedWith": { "type": "string" }
-                            }
-                          },
-                          "skills": {
-                            "type": "object",
-                            "properties": {
-                              "sources": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "recommended": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "selected": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "consolidatedWith": { "type": "string" }
-                            }
-                          },
-                          "tools": {
-                            "type": "object",
-                            "properties": {
-                              "templateAgent": { "type": "string" },
-                              "builtinTools": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "mcpServers": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "subAgents": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "consolidatedWith": { "type": "string" }
-                            }
-                          },
-                          "filePermissions": {
-                            "type": "object",
-                            "properties": {
-                              "sources": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "recommended": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              "selected": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+                "command": { "type": "string" },
+                "required": { "type": "boolean" },
+                "description": { "type": "string" }
               }
-            }
-          }
-        },
-        "workflow_pattern": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
             },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "data": {
+            "lint": {
               "type": "object",
               "properties": {
-                "pattern": {
-                  "type": "string",
-                  "enum": ["waterfall", "collaborative", "autonomous", "custom"]
-                },
-                "customPattern": { "type": "string" },
-                "researchFindings": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "source": { "type": "string" },
-                      "findings": { "type": "string" }
-                    }
-                  }
-                }
+                "command": { "type": "string" },
+                "required": { "type": "boolean" },
+                "description": { "type": "string" }
               }
-            }
-          }
-        },
-        "orchestration_mode": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
             },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "data": {
+            "test": {
               "type": "object",
               "properties": {
-                "mode": {
-                  "type": "string",
-                  "enum": ["event-driven", "sequential", "hitl", "custom"]
-                },
-                "customMode": { "type": "string" }
+                "command": { "type": "string" },
+                "required": { "type": "boolean" },
+                "description": { "type": "string" }
               }
-            }
-          }
-        },
-        "technology_stack": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
             },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "data": {
+            "build": {
               "type": "object",
               "properties": {
-                "frontend": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": { "type": "boolean" },
-                    "value": { "type": "string" },
-                    "variant": { "type": "string" }
-                  }
-                },
-                "backend": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": { "type": "boolean" },
-                    "value": { "type": "string" },
-                    "variant": { "type": "string" }
-                  }
-                },
-                "database": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": { "type": "boolean" },
-                    "value": { "type": "string" },
-                    "variant": { "type": "string" }
-                  }
-                },
-                "buildTools": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": { "type": "boolean" },
-                    "value": { "type": "string" },
-                    "variant": { "type": "string" }
-                  }
-                },
-                "testing": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": { "type": "boolean" },
-                    "value": { "type": "string" },
-                    "variant": { "type": "string" }
-                  }
-                },
-                "customStack": { "type": "string" },
-                "researchFindings": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "source": { "type": "string" },
-                      "findings": { "type": "string" }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "quality_standards": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
-            },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "data": {
-              "type": "object",
-              "properties": {
-                "typescript": { "type": "boolean" },
-                "testCoverage": { "type": "integer", "minimum": 0, "maximum": 100 },
-                "linting": { "type": "boolean" },
-                "precommit": { "type": "boolean" },
-                "cicd": { "type": "boolean" },
-                "documentation": { "type": "boolean" },
-                "security": { "type": "boolean" },
-                "performance": { "type": "boolean" },
-                "customStandards": { "type": "string" }
-              }
-            }
-          }
-        },
-        "initial_features": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
-            },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "data": {
-              "type": "object",
-              "properties": {
-                "rawInput": { "type": "string" },
-                "parsedFeatures": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "title": { "type": "string" },
-                      "description": { "type": "string" },
-                      "priority": {
-                        "type": "string",
-                        "enum": ["high", "medium", "low"]
-                      },
-                      "category": {
-                        "type": "string",
-                        "enum": ["architectural", "functional", "integration", "polish", "design", "visual"]
-                      },
-                      "acceptanceCriteria": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "agent": { "type": "string" }
-                    }
-                  }
-                },
-                "extractedTasks": {
-                  "type": "array",
-                  "items": { "type": "object" }
-                }
-              }
-            }
-          }
-        },
-        "review_confirm": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["pending", "in_progress", "completed", "skipped"]
-            },
-            "completedAt": {
-              "type": ["string", "null"],
-              "format": "date-time"
-            },
-            "data": {
-              "type": "object",
-              "properties": {
-                "confirmed": { "type": "boolean" },
-                "modifications": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "field": { "type": "string" },
-                      "originalValue": {},
-                      "newValue": {},
-                      "reason": { "type": "string" }
-                    }
-                  }
-                }
+                "command": { "type": "string" },
+                "required": { "type": "boolean" },
+                "description": { "type": "string" }
               }
             }
           }
         }
       }
+    },
+    "phases": {
+      "type": "object",
+      "description": "Legacy phase tracking (deprecated in v3.0 but kept for compatibility)"
+    }
+  },
+  "definitions": {
+    "agentConfig": {
+      "type": "object",
+      "description": "Individual agent configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this agent is enabled"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Agent display name"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["pm", "developer", "techartist", "qa", "gamedesigner"],
+          "description": "Agent role type"
+        },
+        "primary_responsibility": {
+          "type": "string",
+          "description": "Primary responsibility statement"
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of skill names"
+        },
+        "subAgents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of sub-agent names"
+        },
+        "mcpServers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["github", "filesystem", "web-search", "brave-search", "playwright", "vision", "blender", "shadertoy", "image-process"]
+          },
+          "description": "List of MCP server names"
+        },
+        "may_write": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths this agent may write to"
+        },
+        "may_not_write": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths this agent may not write to"
+        },
+        "cannot_do": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Things this agent cannot do"
+        },
+        "works_with": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Other agents this works with"
+        }
+      },
+      "required": ["enabled"]
     }
   }
 }

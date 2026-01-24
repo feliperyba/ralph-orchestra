@@ -1,0 +1,136 @@
+{
+  "name": "content-platform",
+  "displayName": "Content Platform",
+  "category": "Web Application",
+  "description": "Blogs, documentation sites, and content management systems",
+  "recommendedTechStack": "SvelteKit + MDX + TypeScript",
+  "techStack": {
+    "runtime": "node",
+    "packageManager": "npm",
+    "framework": "sveltekit",
+    "language": "typescript",
+    "description": "Built with Node.js + SvelteKit + TypeScript",
+    "devCommand": "npm run dev",
+    "buildCommand": "npm run build",
+    "testCommand": "npm run test",
+    "installCommand": "npm install",
+    "initCommand": "npm create svelte@latest . --template skeleton",
+    "feedbackLoops": {
+      "type-check": {"command": "npm run check", "required": true, "description": "Svelte type checking"},
+      "lint": {"command": "npm run lint", "required": true, "description": "ESLint linting"},
+      "test": {"command": "npm run test", "required": true, "description": "Run test suite"},
+      "build": {"command": "npm run build", "required": true, "description": "Production build"}
+    }
+  },
+  "agents": {
+    "pm": {
+      "enabled": true,
+      "display_name": "PM",
+      "role": "pm",
+      "primary_responsibility": "Content project coordination",
+      "skills": [
+        "pm-workflow",
+        "pm-organization-task-selection",
+        "pm-organization-scale-adaptive",
+        "pm-organization-prd-reorganization",
+        "pm-improvement-self-improvement",
+        "pm-retrospective-facilitation",
+        "shared-ralph-core",
+        "shared-ralph-coordinator",
+        "shared-ralph-event-protocol",
+        "shared-worker-protocol",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "task-researcher",
+        "retrospective-facilitator",
+        "prd-organizer"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search"]
+    },
+    "developer": {
+      "enabled": true,
+      "display_name": "Developer",
+      "role": "developer",
+      "primary_responsibility": "CMS and content platform implementation",
+      "skills": [
+        "dev-typescript-typescript-basics",
+        "dev-typescript-typescript-advanced",
+        "dev-patterns-ui-animations",
+        "dev-performance-performance-basics",
+        "dev-assets-vite-asset-loading",
+        "dev-assets-texture-loading",
+        "dev-research-codebase-exploration",
+        "dev-research-pattern-finding",
+        "dev-coordination-git-protocol",
+        "dev-validation-feedback-loops",
+        "dev-validation-quality-gates",
+        "dev-validation-browser-testing",
+        "shared-validation-feedback-loops",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "code-research",
+        "implementation",
+        "validation",
+        "commit"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search"]
+    },
+    "techartist": {
+      "enabled": false,
+      "display_name": "Tech Artist",
+      "role": "techartist",
+      "primary_responsibility": "Content visual polish",
+      "skills": [],
+      "subAgents": [],
+      "mcpServers": []
+    },
+    "qa": {
+      "enabled": true,
+      "display_name": "QA",
+      "role": "qa",
+      "primary_responsibility": "Content testing and validation",
+      "skills": [
+        "qa-browser-testing",
+        "qa-code-review",
+        "qa-validation-workflow",
+        "qa-visual-testing",
+        "qa-workflow",
+        "shared-file-permissions",
+        "shared-validation-feedback-loops"
+      ],
+      "subAgents": [
+        "browser-validator",
+        "code-review",
+        "visual-regression-tester"
+      ],
+      "mcpServers": ["github", "filesystem", "playwright", "vision"]
+    },
+    "gamedesigner": {
+      "enabled": true,
+      "display_name": "Game Designer",
+      "role": "gamedesigner",
+      "primary_responsibility": "Content structure and documentation design",
+      "skills": [
+        "gd-gdd-creation",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "gdd-documenter"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search"]
+    }
+  },
+  "orchestration": {
+    "recommendedMode": "sequential",
+    "maxIterations": 200,
+    "contextResetThreshold": 70
+  },
+  "qualityStandards": {
+    "typescriptStrictness": "strict",
+    "testCoverageTarget": 80,
+    "noAnyTypes": true,
+    "noTsIgnore": true
+  }
+}

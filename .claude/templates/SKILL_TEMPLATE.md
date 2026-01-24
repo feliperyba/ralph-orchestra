@@ -74,3 +74,42 @@ Output: {example output}
 
 - `[related-skill-1]` - Description
 - `[related-skill-2]` - Description
+
+---
+
+## File Structure Note
+
+**Skills are folder-based in Ralph Orchestra:**
+
+```
+.claude/skills/
+├── skill-name/
+│   └── SKILL.md     <-- This file
+├── another-skill/
+│   └── SKILL.md
+└── ...
+```
+
+When creating a skill:
+1. Create a folder: `.claude/skills/skill-name/`
+2. Create `SKILL.md` inside that folder with this template content
+
+## Skill Naming Conventions
+
+Ralph Orchestra uses these prefixes for organization:
+
+| Prefix | Agent Type | Examples |
+|--------|------------|----------|
+| `dev-` | Developer | `dev-r3f-r3f-fundamentals`, `dev-typescript-typescript-basics` |
+| `ta-` | Tech Artist | `ta-shader-development`, `ta-r3f-materials`, `ta-vfx-particles` |
+| `qa-` | QA | `qa-browser-testing`, `qa-multiplayer-testing`, `qa-validation-workflow` |
+| `pm-` | PM | `pm-workflow`, `pm-test-planning`, `pm-retrospective-facilitation` |
+| `gd-` | Game Designer | `gd-gdd-creation`, `gd-design-mechanic`, `gd-validation-playtest` |
+| `shared-` | All agents | `shared-ralph-core`, `shared-file-permissions`, `shared-worker-worktree` |
+
+**Special categories:**
+- `r3f-router` - Routes to appropriate R3F skills
+- `ralph-*` - Core orchestration skills (ralph-core, ralph-hitl, etc.)
+- `thematic-doc-generator` - Specialized documentation generation
+
+**Folder names follow kebab-case** (lowercase with hyphens)

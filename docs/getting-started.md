@@ -1,14 +1,10 @@
 # Getting Started with Ralph Orchestra
 
-This guide will help you install and run Ralph Orchestra for the first time.
+This guide will help you get started with Ralph Orchestra - an agnostic framework for multi-agent AI development.
 
-## Prerequisites
+## Quick Start (5 minutes)
 
-- **[Claude CLI](https://docs.anthropic.com/en/docs/claude-cli)** installed and authenticated
-- **PowerShell 5.1+** (Windows) or Bash (Linux/macOS)
-- **Node.js 18+** (if using with a Node.js project)
-
-## Installation
+**Step 1: Install Ralph Orchestra**
 
 ```bash
 git clone https://github.com/feliperyba/ralph-orchestra
@@ -16,183 +12,215 @@ cd ralph-orchestra
 npm install
 ```
 
-## Quick Start: PRD Starter Wizard (Recommended for New Projects)
-
-For new projects or when you want custom agent configuration, use the **PRD Starter Wizard**:
+**Step 2: Run the PRD Starter Wizard**
 
 ```
 /ralph-prd-starter
 ```
 
-This interactive 8-phase wizard guides you through:
-1. **Project Identification** - Project type, name, description
-2. **Agent Configuration** - Define N custom agents with roles and skills
-3. **Workflow Pattern** - Waterfall, Collaborative, or Autonomous
-4. **Orchestration Mode** - Event-driven, Sequential, or HITL
-5. **Technology Stack** - Frontend, backend, database, tools
-6. **Quality Standards** - TypeScript, testing, linting, CI/CD
-7. **Initial Features** - Feature list with acceptance criteria
-8. **Review & Confirm** - Summary and file generation
+**Step 3: Choose Your Mode**
 
-The wizard generates:
-- Custom agent definitions (`agents/{name}/AGENT.md`)
-- Agent settings (`.claude/settings.{name}.json`)
-- Initial PRD (`prd.json`)
-- Updated orchestration scripts
+| Mode | Time | Best For |
+|------|------|----------|
+| **Quick Start** | 5 min | New projects, use a preset |
+| **Standard** | 15 min | Custom configuration with guidance |
+| **Expert** | 30+ min | Full control over every setting |
 
-See [PRD Starter Guide](./prd-starter.md) for complete documentation.
+**Step 4: Start Your Agents**
 
-## Understanding the Interfaces
-
-Ralph Orchestra can be invoked through **three different interfaces**, each with different trade-offs:
-
-| Interface | How to Invoke | Session Setup | Token Efficiency | Best For |
-|-----------|---------------|---------------|------------------|----------|
-| **PowerShell Scripts** | `.\.claude\scripts\ralph-event-session.ps1` | Automatic | Medium | Production, autonomous runs |
-| **PowerShell Scripts** | `.\.claude\scripts\ralph-single-session.ps1` | Automatic | High | Token-efficient runs |
-| **Claude CLI** | `/ralph-coordinator-event` in terminal | Manual | Standard | Learning, debugging |
-| **Claude Code IDE** | `/ralph-hitl` in chat | Semi-auto | Standard | Learning, integrated workflow |
-
-### PowerShell Scripts (Recommended for Production)
-
-Full orchestration with automatic session management, health monitoring, and graceful shutdown:
+After the wizard completes, start your configured agents:
 
 ```powershell
-# Event-driven (parallel, named pipes + message queues) - Recommended
+# Event-driven mode (parallel, recommended)
 .\.claude\scripts\ralph-event-session.ps1
 
-# Sequential (token-efficient, one agent at a time)
-.\.claude\scripts\ralph-single-session.ps1
-
-# Polling (legacy, parallel with 30s polling)
-.\.claude\scripts\ralph-multi-session.ps1
-```
-
-**What happens:**
-1. Watchdog process starts and creates `.claude/session/`
-2. All agents launch in separate terminal windows
-3. Watchdog monitors health and orchestrates handoffs
-4. Real-time dashboard shows agent status
-
-### Claude CLI (Terminal)
-
-Direct slash commands in separate terminals:
-
-```bash
-# Event-driven mode (parallel agents)
-# Terminal 1: PM Coordinator
-/ralph-coordinator-event
-
-# Terminal 2: Developer Worker
-/ralph-worker-event --agent developer
-
-# Terminal 3: Tech Artist Worker
-/ralph-worker-event --agent techartist
-
-# Terminal 4: QA Worker
-/ralph-worker-event --agent qa
-
-# Terminal 5: Game Designer Worker
-/ralph-worker-event --agent gamedesigner
-
 # OR Sequential mode (token-efficient)
-/ralph-coordinator-single
-/ralph-worker-single --agent developer
-/ralph-worker-single --agent techartist
-/ralph-worker-single --agent qa
-/ralph-worker-single --agent gamedesigner
+.\.claude\scripts\ralph-single-session.ps1
 ```
 
-### Claude Code IDE (VSCode Extension)
+That's it! Your agents will work autonomously until all PRD tasks are complete.
 
-Slash commands directly in the chat interface:
+---
 
-```
-/ralph-hitl
-```
+## Prerequisites
 
-The IDE automatically loads agent settings and skills based on task category.
+- **[Claude CLI](https://docs.anthropic.com/en/docs/claude-cli)** installed and authenticated
+- **PowerShell 5.1+** (Windows) or Bash (Linux/macOS)
+- Your project's runtime (Node.js, Python, Rust, etc.)
 
-## First Run with HITL Mode
+---
 
-Before running autonomous sessions, use HITL (Human-in-the-Loop) mode to understand the flow:
+## The PRD Starter Workflow
 
-```
-/ralph-hitl
-```
+The PRD Starter wizard is the recommended way to configure Ralph Orchestra for any project.
 
-This runs a **single iteration** with full visibility so you can see exactly how each agent operates.
+### What the Wizard Does
 
-## Running in Production Modes
+1. **Project Identification** - Project type, name, description
+2. **Agent Selection** - Choose which agents to enable (PM, Developer, Specialist, QA, Designer)
+3. **Skill Configuration** - Assign skills to each agent based on your tech stack
+4. **Orchestration Mode** - Event-driven, Sequential, or HITL
+5. **Technology Stack** - Runtime, package manager, framework
+6. **Quality Standards** - Type checking, linting, testing, build commands
+7. **Initial PRD** - Define features with acceptance criteria
+8. **File Generation** - Creates all configuration files
+
+### What Gets Generated
+
+| File | Purpose |
+|------|---------|
+| `agents/{name}/AGENT.md` | Agent definitions with skills |
+| `.claude/settings.{name}.json` | MCP server configuration |
+| `prd.json` | Your product requirements document |
+| `.claude/scripts/init-project.{sh,ps1}` | Project initialization script |
+
+### Preset Options
+
+Quick Start mode includes presets for:
+
+- **Game Development** - Indie Game Dev, Game Studio, Mobile Game, Multiplayer Arena
+- **Web Applications** - Modern Web App, Full Stack SaaS, Dashboard Analytics
+- **Business** - E-Commerce Store, SaaS Product, Enterprise Suite
+- **Technical** - API Server, Data/ML Pipeline, DevOps/Infrastructure
+
+See [Wizard Presets](./wizard-presets.md) for details.
+
+---
+
+## Understanding Orchestration Modes
+
+After wizard configuration, choose how your agents run:
 
 ### Event-Driven Mode (Recommended)
 
-All agents run in parallel with message-based communication (no polling):
+All agents run in parallel with message-based communication:
 
 ```powershell
 .\.claude\scripts\ralph-event-session.ps1
 ```
 
-**Benefits:** Parallel execution, named pipe speed (< 10ms), message history, git worktree support
+**Benefits:** Parallel execution, named pipe speed (< 10ms message delivery)
 
 ### Sequential Mode (Token-Efficient)
 
-Only one agent runs at a time. A watchdog process orchestrates handoffs:
+One agent at a time with orchestrated handoffs:
 
 ```powershell
 .\.claude\scripts\ralph-single-session.ps1
 ```
 
-**Benefits:** ~70% lower token usage, simpler debugging, clear execution flow
+**Benefits:** ~70% lower token usage, simpler debugging
 
-### Polling Mode (Legacy)
+### HITL Mode (Learning)
 
-All agents run simultaneously, each polling for work every 30s:
+Single iteration for understanding the flow:
 
-```powershell
-.\.claude\scripts\ralph-multi-session.ps1
+```
+/ralph-hitl
 ```
 
-**Benefits:** Simple implementation, agents can work on different tasks simultaneously
+**Benefits:** Full visibility, learn before going autonomous
 
-## Stopping Agents
+See [Orchestration Modes](./orchestration-modes.md) for detailed comparison.
 
-- **Ctrl+C** in the watchdog terminal
-- Run `/cancel-ralph` in any agent terminal
-- All tasks complete → agents output `<promise>RALPH_COMPLETE</promise>`
-- Max iterations reached → watchdog stops all agents gracefully
+---
 
-## Setting Max Iterations
+## Framework vs Templates
 
-Always set a safety limit before running autonomous sessions:
+**Important:** Ralph Orchestra is a framework, not a template. The wizard generates custom configurations.
+
+### What is the Framework?
+
+The framework provides:
+- Communication protocols (named pipes, message queues)
+- Agent lifecycle management (watchdog, health monitoring)
+- Quality enforcement (feedback loops, code gates)
+- Modular skill system (compose capabilities)
+- PRD Starter wizard (generate configurations)
+
+### What are Templates?
+
+Templates are learning examples:
+- Agent definitions in `agents/` - Show structure, don't use directly
+- Presets in `.claude/presets/` - Starting points for common projects
+- Skills in `.claude/skills/` - Reusable building blocks
+
+**Always run the wizard** - don't copy templates directly.
+
+---
+
+## Interface Options
+
+### PowerShell Scripts (Recommended)
+
+Full orchestration with automatic session management:
 
 ```powershell
-# Set for current session
-$env:RALPH_MAX_ITERATIONS = 100
+# Event-driven (parallel)
 .\.claude\scripts\ralph-event-session.ps1
 
-# Or use script parameter
-.\.claude\scripts\ralph-event-session.ps1 -MaxIterations 50
+# Sequential (token-efficient)
+.\.claude\scripts\ralph-single-session.ps1
 ```
 
-See [Configuration](./configuration.md#max-iterations) for more options.
+### Claude CLI Commands
 
-## Git Worktrees for Parallel Development
+Manual terminal setup for fine-grained control:
 
-Developer and Tech Artist can work simultaneously using git worktrees:
+```bash
+# Terminal 1: PM Coordinator
+/ralph-coordinator-event
+
+# Terminal 2-N: Workers (names from your wizard config)
+/ralph-worker-event --agent developer
+/ralph-worker-event --agent specialist
+/ralph-worker-event --agent qa
+```
+
+**Note:** Agent names depend on your wizard configuration. The default templates include: `pm`, `developer`, `techartist`, `qa`, `gamedesigner` - but you configure these during setup.
+
+---
+
+## Controlling Sessions
+
+### Starting
 
 ```powershell
-# The system automatically creates worktrees when needed
-# No manual setup required for basic usage
+.\.claude\scripts\ralph-event-session.ps1
 ```
 
-Each agent gets their own working tree, eliminating merge conflicts:
-- Developer works on logic/server code
-- Tech Artist works on visuals/assets
-- Changes are isolated until merged
+### Stopping
+
+- Press `Ctrl+C` in the watchdog terminal
+- Run `/cancel-ralph` in any agent terminal
+- Agents auto-stop when all tasks complete
+
+### Max Iterations
+
+Set a safety limit:
+
+```powershell
+$env:RALPH_MAX_ITERATIONS = 100
+.\.claude\scripts\ralph-event-session.ps1
+```
+
+---
+
+## Git Worktrees (Parallel Development)
+
+Agents can work simultaneously in isolated worktrees:
+
+- Each agent gets their own working tree
+- No merge conflicts between parallel workers
+- System creates worktrees automatically when needed
+
+---
 
 ## Next Steps
 
-- [Architecture](./architecture.md) - Understand the system architecture
-- [Orchestration Modes](./orchestration-modes.md) - Deep dive into each mode
-- [Configuration](./configuration.md) - PRD format, settings, and tuning
+- **[PRD Starter Guide](./prd-starter.md)** - Complete wizard walkthrough
+- **[Orchestration Modes](./orchestration-modes.md)** - Deep dive into each mode
+- **[Framework Architecture](./architecture.md)** - System design and internals
+- **[Configuration](./configuration.md)** - PRD format and advanced settings
+- **[Wizard Presets](./wizard-presets.md)** - All available presets
+- **[Skill Catalog](./wizard-skill-catalog.md)** - Browse available skills

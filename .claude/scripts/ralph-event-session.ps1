@@ -30,8 +30,8 @@ $logsDir = Join-Path $sessionDir "logs"
 $scriptsDir = Join-Path $ProjectRoot ".claude\scripts"
 
 # Create directories
-$directories = @($sessionDir, $messagesDir, $logsDir)
-$directories += @("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
+$directories = @('test-developer')
+$directories += @("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
 
 foreach ($dir in $directories) {
     if (-not (Test-Path $dir)) {
@@ -69,14 +69,7 @@ if ($cleanSession) {
     Get-ChildItem -Path $logsDir -Filter "*.log" -ErrorAction SilentlyContinue | Remove-Item -Force
     
     # Clear state files
-    @(
-        "coordinator-state.json",
-        "current-task.json",
-        "handoff-log.json",
-        "pending-handoff.json",
-        "handoff-signal.json",
-        "session-complete.flag"
-    ) | ForEach-Object {
+    @("test-developer") | ForEach-Object {
         $file = Join-Path $sessionDir $_
         if (Test-Path $file) { Remove-Item $file -Force }
     }
@@ -98,7 +91,7 @@ if (-not (Test-Path $stateFile)) {
         startTime = [DateTime]::UtcNow.ToString("o")
         maxIterations = $maxIter
         iteration = 0
-        activeAgents = @("pm", "developer", "qa", "gamedesigner", "techartist", "prd-starter")
+        activeAgents = @("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer")
         currentTasks = @{
             pm = $null
             developer = $null
@@ -165,7 +158,7 @@ Write-Host "Press Ctrl+C in watchdog window to stop all agents." -ForegroundColo
 Write-Host ""
 
 # Build watchdog arguments
-$watchdogArgs = @()
+$watchdogArgs = @('test-developer')
 if ($NoDashboard) { $watchdogArgs += "-NoDashboard" }
 if ($Debug) { $watchdogArgs += "-Debug" }
 if ($MaxIterations -gt 0) { $watchdogArgs += "-MaxIterations", $MaxIterations }

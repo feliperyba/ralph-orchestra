@@ -1,0 +1,136 @@
+{
+  "name": "modern-web-app",
+  "displayName": "Modern Web App",
+  "category": "Web Application",
+  "description": "React/Vue/Svelte single-page applications with modern tooling",
+  "recommendedTechStack": "React 18 + Vite + TypeScript",
+  "techStack": {
+    "runtime": "node",
+    "packageManager": "npm",
+    "framework": "react",
+    "language": "typescript",
+    "description": "Built with Node.js + React + TypeScript",
+    "devCommand": "npm run dev",
+    "buildCommand": "npm run build",
+    "testCommand": "npm run test",
+    "installCommand": "npm install",
+    "initCommand": "npm create vite@latest . -- --template react-ts",
+    "feedbackLoops": {
+      "type-check": {"command": "npm run type-check", "required": true, "description": "TypeScript type checking"},
+      "lint": {"command": "npm run lint", "required": true, "description": "ESLint linting"},
+      "test": {"command": "npm run test", "required": true, "description": "Run test suite"},
+      "build": {"command": "npm run build", "required": true, "description": "Production build"}
+    }
+  },
+  "agents": {
+    "pm": {
+      "enabled": true,
+      "display_name": "PM",
+      "role": "pm",
+      "primary_responsibility": "Task coordination and project management",
+      "skills": [
+        "pm-workflow",
+        "pm-organization-task-selection",
+        "pm-organization-scale-adaptive",
+        "pm-organization-prd-reorganization",
+        "pm-improvement-self-improvement",
+        "pm-retrospective-facilitation",
+        "pm-planning-test-planning",
+        "pm-validation-architecture",
+        "shared-ralph-core",
+        "shared-ralph-coordinator",
+        "shared-ralph-event-protocol",
+        "shared-worker-protocol",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "task-researcher",
+        "retrospective-facilitator",
+        "prd-organizer",
+        "test-planner"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search"]
+    },
+    "developer": {
+      "enabled": true,
+      "display_name": "Developer",
+      "role": "developer",
+      "primary_responsibility": "Frontend application implementation",
+      "skills": [
+        "dev-typescript-typescript-basics",
+        "dev-typescript-typescript-advanced",
+        "dev-patterns-ui-animations",
+        "dev-performance-performance-basics",
+        "dev-assets-vite-asset-loading",
+        "dev-assets-texture-loading",
+        "dev-research-codebase-exploration",
+        "dev-research-pattern-finding",
+        "dev-coordination-git-protocol",
+        "dev-coordination-message-formats",
+        "dev-validation-feedback-loops",
+        "dev-validation-quality-gates",
+        "dev-validation-browser-testing",
+        "shared-validation-feedback-loops",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "code-research",
+        "implementation",
+        "validation",
+        "commit"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search"]
+    },
+    "techartist": {
+      "enabled": false,
+      "display_name": "Tech Artist",
+      "role": "techartist",
+      "primary_responsibility": "Visual assets and polish",
+      "skills": [],
+      "subAgents": [],
+      "mcpServers": []
+    },
+    "qa": {
+      "enabled": true,
+      "display_name": "QA",
+      "role": "qa",
+      "primary_responsibility": "Browser testing and validation",
+      "skills": [
+        "qa-browser-testing",
+        "qa-code-review",
+        "qa-validation-workflow",
+        "qa-visual-testing",
+        "qa-workflow",
+        "shared-file-permissions",
+        "shared-validation-feedback-loops"
+      ],
+      "subAgents": [
+        "browser-validator",
+        "code-review",
+        "visual-regression-tester",
+        "visual-tester"
+      ],
+      "mcpServers": ["github", "filesystem", "playwright", "vision"]
+    },
+    "gamedesigner": {
+      "enabled": false,
+      "display_name": "Game Designer",
+      "role": "gamedesigner",
+      "primary_responsibility": "Design documentation",
+      "skills": [],
+      "subAgents": [],
+      "mcpServers": []
+    }
+  },
+  "orchestration": {
+    "recommendedMode": "sequential",
+    "maxIterations": 200,
+    "contextResetThreshold": 70
+  },
+  "qualityStandards": {
+    "typescriptStrictness": "strict",
+    "testCoverageTarget": 80,
+    "noAnyTypes": true,
+    "noTsIgnore": true
+  }
+}

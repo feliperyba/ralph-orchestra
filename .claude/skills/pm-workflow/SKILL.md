@@ -52,6 +52,43 @@ user-invocable: true
    - Check prd.json.agents.pm for your status
    - Update your lastSeen timestamp
 
+2.5. PROJECT INITIALIZATION CHECK (FIRST RUN ONLY)
+
+   Check prd.json.projectInitialization.status:
+
+   IF "pending" OR "failed" AND attempts < maxAttempts:
+     a. Detect OS platform (Windows vs Unix)
+     b. Run initialization script:
+        - Windows: .\.claude\scripts\init-project.ps1
+        - Unix: bash .claude/scripts/init-project.sh
+     c. Capture output
+     d. IF success (exit code 0):
+        - Set status: "completed"
+        - Set completedAt: timestamp
+        - Update prd.json
+        - Log to coordinator-progress.txt
+        - Continue to step 3
+     e. IF failure:
+        - Increment attempts
+        - Set error: output message
+        - Set lastAttemptAt: timestamp
+        - IF attempts < maxAttempts:
+            - Try to diagnose and fix common issues
+            - Check for missing package managers
+            - Check network connectivity for package installs
+            - Retry
+        - ELSE:
+            - Set status: "failed"
+            - Output: <promise>INITIALIZATION_FAILED</promise>
+            - Tell user what needs fixing
+            - Stop
+
+   IF "completed":
+     - Continue to step 3
+
+   IF "skipped":
+     - Continue to step 3 (user opted out of auto-init)
+
 3. VALIDATE WORKER STATES (MANDATORY in event-driven mode)
    - Check if assigned worker has active task with status "working" or "needs_fixes"
    - Check worker's lastSeen timestamp (compare to current time)

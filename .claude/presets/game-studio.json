@@ -1,0 +1,215 @@
+{
+  "name": "game-studio",
+  "displayName": "Game Studio",
+  "category": "Game Development",
+  "description": "Professional game studio with full stack multiplayer capabilities",
+  "recommendedTechStack": "React Three Fiber + Colyseus",
+  "techStack": {
+    "runtime": "node",
+    "packageManager": "npm",
+    "framework": "react-three-fiber",
+    "language": "typescript",
+    "description": "Built with Node.js + React Three Fiber + Colyseus",
+    "devCommand": "npm run dev",
+    "buildCommand": "npm run build",
+    "testCommand": "npm run test",
+    "installCommand": "npm install",
+    "initCommand": "npm create vite@latest . -- --template react-ts",
+    "feedbackLoops": {
+      "type-check": {"command": "npm run type-check", "required": true, "description": "TypeScript type checking"},
+      "lint": {"command": "npm run lint", "required": true, "description": "ESLint linting"},
+      "test": {"command": "npm run test", "required": true, "description": "Run test suite"},
+      "build": {"command": "npm run build", "required": true, "description": "Production build"}
+    }
+  },
+  "agents": {
+    "pm": {
+      "enabled": true,
+      "display_name": "PM",
+      "role": "pm",
+      "primary_responsibility": "Task coordination and project management",
+      "skills": [
+        "pm-workflow",
+        "pm-organization-task-selection",
+        "pm-organization-task-research",
+        "pm-organization-scale-adaptive",
+        "pm-organization-prd-reorganization",
+        "pm-improvement-self-improvement",
+        "pm-improvement-skill-research",
+        "pm-retrospective-facilitation",
+        "pm-retrospective-playtest-session",
+        "pm-planning-test-planning",
+        "pm-validation-architecture",
+        "pm-configuration-vite-assets",
+        "pm-configuration-asset-coordination",
+        "shared-ralph-core",
+        "shared-ralph-coordinator",
+        "shared-ralph-event-protocol",
+        "shared-worker-protocol",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "task-researcher",
+        "retrospective-facilitator",
+        "skill-researcher",
+        "prd-organizer",
+        "test-planner",
+        "architecture-validator"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search"]
+    },
+    "developer": {
+      "enabled": true,
+      "display_name": "Developer",
+      "role": "developer",
+      "primary_responsibility": "Full stack game development with multiplayer",
+      "skills": [
+        "dev-r3f-r3f-fundamentals",
+        "dev-r3f-r3f-physics",
+        "dev-r3f-r3f-materials",
+        "dev-multiplayer-server-authoritative",
+        "dev-multiplayer-colyseus-server",
+        "dev-multiplayer-colyseus-client",
+        "dev-multiplayer-colyseus-state",
+        "dev-multiplayer-prediction-basics",
+        "dev-multiplayer-prediction-movement",
+        "dev-multiplayer-prediction-shooting",
+        "dev-multiplayer-anti-cheat-validation",
+        "dev-typescript-typescript-basics",
+        "dev-typescript-typescript-advanced",
+        "dev-patterns-object-pooling",
+        "dev-patterns-ui-animations",
+        "dev-patterns-coverage-tracking",
+        "dev-patterns-mobile-haptics",
+        "dev-performance-performance-basics",
+        "dev-performance-instancing",
+        "dev-performance-lod-systems",
+        "dev-performance-mobile-optimization",
+        "dev-assets-vite-asset-loading",
+        "dev-assets-audio-loading",
+        "dev-assets-model-loading",
+        "dev-assets-texture-loading",
+        "dev-research-codebase-exploration",
+        "dev-research-gdd-reading",
+        "dev-research-pattern-finding",
+        "dev-coordination-git-protocol",
+        "dev-coordination-message-formats",
+        "dev-validation-feedback-loops",
+        "dev-validation-quality-gates",
+        "dev-validation-browser-testing",
+        "shared-r3f-router",
+        "shared-validation-feedback-loops",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "code-research",
+        "implementation",
+        "validation",
+        "commit"
+      ],
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search"]
+    },
+    "techartist": {
+      "enabled": true,
+      "display_name": "Tech Artist",
+      "role": "techartist",
+      "primary_responsibility": "Professional visual assets, shaders, VFX",
+      "skills": [
+        "ta-r3f-fundamentals",
+        "ta-r3f-r3f-materials",
+        "ta-r3f-r3f-performance",
+        "ta-r3f-r3f-physics",
+        "ta-shader-development",
+        "ta-shader-sdf",
+        "ta-vfx-particles",
+        "ta-vfx-postfx",
+        "ta-camera-tps",
+        "ta-ui-polish",
+        "ta-ui-debug-helpers",
+        "ta-assets-workflow",
+        "ta-assets-pipeline-optimization",
+        "ta-validation-typescript",
+        "ta-networking-visual-feedback",
+        "ta-input-validation",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "asset-researcher",
+        "asset-creator",
+        "shader-compiler",
+        "particle-system-designer",
+        "visual-validator",
+        "visual-tester",
+        "performance-profiler",
+        "code-quality"
+      ],
+      "mcpServers": ["github", "filesystem", "playwright", "vision", "shadertoy", "image-process"]
+    },
+    "qa": {
+      "enabled": true,
+      "display_name": "QA",
+      "role": "qa",
+      "primary_responsibility": "Comprehensive testing including multiplayer",
+      "skills": [
+        "qa-browser-testing",
+        "qa-code-review",
+        "qa-gameplay-testing",
+        "qa-multiplayer-testing",
+        "qa-reporting-bug-reporting",
+        "qa-validation-asset",
+        "qa-validation-workflow",
+        "qa-visual-testing",
+        "qa-workflow",
+        "shared-file-permissions",
+        "shared-validation-feedback-loops"
+      ],
+      "subAgents": [
+        "browser-validator",
+        "multiplayer-validator",
+        "gameplay-tester",
+        "code-review",
+        "visual-regression-tester",
+        "visual-tester"
+      ],
+      "mcpServers": ["github", "filesystem", "playwright", "vision"]
+    },
+    "gamedesigner": {
+      "enabled": true,
+      "display_name": "Game Designer",
+      "role": "gamedesigner",
+      "primary_responsibility": "Full game design documentation and balance",
+      "skills": [
+        "gd-gdd-creation",
+        "gd-design-character",
+        "gd-design-game-loop",
+        "gd-design-level",
+        "gd-design-mechanic",
+        "gd-design-weapon",
+        "gd-assets-impact-analysis",
+        "gd-thermite-integration",
+        "gd-validation-playtest",
+        "shared-file-permissions"
+      ],
+      "subAgents": [
+        "asset-analyst",
+        "visual-reference-researcher",
+        "reference-game-researcher",
+        "thermite-facilitator",
+        "gdd-documenter",
+        "playtest-evidence-collector"
+      ],
+      "mcpServers": ["github", "filesystem", "playwright", "vision", "web-search"]
+    }
+  },
+  "orchestration": {
+    "recommendedMode": "event-driven",
+    "maxIterations": 200,
+    "contextResetThreshold": 70
+  },
+  "qualityStandards": {
+    "typescriptStrictness": "strict",
+    "testCoverageTarget": 80,
+    "noAnyTypes": true,
+    "noTsIgnore": true
+  }
+}
