@@ -1,7 +1,6 @@
 ---
 name: pm-scale-adaptive
 description: Adjust planning depth and agent behavior based on PRD complexity level
-category: coordination
 ---
 
 # Scale-Adaptive Planning Skill

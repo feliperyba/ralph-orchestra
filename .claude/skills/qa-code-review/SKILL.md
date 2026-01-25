@@ -1,9 +1,6 @@
 ---
 name: qa-code-review
-description: Code quality review before validation. Check for @ts-ignore, any types, anti-patterns, and potential issues. Use proactively at start of QA validation.
-category: validation
-version: 1.0
-keywords: [qa, code-review, quality, typescript, anti-patterns, validation]
+description: Code quality review before validation. Checks for @ts-ignore, any types, anti-patterns, and potential issues. Use proactively at start of QA validation.
 user-invocable: true
 ---
 

@@ -2,6 +2,7 @@
 name: file-permissions
 description: File read/write permissions for all Ralph agents
 category: orchestration
+keywords: [permissions, file-ownership, read-write, atomic, single-writer, concurrency]
 ---
 
 # File Permissions

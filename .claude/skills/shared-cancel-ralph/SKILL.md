@@ -2,6 +2,7 @@
 name: cancel-ralph
 description: Cancel active Ralph loop
 category: orchestration
+keywords: [cancel, terminate, stop, exit, shutdown, session]
 ---
 
 # Cancel Ralph

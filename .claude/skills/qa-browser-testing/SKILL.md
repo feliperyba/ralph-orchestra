@@ -1,86 +1,197 @@
 ---
 name: qa-browser-testing
-description: Browser testing with Playwright MCP for visual and functional validation
-category: validation
+description: E2E test creation and execution for QA. Validates implementations using Playwright API tests that become persistent artifacts for regression.
 ---
 
-# Browser Testing Skill
+# Browser Testing for QA
 
-> "Automated tests verify logic – browser tests verify reality."
+> "Validate implementations with E2E tests that become regression tests for the project."
 
 ## When to Use This Skill
 
-Use for **every validation** after automated checks pass.
+Use for **every validation** after automated checks pass:
+- Validating Developer implementation
+- Verifying Tech Artist visual assets
+- Testing gameplay mechanics
+- Checking UI components
+- Before marking PRD items as passed
 
 ## Quick Start
 
+```bash
+# 1. Check if E2E test exists for the feature
+ls tests/e2e/{feature}-suite.spec.ts
+
+# 2. If missing, create using qa-e2e-test-creation patterns
+# Use Skill("qa-e2e-test-creation")
+
+# 3. Run E2E tests to validate implementation
+npm run test:e2e
+
+# 4. Review test output for acceptance criteria verification
+```
+
+## Core Principle: Run Tests, Don't Use MCP
+
+**❌ OLD APPROACH (Do NOT do this):**
 ```typescript
-// Using Playwright MCP
-// 1. Navigate
-await page.goto('http://localhost:3000');
+// Interactive MCP validation - NO!
+mcp__playwright__browser_navigate('http://localhost:3000');
+mcp__playwright__browser_take_screenshot({ filename: 'validation.png' });
+```
 
-// 2. Wait for canvas
-await page.waitForSelector('canvas');
+**✅ NEW APPROACH (Do this):**
+```typescript
+// Write or run E2E test - YES!
+npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
+```
 
-// 3. Take screenshot
-await page.screenshot({ path: 'validation.png' });
+## Validation Workflow
 
-// 4. Check console
-const errors = [];
-page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text());
-});
+### Level 0: Test Coverage Check (BEFORE Validation)
+
+**⚠️ CRITICAL: Ensure tests exist before validation**
+
+1. **Check if E2E test exists** for the validated feature:
+   ```bash
+   # Look for test file
+   ls tests/e2e/{feature}-suite.spec.ts
+
+   # Or search for task/feature in tests
+   grep -r "taskId" tests/e2e/
+   ```
+
+2. **If test is missing:**
+   - Load `qa-e2e-test-creation` skill
+   - Create test covering acceptance criteria
+   - Verify test runs successfully
+
+### Level 1: Run E2E Tests
+
+```bash
+# Run all E2E tests
+npm run test:e2e
+
+# Run specific test file
+npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
+
+# Run specific test by name
+npm run test:e2e -- -g "test-name"
+
+# Run in headed mode (see browser)
+npm run test:e2e -- --headed
+
+# Run with debug mode
+npm run test:e2e -- --debug
+```
+
+### Level 2: Verify Acceptance Criteria
+
+For each acceptance criterion in `prd.json.items[{taskId}]`:
+
+```markdown
+## Acceptance Criteria Verification
+
+### Criterion 1: "Feature does X"
+
+- **Test**: `npm run test:e2e -- -g "feature does X"`
+- **Result**: ✅ PASS / ❌ FAIL
+- **Evidence**: Test output shows expected behavior
+```
+
+### Level 3: Report Results
+
+**If ALL tests pass:**
+```json
+{
+  "id": "{taskId}",
+  "passes": true,
+  "status": "passed",
+  "validatedAt": "{ISO_TIMESTAMP}",
+  "testResults": {
+    "e2eTests": "passed",
+    "testFile": "tests/e2e/{feature}-suite.spec.ts"
+  }
+}
+```
+
+**If ANY test fails:**
+```json
+{
+  "id": "{taskId}",
+  "status": "needs_fixes",
+  "bugNotes": "Test failure details...",
+  "retryCount": 1,
+  "testResults": {
+    "e2eTests": "failed",
+    "failureReason": "Test output excerpt"
+  }
+}
 ```
 
 ## Test Categories
 
-| Category    | What to Check              |
-| ----------- | -------------------------- |
-| Load        | Page loads, canvas renders |
-| Console     | No errors or warnings      |
-| Functional  | Features work as specified |
-| Visual      | UI appears correctly       |
-| Performance | 60 FPS, no stuttering      |
-| Input       | Controls respond correctly |
+| Category | What to Check | Test Pattern |
+|----------|---------------|--------------|
+| **Load** | Page loads, canvas renders | `test('page loads', ...)` |
+| **Console** | No errors or warnings | Console listener test |
+| **Functional** | Features work as specified | Acceptance criteria tests |
+| **Visual** | UI appears correctly | Screenshot comparison |
+| **Performance** | 60 FPS, no stuttering | FPS monitoring test |
+| **Input** | Controls respond correctly | WASD/mouse tests |
 
-## Progressive Guide
+## Creating Tests for Missing Coverage
 
-### Level 1: Basic Load Test
+When Developer/Tech Artist didn't create tests:
+
+```typescript
+// tests/e2e/{feature}-suite.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Feature Name - {taskId}', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:3000');
+  });
+
+  test('should meet acceptance criterion 1', async ({ page }) => {
+    // Test implementation
+  });
+
+  test('should meet acceptance criterion 2', async ({ page }) => {
+    // Test implementation
+  });
+});
+```
+
+**Then verify:**
+```bash
+npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
+```
+
+## Common Test Patterns for Validation
+
+### Basic Load Test
 
 ```typescript
 test('page loads correctly', async ({ page }) => {
-  // Navigate
   await page.goto('http://localhost:3000');
 
   // Wait for canvas
   const canvas = page.locator('canvas');
   await expect(canvas).toBeVisible();
 
-  // Take screenshot
-  await page.screenshot({ path: 'playwright-test/load.png' });
-});
-```
-
-### Level 2: Console Error Check
-
-```typescript
-test('no console errors', async ({ page }) => {
+  // Check for console errors
   const errors: string[] = [];
-
   page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      errors.push(msg.text());
-    }
+    if (msg.type() === 'error') errors.push(msg.text());
   });
 
-  await page.goto('http://localhost:3000');
   await page.waitForTimeout(5000); // Wait for initial load
-
   expect(errors).toHaveLength(0);
 });
 ```
 
-### Level 3: Input Testing
+### Input Testing
 
 ```typescript
 test('keyboard controls work', async ({ page }) => {
@@ -91,24 +202,14 @@ test('keyboard controls work', async ({ page }) => {
   await page.click('canvas');
 
   // Press WASD keys
-  await page.keyboard.press('KeyW');
+  await page.keyboard.down('KeyW');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: 'playwright-test/after-w.png' });
-
-  await page.keyboard.press('KeyA');
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: 'playwright-test/after-a.png' });
+  await page.screenshot({ path: 'test-results/after-w.png' });
+  await page.keyboard.up('KeyW');
 });
 ```
 
-**For game-specific input patterns**, see [`game-testing.md`](game-testing.md) for:
-
-- Continuous movement (key down/up patterns)
-- Mouse aiming and clicking
-- Combo sequences
-- Special key combinations
-
-### Level 4: Visual Comparison
+### Visual Comparison
 
 ```typescript
 test('visual appearance matches', async ({ page }) => {
@@ -123,14 +224,26 @@ test('visual appearance matches', async ({ page }) => {
 });
 ```
 
-**For advanced visual testing**, see [`visual-testing.md`](visual-testing.md) for:
+### Pointer Lock Testing (FPS/TPS)
 
-- Game state detection (menu, playing, game over, win)
-- Semantic visual comparison with Vision MCP
-- UI element validation (HUD, health bars, minimap)
-- GDD compliance validation
+```typescript
+test('pointer lock activates on game start', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForSelector('canvas');
 
-### Level 5: Performance Metrics
+  // Wait for auto-lock timeout (typically 100ms)
+  await page.waitForTimeout(200);
+
+  // Check if pointer lock is active
+  const isLocked = await page.evaluate(() => {
+    return document.pointerLockElement === document.body;
+  });
+
+  expect(isLocked).toBe(true);
+});
+```
+
+### Performance Metrics
 
 ```typescript
 test('performance is acceptable', async ({ page }) => {
@@ -151,179 +264,152 @@ test('performance is acceptable', async ({ page }) => {
 });
 ```
 
-### Level 6: Pointer Lock Testing (FPS/TPS Controls)
+## Console Error Monitoring
 
-For games with FPS/TPS mouse controls, test the Pointer Lock API:
+Every validation should include console error checking:
 
 ```typescript
-test('pointer lock activates on game start', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
+test.describe('Console Error Check', () => {
+  test('should have no console errors', async ({ page }) => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
 
-  // Wait for auto-lock timeout (typically 100ms)
-  await page.waitForTimeout(200);
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+      if (msg.type() === 'warning') warnings.push(msg.text());
+    });
 
-  // Check if pointer lock is active
-  const isLocked = await page.evaluate(() => {
-    return document.pointerLockElement === document.body;
+    await page.goto('http://localhost:3000');
+    await page.waitForTimeout(5000);
+
+    expect(errors).toHaveLength(0);
+    expect(warnings).toHaveLength(0);
   });
-
-  expect(isLocked).toBe(true);
-});
-
-test('mouse movement controls camera when locked', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Request pointer lock explicitly
-  await page.click('canvas');
-
-  // Wait for lock to engage
-  await page.waitForTimeout(200);
-
-  // Simulate mouse movement (movementX/Y only work when locked)
-  await page.mouse.move(100, 100);
-  await page.mouse.move(200, 150); // movementX: 100, movementY: 50
-
-  await page.waitForTimeout(100);
-  await page.screenshot({ path: 'playwright-test/after-mouse-move.png' });
-});
-
-test('ESC key unlocks pointer and shows PAUSED', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Ensure pointer is locked first
-  await page.click('canvas');
-  await page.waitForTimeout(200);
-
-  // Press ESC to unlock
-  await page.keyboard.press('Escape');
-
-  // Check pointer is unlocked
-  const isLocked = await page.evaluate(() => {
-    return document.pointerLockElement === document.body;
-  });
-  expect(isLocked).toBe(false);
-
-  // Check for PAUSED overlay
-  const pausedVisible = await page
-    .locator('text=PAUSED')
-    .isVisible()
-    .catch(() => false);
-  expect(pausedVisible).toBe(true);
-
-  await page.screenshot({ path: 'playwright-test/paused-overlay.png' });
-});
-
-test('click re-engages pointer lock', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Lock initially
-  await page.click('canvas');
-  await page.waitForTimeout(200);
-
-  // Unlock with ESC
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(100);
-
-  // Verify unlocked
-  let isLocked = await page.evaluate(() => {
-    return document.pointerLockElement === document.body;
-  });
-  expect(isLocked).toBe(false);
-
-  // Click to re-lock
-  await page.click('body');
-  await page.waitForTimeout(200);
-
-  // Verify re-locked
-  isLocked = await page.evaluate(() => {
-    return document.pointerLockElement === document.body;
-  });
-  expect(isLocked).toBe(true);
 });
 ```
 
-**Key Pointer Lock Validation Points:**
+## Page Object Model Usage
 
-- Pointer locks automatically on mount (100ms timeout)
-- `movementX/Y` values are processed for camera rotation
-- ESC key unlocks and shows PAUSED overlay
-- Click-to-resume functionality works
-- Cursor is hidden when locked (visible when unlocked)
+For complex validations, use Page Objects from `tests/pages/`:
 
-## ⚠️ CRITICAL: Playwright MCP is REQUIRED
+```typescript
+import { test, expect } from '@playwright/test';
+import { GamePage } from '@/pages/game.page';
+import { MultiplayerPage } from '@/pages/multiplayer.page';
 
-**There is NO manual testing fallback.**
+test('complete gameplay loop', async ({ page }) => {
+  const gamePage = new GamePage(page);
 
-If Playwright MCP is not available:
+  await gamePage.goto();
+  await gamePage.selectCharacter('TestPlayer');
+  await gamePage.waitForLobby();
 
-1. **FAIL the validation immediately**
-2. Report as critical blocker: `"Playwright MCP not configured - cannot validate"`
-3. **DO NOT** attempt manual browser testing
+  expect(await gamePage.isConnected()).toBe(true);
+});
 
-Browser testing via Playwright MCP is **NON-NEGOTIABLE**.
+test('multiplayer state sync', async ({ browser }) => {
+  const multiplayerPage = new MultiplayerPage(page);
+  const players = await multiplayerPage.setupMultiPlayerTest(browser, 2);
 
-**This is a mandatory gating condition** - validation cannot proceed without Playwright MCP.
-
-### Why No Manual Fallback?
-
-- Manual testing is subjective and error-prone
-- Automations ensure consistent validation across all tasks
-- Screenshots via Playwright provide objective evidence
-- Console monitoring catches issues humans miss
-- No manual testing = higher quality bar
+  try {
+    await multiplayerPage.connectPlayersToGame(players);
+    expect(await multiplayerPage.verifyAllConnected(players)).toBe(true);
+  } finally {
+    await multiplayerPage.cleanupPlayers(players);
+  }
+});
+```
 
 ## Cross-Browser Testing
 
-| Browser         | Priority         | Notes                   |
-| --------------- | ---------------- | ----------------------- |
-| Chrome/Chromium | Required         | Primary target          |
-| Firefox         | Recommended      | WebGL differences       |
-| Safari/WebKit   | If targeting iOS | Significant differences |
-| Edge            | Optional         | Uses Chromium           |
+| Browser | Priority | Notes |
+|---------|----------|-------|
+| Chrome/Chromium | Required | Primary target |
+| Firefox | Recommended | WebGL differences |
+| Safari/WebKit | If targeting iOS | Significant differences |
+| Edge | Optional | Uses Chromium |
+
+```bash
+# Run on different browsers
+npm run test:e2e -- --project=chromium
+npm run test:e2e -- --project=firefox
+npm run test:e2e -- --project=webkit
+```
+
+## Hybrid Model: Tests Serve Dual Purpose
+
+**New Feature Validation → Regression Tests**
+
+```
+Developer/Tech Artist writes E2E test
+                ↓
+           QA validates feature
+                ↓
+          Test passes
+                ↓
+    Feature merged to main
+                ↓
+    Test becomes regression check in CI/CD
+```
+
+## Decision Framework
+
+| Test Result | Action |
+|-------------|--------|
+| All E2E tests pass | Mark as PASSED |
+| Some tests fail | Mark as NEEDS_FIXES with bug notes |
+| Console errors | Mark as NEEDS_FIXES |
+| No test exists | Create test first, then validate |
 
 ## Anti-Patterns
 
 ❌ **DON'T:**
 
-- Skip browser testing because automated tests passed
-- Test only in one browser
-- Ignore console warnings
-- Skip performance check
+- Use Playwright MCP directly for validation
+- Skip E2E tests because automated checks passed
+- Mark as passed without running tests
 - Assume "it works on my machine"
 
 ✅ **DO:**
 
-- Test in browser for every validation
-- Check console for errors
-- Verify all acceptance criteria
-- Take screenshots as evidence
-- Test keyboard and mouse input
+- Always run E2E tests for validation
+- Create tests if missing
+- Verify all acceptance criteria with tests
+- Document failures with test output
 
-## Checklist
+## Validation Checklist
 
 For each validation:
 
-- [ ] Dev server running (`npm run dev:all:sh`)
-- [ ] Navigate to app URL
-- [ ] Canvas loads and renders
-- [ ] No console errors
-- [ ] All acceptance criteria verified
-- [ ] Input controls work
-- [ ] Performance acceptable
-- [ ] Screenshots captured
+- [ ] E2E test file exists in `tests/e2e/`
+- [ ] `npm run test:e2e` runs without errors
+- [ ] All acceptance criteria covered by tests
+- [ ] No console errors during tests
+- [ ] Performance acceptable (60 FPS target)
+- [ ] Screenshot comparison passes (for visual features)
+- [ ] Tests committed to repository
 
-## Reference
+## Bug Report Format
 
+When tests fail, include in bug notes:
+
+```markdown
+## Test Failure
+
+**Test File**: tests/e2e/{feature}-suite.spec.ts
+**Test Name**: "{test-name}"
+**Error Message**: {error from test output}
+
+**Steps to Reproduce**:
+1. npm run test:e2e -- -g "{test-name}"
+2. Observe failure
+
+**Expected**: {expected behavior}
+**Actual**: {actual behavior from test output}
+```
+
+## References
+
+- **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E test patterns
 - [Playwright Documentation](https://playwright.dev/docs/intro)
-- [agents/qa/skills/validation-workflow.md](validation-workflow.md) — Full workflow
-- [agents/qa/skills/game-testing.md](game-testing.md) — Game control patterns
-- [agents/qa/skills/visual-testing.md](visual-testing.md) — Visual validation
-- [agents/qa/AGENT.md](../AGENT.md) — Full QA instructions
-- [bugfix-003](../../prd.json) — Pointer Lock implementation reference
-
-**Learned from bugfix-003 retrospective (2026-01-22):**
-Pointer Lock API E2E testing patterns using Playwright. Tests should verify auto-lock on mount, mouse movement processing, ESC unlock handling, PAUSED overlay visibility, and click-to-resume functionality.
+- [tests/pages/](tests/pages/) - Page Object Model classes

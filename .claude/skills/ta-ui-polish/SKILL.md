@@ -1,7 +1,6 @@
 ---
 name: techartist-visual-polish
 description: UI and visual polish checklist for game presentation
-category: visual
 ---
 
 # Visual Polish Skill

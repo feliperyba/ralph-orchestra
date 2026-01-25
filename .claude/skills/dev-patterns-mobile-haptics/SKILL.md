@@ -1,8 +1,6 @@
 ---
 name: mobile-haptics
 description: Haptic feedback patterns for mobile games using Vibration API. Use when adding tactile feedback.
-category: patterns
-keywords: [haptics, vibration, mobile, touch, feedback]
 ---
 
 # Mobile Haptics

@@ -1,8 +1,6 @@
 ---
 name: prediction-shooting
 description: Shooting prediction with optimistic decals and server rollback. Use when implementing shooting mechanics.
-category: multiplayer
-keywords: [shooting, prediction, rollback, decals, optimistic]
 ---
 
 # Shooting Prediction with Rollback

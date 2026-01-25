@@ -1,3 +1,10 @@
+---
+name: worker-worktree-examples
+description: Git worktree practical examples for parallel agent development
+category: workflow
+keywords: [worktree, git, examples, parallel, isolation, branch, merge]
+---
+
 # Worker Worktree Examples
 
 This file provides practical examples for using git worktrees in the Ralph Orchestra multi-agent workflow.

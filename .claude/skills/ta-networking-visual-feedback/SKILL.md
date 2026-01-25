@@ -1,7 +1,6 @@
 ---
 name: techartist-networked-visual-feedback
 description: Visual feedback patterns for server-authoritative multiplayer with client-side prediction
-category: visual
 ---
 
 # Networked Visual Feedback Skill

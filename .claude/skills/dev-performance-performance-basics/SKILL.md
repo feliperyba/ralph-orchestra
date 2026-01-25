@@ -1,8 +1,6 @@
 ---
 name: performance-basics
 description: Core R3F/Three.js performance optimization principles. Use when FPS drops below 60.
-category: performance
-keywords: [optimization, fps, performance, rendering]
 ---
 
 # Performance Optimization Basics

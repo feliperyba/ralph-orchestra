@@ -1,7 +1,6 @@
 ---
 name: asset-pipeline-optimization
 description: 3D asset optimization and pipeline management for Vite 6 projects
-category: optimization
 ---
 
 # 3D Asset Pipeline Optimization

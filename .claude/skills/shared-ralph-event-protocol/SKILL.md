@@ -3,6 +3,7 @@ name: ralph-event-protocol
 description: Message-based communication protocol for event-driven multi-agent orchestration
 category: orchestration
 version: 2.0
+keywords: [event-driven, message, protocol, orchestration, watchdog, queue, inbox]
 ---
 
 # Ralph Event-Driven Protocol

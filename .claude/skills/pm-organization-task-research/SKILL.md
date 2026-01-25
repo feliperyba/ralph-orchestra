@@ -1,9 +1,6 @@
 ---
 name: pm-organization-task-research
 description: Codebase research specialist for PM task assignment. Use proactively before assigning tasks to understand existing patterns, dependencies, and implementation approaches.
-category: research
-version: 1.0
-keywords: [pm, task-research, codebase, patterns, dependencies]
 user-invocable: true
 ---
 

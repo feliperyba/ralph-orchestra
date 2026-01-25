@@ -1,7 +1,6 @@
 ---
 name: techartist-postfx-effects
 description: Post-processing effects with React Three Fiber
-category: visual
 ---
 
 # Post-Processing Effects Skill

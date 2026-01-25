@@ -1,9 +1,7 @@
 ---
 name: techartist-shader-sdf
 description: Signed Distance Functions for shader-based 3D primitives
-category: visual
 ---
-
 # Shader SDF Skill
 
 > "Model everything with math – SDFs enable infinite resolution procedural geometry."

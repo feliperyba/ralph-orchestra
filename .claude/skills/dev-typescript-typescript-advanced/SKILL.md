@@ -1,8 +1,6 @@
 ---
 name: typescript-advanced
 description: Advanced TypeScript patterns - generics, utility types, React patterns. Use for complex type scenarios.
-category: typescript
-keywords: [typescript, generics, utility-types, react]
 ---
 
 # Advanced TypeScript Patterns

@@ -1,8 +1,6 @@
 ---
 name: r3f-physics
 description: Physics integration with Rapier for R3F game development
-category: r3f
-keywords: [r3f, physics, rapier, rigidbody, collision, force, impulse]
 ---
 
 # R3F Physics

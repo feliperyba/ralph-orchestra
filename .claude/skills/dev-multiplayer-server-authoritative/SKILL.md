@@ -1,8 +1,6 @@
 ---
 name: server-authoritative
 description: Server-authoritative multiplayer architecture principles. Use when designing multiplayer features.
-category: multiplayer
-keywords: [server, authoritative, multiplayer, architecture, backend]
 ---
 
 # Server-Authoritative Architecture

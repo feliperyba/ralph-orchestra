@@ -1,7 +1,6 @@
 ---
 name: techartist-particles-gpu
 description: GPU particle systems for high-performance visual effects
-category: visual
 ---
 
 # GPU Particles Skill

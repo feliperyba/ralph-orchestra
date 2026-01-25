@@ -1,8 +1,6 @@
 ---
 name: anti-cheat-validation
 description: Input validation and anti-cheat patterns for multiplayer servers. Use when implementing server-side validation.
-category: multiplayer
-keywords: [validation, anti-cheat, security, server]
 ---
 
 # Anti-Cheat Validation

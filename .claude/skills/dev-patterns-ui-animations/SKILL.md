@@ -1,8 +1,6 @@
 ---
 name: ui-animations
 description: Game UI and HUD animation patterns with Framer Motion. Use when animating HUD elements.
-category: patterns
-keywords: [ui, animation, hud, framer-motion, react]
 ---
 
 # Game UI Animations

@@ -2,6 +2,7 @@
 name: ralph-coordinator-single
 description: PM coordinator for single-agent orchestration mode - no polling, handoff-based
 category: orchestration
+keywords: [pm, coordinator, single-agent, orchestration, task-assignment, handoff]
 ---
 
 # Ralph Coordinator - Single Agent Mode

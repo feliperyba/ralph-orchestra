@@ -1,7 +1,6 @@
 ---
 name: vite-asset-configuration
 description: Vite 6 asset configuration patterns for React Three Fiber projects
-category: coordination
 ---
 
 # Vite 6 Asset Configuration Coordination

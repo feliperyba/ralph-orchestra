@@ -1,22 +1,9 @@
 ---
-name: gamedesigner-game-loop-design
-description: Core gameplay loop design documentation
-category: gamedesign
+name: gd-design-game-loop
+description: Core gameplay loop design documentation. Use when defining the core gameplay loop, mapping the player experience over time, designing session structures, or identifying pacing issues.
 ---
 
 # Game Loop Design
-
-## Overview
-
-The core loop is the minute-by-minute experience of playing your game. This skill provides guidance for documenting and designing effective game loops.
-
-## When to Use This Skill
-
-Use when:
-- Defining the core gameplay loop
-- Mapping the player experience over time
-- Designing session structures
-- Identifying pacing issues
 
 ## Core Loop Template
 

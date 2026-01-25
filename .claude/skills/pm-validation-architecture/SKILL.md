@@ -1,7 +1,6 @@
 ---
 name: pm-architecture-validation
 description: Detect and validate client-authoritative vs server-authoritative architecture gaps
-category: coordination
 ---
 
 # Architecture Validation Skill

@@ -1,9 +1,7 @@
 ---
 name: techartist-tps-camera
 description: Third-person shooter camera implementation patterns with proper player-relative controls
-category: development
 ---
-
 # TPS Camera Skill
 
 > "In TPS, the camera orbits the player - the player doesn't rotate to face the camera."

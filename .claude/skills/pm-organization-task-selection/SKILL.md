@@ -1,20 +1,107 @@
 ---
 name: pm-task-selection
 description: Priority algorithm for selecting next PRD task based on category, dependencies, and risk
-category: coordination
 ---
 
 # Task Selection Skill
 
 > "Fail fast on risky work – tackle hard problems before easy wins."
 
-## When to Use This Skill
+## Parallel Task Opportunity Check (MANDATORY FIRST STEP)
+
+**⚠️ CRITICAL: BEFORE selecting any single task, ALWAYS check if parallel assignment is possible.**
+
+When both Developer AND Tech Artist are idle, the PM MUST check for parallel work opportunities. This happens BEFORE the standard single-task selection flow.
+
+### Check Steps
+
+```javascript
+// 1. Read both PRD files for complete picture
+const prd = readJson("prd.json");
+const backlog = readJson(prd.backlogFile || "prd_backlog.json");
+const allItems = [...prd.items, ...backlog.backlogItems];
+
+// 2. Check if BOTH agents are idle
+const developerIdle = prd.agents.developer?.status === "idle" || prd.agents.developer?.status === "awaiting_pm";
+const techartistIdle = prd.agents.techartist?.status === "idle" || prd.agents.techartist?.status === "awaiting_pm";
+
+// 3. If both idle, find tasks for each agent
+if (developerIdle && techartistIdle) {
+  // Find Developer task (architectural, functional, integration categories)
+  const devCategories = ["architectural", "functional", "integration"];
+  const devTasks = allItems.filter(item =>
+    !item.passes &&
+    item.status === "pending" &&
+    devCategories.includes(item.category) &&
+    item.dependencies.every(depId => allItems.find(i => i.id === depId)?.passes === true)
+  ).sort(priorityComparator);
+
+  // Find Tech Artist task (visual, shader, polish categories)
+  const artistCategories = ["visual", "shader", "polish"];
+  const artistTasks = allItems.filter(item =>
+    !item.passes &&
+    item.status === "pending" &&
+    artistCategories.includes(item.category) &&
+    item.dependencies.every(depId => allItems.find(i => i.id === depId)?.passes === true)
+  ).sort(priorityComparator);
+
+  // 4. Check if we have non-conflicting tasks
+  if (devTasks.length > 0 && artistTasks.length > 0) {
+    const devTask = devTasks[0];
+    const artistTask = artistTasks[0];
+
+    // Check for file path conflicts
+    if (!areTasksConflicting(devTask, artistTask)) {
+      // ⭐ PARALLEL ASSIGNMENT PATH ⭐
+      // Assign BOTH tasks in parallel using 5-step atomic process for each
+      assignTask(devTask, "developer");
+      assignTask(artistTask, "techartist");
+      return "parallel_assigned"; // Exit after parallel assignment
+    }
+  }
+}
+
+// 5. Fall through to single-task selection if no parallel opportunity
+```
+
+### Conflict Detection Function
+
+```javascript
+function areTasksConflicting(task1, task2) {
+  // Direct file overlap check
+  const paths1 = task1.files || [];
+  const paths2 = task2.files || [];
+
+  // Check if any file paths overlap
+  for (const p1 of paths1) {
+    for (const p2 of paths2) {
+      // Extract directory paths
+      const dir1 = p1.substring(0, p1.lastIndexOf('/'));
+      const dir2 = p2.substring(0, p2.lastIndexOf('/'));
+      if (dir1 === dir2) return true; // Same directory = conflict
+    }
+  }
+
+  // Check shared dependencies
+  const deps1 = new Set(task1.dependencies || []);
+  const deps2 = new Set(task2.dependencies || []);
+  for (const dep of deps1) {
+    if (deps2.has(dep)) return true; // Shared dependency = conflict
+  }
+
+  return false; // No conflicts
+}
+```
+
+### When to Use This Skill
 
 Use when:
 
 - Assigning a new task from the PRD
 - `prd.json.session.currentTask` is null or task status is "passed"
 - After retrospective completes
+
+**⚠️ FIRST check for parallel assignment, then proceed to single-task selection if parallel is not possible.**
 
 ## Quick Start
 

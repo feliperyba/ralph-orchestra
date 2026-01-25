@@ -1,8 +1,6 @@
 ---
 name: coverage-tracking
 description: Grid-based surface coverage tracking for territorial game mechanics
-category: pattern
-keywords: [territory, coverage, grid, paint, splatoon, score, tracking]
 ---
 
 # Coverage Tracking Pattern

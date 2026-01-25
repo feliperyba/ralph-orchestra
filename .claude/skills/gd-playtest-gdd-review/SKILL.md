@@ -1,21 +1,9 @@
 ---
-name: gamedesigner-playtest-gdd-review
-description: GDD review and research during playtest phase - identifies gaps, clarifications, and updates needed
-category: gamedesign
+name: gd-playtest-gdd-review
+description: GDD review and research during playtest phase. Use during playtest phase BEFORE sending playtest_session_report to PM, after completing gameplay testing, after reviewing retrospective pain points, or before finalizing the playtest report.
 ---
 
-# Playtest GDD Review Skill
-
-## Overview
-
-This skill enables the Game Designer to conduct comprehensive GDD review during the playtest phase. Before sending the playtest report to PM, the GD reviews the current game state, checks retrospective pain points, identifies GDD clarifications needed by workers, and proposes updates.
-
-## When to Use This Skill
-
-Use during playtest phase, BEFORE sending `playtest_session_report` to PM:
-- After completing gameplay testing
-- After reviewing retrospective pain points
-- Before finalizing the playtest report
+# Playtest GDD Review
 
 ## The 3-Phase GDD Review Process
 

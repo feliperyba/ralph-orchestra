@@ -3,6 +3,7 @@ name: worker-worktree
 description: Git worktree setup and management for parallel agent development. Use when working in isolated git worktrees to avoid merge conflicts between Developer and Tech Artist agents.
 category: workflow
 version: 1.0
+keywords: [worktree, git, parallel, isolation, merge, branch, coordinator]
 ---
 
 # Worker Worktree Skill
@@ -144,6 +145,98 @@ git push origin main
 - Merge to main yourself (QA does this after validation)
 - Delete worktree without QA approval
 - Commit directly to main from worktree
+
+## Master Branch Coordination (CRITICAL)
+
+**THE GOLDEN RULE:** Worktrees are for CODE/ASSETS ONLY. All coordination happens in master.
+
+### What Goes Where
+
+| Operation | Location | Why |
+|-----------|----------|-----|
+| **PRD updates** | Master branch | PM needs to see status immediately |
+| **Sending messages** | Master branch | Watchdog only watches master session |
+| **Reading messages** | Master branch | All coordination messages live here |
+| **Heartbeat updates** | Master branch | Watchdog monitors master PRD |
+| **Code commits** | Worktree branch | Isolated development, QA validates |
+| **Asset creation** | Worktree branch | Isolated development, QA validates |
+
+### The Workflow
+
+```
+1. Developer in worktree:
+   ├── Reads PRD from master (Get-MasterPrdPath)
+   ├── Reads messages from master (Get-MasterMessageQueuePath)
+   ├── Updates PRD status in master (atomic write)
+   ├── Sends messages to master queue
+   ├── Writes code in worktree (src/)
+   ├── Commits code to worktree branch
+   └── Sends validation_request via master queue
+
+2. PM in master:
+   ├── Reads PRD (sees worker status updates)
+   ├── Reads messages (sees worker messages)
+   └── Coordinates everything
+
+3. QA in master:
+   ├── Navigates to worktree for testing
+   ├── If validation passes: merges to master
+   └── If validation fails: sends bug_report via master queue
+```
+
+### PowerShell Helper Functions
+
+After sourcing `ralph-config.ps1`, these helpers are available from ANY directory:
+
+```powershell
+# Source config (do this once at startup)
+. .\.claude\scripts\ralph-config.ps1
+
+# Get master paths from anywhere
+$masterRoot = Get-MasterRootPath           # Master branch root
+$masterPrd = Get-MasterPrdPath             # prd.json in master
+$masterSession = Get-MasterSessionPath     # .claude/session in master
+$masterMessages = Get-MasterMessageQueuePath  # messages/ in master
+```
+
+### Example: Complete Status Update
+
+```powershell
+# From developer-worktree, update master PRD
+. .\.claude\scripts\ralph-config.ps1
+
+$masterPrdPath = Get-MasterPrdPath
+$prd = Get-Content $masterPrdPath -Raw | ConvertFrom-Json
+
+# Update task status
+$prd.items | Where-Object { $_.id -eq "feat-001" } | ForEach-Object {
+    $_.status = "in_progress"
+}
+
+# Update agent heartbeat
+$prd.agents.developer.status = "working"
+$prd.agents.developer.lastSeen = [DateTime]::UtcNow.ToString("o")
+
+# Atomic write to master
+$prd | ConvertTo-Json -Depth 10 | Out-File -FilePath "$masterPrdPath.tmp" -Encoding UTF8
+Move-Item -Path "$masterPrdPath.tmp" -Destination $masterPrdPath -Force
+```
+
+### NEVER Update Local Worktree State Files
+
+❌ **DON'T do this from worktree:**
+```powershell
+# This only updates worktree copy - PM won't see it!
+$prd = Get-Content prd.json | ConvertFrom-Json
+$prd.agents.developer.status = "working"
+$prd | ConvertTo-Json | Set-Content prd.json
+```
+
+✅ **DO this instead:**
+```powershell
+$masterPrdPath = Get-MasterPrdPath
+# ... update master PRD ...
+```
 
 ## File Conflict Prevention
 

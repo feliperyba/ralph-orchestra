@@ -1,8 +1,6 @@
 ---
-title: PRD Reorganization
-category: coordination
+name: prd-reorganization
 description: Extract and reorganize PRD tasks from GDD updates and retrospective findings
-version: 1.0.0
 ---
 
 # PRD Reorganization

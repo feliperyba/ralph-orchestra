@@ -2,6 +2,7 @@
 name: ralph-coordinator
 description: PM coordinator loop - assign tasks and manage multi-session Ralph
 category: orchestration
+keywords: [pm, coordinator, event-driven, orchestration, task-assignment, polling, message]
 ---
 
 # Ralph Coordinator

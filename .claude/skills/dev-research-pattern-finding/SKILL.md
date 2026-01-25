@@ -1,8 +1,6 @@
 ---
 name: pattern-finding
 description: Find existing code patterns before implementing new features
-category: research
-keywords: [pattern, existing, similar, find]
 ---
 
 # Pattern Finding

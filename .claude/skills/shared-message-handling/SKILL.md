@@ -3,6 +3,7 @@ name: message-handling
 description: Pending message delivery and processing for Ralph agents - watchdog restart, message reading
 category: coordination
 version: 2.0
+keywords: [message, delivery, processing, startup, watchdog, queue, inbox, deletion]
 ---
 
 # Message Handling Skill
@@ -202,6 +203,45 @@ Each message is stored as its own JSON file:
 ├── msg-developer-20250123-120500-002.json
 └── msg-developer-20250123-121000-003.json
 ```
+
+## Message Deletion Protocol (CRITICAL)
+
+After processing each message, you **MUST** delete it using the message queue script:
+
+```powershell
+# Source the message queue script first
+. .\.claude\scripts\message-queue.ps1
+
+# After processing each message, delete it:
+Remove-AgentMessage -Agent {your-agent} -MessageId $msg.id
+```
+
+**Example for Developer agent:**
+```powershell
+# 1. Read message files
+$inbox = ".claude/session/messages/developer"
+$messageFiles = Get-ChildItem $inbox -Filter "msg-developer-*.json" | Sort-Object Name
+
+# 2. Process each message
+foreach ($file in $messageFiles) {
+    $msg = Get-Content $file.FullName | ConvertFrom-Json
+
+    # 3. Process based on message type
+    switch ($msg.type) {
+        "task_assign" { /* ... */ }
+        "bug_report" { /* ... */ }
+    }
+
+    # 4. DELETE after processing (REQUIRED!)
+    Remove-AgentMessage -Agent "developer" -MessageId $msg.id
+}
+```
+
+**Why deletion is required:**
+- Prevents duplicate message processing
+- Prevents queue bloat
+- Prevents watchdog from re-delivering same messages
+- Ensures clean message flow
 
 ## Troubleshooting
 

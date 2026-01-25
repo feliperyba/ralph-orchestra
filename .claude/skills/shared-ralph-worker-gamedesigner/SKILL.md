@@ -4,6 +4,7 @@ description: Game Designer worker agent for event-driven orchestration
 category: orchestration
 arguments:
   --agent: "gamedesigner"
+keywords: [gamedesigner, worker, gdd, design, playtest, thermite, iteration]
 ---
 
 # Ralph Worker - Game Designer Agent

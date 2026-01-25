@@ -1,8 +1,6 @@
 ---
 name: gdd-reading
 description: Read Game Design Document for design context
-category: research
-keywords: [gdd, design, documentation, requirements]
 ---
 
 # GDD Reading

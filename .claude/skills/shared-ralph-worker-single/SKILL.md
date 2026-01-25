@@ -3,7 +3,8 @@ name: ralph-worker-single
 description: Worker agent for single-agent orchestration mode - no polling, handoff-based
 category: orchestration
 arguments:
-  --agent: "developer" "qa" "techartist" "gamedesigner" 
+  --agent: "developer" "qa" "techartist" "gamedesigner"
+keywords: [worker, single-agent, handoff, task-complete, validation, developer, qa]
 ---
 
 # Ralph Worker - Single Agent Mode

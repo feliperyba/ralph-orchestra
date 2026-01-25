@@ -1,7 +1,6 @@
 ---
 name: pm-skill-improvement
 description: MCP-based skill improvement during retrospective - research and update agent skills
-category: coordination
 ---
 
 # Skill Improvement Skill

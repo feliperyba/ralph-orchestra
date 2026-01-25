@@ -1,7 +1,6 @@
 ---
 name: techartist-typescript-patterns
 description: TypeScript best practices for game development
-category: development
 ---
 
 # TypeScript Patterns Skill

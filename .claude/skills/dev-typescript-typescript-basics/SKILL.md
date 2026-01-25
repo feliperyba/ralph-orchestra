@@ -1,8 +1,6 @@
 ---
 name: typescript-basics
 description: Core TypeScript patterns for game development. Use when defining types and interfaces.
-category: typescript
-keywords: [typescript, types, interface, patterns]
 ---
 
 # TypeScript Basics

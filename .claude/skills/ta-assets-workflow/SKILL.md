@@ -1,7 +1,6 @@
 ---
 name: techartist-asset-workflow
 description: Asset creation pipeline and integration workflow for Tech Artist
-category: development
 ---
 
 # Asset Workflow Skill

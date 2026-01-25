@@ -1,8 +1,6 @@
 ---
-title: PM Self-Improvement
-category: coordination
+name: pm-self-improvement
 description: Systematic improvement of PM agent's own coordination skills during retrospectives
-version: 1.0.0
 ---
 
 # PM Self-Improvement

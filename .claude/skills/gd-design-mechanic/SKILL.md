@@ -1,22 +1,9 @@
 ---
-name: gamedesigner-mechanic-design
-description: Game mechanics documentation and design
-category: gamedesign
+name: gd-design-mechanic
+description: Game mechanics documentation and design. Use when designing core gameplay systems, documenting player actions and responses, balancing game systems, or explaining mechanics to developers.
 ---
 
 # Game Mechanics Design
-
-## Overview
-
-This skill provides guidance for documenting game mechanics - the rules and systems that define how players interact with the game world.
-
-## When to Use This Skill
-
-Use when:
-- Designing core gameplay systems
-- Documenting player actions and responses
-- Balancing game systems
-- Explaining mechanics to developers
 
 ## Mechanics Documentation Template
 

@@ -1,7 +1,6 @@
 ---
 name: qa-bug-reporting
-description: Bug report format and documentation for failed validations
-category: validation
+description: Bug report format and documentation for failed validations. Use when validation fails and status must be set to needs_fixes.
 ---
 
 # Bug Reporting Skill

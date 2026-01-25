@@ -2,6 +2,7 @@
 name: auxiliary-scripts
 description: Auxiliary script management rules for Ralph agents
 category: orchestration
+keywords: [auxiliary, scripts, automation, session, cleanup, reusable]
 ---
 
 # Auxiliary Script Management

@@ -1,8 +1,6 @@
 ---
 name: git-protocol
 description: Git commit format and branch management
-category: coordination
-keywords: [git, commit, branch, worktree]
 ---
 
 # Git Protocol

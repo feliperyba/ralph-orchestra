@@ -1,8 +1,6 @@
 ---
 name: texture-loading
 description: Texture loading and optimization for R3F. Use when loading image textures.
-category: assets
-keywords: [texture, image, loading, optimization]
 ---
 
 # Texture Loading

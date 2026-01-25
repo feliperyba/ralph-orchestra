@@ -1,8 +1,6 @@
 ---
 name: prediction-basics
 description: Client-side prediction and server reconciliation core concepts. Use when implementing responsive multiplayer controls.
-category: multiplayer
-keywords: [prediction, reconciliation, multiplayer, latency, networking]
 ---
 
 # Client-Side Prediction Basics

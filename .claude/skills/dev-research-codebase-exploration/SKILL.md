@@ -1,8 +1,6 @@
 ---
 name: codebase-exploration
 description: Efficient codebase search using Glob and Grep
-category: research
-keywords: [search, glob, grep, explore]
 ---
 
 # Codebase Exploration

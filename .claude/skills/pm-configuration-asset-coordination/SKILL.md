@@ -1,7 +1,6 @@
 ---
 name: pm-configuration-asset-coordination
 description: Asset coordination best practices for parallel development between Developer and Tech Artist. Use when managing parallel asset-related tasks, coordinating model loading with material creation, ensuring asset dependencies are properly ordered, or managing public directory vs src/assets workflows.
-category: organization
 ---
 
 # Asset Coordination Best Practices

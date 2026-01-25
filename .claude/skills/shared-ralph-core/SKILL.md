@@ -2,6 +2,7 @@
 name: ralph-core
 description: Shared core instructions for all Ralph agents - single source of truth
 category: orchestration
+keywords: [core, shared, session, prd, status, heartbeat, commit, orchestration]
 ---
 
 # Ralph Core Instructions

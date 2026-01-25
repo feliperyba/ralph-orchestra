@@ -3,6 +3,7 @@ name: heartbeat-protocol
 description: Heartbeat update protocol for Ralph agents - when/how to update prd.json.agents
 category: coordination
 version: 2.1
+keywords: [heartbeat, status, lastseen, agent-status, monitoring, watchdog, health]
 ---
 
 # Heartbeat Protocol Skill

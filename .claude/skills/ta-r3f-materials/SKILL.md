@@ -1,9 +1,7 @@
 ---
 name: techartist-r3f-materials
 description: Material selection, shaders, and visual effects for R3F
-category: development
 ---
-
 # R3F Materials Skill
 
 > "Materials define the soul of your 3D objects – choose wisely."

@@ -2,6 +2,7 @@
 name: message-acknowledgment
 description: Message acknowledgment protocol for worker agents - confirm message receipt to PM
 category: coordination
+keywords: [ack, acknowledgment, message, confirmation, delivery, protocol]
 ---
 
 # Message Acknowledgment Protocol Skill

@@ -1,741 +1,830 @@
 ---
 name: qa-game-testing
-description: Browser-based game control and E2E testing using Playwright MCP
-category: validation
+description: E2E gameplay testing patterns using Playwright API. Tests continuous movement, mouse control, and complete gameplay loops. Use when validating game controls, combat mechanics, and player interactions.
 ---
 
-# Game Testing Skill
+# Gameplay Testing with E2E Tests
 
 > "Game controls must be tested with continuous input patterns, not single keypresses."
 
 ## When to Use This Skill
 
-Use for **every game feature validation** to test:
+Use for **every game feature validation** to create E2E tests for:
 - Character movement (WASD, arrow keys)
 - Mouse aiming and interaction
 - Combat mechanics and combos
 - Special actions (jump, crouch, interact)
 - UI navigation (menus, inventory, map)
+- Complete gameplay loops
 
-## Quick Start
+## Core Principle: Write Test Code, Don't Use MCP
 
-```javascript
-// Continuous forward movement
-await page.keyboard.down('KeyW');
-await page.waitForTimeout(1000);
-await page.keyboard.up('KeyW');
-
-// Diagonal movement with sprint
-await page.keyboard.down('KeyW');
-await page.keyboard.down('KeyD');
-await page.keyboard.down('ShiftLeft');
-await page.waitForTimeout(2000);
-await page.keyboard.up('ShiftLeft');
-await page.keyboard.up('KeyD');
-await page.keyboard.up('KeyW');
-
-// Mouse aim and click
-await page.mouse.move(x, y);
-await page.waitForTimeout(100);
-await page.mouse.click(x, y, { button: 'left' });
+**❌ OLD APPROACH (Do NOT do this):**
+```typescript
+// Interactive MCP - NO!
+mcp__playwright__browser_navigate('http://localhost:3000');
+mcp__playwright__browser_press_key({ key: 'KeyW' });
 ```
 
----
+**✅ NEW APPROACH (Do this):**
+```typescript
+// Write E2E test - YES!
+test('player can move forward', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.click('canvas');
+
+  // Continuous movement - down, wait, up
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(1000);
+  await page.keyboard.up('KeyW');
+
+  // Verify position changed
+  const position = await page.evaluate(() => (window as any).playerPosition);
+  expect(position.z).not.toBe(0);
+});
+```
+
+## E2E Test Structure
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Gameplay - Movement', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.waitForSelector('canvas');
+    await page.click('canvas'); // Focus game
+  });
+
+  test('should move forward with W key', async ({ page }) => {
+    // Test implementation
+  });
+
+  test('should strafe left with A key', async ({ page }) => {
+    // Test implementation
+  });
+});
+```
 
 ## Continuous Movement Patterns
 
+### Critical Pattern: Key Down/Up
+
+**Single `press()` only simulates a quick tap. Use `down()` + `waitForTimeout()` + `up()` for continuous movement.**
+
 ### Basic WASD Movement
 
-**Critical Pattern**: Use `keyboard.down()` + `waitForTimeout()` + `keyboard.up()` for continuous movement. Single `press()` calls only simulate a quick tap.
+```typescript
+test.describe('WASD Movement', () => {
+  test('should move forward', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-```javascript
-// Forward movement
-async function moveForward(page, durationMs) {
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyW');
-}
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
 
-// Backward movement
-async function moveBackward(page, durationMs) {
-  await page.keyboard.down('KeyS');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyS');
-}
+    // Forward movement
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyW');
 
-// Left strafe
-async function strafeLeft(page, durationMs) {
-  await page.keyboard.down('KeyA');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyA');
-}
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
 
-// Right strafe
-async function strafeRight(page, durationMs) {
-  await page.keyboard.down('KeyD');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyD');
-}
+    expect(afterPos.z).toBeLessThan(initialPos.z); // Moved forward (negative Z)
+  });
+
+  test('should move backward', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    await page.keyboard.down('KeyS');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyS');
+
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    expect(afterPos.z).toBeGreaterThan(initialPos.z); // Moved backward
+  });
+
+  test('should strafe left', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    await page.keyboard.down('KeyA');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyA');
+
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    expect(afterPos.x).toBeLessThan(initialPos.x); // Moved left (negative X)
+  });
+
+  test('should strafe right', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    await page.keyboard.down('KeyD');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyD');
+
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    expect(afterPos.x).toBeGreaterThan(initialPos.x); // Moved right
+  });
+});
 ```
 
 ### Diagonal Movement
 
-```javascript
-// Forward-left diagonal
-async function moveDiagonalFL(page, durationMs) {
-  await page.keyboard.down('KeyW');
-  await page.keyboard.down('KeyA');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyA');
-  await page.keyboard.up('KeyW');
-}
+```typescript
+test.describe('Diagonal Movement', () => {
+  test('should move forward-left diagonally', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Forward-right diagonal
-async function moveDiagonalFR(page, durationMs) {
-  await page.keyboard.down('KeyW');
-  await page.keyboard.down('KeyD');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyD');
-  await page.keyboard.up('KeyW');
-}
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
 
-// Universal diagonal movement helper
-async function moveDiagonal(page, dir1, dir2, durationMs) {
-  await page.keyboard.down(dir1);
-  await page.keyboard.down(dir2);
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up(dir2);
-  await page.keyboard.up(dir1);
-}
+    // Forward-left diagonal
+    await page.keyboard.down('KeyW');
+    await page.keyboard.down('KeyA');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyA');
+    await page.keyboard.up('KeyW');
+
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    expect(afterPos.x).toBeLessThan(initialPos.x); // Left
+    expect(afterPos.z).toBeLessThan(initialPos.z); // Forward
+  });
+
+  test('should move forward-right diagonally', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    await page.keyboard.down('KeyW');
+    await page.keyboard.down('KeyD');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyD');
+    await page.keyboard.up('KeyW');
+
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    expect(afterPos.x).toBeGreaterThan(initialPos.x); // Right
+    expect(afterPos.z).toBeLessThan(initialPos.z); // Forward
+  });
+});
 ```
 
 ### Sprint/Run Combinations
 
-```javascript
-// Sprint forward
-async function sprintForward(page, durationMs) {
-  await page.keyboard.down('ShiftLeft');
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyW');
-  await page.keyboard.up('ShiftLeft');
-}
+```typescript
+test.describe('Sprint Movement', () => {
+  test('should sprint forward', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Sprint diagonal
-async function sprintDiagonal(page, direction, durationMs) {
-  const dirs = {
-    forward: 'KeyW',
-    left: 'KeyA',
-    right: 'KeyD'
-  };
+    const initialPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
 
-  await page.keyboard.down('ShiftLeft');
-  await page.keyboard.down('KeyW');
-  if (direction === 'left') await page.keyboard.down(dirs.left);
-  if (direction === 'right') await page.keyboard.down(dirs.right);
-  await page.waitForTimeout(durationMs);
-  if (direction === 'left') await page.keyboard.up(dirs.left);
-  if (direction === 'right') await page.keyboard.up(dirs.right);
-  await page.keyboard.up('KeyW');
-  await page.keyboard.up('ShiftLeft');
-}
+    // Sprint forward (Shift + W)
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ShiftLeft');
+
+    const afterPos = await page.evaluate(() =>
+      (window as any).playerPosition || { x: 0, y: 0, z: 0 }
+    );
+
+    // Sprint should cover more distance than walking
+    expect(Math.abs(afterPos.z - initialPos.z)).toBeGreaterThan(5);
+  });
+
+  test('should sprint diagonally', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyW');
+    await page.keyboard.down('KeyD');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyD');
+    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ShiftLeft');
+
+    // Verify diagonal sprint worked
+    const position = await page.evaluate(() => (window as any).playerPosition);
+    expect(position.x).toBeGreaterThan(0);
+    expect(position.z).toBeLessThan(0);
+  });
+});
 ```
 
 ### Crouch Movement
 
-```javascript
-// Crouch forward
-async function crouchForward(page, durationMs) {
-  await page.keyboard.down('ControlLeft');
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyW');
-  await page.keyboard.up('ControlLeft');
-}
+```typescript
+test.describe('Crouch Movement', () => {
+  test('should crouch forward', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Crouch in place
-async function crouch(page, durationMs) {
-  await page.keyboard.down('ControlLeft');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('ControlLeft');
-}
+    const initialHeight = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Crouch while moving
+    await page.keyboard.down('ControlLeft');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ControlLeft');
+
+    const afterHeight = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Player should be lower when crouching
+    expect(afterHeight).toBeLessThanOrEqual(initialHeight);
+  });
+
+  test('should crouch in place', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    const initialHeight = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    await page.keyboard.down('ControlLeft');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('ControlLeft');
+
+    const afterHeight = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    expect(afterHeight).toBeLessThan(initialHeight);
+  });
+});
 ```
-
----
 
 ## Mouse Control Patterns
 
 ### Aiming
 
-```javascript
-// Direct mouse aim (instant)
-async function aimAt(page, x, y) {
-  await page.mouse.move(x, y);
-}
+```typescript
+test.describe('Mouse Aiming', () => {
+  test('should aim with mouse movement', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Smooth mouse aim (simulates human movement)
-async function aimSmooth(page, targetX, targetY, steps = 10) {
-  const currentPosition = await page.evaluate(() => ({
-    x: window.mouseX || window.innerWidth / 2,
-    y: window.mouseY || window.innerHeight / 2
-  }));
+    // Get initial camera rotation
+    const initialRotation = await page.evaluate(() =>
+      (window as any).cameraRotation || { y: 0 }
+    );
 
-  const dx = (targetX - currentPosition.x) / steps;
-  const dy = (targetY - currentPosition.y) / steps;
+    // Move mouse (simulates looking around)
+    await page.mouse.move(500, 300);
+    await page.waitForTimeout(100);
 
-  for (let i = 0; i < steps; i++) {
-    const x = Math.round(currentPosition.x + dx * (i + 1));
-    const y = Math.round(currentPosition.y + dy * (i + 1));
-    await page.mouse.move(x, y);
-    await page.waitForTimeout(16); // ~60fps
-  }
-}
+    // Check camera rotated
+    const afterRotation = await page.evaluate(() =>
+      (window as any).cameraRotation || { y: 0 }
+    );
+
+    expect(afterRotation.y).not.toBe(initialRotation.y);
+  });
+
+  test('should use pointer lock for camera control', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.waitForSelector('canvas');
+
+    // Check pointer lock is active
+    const isLocked = await page.evaluate(() => {
+      return document.pointerLockElement === document.body;
+    });
+
+    expect(isLocked).toBe(true);
+
+    // Movement should affect camera when locked
+    const initialRotation = await page.evaluate(() =>
+      (window as any).cameraRotation?.y || 0
+    );
+
+    await page.mouse.move(500, 300);
+    await page.waitForTimeout(100);
+
+    const afterRotation = await page.evaluate(() =>
+      (window as any).cameraRotation?.y || 0
+    );
+
+    expect(afterRotation).not.toBe(initialRotation);
+  });
+});
 ```
 
 ### Clicking
 
-```javascript
-// Left click (primary attack)
-await page.mouse.click(x, y, { button: 'left' });
+```typescript
+test.describe('Mouse Click Actions', () => {
+  test('should shoot on left click', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Right click (secondary attack/alt action)
-await page.mouse.click(x, y, { button: 'right' });
+    const initialAmmo = await page.evaluate(() =>
+      (window as any).playerState?.ammo || 0
+    );
 
-// Double click
-await page.mouse.dblclick(x, y);
+    // Left click to shoot
+    await page.mouse.click(400, 300, { button: 'left' });
+    await page.waitForTimeout(100);
 
-// Middle click
-await page.mouse.click(x, y, { button: 'middle' });
+    const afterAmmo = await page.evaluate(() =>
+      (window as any).playerState?.ammo || 0
+    );
 
-// Hold and release (charged attack)
-async function chargedAttack(page, x, y, chargeTime) {
-  await page.mouse.move(x, y);
-  await page.mouse.down({ button: 'left' });
-  await page.waitForTimeout(chargeTime);
-  await page.mouse.up({ button: 'left' });
-}
+    expect(afterAmmo).toBeLessThan(initialAmmo);
+  });
+
+  test('should perform alt action on right click', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    // Right click for secondary action
+    await page.mouse.click(400, 300, { button: 'right' });
+
+    // Verify secondary action occurred
+    const actionState = await page.evaluate(() =>
+      (window as any).playerState?.secondaryActionActive || false
+    );
+
+    expect(actionState).toBe(true);
+  });
+
+  test('should handle charged attack', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    // Hold left button for charge
+    await page.mouse.down({ button: 'left' });
+    await page.waitForTimeout(1000); // Charge for 1 second
+    await page.mouse.up({ button: 'left' });
+
+    // Verify charged attack fired
+    const attackType = await page.evaluate(() =>
+      (window as any).lastAttackType || 'none'
+    );
+
+    expect(attackType).toBe('charged');
+  });
+});
 ```
-
-### Dragging
-
-```javascript
-// Mouse drag (for inventory, sliders, etc.)
-async function drag(page, startX, startY, endX, endY) {
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(endX, endY);
-  await page.mouse.up();
-}
-```
-
----
 
 ## Special Keys
 
 ### Jump
 
-```javascript
-// Single jump
-await page.keyboard.press('Space');
+```typescript
+test.describe('Jump Actions', () => {
+  test('should jump on space', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Hold jump (higher jump in some games)
-async function highJump(page) {
-  await page.keyboard.down('Space');
-  await page.waitForTimeout(200);
-  await page.keyboard.up('Space');
-}
+    const initialY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Press space to jump
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(500);
+
+    const peakY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    expect(peakY).toBeGreaterThan(initialY);
+  });
+
+  test('should vary jump height with hold duration', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    // Short tap = short jump
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(300);
+    const shortJumpY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Reset to ground
+    await page.keyboard.press('KeyS');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('KeyS');
+
+    // Long hold = higher jump
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(300);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(200);
+    const longJumpY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Long jump should go higher
+    expect(longJumpY).toBeGreaterThan(shortJumpY);
+  });
+});
 ```
 
-### Interact
+### Interact Keys
 
-```javascript
-// E key interact
-await page.keyboard.press('KeyE');
+```typescript
+test.describe('Interaction Keys', () => {
+  test('should interact with E key', async ({ page }) => {
+    await page.goto('http://localhost:3000');
 
-// F key interact (alternate)
-await page.keyboard.press('KeyF');
+    // Move near interactable
+    await page.click('canvas');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('KeyW');
 
-// Hold interact
-async function holdInteract(page, durationMs) {
-  await page.keyboard.down('KeyE');
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up('KeyE');
-}
+    const beforeInteract = await page.evaluate(() =>
+      (window as any).nearbyInteractable?.activated || false
+    );
+
+    // Press E to interact
+    await page.keyboard.press('KeyE');
+    await page.waitForTimeout(100);
+
+    const afterInteract = await page.evaluate(() =>
+      (window as any).nearbyInteractable?.activated || false
+    );
+
+    expect(afterInteract).toBe(true);
+  });
+
+  test('should hold interact for long actions', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    // Hold E for long interaction
+    await page.keyboard.down('KeyE');
+    await page.waitForTimeout(2000);
+    await page.keyboard.up('KeyE');
+
+    // Verify long interaction completed
+    const interactionComplete = await page.evaluate(() =>
+      (window as any).longInteractionComplete || false
+    );
+
+    expect(interactionComplete).toBe(true);
+  });
+});
 ```
 
 ### Menu/UI Keys
 
-```javascript
-// Escape (menu/back)
-await page.keyboard.press('Escape');
+```typescript
+test.describe('Menu Keys', () => {
+  test('should pause game on Escape', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Tab (scoreboard/inventory)
-await page.keyboard.press('Tab');
+    // Press Escape to pause
+    await page.keyboard.press('Escape');
 
-// M (map)
-await page.keyboard.press('KeyM');
+    // Check for paused state
+    const isPaused = await page.evaluate(() =>
+      (window as any).gameState?.paused || false
+    );
 
-// I (inventory)
-await page.keyboard.press('KeyI');
+    expect(isPaused).toBe(true);
 
-// Enter (confirm)
-await page.keyboard.press('Enter');
+    // Check for PAUSED overlay
+    const pausedText = await page.locator('text=PAUSED').isVisible();
+    expect(pausedText).toBe(true);
+  });
+
+  test('should show scoreboard on Tab', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    // Press Tab for scoreboard
+    await page.keyboard.down('Tab');
+    await page.waitForTimeout(100);
+
+    const scoreboardVisible = await page.getByTestId('scoreboard').isVisible();
+    expect(scoreboardVisible).toBe(true);
+
+    await page.keyboard.up('Tab');
+
+    // Scoreboard should hide
+    await page.waitForTimeout(100);
+    const scoreboardHidden = await page.getByTestId('scoreboard').isHidden();
+    expect(scoreboardHidden).toBe(true);
+  });
+
+  test('should toggle inventory on I', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+
+    // Press I for inventory
+    await page.keyboard.press('KeyI');
+
+    const inventoryVisible = await page.getByTestId('inventory').isVisible();
+    expect(inventoryVisible).toBe(true);
+
+    // Press again to close
+    await page.keyboard.press('KeyI');
+
+    const inventoryClosed = await page.getByTestId('inventory').isHidden();
+    expect(inventoryClosed).toBe(true);
+  });
+});
 ```
-
----
 
 ## Combo Sequences
 
 ### Melee Combo Pattern
 
-```javascript
-// Execute a timed combo sequence
-async function executeCombo(page, sequence) {
-  // sequence: [{ key: 'KeyJ', hold: 100 }, { key: 'KeyK', hold: 150 }, ...]
-  for (const action of sequence) {
-    await page.keyboard.down(action.key);
-    await page.waitForTimeout(action.hold);
-    await page.keyboard.up(action.key);
-    await page.waitForTimeout(50); // Combo window between attacks
-  }
-}
+```typescript
+test.describe('Combat Combos', () => {
+  test('should execute three-hit light combo', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Three-hit light combo
-async function lightCombo(page) {
-  await executeCombo(page, [
-    { key: 'KeyJ', hold: 100 },
-    { key: 'KeyJ', hold: 100 },
-    { key: 'KeyJ', hold: 100 }
-  ]);
-}
+    // Execute timed combo sequence
+    const comboSequence = [
+      { key: 'KeyJ', hold: 100 },
+      { key: 'KeyJ', hold: 100 },
+      { key: 'KeyJ', hold: 100 }
+    ];
 
-// Light, Light, Heavy finisher
-async function llhCombo(page) {
-  await executeCombo(page, [
-    { key: 'KeyJ', hold: 100 },  // Light
-    { key: 'KeyJ', hold: 100 },  // Light
-    { key: 'KeyK', hold: 200 }   // Heavy finisher
-  ]);
-}
+    for (const action of comboSequence) {
+      await page.keyboard.down(action.key);
+      await page.waitForTimeout(action.hold);
+      await page.keyboard.up(action.key);
+      await page.waitForTimeout(50); // Combo window
+    }
+
+    // Verify combo completed
+    const comboCount = await page.evaluate(() =>
+      (window as any).playerState?.comboCount || 0
+    );
+
+    expect(comboCount).toBe(3);
+  });
+
+  test('should execute light-light-heavy finisher', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    // Light, Light, Heavy
+    await page.keyboard.down('KeyJ');
+    await page.waitForTimeout(100);
+    await page.keyboard.up('KeyJ');
+    await page.waitForTimeout(50);
+
+    await page.keyboard.down('KeyJ');
+    await page.waitForTimeout(100);
+    await page.keyboard.up('KeyJ');
+    await page.waitForTimeout(50);
+
+    await page.keyboard.down('KeyK');
+    await page.waitForTimeout(200);
+    await page.keyboard.up('KeyK');
+
+    // Verify finisher executed
+    const lastAttack = await page.evaluate(() =>
+      (window as any).playerState?.lastAttack || 'none'
+    );
+
+    expect(lastAttack).toBe('heavy_finisher');
+  });
+});
 ```
 
 ### Spell Cast Sequence
 
-```javascript
-// Cast spell with key combination
-async function castSpell(page, spellKey, modifier) {
-  await page.keyboard.down(modifier);
-  await page.keyboard.press(spellKey);
-  await page.keyboard.up(modifier);
-}
+```typescript
+test.describe('Spell Casting', () => {
+  test('should cast spell with modifier key', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Example: Ctrl+Q for ability 1
-await castSpell(page, 'KeyQ', 'ControlLeft');
+    const initialMana = await page.evaluate(() =>
+      (window as any).playerState?.mana || 0
+    );
+
+    // Cast spell with Ctrl+Q
+    await page.keyboard.down('ControlLeft');
+    await page.keyboard.press('KeyQ');
+    await page.keyboard.up('ControlLeft');
+
+    const afterMana = await page.evaluate(() =>
+      (window as any).playerState?.mana || 0
+    );
+
+    expect(afterMana).toBeLessThan(initialMana);
+
+    // Verify spell was cast
+    const spellActive = await page.evaluate(() =>
+      (window as any).activeSpell?.type || 'none'
+    );
+
+    expect(spellActive).not.toBe('none');
+  });
+});
 ```
 
-### Item Use Chain
+### Modifier Combinations
 
-```javascript
-// Use multiple items in sequence
-async function useItems(page, itemKeys) {
-  for (const key of itemKeys) {
-    await page.keyboard.press(key);
-    await page.waitForTimeout(500); // Cooldown between uses
-  }
-}
+```typescript
+test.describe('Modifier Combinations', () => {
+  test('should sprint jump', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
 
-// Use health potion (1) then mana potion (2)
-await useItems(page, ['Digit1', 'Digit2']);
+    const initialY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Sprint jump (Shift + Space)
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.press('Space');
+    await page.keyboard.up('ShiftLeft');
+
+    await page.waitForTimeout(500);
+    const peakY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Sprint jump should go higher/further
+    expect(peakY).toBeGreaterThan(initialY);
+  });
+
+  test('should crouch jump', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.click('canvas');
+
+    const initialY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Crouch jump (Ctrl + Space)
+    await page.keyboard.down('ControlLeft');
+    await page.keyboard.press('Space');
+    await page.keyboard.up('ControlLeft');
+
+    await page.waitForTimeout(500);
+    const afterY = await page.evaluate(() =>
+      (window as any).playerPosition?.y || 0
+    );
+
+    // Crouch jump has different properties
+    expect(afterY).toBeGreaterThan(initialY);
+  });
+});
 ```
 
----
+## Complete Gameplay Loop Tests
 
-## Modifier Combinations
+### Full Character Movement Test
 
-### Helper Function
-
-```javascript
-// Press multiple modifiers together with a key
-async function pressWithModifiers(page, modifiers, key) {
-  for (const mod of modifiers) {
-    await page.keyboard.down(mod);
-  }
-  await page.keyboard.press(key);
-  for (const mod of [...modifiers].reverse()) {
-    await page.keyboard.up(mod);
-  }
-}
-```
-
-### Common Combinations
-
-```javascript
-// Sprint jump
-await pressWithModifiers(page, ['ShiftLeft'], 'Space');
-
-// Crouch jump
-await pressWithModifiers(page, ['ControlLeft'], 'Space');
-
-// Alt-tab (weapon swap)
-await pressWithModifiers(page, ['AltLeft'], 'KeyQ');
-
-// Ctrl+E (crouch interact)
-await pressWithModifiers(page, ['ControlLeft'], 'KeyE');
-
-// Quick save (F5 by default)
-await page.keyboard.press('F5');
-
-// Quick load (F9 by default)
-await page.keyboard.press('F9');
-```
-
----
-
-## Arrow Key Movement
-
-Some games use arrow keys instead of WASD:
-
-```javascript
-// Arrow key movement helper
-async function moveArrow(page, direction, durationMs) {
-  const keyMap = {
-    up: 'ArrowUp',
-    down: 'ArrowDown',
-    left: 'ArrowLeft',
-    right: 'ArrowRight'
-  };
-
-  await page.keyboard.down(keyMap[direction]);
-  await page.waitForTimeout(durationMs);
-  await page.keyboard.up(keyMap[direction]);
-}
-
-// Circle pattern with arrow keys
-async function circlePattern(page) {
-  await moveArrow(page, 'up', 500);
-  await moveArrow(page, 'right', 500);
-  await moveArrow(page, 'down', 500);
-  await moveArrow(page, 'left', 500);
-}
-```
-
----
-
-## Number Keys
-
-### Number Row
-
-```javascript
-// Switch weapons/items 1-9
-await page.keyboard.press('Digit1');  // 1
-await page.keyboard.press('Digit2');  // 2
-await page.keyboard.press('Digit3');  // 3
-// ... up to Digit9
-```
-
-### Numpad
-
-```javascript
-// Numpad keys (some games use these)
-await page.keyboard.press('Numpad1');
-await page.keyboard.press('Numpad2');
-await page.keyboard.press('NumpadAdd');    // +
-await page.keyboard.press('NumpadSubtract'); // -
-```
-
----
-
-## Complete E2E Test Example
-
-```javascript
-test('character can move, jump, and attack', async ({ page }) => {
-  // Setup
+```typescript
+test('complete character movement test', async ({ page }) => {
   await page.goto('http://localhost:3000');
   await page.waitForSelector('canvas');
-  await page.click('canvas'); // Focus game
+  await page.click('canvas');
 
-  // Get initial position
   const initialPos = await page.evaluate(() =>
     (window as any).playerPosition || { x: 0, y: 0, z: 0 }
   );
 
-  // Test forward movement
+  // Test all directions
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
   await page.keyboard.up('KeyW');
 
-  const afterMove = await page.evaluate(() =>
-    (window as any).playerPosition || { x: 0, y: 0, z: 0 }
-  );
-  expect(afterMove.z).not.toBe(initialPos.z);
+  await page.keyboard.down('KeyA');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('KeyA');
 
-  // Test jump
-  const beforeJump = await page.evaluate(() =>
-    (window as any).playerPosition?.y || 0
-  );
+  await page.keyboard.down('KeyS');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('KeyS');
+
+  await page.keyboard.down('KeyD');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('KeyD');
+
+  // Jump
   await page.keyboard.press('Space');
   await page.waitForTimeout(500);
 
-  const afterJump = await page.evaluate(() =>
-    (window as any).playerPosition?.y || 0
+  const finalPos = await page.evaluate(() =>
+    (window as any).playerPosition || { x: 0, y: 0, z: 0 }
   );
-  expect(afterJump).toBeGreaterThan(beforeJump);
 
-  // Test attack
-  await page.mouse.click(400, 300, { button: 'left' });
-
-  // Take screenshot for evidence
-  await page.screenshot({ path: 'playwright-test/gameplay-test.png' });
+  // Position should have changed
+  expect(finalPos.x).not.toBe(initialPos.x);
+  expect(finalPos.y).not.toBe(initialPos.y);
+  expect(finalPos.z).not.toBe(initialPos.z);
 });
 ```
 
----
+### Complete Combat Test
 
-## Testing Checklist
-
-For each game feature:
-
-- [ ] Movement works in all 4 directions (WASD)
-- [ ] Diagonal movement works correctly
-- [ ] Sprint affects movement speed
-- [ ] Jump/Space key triggers correct action
-- [ ] Mouse aiming responds correctly
-- [ ] Left click performs primary action
-- [ ] Right click performs secondary action (if applicable)
-- [ ] Interact key (E/F) works with objects
-- [ ] Menu keys (Escape, Tab, I, M) open correct UI
-- [ ] Combo sequences execute in order
-- [ ] No input lag or delayed response
-- [ ] Multiple keys can be pressed simultaneously
-
----
-
-## Common Issues
-
-### Issue: Keys don't respond
-
-**Solution**: Ensure canvas/game has focus:
-```javascript
-await page.click('canvas');
-// or
-await page.focus('#game-container');
-```
-
-### Issue: Movement is jerky
-
-**Solution**: Use `keyboard.down()` + `waitForTimeout()` + `keyboard.up()` instead of `press()`
-
-### Issue: Clicks don't register
-
-**Solution**: Add small delay before click:
-```javascript
-await page.mouse.move(x, y);
-await page.waitForTimeout(50); // Stabilize
-await page.mouse.click(x, y);
-```
-
-### Issue: Combos don't execute
-
-**Solution**: Add combo window delay between inputs:
-```javascript
-await page.keyboard.up('KeyJ');
-await page.waitForTimeout(50); // Combo window
-await page.keyboard.down('KeyK');
-```
-
----
-
-## E2E Gameplay Testing Patterns
-
-> "E2E tests validate the complete gameplay experience from player perspective."
-
-### When to Use E2E Gameplay Tests
-
-Use for:
-- Validating complete gameplay loops
-- Testing multi-step interactions
-- Verifying game state persistence
-- Checking win/loss conditions
-- Validating scoring and progression
-
-### Complete Gameplay Loop Test
-
-```javascript
-test('complete gameplay loop - character can move, shoot, and score', async ({ page }) => {
-  // Setup
+```typescript
+test('complete combat test', async ({ page }) => {
   await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
   await page.click('canvas');
 
-  // 1. Navigate through character selection
-  await page.waitForSelector('[data-testid="character-selection"]');
-  await page.click('[aria-label="next-character"]');
-  await page.click('[aria-label="next-character"]');
-  await page.fill('input[name="playerName"]', 'TestPlayer');
-  await page.click('[data-testid="select-button"]');
+  const initialAmmo = await page.evaluate(() =>
+    (window as any).playerState?.ammo || 30
+  );
 
-  // 2. Wait for game to load
-  await page.waitForSelector('[data-testid="hud"]', { timeout: 10000 });
-
-  // 3. Test movement
-  const initialPos = await page.evaluate(() => ({
-    x: window.playerState?.position.x ?? 0,
-    y: window.playerState?.position.y ?? 0,
-    z: window.playerState?.position.z ?? 0,
-  }));
-
+  // Move into position
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
   await page.keyboard.up('KeyW');
 
-  const afterMove = await page.evaluate(() => ({
-    x: window.playerState?.position.x ?? 0,
-    y: window.playerState?.position.y ?? 0,
-    z: window.playerState?.position.z ?? 0,
-  }));
+  // Aim
+  await page.mouse.move(500, 300);
+  await page.waitForTimeout(100);
 
-  // Verify position changed
-  expect(afterMove.z).not.toBe(initialPos.z);
-
-  // 4. Test shooting
-  const beforeInk = await page.evaluate(() => window.playerState?.ink ?? 100);
-
-  // Aim and shoot
-  await page.mouse.move(400, 300);
-  await page.waitForTimeout(50);
+  // Shoot
   await page.mouse.down({ button: 'left' });
   await page.waitForTimeout(500);
   await page.mouse.up({ button: 'left' });
 
-  const afterInk = await page.evaluate(() => window.playerState?.ink ?? 100);
+  const finalAmmo = await page.evaluate(() =>
+    (window as any).playerState?.ammo || 30
+  );
 
-  // Verify ink decreased
-  expect(afterInk).toBeLessThan(beforeInk);
+  // Ammo should have decreased
+  expect(finalAmmo).toBeLessThan(initialAmmo);
 
-  // 5. Check HUD updates
-  const inkDisplay = await page.textContent('[data-testid="ink-tank"]');
-  expect(inkDisplay).toBeTruthy();
+  // Check for hit confirmation
+  const hits = await page.evaluate(() =>
+    (window as any).playerState?.hits || 0
+  );
 
-  // 6. Screenshot for evidence
-  await page.screenshot({ path: 'playwright-test/gameplay-loop.png' });
-});
-```
-
-### Paint Coverage Validation
-
-```javascript
-test('painting increases team score coverage', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-  await page.click('canvas');
-
-  // Skip to gameplay (assuming character selection handled)
-  await page.waitForTimeout(2000);
-
-  // Get initial paint coverage
-  const initialCoverage = await page.evaluate(() => {
-    return window.gameState?.paintCoverage ?? { orange: 0, blue: 0 };
-  });
-
-  // Paint some ground
-  await page.keyboard.down('KeyW');
-  await page.mouse.down({ button: 'left' });
-  await page.waitForTimeout(2000);
-  await page.mouse.up({ button: 'left' });
-  await page.keyboard.up('KeyW');
-
-  // Check coverage increased
-  const finalCoverage = await page.evaluate(() => {
-    return window.gameState?.paintCoverage ?? { orange: 0, blue: 0 };
-  });
-
-  expect(finalCoverage.orange + finalCoverage.blue)
-    .toBeGreaterThan(initialCoverage.orange + initialCoverage.blue);
-
-  await page.screenshot({ path: 'playwright-test/paint-coverage.png' });
-});
-```
-
-### Match Completion Test
-
-```javascript
-test('match completes with winner determination', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Get initial timer
-  const initialTime = await page.textContent('[data-testid="match-timer"]');
-
-  // Wait for match to complete (in test mode, this may be accelerated)
-  await page.waitForSelector('[data-testid="match-end"]', { timeout: 200000 });
-
-  // Check winner is displayed
-  const winnerText = await page.textContent('[data-testid="winner-display"]');
-  expect(winnerText).toBeTruthy();
-  expect(winnerText).toMatch(/Orange|Blue/);
-
-  // Check rematch button available
-  const rematchButton = await page.isVisible('[data-testid="rematch-button"]');
-  expect(rematchButton).toBe(true);
-
-  await page.screenshot({ path: 'playwright-test/match-complete.png' });
-});
-```
-
-### Mobile Touch Controls Test
-
-```javascript
-test('mobile touch controls work correctly', async ({ page }) => {
-  // Set mobile viewport
-  await page.setViewportSize({ width: 375, height: 812 });
-
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Touch joystick should be visible on mobile
-  const joystick = await page.isVisible('[data-testid="virtual-joystick"]');
-  expect(joystick).toBe(true);
-
-  // Touch action buttons should be visible
-  const jumpBtn = await page.isVisible('[data-testid="jump-button"]');
-  const shootBtn = await page.isVisible('[data-testid="shoot-button"]');
-  expect(jumpBtn).toBe(true);
-  expect(shootBtn).toBe(true);
-
-  // Simulate touch interaction
-  const canvas = await page.locator('canvas').boundingBox();
-  if (canvas) {
-    // Touch left side for movement
-    await page.touchStart({
-      points: [{ x: canvas.x + 50, y: canvas.y + canvas.height / 2 }],
-    });
-    await page.waitForTimeout(500);
-    await page.touchEnd();
-
-    // Check player moved
-    const afterTouch = await page.evaluate(() => ({
-      x: window.playerState?.position.x ?? 0,
-      z: window.playerState?.position.z ?? 0,
-    }));
-
-    // Touch shoot button
-    await page.tap('[data-testid="shoot-button"]');
-    await page.waitForTimeout(100);
-
-    await page.screenshot({ path: 'playwright-test/mobile-controls.png' });
-  }
+  expect(hits).toBeGreaterThan(0);
 });
 ```
 
 ### Performance During Gameplay
 
-```javascript
+```typescript
 test('maintains 60 FPS during gameplay', async ({ page }) => {
   await page.goto('http://localhost:3000');
   await page.waitForSelector('canvas');
+  await page.click('canvas');
+
+  // Simulate gameplay actions
+  const actions = [
+    () => page.keyboard.down('KeyW'),
+    () => page.waitForTimeout(200),
+    () => page.mouse.move(500, 300),
+    () => page.mouse.down({ button: 'left' }),
+  ];
 
   // Collect FPS data
-  const fpsData = await page.evaluate(() => {
+  const fpsData = await page.evaluate(async (actions) => {
     return new Promise((resolve) => {
       const fps = [];
       let lastTime = performance.now();
@@ -758,118 +847,97 @@ test('maintains 60 FPS during gameplay', async ({ page }) => {
 
       measureFPS();
     });
-  });
+  }, []);
 
   // Calculate average FPS
   const avgFPS = fpsData.reduce((a, b) => a + b, 0) / fpsData.length;
 
-  // Should maintain at least 55 FPS (allowing some variance)
+  // Should maintain at least 55 FPS
   expect(avgFPS).toBeGreaterThanOrEqual(55);
-
-  console.log(`Average FPS: ${avgFPS.toFixed(2)}`);
 });
 ```
 
-### Memory Leak Detection
+## Helper Functions for Tests
 
-```javascript
-test('no memory leaks during extended gameplay', async ({ page }) => {
+### Movement Helper
+
+```typescript
+// In tests/helpers/gameplay.ts
+export async function moveForward(page: Page, durationMs: number) {
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(durationMs);
+  await page.keyboard.up('KeyW');
+}
+
+export async function moveBackward(page: Page, durationMs: number) {
+  await page.keyboard.down('KeyS');
+  await page.waitForTimeout(durationMs);
+  await page.keyboard.up('KeyS');
+}
+
+export async function strafeLeft(page: Page, durationMs: number) {
+  await page.keyboard.down('KeyA');
+  await page.waitForTimeout(durationMs);
+  await page.keyboard.up('KeyA');
+}
+
+export async function strafeRight(page: Page, durationMs: number) {
+  await page.keyboard.down('KeyD');
+  await page.waitForTimeout(durationMs);
+  await page.keyboard.up('KeyD');
+}
+
+// Usage in tests
+test('movement helpers work', async ({ page }) => {
   await page.goto('http://localhost:3000');
-
-  // Get initial memory
-  const initialMemory = await page.evaluate(() => {
-    return (performance as any).memory?.usedJSHeapSize ?? 0;
-  });
-
-  // Simulate 5 minutes of gameplay
-  for (let i = 0; i < 60; i++) {
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(500);
-    await page.keyboard.up('KeyW');
-
-    await page.mouse.down({ button: 'left' });
-    await page.waitForTimeout(500);
-    await page.mouse.up({ button: 'left' });
-  }
-
-  // Force garbage collection if available
-  await page.evaluate(() => {
-    if ((window as any).gc) {
-      (window as any).gc();
-    }
-  });
-
-  // Get final memory
-  const finalMemory = await page.evaluate(() => {
-    return (performance as any).memory?.usedJSHeapSize ?? 0;
-  });
-
-  // Memory should not grow more than 50MB
-  const memoryGrowth = (finalMemory - initialMemory) / 1024 / 1024;
-  expect(memoryGrowth).toBeLessThan(50);
-
-  console.log(`Memory growth: ${memoryGrowth.toFixed(2)} MB`);
-});
-```
-
-### HUD Integration Test
-
-```javascript
-test('HUD updates correctly during gameplay', async ({ page }) => {
-  await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
   await page.click('canvas');
 
-  // Wait for HUD to be visible
-  await page.waitForSelector('[data-testid="hud"]');
+  await moveForward(page, 1000);
+  await strafeLeft(page, 500);
 
-  // Check initial HUD state
-  const initialInk = await page.textContent('[data-testid="ink-tank"]');
-  const initialScore = await page.textContent('[data-testid="team-score"]');
-
-  // Shoot to deplete ink
-  await page.mouse.down({ button: 'left' });
-  await page.waitForTimeout(1000);
-  await page.mouse.up({ button: 'left' });
-
-  // Check ink tank updated
-  const afterShootInk = await page.textContent('[data-testid="ink-tank"]');
-  expect(afterShootInk).not.toBe(initialInk);
-
-  // Wait for ink regeneration
-  await page.waitForTimeout(3000);
-  const regeneratedInk = await page.textContent('[data-testid="ink-tank"]');
-
-  // Ink should have regenerated
-  expect(regeneratedInk).not.toBe(afterShootInk);
-
-  await page.screenshot({ path: 'playwright-test/hud-updates.png' });
+  // Verify movement
+  const position = await page.evaluate(() => (window as any).playerPosition);
+  expect(position.z).toBeLessThan(0);
+  expect(position.x).toBeLessThan(0);
 });
 ```
 
-## E2E Test Checklist
+## Testing Checklist
 
-For complete gameplay validation:
+For each gameplay feature:
 
-- [ ] Character selection flow works
-- [ ] Player can move in all directions
-- [ ] Shooting depletes ink tank
-- [ ] Ink regenerates over time
-- [ ] Paint decals appear on surfaces
-- [ ] Team scores update correctly
-- [ ] Match timer counts down
-- [ ] Match end triggers correctly
-- [ ] Winner is determined properly
-- [ ] Rematch button appears
-- [ ] Mobile touch controls work
-- [ ] Performance stays above 55 FPS
-- [ ] No memory leaks during extended play
-- [ ] No console errors during gameplay
+- [ ] Movement works in all 4 directions (WASD)
+- [ ] Diagonal movement works correctly
+- [ ] Sprint affects movement speed
+- [ ] Jump/Space key triggers correct action
+- [ ] Mouse aiming responds correctly
+- [ ] Left click performs primary action
+- [ ] Right click performs secondary action (if applicable)
+- [ ] Interact key (E/F) works with objects
+- [ ] Menu keys (Escape, Tab, I, M) open correct UI
+- [ ] Combo sequences execute in order
+- [ ] No input lag or delayed response
+- [ ] Multiple keys can be pressed simultaneously
 
-## Reference
+## Running Gameplay Tests
 
+```bash
+# Run all gameplay tests
+npm run test:e2e -- tests/e2e/gameplay-suite.spec.ts
+
+# Run specific test
+npm run test:e2e -- -g "should move forward"
+
+# Run in headed mode to see gameplay
+npm run test:e2e -- --headed
+
+# Run with debug mode
+npm run test:e2e -- --debug
+```
+
+## References
+
+- **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E test patterns
 - [Playwright Keyboard API](https://playwright.dev/docs/api/class-keyboard)
 - [Playwright Mouse API](https://playwright.dev/docs/api/class-mouse)
-- [Playwright Touch API](https://playwright.dev/docs/touch)
-- [`agents/qa/skills/browser-testing.md`](browser-testing.md) — Basic browser testing
-- [`agents/qa/skills/visual-testing.md`](visual-testing.md) — Visual validation
+- [tests/pages/game.page.ts](tests/pages/game.page.ts) - Game page object model

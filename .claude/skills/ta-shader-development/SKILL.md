@@ -1,7 +1,6 @@
 ---
 name: techartist-shader-development
 description: GLSL shader creation process and patterns for R3F
-category: development
 ---
 
 # Shader Development Skill

@@ -1,8 +1,6 @@
 ---
 name: colyseus-client
 description: Colyseus client SDK for React, connection methods, room events, and messaging. Use when connecting to multiplayer server.
-category: multiplayer
-keywords: [client, colyseus, multiplayer, connection, react, sdk]
 ---
 
 # Colyseus Client SDK

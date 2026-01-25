@@ -1,8 +1,6 @@
 ---
 name: colyseus-state
 description: Colyseus state schema definition, types, decorators, and serialization patterns. Use when defining room state.
-category: multiplayer
-keywords: [state, schema, colyseus, serialization, types]
 ---
 
 # Colyseus State Schema

@@ -4,6 +4,7 @@ description: Retrospective contribution format for Developer, Tech Artist, QA, a
 category: orchestration
 version: 2.0
 changelog: "P1 FIX: Changed from single shared file to separate contribution files per agent to prevent race conditions."
+keywords: [retrospective, contribution, developer, qa, techartist, lessons-learned]
 ---
 
 # Worker Retrospective Contributions

@@ -1,8 +1,6 @@
 ---
 name: quality-gates
 description: Quality standards that must pass before commit
-category: validation
-keywords: [quality, standards, gates, requirements]
 ---
 
 # Quality Gates

@@ -1,8 +1,6 @@
 ---
 name: audio-loading
 description: Audio loading patterns for R3F/Three.js. Use when adding sound effects.
-category: assets
-keywords: [audio, sound, music, loading]
 ---
 
 # Audio Loading

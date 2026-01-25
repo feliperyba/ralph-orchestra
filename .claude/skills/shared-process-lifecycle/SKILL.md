@@ -2,6 +2,7 @@
 name: process-lifecycle
 description: Unified process lifecycle management for all Ralph agents
 category: orchestration
+keywords: [process, lifecycle, cleanup, registry, management, startup, exit]
 ---
 
 # Process Lifecycle Management

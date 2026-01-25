@@ -2,6 +2,7 @@
 name: ralph-hitl
 description: Single Ralph iteration with full visibility - learn before going AFK
 category: orchestration
+keywords: [hitl, human-in-the-loop, single-iteration, learning, visibility, afk, autonomous]
 ---
 
 # Ralph HITL (Human-In-The-Loop) Mode

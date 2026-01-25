@@ -1,7 +1,6 @@
 ---
 name: techartist-r3f-fundamentals
 description: React Three Fiber core patterns for scene composition and game loop
-category: development
 ---
 
 # R3F Fundamentals Skill

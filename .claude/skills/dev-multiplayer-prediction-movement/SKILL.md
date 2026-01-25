@@ -1,8 +1,6 @@
 ---
 name: prediction-movement
 description: Movement prediction with server reconciliation for WASD controls. Use when implementing player movement.
-category: multiplayer
-keywords: [movement, prediction, wasd, reconciliation, player]
 ---
 
 # Movement Prediction

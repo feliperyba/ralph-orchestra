@@ -1,7 +1,6 @@
 ---
 name: pm-improvement-asset-coordination
 description: PM self-improvement skill for asset coordination learnings from completed tasks. Use after tasks involving asset loading coordination, when parallel development between Developer and Tech Artist causes conflicts, or when Vite 6 asset handling patterns need to be documented.
-category: improvement
 ---
 
 # PM Asset Coordination Improvement

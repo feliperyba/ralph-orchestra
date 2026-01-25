@@ -2,6 +2,7 @@
 name: r3f-router
 description: Routes to specialized R3F skills based on task requirements
 category: development
+keywords: [router, r3f, react-three-fiber, threejs, routing, skills, development]
 ---
 
 # R3F Skill Router

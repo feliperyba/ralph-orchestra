@@ -1,9 +1,7 @@
 ---
 name: techartist-r3f-physics
 description: Physics integration with Rapier for R3F game development
-category: development
 ---
-
 # R3F Physics Skill
 
 > "Physics makes games feel real – Rapier is fast and reliable."

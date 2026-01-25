@@ -1,8 +1,6 @@
 ---
 name: pm-playtest-session
 description: Request and process playtest session from Game Designer after retrospective synthesis
-category: coordination
-version: 1.0.0
 ---
 
 # Playtest Session Skill

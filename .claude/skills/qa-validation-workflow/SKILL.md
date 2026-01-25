@@ -1,7 +1,6 @@
 ---
 name: qa-validation-workflow
-description: Full validation workflow for QA agent - automated checks and browser testing
-category: validation
+description: Full validation workflow for QA agent. Runs automated checks (type-check, lint, test, build) and browser testing with E2E tests. Use when validating implementation after code review.
 ---
 
 # Validation Workflow Skill
@@ -30,63 +29,69 @@ npm run type-check && npm run lint && npm run test && npm run build
 
 ## ⚠️ VALIDATION GATE
 
-**Playwright MCP browser testing is REQUIRED for every validation.**
+**E2E tests are REQUIRED for every validation.**
 
-If browser testing cannot be performed:
+If E2E tests cannot be run:
 
 → **FAIL validation immediately**
-→ Report: `"Playwright MCP unavailable - validation gate failed"`
+→ Report: `"E2E tests unavailable - validation gate failed"`
 → **DO NOT** proceed with any other checks
 
 **This is NON-NEGOTIABLE** - there is NO manual testing fallback.
 
-## ⚠️ MANDATORY GATE: Browser Testing Must Complete
+## ⚠️ MANDATORY GATE: E2E Tests Must Complete
 
-**Browser testing via Playwright MCP is NON-NEGOTIABLE.**
+**Running E2E tests is NON-NEGOTIABLE.**
 
-- Browser testing MUST complete even if automated checks (type-check, lint, test, build) fail
-- If automated checks fail → report bugs AND run browser testing to document visual state
+- E2E tests MUST complete even if automated checks (type-check, lint, test, build) fail
+- If automated checks fail → report bugs AND run E2E tests to document visual state
 - NO exceptions for "blocked by test failure"
-- If Playwright MCP unavailable → FAIL validation with severity "critical"
+- If E2E tests unavailable → FAIL validation with severity "critical"
 
 **Enforcement Flow:**
 
 ```
 [Automated Checks Fail]
         │
-        ├── Browser Testing NOT run? → ❌ INVALID REPORT
+        ├── E2E Tests NOT run? → ❌ INVALID REPORT
         │
-        └── Browser Testing COMPLETED → ✅ Valid bug report
-                (includes screenshots, console output, visual state)
+        └── E2E Tests COMPLETED → ✅ Valid bug report
+                (includes test output, console errors, visual state)
 ```
 
-**Why browser testing when tests fail:**
+**Why run E2E tests when automated checks fail:**
 
 - Visual bugs may exist even when code compiles
 - Console errors only appear in browser
 - Runtime issues not caught by unit tests
-- Screenshot evidence needed for developer to fix
+- Test output provides evidence for developer to fix
 
 ## Validation Pipeline
 
 ```
-      [GATE: Playwright MCP MUST be available]
+      [GATE: E2E tests MUST be available]
                   │
                   ▼
-┌─────────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│ Type Check  │───▶│   Lint   │───▶│   Test   │───▶│  Build   │
-│    (tsc)    │    │ (eslint) │    │ (vitest) │    │  (vite)  │
-└─────────────┘    └──────────┘    └──────────┘    └──────────┘
-       │                │                │               │
-       ▼                ▼                ▼               ▼
-   Pass/Fail       Pass/Fail        Pass/Fail       Pass/Fail
-       │                │                │               │
-       └────────────────┴────────────────┴───────────────┘
+┌─────────────┐    ┌──────────┐    ┌──────────────┐    ┌──────────┐
+│ Type Check  │───▶│   Lint   │───▶│ TEST CHECK   │───▶│  Build   │
+│    (tsc)    │    │ (eslint) │    │  (Coverage)  │    │  (vite)  │
+└─────────────┘    └──────────┘    └──────────────┘    └──────────┘
+       │                │                   │                  │
+       ▼                ▼                   ▼                  ▼
+   Pass/Fail       Pass/Fail          Tests Missing?      Pass/Fail
+       │                │                   │                  │
+       │                │            ┌──────┴──────┐          │
+       │                │            │             │          │
+       │                │         Create Tests   Skip         │
+       │                │            │             │          │
+       │                └────────────┴─────────────┘          │
+       │                                                      │
+       └──────────────────────────────────────────────────────┘
                                           │
                                           ▼
                               ┌─────────────────────┐
-                              │  BROWSER TESTING     │ ◄── MANDATORY GATE
-                              │  (Playwright MCP)    │     NO EXCEPTIONS
+                              │  E2E TEST EXECUTION │ ◄── MANDATORY GATE
+                              │  (npm run test:e2e)  │     NO EXCEPTIONS
                               └─────────────────────┘
                                           │
                               ┌──────────┴──────────┐
@@ -98,6 +103,29 @@ If browser testing cannot be performed:
 ```
 
 ## Progressive Guide
+
+### Level 0: Test Coverage Check (BEFORE Automated Checks)
+
+**⚠️ CRITICAL: Ensure tests exist before validation**
+
+1. **Load qa-test-creation skill**
+   ```bash
+   Skill("qa-test-creation")
+   ```
+
+2. **Check unit test coverage**
+   - For each source file, check if `src/tests/.../{name}.test.ts` exists
+   - Example: `src/components/game/player/index.ts` → `src/tests/components/game/player/index.test.ts`
+
+3. **Check E2E test coverage**
+   - Check if `tests/e2e/{feature}-suite.spec.ts` exists
+   - Example: `tests/e2e/gameplay-suite.spec.ts`
+
+4. **If tests missing:**
+   - Invoke test-creator sub-agent
+   - Wait for tests to be created
+   - Verify `npm run test` passes
+   - Verify `npm run test:e2e` passes
 
 ### Level 1: Automated Checks
 
@@ -119,21 +147,21 @@ npm run build
 # Expected: Build succeeds
 ```
 
-### Level 2: Browser Testing (MANDATORY)
+### Level 2: E2E Test Execution (MANDATORY)
 
-**Every validation MUST include browser testing:**
+**Every validation MUST include E2E test execution:**
 
-1. Start dev server: `npm run dev:all:sh`
-2. Navigate to `http://localhost:3000`
-3. Verify acceptance criteria visually
-4. Check console for errors
-5. Take screenshots as evidence
+1. Ensure dev server running: `npm run dev:all:sh`
+2. Run E2E tests: `npm run test:e2e`
+3. Verify acceptance criteria via test output
+4. Review test results for console errors
+5. Check test screenshots for evidence
 
 ```markdown
-## Browser Test Results
+## E2E Test Results
 
-**URL**: http://localhost:3000
-**Browser**: Chromium
+**Command**: npm run test:e2e
+**Test File**: tests/e2e/{feature}-suite.spec.ts
 
 ### Checks Performed:
 
@@ -142,11 +170,13 @@ npm run build
 - [ ] No console errors
 - [ ] Controls respond to input
 - [ ] Performance is acceptable (60 FPS)
+- [ ] All acceptance criteria covered by tests
 
-### Screenshots:
+### Test Output:
 
-- Initial load: [screenshot]
-- After interaction: [screenshot]
+- Tests passed: X/Y
+- Failed tests: [list]
+- Screenshots captured: test-results/
 ```
 
 ### Level 3: Acceptance Criteria Verification
@@ -191,8 +221,8 @@ For each acceptance criterion in `prd.json.items[{taskId}]`:
 
 | Check Result                     | Action              |
 | -------------------------------- | ------------------- |
-| All automated pass, browser pass | Mark as PASSED      |
-| Automated pass, browser fails    | Mark as NEEDS_FIXES |
+| All automated pass, E2E tests pass | Mark as PASSED      |
+| Automated pass, E2E tests fail    | Mark as NEEDS_FIXES |
 | Automated fails                  | Mark as NEEDS_FIXES |
 | Any console errors               | Mark as NEEDS_FIXES |
 
@@ -200,19 +230,20 @@ For each acceptance criterion in `prd.json.items[{taskId}]`:
 
 ❌ **DON'T:**
 
-- Skip browser testing
+- Skip E2E tests
+- Use Playwright MCP directly for validation
 - Assume automated tests are sufficient
-- Mark as passed without checking acceptance criteria
+- Mark as passed without running E2E tests
 - Ignore console warnings
 - Skip performance verification
 
 ✅ **DO:**
 
-- Always test in browser
-- Verify each acceptance criterion
-- Take screenshots as evidence
-- Document any concerns
-- Check console for errors
+- Always run E2E tests for validation
+- Verify each acceptance criterion via test output
+- Review test screenshots as evidence
+- Document any concerns in bug notes
+- Check console for errors in test output
 
 ## Pass Protocol
 

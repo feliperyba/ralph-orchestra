@@ -2,6 +2,7 @@
 name: ralph-router
 description: Routes to appropriate Ralph skills based on agent role and task signals
 category: orchestration
+keywords: [router, routing, skill-selection, agent-role, task-category, domain, skills]
 ---
 
 # Ralph Skill Router

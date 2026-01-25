@@ -1,9 +1,6 @@
 ---
 name: pm-retrospective
 description: Facilitate file-based retrospective after task completion with worker agents (Developer, Tech Artist, QA). Playtest session is now a separate phase.
-category: coordination
-version: 2.1.0
-changelog: "P1 FIX: Changed to separate contribution files per agent to prevent race conditions."
 ---
 
 # Retrospective Skill

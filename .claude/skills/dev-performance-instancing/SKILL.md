@@ -1,8 +1,6 @@
 ---
 name: instancing
 description: Instanced rendering for repeated objects in R3F. Use when rendering many identical objects.
-category: performance
-keywords: [instancing, rendering, performance, instances]
 ---
 
 # Instanced Rendering

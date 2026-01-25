@@ -1,40 +1,9 @@
 ---
-name: gamedesigner-thermite-integration
-description: Integration with thermite-design skill for structured game design sessions
-category: gamedesign
+name: gd-thermite-integration
+description: Integration with thermite-design skill for structured game design sessions. Use when user mentions thermite, design session, creative team, retreat, running GDD creation sessions, generating design artifacts, updating decision logs, simulating creative team discussions, validating against design pillars, or brainstorming new features.
 ---
 
 # Thermite Design Integration
-
-## Overview
-
-The thermite-design skill provides structured game design methodology with multi-persona creative simulation. This skill explains how to integrate it into the Game Designer Agent's workflow.
-
-## Thermite Skill Location
-
-The thermite-design skill is located at:
-```
-thermite-game-development/
-├── SKILL.md                    # Main skill definition
-├── references/
-│   ├── system_prompt.md        # Design pillars, constraints
-│   ├── creative_team.md        # 8 expert personas
-│   └── artifact_templates.md   # Output formats
-└── assets/
-    ├── decision_log.md         # Example decisions
-    └── open_questions.md       # Example questions
-```
-
-## When to Use Thermite Design
-
-Trigger thermite-design skill when:
-- User mentions "thermite", "design session", "creative team", "retreat"
-- Running GDD creation sessions
-- Generating design artifacts
-- Updating decision logs
-- Simulating creative team discussions
-- Validating against design pillars
-- Brainstorming new features
 
 ---
 

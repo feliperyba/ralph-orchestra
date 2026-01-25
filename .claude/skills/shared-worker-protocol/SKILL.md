@@ -3,6 +3,7 @@ name: worker-protocol
 description: Worker pool architecture - agents complete work and exit, watchdog orchestrates
 category: orchestration
 version: 2.0
+keywords: [worker, pool, exit, complete, watchdog, message, task, orchestration]
 ---
 
 # Worker Protocol

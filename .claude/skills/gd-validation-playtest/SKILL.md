@@ -1,14 +1,9 @@
 ---
-name: gamedesigner-playtest-validation
-description: Playwright-based game playtesting and design validation
-category: gamedesign
+name: gd-validation-playtest
+description: Playwright-based game playtesting and design validation. Use when validating implementation against GDD, testing gameplay mechanics, capturing screenshot evidence, performing game state detection via Vision MCP, or conducting visual GDD compliance validation.
 ---
 
 # Playtest Validation
-
-## Overview
-
-This skill provides guidance for using Playwright MCP to playtest games and validate implementation against the GDD.
 
 ## ⚠️ MANDATORY: 2-Step Retrospective Workflow
 

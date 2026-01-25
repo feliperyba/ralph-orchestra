@@ -1,7 +1,6 @@
 ---
 name: dev-assets-model-loading
 description: FBX model loading patterns with sequential loading for React Three Fiber. Use when loading multiple FBX character models, implementing sequential loading to prevent memory overload, or creating character model components with proper error handling.
-category: development
 ---
 
 # FBX Model Loading Patterns

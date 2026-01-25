@@ -1,23 +1,9 @@
 ---
-name: gamedesigner-gdd-creation
-description: Game Design Document creation and structure
-category: gamedesign
+name: gd-gdd-creation
+description: Game Design Document creation and structure. Use when no GDD exists in the project, starting a new game project, major feature requires design documentation, GDD needs updating due to changes, or preparing for prototype or production.
 ---
 
-# GDD Creation Skill
-
-## Overview
-
-This skill guides the creation and maintenance of Game Design Documents (GDD). A GDD is the master blueprint for a game, ensuring all team members understand the vision, mechanics, and requirements.
-
-## When to Use This Skill
-
-Use when:
-- No GDD exists in the project
-- Starting a new game project
-- Major feature requires design documentation
-- GDD needs updating due to changes
-- Preparing for prototype or production
+# GDD Creation
 
 ## GDD Document Structure
 

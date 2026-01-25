@@ -1,8 +1,6 @@
 ---
 name: colyseus-server
 description: Colyseus server setup, room handlers, lifecycle events, and scaling. Use when setting up multiplayer server.
-category: multiplayer
-keywords: [server, colyseus, multiplayer, backend, room, handler]
 ---
 
 # Colyseus Server Setup

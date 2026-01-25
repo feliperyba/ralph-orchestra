@@ -1,23 +1,9 @@
 ---
-name: gamedesigner-character-design
-description: Character and class design documentation
-category: gamedesign
+name: gd-design-character
+description: Character and class design documentation. Use when designing character archetypes, creating class systems, defining abilities and skills, balancing character stats, or designing progression systems.
 ---
 
 # Character Design
-
-## Overview
-
-This skill provides guidance for designing player characters, classes, and their abilities.
-
-## When to Use This Skill
-
-Use when:
-- Designing character archetypes
-- Creating class systems
-- Defining abilities and skills
-- Balancing character stats
-- Designing progression systems
 
 ## Character Template
 

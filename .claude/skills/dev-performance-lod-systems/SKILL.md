@@ -1,8 +1,6 @@
 ---
 name: lod-systems
 description: Level of Detail (LOD) techniques for R3F. Use when complex models cause FPS drops.
-category: performance
-keywords: [lod, detail, optimization, performance]
 ---
 
 # Level of Detail (LOD)

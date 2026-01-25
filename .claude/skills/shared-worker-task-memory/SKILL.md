@@ -2,6 +2,7 @@
 name: worker-task-memory
 description: Task memory management for retrospective contributions. Use to track good points, pain points, and decisions during task execution.
 category: workflow
+keywords: [shared, task-memory, retrospective, tracking, good-points, pain-points, worker]
 version: 1.1
 changelog: |
   v1.1 - Changed file format to task-{taskId}-memory.md to support multiple concurrent tasks

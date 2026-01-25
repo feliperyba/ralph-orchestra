@@ -1,8 +1,6 @@
 ---
 name: r3f-materials
 description: Material selection, shaders, and visual effects for R3F
-category: r3f
-keywords: [r3f, material, shader, pbr, texture, standard, physical, custom]
 ---
 
 # R3F Materials

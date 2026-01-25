@@ -1,8 +1,6 @@
 ---
 name: r3f-fundamentals
 description: React Three Fiber core patterns for scene composition and game loop
-category: r3f
-keywords: [r3f, canvas, useframe, scene, component, three, fiber]
 ---
 
 # R3F Fundamentals

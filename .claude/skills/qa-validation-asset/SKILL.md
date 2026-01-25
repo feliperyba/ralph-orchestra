@@ -1,7 +1,6 @@
 ---
 name: asset-validation
-description: Comprehensive asset validation for Vite 6 and React Three Fiber projects
-category: validation
+description: Comprehensive asset validation for Vite 6 and React Three Fiber projects. Use when validating 3D model loading, audio assets, texture loading, build output, or cross-browser compatibility.
 ---
 
 # Asset Validation for Vite 6 Projects

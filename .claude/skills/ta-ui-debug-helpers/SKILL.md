@@ -1,7 +1,6 @@
 ---
 name: techartist-visual-debug-helpers
 description: Debug visualization helpers using drei and Three.js for game development
-category: debugging
 ---
 
 # Visual Debug Helpers Skill

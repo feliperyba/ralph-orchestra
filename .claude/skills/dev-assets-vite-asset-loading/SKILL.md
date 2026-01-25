@@ -1,7 +1,6 @@
 ---
 name: dev-assets-vite-asset-loading
 description: Vite 6 asset loading patterns that avoid '?import' query parameter pollution. Use when working with static assets (FBX models, images, fonts), dealing with Vite 6's new asset handling, or loading assets from public vs src/assets directories.
-category: development
 ---
 
 # Vite 6 Asset Loading Patterns

@@ -1,7 +1,6 @@
 ---
 name: techartist-input-validation-pattern
 description: Player input validation testing patterns for WASD, mouse, and touch controls
-category: testing
 ---
 
 # Input Validation Pattern Skill

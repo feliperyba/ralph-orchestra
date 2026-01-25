@@ -1,7 +1,6 @@
 ---
 name: qa-validation-asset-loading
 description: Asset loading performance validation using Playwright. Use when validating FBX model loading performance and memory usage, testing asset loading across different environments, ensuring proper error handling for failed asset loads, or verifying browser compatibility for asset formats.
-category: validation
 ---
 
 # Asset Loading Validation

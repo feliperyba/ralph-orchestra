@@ -3,7 +3,8 @@ name: ralph-worker
 description: Worker loop - execute tasks assigned by coordinator
 category: orchestration
 arguments:
-  --agent: "developer" "qa" "techartist" "gamedesigner" 
+  --agent: "developer" "qa" "techartist" "gamedesigner"
+keywords: [worker, pool, task-execution, exit, message, heartbeat, agent]
 ---
 
 # Ralph Worker

@@ -1,9 +1,7 @@
 ---
 name: techartist-r3f-performance
 description: Performance optimization techniques for R3F and Three.js
-category: optimization
 ---
-
 # R3F Performance Skill
 
 > "Optimize for mobile, scale up for desktop – 60 FPS is the goal."

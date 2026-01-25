@@ -1,6 +1,7 @@
 ---
 name: ralph
 description: Start autonomous Ralph loop - work through PRD tasks iteratively until complete
+keywords: [ralph, autonomous, loop, prd, iterative, development, orchestration, coordinator]
 ---
 
 # Ralph Autonomous Development Loop

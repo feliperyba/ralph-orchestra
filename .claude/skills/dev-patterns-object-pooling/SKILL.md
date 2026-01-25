@@ -1,8 +1,6 @@
 ---
 name: object-pooling
 description: Object pooling for high-performance R3F components (decals, particles, projectiles)
-category: pattern
-keywords: [pool, performance, gc, optimization, reuse, decals, particles]
 ---
 
 # Object Pooling Pattern

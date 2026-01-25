@@ -2,6 +2,7 @@
 name: ralph-handoff
 description: Handoff protocol for single-agent orchestration mode
 category: orchestration
+keywords: [handoff, single-agent, sequential, handoff-protocol, agent-switching]
 ---
 
 # Ralph Handoff Protocol

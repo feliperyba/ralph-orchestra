@@ -1,22 +1,9 @@
 ---
-name: gamedesigner-skill-gap-analysis
-description: Analyze worker pain points to identify missing skills and create skill proposals
-category: gamedesign
+name: gd-skill-gap-analysis
+description: Analyzes worker pain points to identify missing skills and create skill proposals. Use during playtest GDD review phase when workers report repeated struggles with specific patterns, retrospective pain points indicate missing knowledge, questions about implementation approaches recur, or technical decisions are delayed due to uncertainty.
 ---
 
 # Skill Gap Analysis
-
-## Overview
-
-This skill enables the Game Designer to analyze retrospective pain points and worker struggles to identify missing skills. Creates proposals for new skills that would help workers complete tasks more effectively.
-
-## When to Use This Skill
-
-Use during playtest GDD review phase when:
-- Workers report repeated struggles with specific patterns
-- Retrospective pain points indicate missing knowledge
-- Questions about implementation approaches recur
-- Technical decisions are delayed due to uncertainty
 
 ## The Skill Gap Analysis Process
 

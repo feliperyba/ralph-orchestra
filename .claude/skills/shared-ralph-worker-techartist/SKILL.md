@@ -4,6 +4,7 @@ description: Tech Artist worker loop - execute visual asset tasks assigned by co
 category: orchestration
 arguments:
   --agent: 'techartist'
+keywords: [techartist, worker, visual, assets, shaders, materials, effects, screenshot]
 ---
 
 # Ralph Worker - Tech Artist Agent

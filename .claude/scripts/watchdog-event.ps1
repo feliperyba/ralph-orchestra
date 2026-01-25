@@ -614,12 +614,71 @@ function Invoke-ProcessWatchdogMessages {
     }
 }
 
+# ============================================================================
+# RETROSPECTIVE CONSOLIDATION MODE (P2 FIX)
+# ============================================================================
+
+function Test-RetrospectiveConsolidationMode {
+    <#
+    .SYNOPSIS
+    Check if PM is in retrospective consolidation mode.
+    If so, batch messages and only wake PM when all workers have contributed.
+    #>
+    $prdPath = Join-Path $Script:SessionDir "prd.json"
+    if (-not (Test-Path $prdPath)) { return $false }
+
+    try {
+        $prd = Get-Content $prdPath -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if ($prd -and $prd.session -and $prd.session.retro -and $prd.session.retro.active) {
+            return $true
+        }
+    } catch {
+        # Ignore errors
+    }
+    return $false
+}
+
+function Get-RetrospectiveBatchStatus {
+    <#
+    .SYNOPSIS
+    Check if all expected worker contributions have arrived.
+    Returns hashtable with completion status and counts.
+    #>
+    $prdPath = Join-Path $Script:SessionDir "prd.json"
+    if (-not (Test-Path $prdPath)) {
+        return @{ complete = $false; pendingCount = 0; expectedCount = 3 }
+    }
+
+    try {
+        $prd = Get-Content $prdPath -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if ($prd -and $prd.session -and $prd.session.retro) {
+            $retro = $prd.session.retro
+            $expectedCount = $retro.expectedMessageCount
+            if ($null -eq $expectedCount -or $expectedCount -eq 0) { $expectedCount = 3 }
+
+            # Count pending retrospective_contribution messages
+            $pending = Get-PendingMessages -Agent "pm" | Where-Object { $_.type -eq "retrospective_contribution" }
+
+            return @{
+                complete = ($pending.Count -ge $expectedCount)
+                pendingCount = $pending.Count
+                expectedCount = $expectedCount
+            }
+        }
+    } catch {
+        # Ignore errors
+    }
+
+    return @{ complete = $false; pendingCount = 0; expectedCount = 3 }
+}
+
 function Invoke-DeliverPendingMessages {
     <#
     .SYNOPSIS
     Check if agents have pending messages and deliver them.
     Phase 2: Uses named pipes if available and agent is connected.
     Falls back to file queue + restart mechanism if pipes unavailable.
+    P2 FIX: Supports retrospective consolidation mode for PM.
     #>
 
     $counts = Get-MessageCount
@@ -685,9 +744,28 @@ function Invoke-DeliverPendingMessages {
         # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
         # This prevents restart loops when acknowledgment or status updates are slow
         $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
-        if ($timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
+
+        # P2 FIX: Use longer grace period during retrospective (30 seconds vs 10 seconds default)
+        $graceSeconds = $Script:DeliveryGraceSeconds
+        if ($agentName -eq "pm" -and (Test-RetrospectiveConsolidationMode)) {
+            $graceSeconds = 30  # Longer grace period during retrospective
+        }
+
+        if ($timeSinceLastDelivery -lt $graceSeconds) {
             # Still within grace period - skip this agent
             continue
+        }
+
+        # P2 FIX: Check if PM is in retrospective consolidation mode
+        if ($agentName -eq "pm" -and (Test-RetrospectiveConsolidationMode)) {
+            $batchStatus = Get-RetrospectiveBatchStatus
+            if (-not $batchStatus.complete) {
+                # Not all workers contributed yet - skip PM restart
+                Write-WatchdogLog "PM in retrospective mode: waiting for $($batchStatus.expectedCount - $batchStatus.pendingCount) more contribution(s)" -Color DarkGray
+                continue
+            }
+            # All contributions received - proceed to wake PM
+            Write-WatchdogLog "PM in retrospective mode: all $($batchStatus.pendingCount) contributions received, waking PM for synthesis" -Color Green
         }
 
         Write-WatchdogLog "${agentName}: delivering $count message(s) via file queue" -Color Magenta

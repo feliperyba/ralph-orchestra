@@ -1,9 +1,6 @@
 ---
 name: pm-planning-test-planning
 description: Test planning specialist. Collaborates with QA and Game Designer to create comprehensive test plans. Defines success criteria and test cases before task assignment. Use proactively before task assignment.
-category: planning
-version: 1.0
-keywords: [pm, test-planning, collaboration, qa, success-criteria, test-cases]
 user-invocable: true
 ---
 

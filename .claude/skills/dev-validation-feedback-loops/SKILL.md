@@ -1,8 +1,6 @@
 ---
 name: dev-validation-feedback-loops
 description: Type-check, lint, test, build validation for Developer agent. Use proactively before committing code. Consider using shared-validation-feedback-loops for comprehensive guidance.
-category: validation
-keywords: [validation, feedback, type-check, lint, test, build]
 ---
 
 # Feedback Loops (Developer Agent)

@@ -1,23 +1,9 @@
 ---
-name: gamedesigner-level-design
-description: Map and level design documentation
-category: gamedesign
+name: gd-design-level
+description: Map and level design documentation. Use when designing map layouts, creating level templates, placing loot and spawns, designing flow and pacing, or creating navigation systems.
 ---
 
 # Level Design
-
-## Overview
-
-This skill provides guidance for designing game levels, maps, and spaces that create meaningful player experiences.
-
-## When to Use This Skill
-
-Use when:
-- Designing map layouts
-- Creating level templates
-- Placing loot and spawns
-- Designing flow and pacing
-- Creating navigation systems
 
 ## Map Template Format
 

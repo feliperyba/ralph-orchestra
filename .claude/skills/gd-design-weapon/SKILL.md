@@ -1,22 +1,9 @@
 ---
-name: gamedesigner-weapon-design
-description: Weapon and item design documentation
-category: gamedesign
+name: gd-design-weapon
+description: Weapon and item design documentation. Use when designing weapons, creating item systems, balancing equipment, or designing consumables.
 ---
 
 # Weapon Design
-
-## Overview
-
-This skill provides guidance for designing weapons, items, and equipment that feel good to use and are balanced.
-
-## When to Use This Skill
-
-Use when:
-- Designing weapons
-- Creating item systems
-- Balancing equipment
-- Designing consumables
 
 ## Weapon Template
 
