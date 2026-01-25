@@ -197,12 +197,18 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
 
                     # Save work-in-progress before killing
                     $currentTask = $null
-                    if (Test-Path $paths.CurrentTask) {
-                        try { $currentTask = Get-Content $paths.CurrentTask -Raw | ConvertFrom-Json } catch {}
+                    $prdPath = Join-Path $projectRoot "prd.json"
+                    if (Test-Path $prdPath) {
+                        try {
+                            $prdContent = Get-Content $prdPath -Raw | ConvertFrom-Json
+                            if ($prdContent.session -and $prdContent.session.currentTask) {
+                                $currentTask = $prdContent.session.currentTask
+                            }
+                        } catch {}
                     }
                     if ($currentTask) {
                         Save-WorkInProgress -AgentName $AgentType -TaskState @{
-                            taskId = $currentTask.prdId
+                            taskId = $currentTask.id
                             status = $currentTask.status
                             idleAt = Get-Timestamp
                         } -Reason "idle_timeout" -ProjectRoot $projectRoot
@@ -258,17 +264,18 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
             }
         }
 
-        # Check for "completed" status in coordinator-state.json
-        if (Test-Path "$SESSION_DIR/coordinator-state.json") {
-            $stateContent = Get-Content "$SESSION_DIR/coordinator-state.json" -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($stateContent -and $stateContent.status -eq "completed") {
+        # Check for "completed" status in prd.json.session
+        $prdPath = Join-Path $projectRoot "prd.json"
+        if (Test-Path $prdPath) {
+            $prdContent = Get-Content $prdPath -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+            if ($prdContent -and $prdContent.session -and $prdContent.session.status -eq "completed") {
                 Write-Host "`n=== COMPLETE ===" -ForegroundColor Green
-                Write-Host "[$AgentType] All tasks completed after $iteration iterations! (detected via state file)"
+                Write-Host "[$AgentType] All tasks completed after $iteration iterations! (detected via prd.json.session)"
                 exit 0
             }
-            
+
             # Also check for terminated status
-            if ($stateContent -and $stateContent.status -eq "terminated") {
+            if ($prdContent -and $prdContent.session -and $prdContent.session.status -eq "terminated") {
                 Write-Host "`n=== TERMINATED ===" -ForegroundColor Yellow
                 Write-Host "[$AgentType] Session terminated after $iteration iterations"
                 exit 0

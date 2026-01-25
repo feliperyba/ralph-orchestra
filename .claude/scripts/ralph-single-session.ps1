@@ -28,8 +28,8 @@ Write-Host "Dashboard: $(if ($NoDashboard) { 'DISABLED' } else { 'ENABLED' })"
 Write-Host ""
 
 # Validate initial agent
-if ($InitialAgent -notin @("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer")) {
-    Write-Host "ERROR: InitialAgent must be a valid agent (pm, developer, qa, gamedesigner, techartist, prd-starter)" -ForegroundColor Red
+if ($InitialAgent -notin @("pm", "developer", "qa")) {
+    Write-Host "ERROR: InitialAgent must be 'pm', 'developer', or 'qa'" -ForegroundColor Red
     exit 1
 }
 
@@ -47,53 +47,35 @@ if (-not (Test-Path $paths.SessionDir)) {
     Write-Host "Created session directory: $($paths.SessionDir)"
 }
 
-# Initialize coordinator-state.json if it doesn't exist
-$stateFile = Join-Path $paths.SessionDir "coordinator-state.json"
-if (-not (Test-Path $stateFile)) {
-    $initialState = @{
-        sessionId = "ralph-single-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        startedAt = [DateTime]::UtcNow.ToString("o")
-        maxIterations = $maxIter
-        iteration = 0
-        status = "running"
-        orchestrationMode = "single-agent"
-        currentAgent = $InitialAgent
-        currentTask = $null
-        stats = @{
-            totalTasks = 0
-            completed = 0
-            failed = 0
-        }
-    }
-    
-    $initialState | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
-    Write-Host "Initialized coordinator-state.json"
+# Clear legacy state files if they exist (no longer used - state is in prd.json.session)
+@(
+    "coordinator-state.json",
+    "current-task.json",
+    "handoff-log.json",
+    "pending-handoff.json",
+    "handoff-signal.json",
+    "session-complete.flag"
+) | ForEach-Object {
+    $file = Join-Path $paths.SessionDir $_
+    if (Test-Path $file) { Remove-Item $file -Force }
 }
 
-# Initialize handoff-log.json if it doesn't exist
-$handoffFile = Join-Path $paths.SessionDir "handoff-log.json"
-if (-not (Test-Path $handoffFile)) {
-    $handoffLog = @{
-        sessionId = "ralph-single-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        orchestrationMode = "single-agent"
-        handoffs = @('test-developer')
-    }
-    
-    $handoffLog | ConvertTo-Json -Depth 10 | Out-File -FilePath $handoffFile -Encoding UTF8
-    Write-Host "Initialized handoff-log.json"
-}
+# Clear prd.json.session if exists
+$prdSessionFile = Join-Path $ProjectRoot "prd.json.session"
+if (Test-Path $prdSessionFile) { Remove-Item $prdSessionFile -Force }
 
 Write-Host ""
 Write-Host "Starting single-agent watchdog..." -ForegroundColor Yellow
 Write-Host ""
 
-# Build arguments - use dynamic path resolution for folder-name agnostic behavior
-$watchdogScript = Join-Path $paths.ScriptsDir "watchdog-single.ps1"
-$watchdogArgs = @("-File", $watchdogScript)
-$watchdogArgs += "-GracefulShutdownSeconds", $GracefulShutdownSeconds
-$watchdogArgs += "-InitialAgent", $InitialAgent
-$watchdogArgs += "-MaxRestarts", $MaxRestarts
-$watchdogArgs += "-ProjectRoot", $ProjectRoot
+# Build arguments
+$watchdogArgs = @(
+    "-File", "$PSScriptRoot\watchdog-single.ps1",
+    "-ProjectRoot", $ProjectRoot,
+    "-InitialAgent", $InitialAgent,
+    "-GracefulShutdownSeconds", $GracefulShutdownSeconds,
+    "-MaxRestarts", $MaxRestarts
+)
 
 if ($NoDashboard) {
     $watchdogArgs += "-NoDashboard"

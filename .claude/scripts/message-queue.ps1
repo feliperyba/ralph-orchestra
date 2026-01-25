@@ -24,16 +24,6 @@ if (Test-Path $consolidationModule) {
     . $consolidationModule
 }
 
-# Source message-pool module for object pooling (Phase 3)
-$poolModule = Join-Path $PSScriptRoot "message-pool.ps1"
-if (Test-Path $poolModule) {
-    . $poolModule
-    $Script:UseMessagePool = $true
-    Initialize-MessagePool
-} else {
-    $Script:UseMessagePool = $false
-}
-
 # ============================================================================
 # MESSAGE TYPES
 # ============================================================================
@@ -55,6 +45,8 @@ if (Test-Path $poolModule) {
 
 $Script:MessageQueueDir = $null
 $Script:MessageQueueSilent = $false  # Set to $true to suppress console output
+$Script:MessageSequenceCache = @{}  # Track message sequences to prevent collisions
+$Script:MaxMessagesPerInbox = 50  # Circuit breaker: max messages before rejecting new ones
 
 function Set-MessageQueueSilent {
     param([bool]$Silent = $true)
@@ -67,7 +59,25 @@ function Initialize-MessageQueue {
         [string]$SessionDir
     )
 
-    $Script:MessageQueueDir = Join-Path $SessionDir "messages"
+    # CRITICAL: If in a worktree, resolve to master session directory
+    # All agents must use the SAME message queue for coordination
+    $configModule = Join-Path $PSScriptRoot "ralph-config.ps1"
+    $masterSessionPath = $SessionDir  # Default to current session directory
+
+    if (Test-Path $configModule) {
+        . $configModule
+        # Get-MasterSessionPath expects a project root, but we receive a session directory
+        # Extract project root from session directory if needed
+        $projectRoot = $SessionDir
+        if ($SessionDir -match '^(.+)\.claude[\\/]session$') {
+            $projectRoot = $matches[1]
+        }
+        $masterSessionPath = Get-MasterSessionPath -CurrentPath $projectRoot
+        $Script:MessageQueueDir = Join-Path $masterSessionPath "messages"
+    } else {
+        # Fallback if ralph-config not available (shouldn't happen in normal operation)
+        $Script:MessageQueueDir = Join-Path $SessionDir "messages"
+    }
 
     # Create base directory
     if (-not (Test-Path $Script:MessageQueueDir)) {
@@ -82,8 +92,8 @@ function Initialize-MessageQueue {
         }
     }
 
-    # Initialize consolidation mode
-    Initialize-ConsolidationMode -SessionDir $SessionDir
+    # Initialize consolidation mode (also uses master path)
+    Initialize-ConsolidationMode -SessionDir $masterSessionPath
 
     # Silent - no console output
 }
@@ -93,7 +103,57 @@ function Initialize-MessageQueue {
 # ============================================================================
 
 function New-MessageId {
-    return "msg-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$([guid]::NewGuid().ToString().Substring(0,8))"
+    <#
+    .SYNOPSIS
+    Generate a unique message ID with standardized naming format.
+
+    .PARAMETER RecipientAgent
+    The agent receiving this message (included in filename for clarity).
+
+    .RETURNS
+    Message ID in format: msg-{recipient_agent}-{timestamp}-{sequence}
+    Example: msg-developer-20250123-120000-001
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
+        [string]$RecipientAgent
+    )
+
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $seq = Get-NextMessageSequence -Agent $RecipientAgent -Timestamp $timestamp
+    return "msg-$RecipientAgent-$timestamp-$('{0:D3}' -f $seq)"
+}
+
+function Get-NextMessageSequence {
+    <#
+    .SYNOPSIS
+    Get the next sequence number for a given agent and timestamp.
+    Prevents filename collisions when multiple messages are created within the same second.
+
+    .PARAMETER Agent
+    The recipient agent name.
+
+    .PARAMETER Timestamp
+    The timestamp for this batch of messages.
+
+    .RETURNS
+    The next sequence number (1-based).
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Agent,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Timestamp
+    )
+
+    $key = "$Agent-$Timestamp"
+    if (-not $Script:MessageSequenceCache.ContainsKey($key)) {
+        $Script:MessageSequenceCache[$key] = 0
+    }
+    $Script:MessageSequenceCache[$key]++
+    return $Script:MessageSequenceCache[$key]
 }
 
 function Send-AgentMessage {
@@ -121,21 +181,37 @@ function Send-AgentMessage {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$To,
         
         [Parameter(Mandatory=$true)]
-        [ValidateSet("agent_ready", "answer", "asset_assign", "asset_question", "asset_ready", "bug_report", "design_answer", "design_guidance", "design_guidance_request", "design_question", "error", "gdd_ready", "gdd_update", "implementation_complete", "mechanic_proposal", "playtest_report", "playtest_request", "prd_reorganized", "prd_update", "priority_response", "priority_review", "quality_concern", "question", "reference_request", "regression_request", "research_request", "research_response", "research_update", "retrospective_contribution", "retrospective_initiate", "shader_request", "shutdown", "skill_improvements", "skill_request", "status_update", "task_abandoned", "task_assign", "task_complete", "test-developer", "test_plan_contribution", "test_plan_request", "validation_request", "work_blocked", "work_complete")]
+        [ValidateSet(
+            "task_assign", "validation_request", "bug_report", "task_complete",
+            "question", "answer", "research_update", "regression_request",
+            "prd_update", "status_update", "priority_review", "agent_ready",
+            "work_complete", "error", "shutdown",
+            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
+            "retrospective_initiate", "retrospective_contribution", "research_request", "research_response",
+            "prd_reorganized", "skill_improvements", "priority_response", "skill_request",
+            "success_criteria", "success_criteria_request",
+            "gdd_ready", "gdd_update", "design_question", "design_answer",
+            "playtest_request", "playtest_report", "mechanic_proposal", "design_guidance",
+            "design_guidance_request", "test_plan_request", "test_plan_contribution", "visual_reference",
+            "asset_assign", "asset_ready", "asset_question", "shader_request", "reference_request",
+            "retrospective_complete",
+            "context_checkpoint",
+            "env_ready"
+        )]
         [string]$Type,
         
         [Parameter(Mandatory=$true)]
         [hashtable]$Payload,
         
-        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
+        [ValidateSet("low", "normal", "high", "urgent")]
         [string]$Priority = "normal",
         
         [string]$ReplyTo = $null
@@ -145,47 +221,33 @@ function Send-AgentMessage {
         throw "Message queue not initialized. Call Initialize-MessageQueue first."
     }
 
-    $messageId = New-MessageId
-
-    # Use pooled message if available (Phase 3 optimization)
-    if ($Script:UseMessagePool -and (Get-Command Get-PooledMessage -ErrorAction SilentlyContinue)) {
-        $message = Get-PooledMessage
-        $message["id"] = $messageId
-        $message["from"] = $From
-        $message["to"] = $To
-        $message["type"] = $Type
-        $message["priority"] = $Priority
-        $message["payload"] = $Payload
-        $message["timestamp"] = [DateTime]::UtcNow.ToString("o")
-        $message["status"] = "pending"
-        $message["replyTo"] = $ReplyTo
-        $message["_pooled"] = $true  # Mark for later return to pool
-    } else {
-        # Fallback to original allocation
-        $message = @{
-            id = $messageId
-            from = $From
-            to = $To
-            type = $Type
-            priority = $Priority
-            payload = $Payload
-            timestamp = [DateTime]::UtcNow.ToString("o")
-            status = "pending"
-            replyTo = $ReplyTo
-        }
+    $messageId = New-MessageId -RecipientAgent $To
+    
+    $message = @{
+        id = $messageId
+        from = $From
+        to = $To
+        type = $Type
+        priority = $Priority
+        payload = $Payload
+        timestamp = [DateTime]::UtcNow.ToString("o")
+        status = "pending"
+        replyTo = $ReplyTo
     }
-
-    # Remove internal _pooled flag before writing to JSON (Phase 3)
-    if ($message._pooled) {
-        $message.Remove("_pooled")
-    }
-
+    
     # Write to recipient's inbox using atomic write pattern (write to .tmp, then rename)
     # This prevents partial reads by other processes during write
     $inbox = Join-Path $Script:MessageQueueDir $To
+
+    # CIRCUIT BREAKER: Check inbox size before sending
+    $currentCount = @(Get-ChildItem -Path $inbox -Filter "msg-*.json" -ErrorAction SilentlyContinue).Count
+    if ($currentCount -ge $Script:MaxMessagesPerInbox) {
+        throw "Inbox full: $To has $currentCount messages (max: $Script:MaxMessagesPerInbox). Clear messages before sending more."
+    }
+
     $filePath = Join-Path $inbox "$messageId.json"
     $tempPath = Join-Path $inbox "$messageId.json.tmp"
-
+    
     try {
         $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
         Move-Item -Path $tempPath -Destination $filePath -Force
@@ -214,7 +276,7 @@ function Remove-OrphanedTempFiles {
     Only runs occasionally (random 1 in 10 chance) to reduce overhead.
 
     .PARAMETER Files
-    The file list to process (from Get-ChildItem or Get-ChildItemWithTimeout).
+    The file list to process (from Get-ChildItem).
 
     .PARAMETER AlwaysRun
     If true, always run cleanup regardless of random check.
@@ -328,6 +390,115 @@ function Move-CorruptFilesToQuarantine {
     } -ArgumentList $CorruptFiles, $quarantine -ErrorAction SilentlyContinue | Out-Null
 }
 
+# ============================================================================
+# DEAD LETTER QUEUE - Unprocessable message handling
+# ============================================================================
+
+function Move-ToDeadLetterQueue {
+    <#
+    .SYNOPSIS
+    Moves unprocessable message files to dead letter queue with metadata.
+
+    .DESCRIPTION
+    When a message cannot be processed (invalid format, unknown type, etc.),
+    move it to the dead letter queue for later analysis instead of leaving it
+    to clog the inbox.
+
+    .PARAMETER MessagePath
+    Path to the message file to move.
+
+    .PARAMETER Reason
+    Why the message couldn't be processed.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$MessagePath,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Reason
+    )
+
+    if (-not (Test-Path $MessagePath)) {
+        return
+    }
+
+    $deadLetterDir = Join-Path $Script:MessageQueueDir "deadletter"
+    if (-not (Test-Path $deadLetterDir)) {
+        New-Item -ItemType Directory -Path $deadLetterDir -Force | Out-Null
+    }
+
+    $filename = [System.IO.Path]::GetFileName($MessagePath)
+    $timestamp = [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss")
+    $destFilename = "${timestamp}_${filename}"
+    $destPath = Join-Path $deadLetterDir $destFilename
+
+    # Create metadata file with reason
+    $metadataPath = "${destPath}.meta.json"
+    $metadata = @{
+        originalPath = $MessagePath
+        movedAt = [DateTime]::UtcNow.ToString("o")
+        reason = $Reason
+    } | ConvertTo-Json -Depth 3
+
+    try {
+        Move-Item -Path $MessagePath -Destination $destPath -Force -ErrorAction Stop
+        $metadata | Out-File -FilePath $metadataPath -Encoding UTF8 -Force
+        if (-not $Script:MessageQueueSilent) {
+            Write-Host "  [DLQ] Moved to dead letter: $filename - Reason: $Reason" -ForegroundColor DarkYellow
+        }
+    } catch {
+        if (-not $Script:MessageQueueSilent) {
+            Write-Host "  [DLQ] Failed to move to dead letter: $_" -ForegroundColor Red
+        }
+    }
+}
+
+function Clear-DeadLetterQueue {
+    <#
+    .SYNOPSIS
+    Clears all messages from the dead letter queue.
+
+    .DESCRIPTION
+    Removes all files from the dead letter queue directory.
+    Use with caution - this permanently deletes unprocessable messages.
+    #>
+    param()
+
+    $deadLetterDir = Join-Path $Script:MessageQueueDir "deadletter"
+    if (-not (Test-Path $deadLetterDir)) {
+        return 0
+    }
+
+    $count = 0
+    try {
+        $files = Get-ChildItem -Path $deadLetterDir -File
+        $count = $files.Count
+        Remove-Item -Path $deadLetterDir -Recurse -Force -ErrorAction Stop
+        New-Item -ItemType Directory -Path $deadLetterDir -Force | Out-Null
+        if (-not $Script:MessageQueueSilent -and $count -gt 0) {
+            Write-Host "  [DLQ] Cleared $count messages from dead letter queue" -ForegroundColor Cyan
+        }
+    } catch {
+        if (-not $Script:MessageQueueSilent) {
+            Write-Host "  [DLQ] Failed to clear dead letter queue: $_" -ForegroundColor Red
+        }
+    }
+    return $count
+}
+
+function Get-DeadLetterQueueCount {
+    <#
+    .SYNOPSIS
+    Returns the number of messages in the dead letter queue.
+    #>
+    $deadLetterDir = Join-Path $Script:MessageQueueDir "deadletter"
+    if (-not (Test-Path $deadLetterDir)) {
+        return 0
+    }
+
+    return @(Get-ChildItem -Path $deadLetterDir -Filter "msg-*.json" -ErrorAction SilentlyContinue).Count
+}
+
 function Sort-MessagesByPriority {
     <#
     .SYNOPSIS
@@ -337,30 +508,35 @@ function Sort-MessagesByPriority {
     The message collection to sort.
 
     .RETURNS
-    Sorted message collection (always an array).
+    Sorted message collection (always an array, even for single messages).
     #>
     param(
         [object[]]$Messages = @()
     )
 
-    if ($Messages.Count -eq 0) {
-        return $Messages
+    # Ensure empty input returns empty array (not $null)
+    if ($null -eq $Messages -or $Messages.Count -eq 0) {
+        return @()  # Explicitly return empty array
     }
 
     $priorityOrder = @{ "low" = 0; "normal" = 1; "high" = 2; "urgent" = 3 }
 
-    # Sort and ensure array is always returned (even for single item)
+    # Use array subexpression @() and ensure result is always an array
     $sorted = $Messages | Sort-Object -Property @(
         @{ Expression = { $priorityOrder[$_.priority] }; Descending = $true },
         @{ Expression = { $_.timestamp }; Descending = $false }
     )
 
-    # Force array return - use generic list to avoid unwrapping
-    $result = [System.Collections.ObjectModel.Collection[object]]::new()
-    foreach ($item in $sorted) {
-        $result.Add($item)
+    # Ensure we always return an array (even for single messages)
+    # Use Write-Output -NoEnumerate or array construction to prevent unrolling
+    if ($null -eq $sorted) {
+        return @()
+    } elseif ($sorted -is [array]) {
+        return ,$sorted  # Comma operator prevents unrolling single-element arrays
+    } else {
+        # Single item - use array literal to wrap it
+        ,@($sorted)
     }
-    return ,$result  # The comma forces array return
 }
 
 function Get-PendingMessages {
@@ -383,12 +559,12 @@ function Get-PendingMessages {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$Agent,
 
         [string]$Type = $null,
 
-        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
+        [ValidateSet("low", "normal", "high", "urgent")]
         [string]$MinPriority = "low",
 
         [int]$TimeoutMs = 300
@@ -504,7 +680,7 @@ function Set-MessageStatus {
         [string]$MessageId,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("completed", "failed", "pending", "processing", "test-developer")]
+        [ValidateSet("pending", "processing", "completed", "failed")]
         [string]$Status,
 
         [string]$Agent = $null
@@ -612,13 +788,6 @@ function Invoke-AcknowledgeMessage {
         }
     }
 
-    # Return pooled message to pool (Phase 3 optimization)
-    # Only return if this was actually a pooled hashtable (not from JSON)
-    if ($Script:UseMessagePool -and $message -is [hashtable] -and $message._pooled -eq $true -and (Get-Command Return-PooledMessage -ErrorAction SilentlyContinue)) {
-        $message._pooled = $false  # Clear the flag before returning
-        Return-PooledMessage $message
-    }
-
     # Silent - acknowledgment logged by caller
     return $true
 }
@@ -656,21 +825,37 @@ function Send-AgentMessageSafe {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$To,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("agent_ready", "answer", "asset_assign", "asset_question", "asset_ready", "bug_report", "design_answer", "design_guidance", "design_guidance_request", "design_question", "error", "gdd_ready", "gdd_update", "implementation_complete", "mechanic_proposal", "playtest_report", "playtest_request", "prd_reorganized", "prd_update", "priority_response", "priority_review", "quality_concern", "question", "reference_request", "regression_request", "research_request", "research_response", "research_update", "retrospective_contribution", "retrospective_initiate", "shader_request", "shutdown", "skill_improvements", "skill_request", "status_update", "task_abandoned", "task_assign", "task_complete", "test-developer", "test_plan_contribution", "test_plan_request", "validation_request", "work_blocked", "work_complete")]
+        [ValidateSet(
+            "task_assign", "validation_request", "bug_report", "task_complete",
+            "question", "answer", "research_update", "regression_request",
+            "prd_update", "status_update", "priority_review", "agent_ready",
+            "work_complete", "error", "shutdown",
+            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
+            "retrospective_initiate", "retrospective_contribution", "research_request", "research_response",
+            "prd_reorganized", "skill_improvements", "priority_response", "skill_request",
+            "success_criteria", "success_criteria_request",
+            "gdd_ready", "gdd_update", "design_question", "design_answer",
+            "playtest_request", "playtest_report", "mechanic_proposal", "design_guidance",
+            "design_guidance_request", "test_plan_request", "test_plan_contribution", "visual_reference",
+            "asset_assign", "asset_ready", "asset_question", "shader_request", "reference_request",
+            "retrospective_complete",
+            "context_checkpoint",
+            "env_ready"
+        )]
         [string]$Type,
 
         [Parameter(Mandatory=$true)]
         [hashtable]$Payload,
 
-        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
+        [ValidateSet("low", "normal", "high", "urgent")]
         [string]$Priority = "normal",
 
         [string]$ReplyTo = $null
@@ -962,7 +1147,7 @@ function Send-StatusUpdate {
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("completed", "error", "idle", "test-developer", "waiting", "working")]
+        [ValidateSet("idle", "working", "waiting", "error", "completed")]
         [string]$Status,
 
         [string]$CurrentTask = $null,
@@ -1098,7 +1283,7 @@ function Send-QualityConcern {
         [Parameter(Mandatory=$true)]
         [string]$Concern,
 
-        [ValidateSet("high", "low", "medium", "test-developer")]
+        [ValidateSet("low", "medium", "high")]
         [string]$Severity = "medium"
     )
 
@@ -1109,6 +1294,23 @@ function Send-QualityConcern {
     }
 
     return Send-AgentMessage -From "qa" -To "pm" -Type "quality_concern" -Payload $payload -Priority "normal"
+}
+
+function Send-EnvReady {
+    <#
+    .SYNOPSIS
+    PM sends this to watchdog after consolidating messages on startup.
+    Signals that PM is ready for normal operations and workers can receive messages.
+
+    This message exits watchdog's startup mode, allowing workers to be spawned.
+    #>
+    param()
+
+    $payload = @{
+        timestamp = [DateTime]::UtcNow.ToString("o")
+    }
+
+    return Send-AgentMessage -From "pm" -To "watchdog" -Type "env_ready" -Payload $payload -Priority "high"
 }
 
 function Get-AgentMessages {
@@ -1127,12 +1329,12 @@ function Get-AgentMessages {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$Agent,
 
         [string]$Type = $null,
 
-        [ValidateSet("high", "low", "normal", "test-developer", "urgent")]
+        [ValidateSet("low", "normal", "high", "urgent")]
         [string]$MinPriority = "low"
     )
 
@@ -1152,7 +1354,7 @@ function Remove-AgentMessage {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog")]
+        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")]
         [string]$Agent,
 
         [Parameter(Mandatory=$true)]
@@ -1271,6 +1473,71 @@ function Initialize-ConsolidationForStartup {
     }
 
     return $true
+}
+
+function Invoke-ConsolidateAndClearAllMessages {
+    <#
+    .SYNOPSIS
+    PM consolidation function: Read all messages from all agents, consolidate them,
+    and delete all messages after processing. This ensures PM has complete picture
+    on startup and messages don't pile up across restarts.
+
+    .RETURNS
+    Hashtable with consolidated state for PM decision making.
+    #>
+    param()
+
+    if (-not $Script:MessageQueueDir) {
+        throw "Message queue not initialized. Call Initialize-MessageQueue first."
+    }
+
+    # Get global message state (all messages across all agents)
+    $globalState = Get-GlobalMessageState
+
+    $consolidated = @{
+        totalMessages = $globalState.totalMessages
+        byAgent = @{}
+        byType = @{}
+        allMessages = $globalState.allMessages
+        consolidatedAt = [DateTime]::UtcNow.ToString("o")
+    }
+
+    # Group by agent and by type for PM analysis
+    foreach ($agent in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
+        $consolidated.byAgent[$agent] = @($globalState.byAgent[$agent])
+    }
+
+    # Group by message type
+    foreach ($msg in $globalState.allMessages) {
+        $type = $msg.type
+        if (-not $consolidated.byType[$type]) {
+            $consolidated.byType[$type] = @()
+        }
+        $consolidated.byType[$type] += $msg
+    }
+
+    # Delete ALL messages after consolidation (they've been processed)
+    # This is the key: PM has read everything, messages are now redundant
+    $deletedCount = 0
+    foreach ($agent in @("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")) {
+        $inbox = Join-Path $Script:MessageQueueDir $agent
+        if (Test-Path $inbox) {
+            $messages = Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue
+            foreach ($msgFile in $messages) {
+                try {
+                    Remove-Item $msgFile.FullName -Force -ErrorAction Stop
+                    $deletedCount++
+                } catch {
+                    # Log but continue - message may have been deleted by another process
+                }
+            }
+        }
+    }
+
+    # Add deletion count to consolidated state
+    $consolidated.messagesDeleted = $deletedCount
+
+    return $consolidated
 }
 
 # ============================================================================

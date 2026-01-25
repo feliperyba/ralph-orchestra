@@ -1,4 +1,4 @@
-﻿# Ralph Configuration Module (PowerShell)
+# Ralph Configuration Module (PowerShell)
 # Centralized configuration for all Ralph scripts
 # Source this file in other scripts: . "$PSScriptRoot\ralph-config.ps1"
 
@@ -194,7 +194,7 @@ $Script:AuxiliaryScripts = @{
     # These patterns match scripts that are created for one-time use
     Temporary = @(
         "*-runner.ps1",           # Agent runner scripts (created by watchdog)
-        "pending-messages-*.json", # Message delivery files
+        "msg-*-*.json",           # Individual message files (format: msg-{agent}-{timestamp}-{seq}.json)
         "*.exit",                 # Agent exit status files
         "restart-flag-*.json",    # Restart signal files
         "*.tmp",                  # Temporary files
@@ -264,6 +264,134 @@ function Invoke-TempScriptCleanup {
 }
 
 # ============================================================================
+# WORKTREE PATH RESOLUTION
+# ============================================================================
+
+function Get-MasterRootPath {
+    <#
+    .SYNOPSIS
+    Gets the absolute path to the master branch root from any worktree.
+
+    .DESCRIPTION
+    When agents work in git worktrees, they need to access the master
+    branch for all coordination operations (PRD, messages, session state).
+    This function resolves to the master worktree root regardless of
+    current directory.
+
+    .PARAMETER CurrentPath
+    Current directory path (defaults to current location).
+
+    .RETURNS
+    Absolute path to master branch root directory.
+    #>
+    param([string]$CurrentPath = (Get-Location).Path)
+
+    # Worktree patterns to detect
+    $worktreePatterns = @(
+        "developer-worktree",
+        "techartist-worktree",
+        "qa-worktree"
+    )
+
+    foreach ($pattern in $worktreePatterns) {
+        if ($CurrentPath -like "*$pattern*") {
+            # We're in a worktree - navigate to master
+            # Worktrees are siblings in parent directory
+
+            # Go up directories until we find the parent containing worktrees
+            $testPath = $CurrentPath
+            for ($i = 0; $i -lt 5; $i++) {
+                $parentDir = Split-Path -Parent $testPath
+
+                # Check if sibling directories exist
+                $siblings = Get-ChildItem -Directory -Path $parentDir -ErrorAction SilentlyContinue
+                $hasWorktree = $false
+                foreach ($sib in $siblings) {
+                    if ($worktreePatterns -contains $sib.Name) {
+                        $hasWorktree = $true
+                        break
+                    }
+                }
+
+                # Check if agentic-threejs exists as sibling
+                $masterCandidate = Join-Path $parentDir "agentic-threejs"
+                if ($hasWorktree -and (Test-Path $masterCandidate)) {
+                    return $masterCandidate
+                }
+
+                $testPath = $parentDir
+            }
+        }
+    }
+
+    # Default: return current path (for PM, QA, or when already in master)
+    return $CurrentPath
+}
+
+function Get-MasterSessionPath {
+    <#
+    .SYNOPSIS
+    Gets the absolute path to the master branch's session directory.
+
+    .DESCRIPTION
+    Returns the path to .claude/session in the master branch,
+    regardless of which worktree the agent is currently in.
+
+    .PARAMETER CurrentPath
+    Current directory path (defaults to current location).
+
+    .RETURNS
+    Absolute path to .claude/session in master branch.
+    #>
+    param([string]$CurrentPath = (Get-Location).Path)
+
+    $masterRoot = Get-MasterRootPath -CurrentPath $CurrentPath
+    return Join-Path $masterRoot ".claude\session"
+}
+
+function Get-MasterPrdPath {
+    <#
+    .SYNOPSIS
+    Gets the absolute path to the master branch's prd.json.
+
+    .DESCRIPTION
+    Returns the path to prd.json in the master branch,
+    regardless of which worktree the agent is currently in.
+
+    .PARAMETER CurrentPath
+    Current directory path (defaults to current location).
+
+    .RETURNS
+    Absolute path to prd.json in master branch.
+    #>
+    param([string]$CurrentPath = (Get-Location).Path)
+
+    $masterRoot = Get-MasterRootPath -CurrentPath $CurrentPath
+    return Join-Path $masterRoot "prd.json"
+}
+
+function Get-MasterMessageQueuePath {
+    <#
+    .SYNOPSIS
+    Gets the absolute path to the master branch's message queue directory.
+
+    .DESCRIPTION
+    Returns the path to .claude/session/messages in the master branch,
+    regardless of which worktree the agent is currently in.
+
+    .PARAMETER CurrentPath
+    Current directory path (defaults to current location).
+
+    .RETURNS
+    Absolute path to .claude/session/messages in master branch.
+    #>
+    param([string]$CurrentPath = (Get-Location).Path)
+
+    $masterRoot = Get-MasterRootPath -CurrentPath $CurrentPath
+    return Join-Path $masterRoot ".claude\session\messages"
+}
+
+# ============================================================================
 # PATH CONFIGURATION
 # ============================================================================
 
@@ -271,34 +399,35 @@ function Get-RalphPaths {
     param(
         [string]$ProjectRoot = (Get-Location).Path
     )
-    
+
+    # CRITICAL: If in a worktree, resolve to master for ALL coordination/state paths
+    # This ensures PRD, messages, and session state are shared across all agents
+    $masterRoot = Get-MasterRootPath -CurrentPath $ProjectRoot
+
     return @{
-        SessionDir           = Join-Path $ProjectRoot ".claude/session"
+        # Coordination/state paths - ALWAYS in master branch
+        SessionDir           = Join-Path $masterRoot ".claude/session"
+        PrdFile              = Join-Path $masterRoot "prd.json"
+        HandoffLog           = Join-Path $masterRoot ".claude/session/handoff-log.json"
+        ContinueFlag         = Join-Path $masterRoot ".claude/session/continue-loop.flag"
+
+        # Per-agent state files - ALWAYS in master
+        AgentStatePM         = Join-Path $masterRoot ".claude/session/agent-pm.json"
+        AgentStateDeveloper  = Join-Path $masterRoot ".claude/session/agent-developer.json"
+        AgentStateQA         = Join-Path $masterRoot ".claude/session/agent-qa.json"
+
+        # Progress files - ALWAYS in master
+        ProgressLog          = Join-Path $masterRoot ".claude/session/progress.txt"
+        EventsLog            = Join-Path $masterRoot ".claude/session/events.jsonl"
+        MetricsFile          = Join-Path $masterRoot ".claude/session/metrics.json"
+
+        # Work-in-progress - ALWAYS in master
+        WorkInProgress       = Join-Path $masterRoot ".claude/session/work-in-progress.json"
+
+        # Execution paths - local to worktree (scripts need to run from local directory)
         ScriptsDir           = Join-Path $ProjectRoot ".claude/scripts"
         HooksDir             = Join-Path $ProjectRoot ".claude/hooks"
         SkillsDir            = Join-Path $ProjectRoot ".claude/skills"
-        
-        # State files
-        CoordinatorState     = Join-Path $ProjectRoot ".claude/session/coordinator-state.json"
-        CurrentTask          = Join-Path $ProjectRoot ".claude/session/current-task.json"
-        HandoffLog           = Join-Path $ProjectRoot ".claude/session/handoff-log.json"
-        ContinueFlag         = Join-Path $ProjectRoot ".claude/session/continue-loop.flag"
-        
-        # Per-agent state files (Phase 2 - separated for reduced contention)
-        AgentStatePM         = Join-Path $ProjectRoot ".claude/session/agent-pm.json"
-        AgentStateDeveloper  = Join-Path $ProjectRoot ".claude/session/agent-developer.json"
-        AgentStateQA         = Join-Path $ProjectRoot ".claude/session/agent-qa.json"
-        
-        # Progress files
-        ProgressLog          = Join-Path $ProjectRoot ".claude/session/progress.txt"
-        EventsLog            = Join-Path $ProjectRoot ".claude/session/events.jsonl"
-        MetricsFile          = Join-Path $ProjectRoot ".claude/session/metrics.json"
-        
-        # Work-in-progress (for graceful restart)
-        WorkInProgress       = Join-Path $ProjectRoot ".claude/session/work-in-progress.json"
-        
-        # PRD
-        PrdFile              = Join-Path $ProjectRoot "prd.json"
     }
 }
 
@@ -336,12 +465,6 @@ $Script:AgentConfig = @{
         Command = "/ralph-worker-event --agent gamedesigner"
         DisplayName = "Game Designer"
         Color = "Blue"
-    }
-    "prd-starter" = @{
-        Type = "utility"
-        Command = "/ralph-prd-starter"
-        DisplayName = "PRD Starter"
-        Color = "White"
     }
 }
 
@@ -410,7 +533,7 @@ function Write-SessionLog {
         [string]$Message,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "techartist", "qa", "gamedesigner", "prd-starter", "watchdog")]
+        [ValidateSet("pm", "developer", "techartist", "qa", "gamedesigner", "watchdog")]
         [string]$Agent,
 
         [ValidateSet("INFO", "WARNING", "ERROR", "DEBUG")]
@@ -448,15 +571,37 @@ function Initialize-SessionDirectory {
 }
 
 function Get-CoordinatorState {
+    <#
+    .SYNOPSIS
+    DEPRECATED: Use Get-PrdSession instead. Session state now in prd.json.session
+    #>
     param([string]$ProjectRoot = (Get-Location).Path)
-    
+
+    # Forward to new function for backward compatibility
+    return Get-PrdSession -ProjectRoot $ProjectRoot
+}
+
+function Get-PrdSession {
+    <#
+    .SYNOPSIS
+    Gets session state from prd.json (single source of truth).
+
+    .DESCRIPTION
+    Reads prd.json and returns the session section which contains
+    sessionId, iteration, status, currentTask, and stats.
+    #>
+    param([string]$ProjectRoot = (Get-Location).Path)
+
     $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
-    
-    if (Test-Path $paths.CoordinatorState) {
+
+    if (Test-Path $paths.PrdFile) {
         try {
-            return Get-Content $paths.CoordinatorState -Raw | ConvertFrom-Json
+            $prd = Get-Content $paths.PrdFile -Raw | ConvertFrom-Json
+            if ($prd -and $prd.session) {
+                return $prd.session
+            }
         } catch {
-            Write-RalphLog "Failed to parse coordinator state: $_" -Level "ERROR" -Color Red
+            Write-RalphLog "Failed to parse prd.json: $_" -Level "ERROR" -Color Red
             return $null
         }
     }
@@ -464,21 +609,54 @@ function Get-CoordinatorState {
 }
 
 function Save-CoordinatorState {
+    <#
+    .SYNOPSIS
+    DEPRECATED: Use Save-PrdSession instead. Session state now in prd.json.session
+    #>
     param(
         [Parameter(Mandatory=$true)]
         $State,
         [string]$ProjectRoot = (Get-Location).Path
     )
-    
+
+    # Forward to new function for backward compatibility
+    return Save-PrdSession -State $State -ProjectRoot $ProjectRoot
+}
+
+function Save-PrdSession {
+    <#
+    .SYNOPSIS
+    Saves session state to prd.json.session (single source of truth).
+
+    .DESCRIPTION
+    Updates the session section of prd.json atomically.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        $State,
+        [string]$ProjectRoot = (Get-Location).Path
+    )
+
     $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
-    $tempFile = "$($paths.CoordinatorState).tmp"
-    
+    $tempFile = "$($paths.PrdFile).tmp"
+
     try {
-        $State | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempFile -Encoding utf8
-        Move-Item -Path $tempFile -Destination $paths.CoordinatorState -Force
+        # Read existing PRD
+        $prd = if (Test-Path $paths.PrdFile) {
+            Get-Content $paths.PrdFile -Raw | ConvertFrom-Json
+        } else {
+            @{ items = @(); agents = @{} }
+        }
+
+        # Update session section
+        $prd | Add-Member -NotePropertyName "session" -NotePropertyValue $State -Force
+
+        # Write atomically
+        $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempFile -Encoding utf8
+        Move-Item -Path $tempFile -Destination $paths.PrdFile -Force
         return $true
     } catch {
-        Write-RalphLog "Failed to save coordinator state: $_" -Level "ERROR" -Color Red
+        Write-RalphLog "Failed to save prd.json: $_" -Level "ERROR" -Color Red
         if (Test-Path $tempFile) { Remove-Item $tempFile -Force }
         return $false
     }
@@ -489,94 +667,94 @@ function Get-AgentHeartbeat {
         [string]$AgentName,
         [string]$ProjectRoot = (Get-Location).Path
     )
-    
+
     $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
-    
-    # First, try per-agent heartbeat file (more reliable - single writer)
-    $agentFile = Join-Path $paths.SessionDir "agent-$AgentName.json"
-    if (Test-Path $agentFile) {
+
+    # Read from prd.json.agents (single source of truth)
+    if (Test-Path $paths.PrdFile) {
         try {
-            $heartbeat = Get-Content $agentFile -Raw | ConvertFrom-Json
-            if ($heartbeat -and $heartbeat.lastSeen) {
-                return $heartbeat
+            $prd = Get-Content $paths.PrdFile -Raw | ConvertFrom-Json
+            if ($prd -and $prd.agents -and $prd.agents.$AgentName) {
+                return $prd.agents.$AgentName
             }
         } catch {}
     }
-    
-    # Fallback to coordinator state
-    $state = Get-CoordinatorState -ProjectRoot $ProjectRoot
-    if ($state -and $state.agents -and $state.agents.$AgentName) {
-        return $state.agents.$AgentName
-    }
+
     return $null
 }
 
 function Update-AgentHeartbeat {
+    <#
+    .SYNOPSIS
+    Updates agent heartbeat in prd.json.agents (single source of truth).
+
+    .DESCRIPTION
+    Updates agent status in prd.json.agents section. This is the ONLY place
+    where agent status should be written for coordination.
+
+    .PARAMETER AgentName
+    The name of the agent (pm, developer, qa, techartist, gamedesigner).
+
+    .PARAMETER Status
+    The agent's current status (idle, working, awaiting_pm, etc.).
+
+    .PARAMETER CurrentTaskId
+    Optional: The ID of the task the agent is currently working on.
+
+    .PARAMETER ProjectRoot
+    Project root path. Defaults to current location.
+
+    .EXAMPLE
+    Update-AgentHeartbeat -AgentName "developer" -Status "working" -CurrentTaskId "feat-001"
+    #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$AgentName,
         [string]$Status = "idle",
-        [string]$ProjectRoot = (Get-Location).Path,
-        [switch]$UseLocking = $false
+        [string]$CurrentTaskId = $null,
+        [string]$ProjectRoot = (Get-Location).Path
     )
-    
+
     $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
-    
-    # First, update per-agent heartbeat file (no locking needed - single writer)
-    $agentFile = Join-Path $paths.SessionDir "agent-$AgentName.json"
-    $heartbeat = @{
-        agent = $AgentName
-        status = $Status
-        lastSeen = Get-Timestamp
-        pid = $PID
-    }
+    $tempFile = "$($paths.PrdFile).tmp"
+
     try {
-        $heartbeat | ConvertTo-Json -Depth 5 | Out-File -FilePath $agentFile -Encoding utf8
-    } catch {}
-    
-    # Then, update coordinator state (with optional locking for critical sections)
-    if ($UseLocking) {
-        # Source file-lock.ps1 if not already loaded
-        $lockScript = Join-Path $paths.ScriptsDir "file-lock.ps1"
-        if (Test-Path $lockScript) {
-            . $lockScript
-            
-            try {
-                Update-JsonFile -FilePath $paths.CoordinatorState -AgentName $AgentName -CreateIfMissing -UpdateScript {
-                    param($state)
-                    if (-not $state) { return $null }
-                    if (-not $state.agents) {
-                        $state | Add-Member -NotePropertyName "agents" -NotePropertyValue @{} -Force
-                    }
-                    $state.agents.$AgentName = @{
-                        status = $Status
-                        lastSeen = Get-Timestamp
-                    }
-                    return $state
-                }
-                return $true
-            } catch {
-                Write-RalphLog "Failed to update heartbeat with locking: $_" -Level "WARN" -Color Yellow
-            }
+        # Read existing PRD
+        $prd = if (Test-Path $paths.PrdFile) {
+            Get-Content $paths.PrdFile -Raw | ConvertFrom-Json
+        } else {
+            @{ items = @(); agents = @{} }
         }
-    }
-    
-    # Fallback: simple update without locking (for heartbeats, eventual consistency is OK)
-    $state = Get-CoordinatorState -ProjectRoot $ProjectRoot
-    if (-not $state) {
+
+        # Ensure agents section exists
+        if (-not $prd.agents) {
+            $prd | Add-Member -NotePropertyName "agents" -NotePropertyValue @{} -Force
+        }
+
+        # Build agent entry
+        $agentEntry = @{
+            status = $Status
+            lastSeen = Get-Timestamp
+            pid = $PID
+        }
+
+        # Only include currentTaskId if provided (non-null/non-empty)
+        if ($CurrentTaskId) {
+            $agentEntry.currentTaskId = $CurrentTaskId
+        }
+
+        # Update agent entry
+        $prd.agents.$AgentName = $agentEntry
+
+        # Write atomically
+        $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempFile -Encoding utf8
+        Move-Item -Path $tempFile -Destination $paths.PrdFile -Force
+        return $true
+    } catch {
+        Write-RalphLog "Failed to update agent heartbeat: $_" -Level "ERROR" -Color Red
+        if (Test-Path $tempFile) { Remove-Item $tempFile -Force }
         return $false
     }
-    
-    if (-not $state.agents) {
-        $state | Add-Member -NotePropertyName "agents" -NotePropertyValue @{} -Force
-    }
-    
-    $state.agents.$AgentName = @{
-        status = $Status
-        lastSeen = Get-Timestamp
-    }
-    
-    return Save-CoordinatorState -State $state -ProjectRoot $ProjectRoot
 }
 
 function Test-AgentStale {
@@ -663,4 +841,3 @@ function Clear-WorkInProgress {
         Remove-Item $paths.WorkInProgress -Force
     }
 }
-
