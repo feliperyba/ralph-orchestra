@@ -30,8 +30,8 @@ $logsDir = Join-Path $sessionDir "logs"
 $scriptsDir = Join-Path $ProjectRoot ".claude\scripts"
 
 # Create directories
-$directories = @($sessionDir, $messagesDir, $logsDir)
-$directories += @("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
+$directories = @('test-developer')
+$directories += @("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer", "watchdog") | ForEach-Object { Join-Path $messagesDir $_ }
 
 foreach ($dir in $directories) {
     if (-not (Test-Path $dir)) {
@@ -49,78 +49,9 @@ Write-Host "Project: $ProjectRoot"
 Write-Host "Session: $sessionDir"
 Write-Host ""
 
-# ============================================================================
-# STARTUP CLEANUP - Remove stale messages from previous sessions
-# ============================================================================
-
-function Invoke-StartupCleanup {
-    <#
-    .SYNOPSIS
-    Cleans up stale messages and orphaned files from previous sessions.
-
-    .DESCRIPTION
-    - Removes message files older than 1 hour
-    - Removes orphaned .tmp files
-    - Clears dead letter queue
-    #>
-    $maxAgeMinutes = 60  # Messages older than 1 hour are considered stale
-
-    Write-Host "Running startup cleanup..." -ForegroundColor Cyan
-
-    # Clean old messages from each inbox
-    $totalCleaned = 0
-    foreach ($agent in @("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")) {
-        $inbox = Join-Path $messagesDir $agent
-        if (Test-Path $inbox) {
-            $now = [DateTime]::UtcNow
-            $oldMessages = Get-ChildItem -Path $inbox -Filter "msg-*.json" -ErrorAction SilentlyContinue |
-                Where-Object { ($now - $_.LastWriteTimeUtc).TotalMinutes -gt $maxAgeMinutes }
-
-            if ($oldMessages.Count -gt 0) {
-                $oldMessages | Remove-Item -Force -ErrorAction SilentlyContinue
-                $totalCleaned += $oldMessages.Count
-                Write-Host "  Cleaned $($oldMessages.Count) old message(s) from $agent inbox" -ForegroundColor DarkGray
-            }
-        }
-    }
-
-    # Clean orphaned .tmp files from all inboxes
-    $tmpFiles = Get-ChildItem -Path $messagesDir -Recurse -Filter "*.json.tmp" -ErrorAction SilentlyContinue
-    if ($tmpFiles.Count -gt 0) {
-        $tmpFiles | Remove-Item -Force -ErrorAction SilentlyContinue
-        Write-Host "  Cleaned $($tmpFiles.Count) orphaned .tmp file(s)" -ForegroundColor DarkGray
-        $totalCleaned += $tmpFiles.Count
-    }
-
-    # Clear dead letter queue
-    $deadLetterDir = Join-Path $messagesDir "deadletter"
-    if (Test-Path $deadLetterDir) {
-        try {
-            $dlqCount = @(Get-ChildItem -Path $deadLetterDir -File -ErrorAction SilentlyContinue).Count
-            if ($dlqCount -gt 0) {
-                Remove-Item -Path $deadLetterDir -Recurse -Force -ErrorAction Stop
-                New-Item -ItemType Directory -Path $deadLetterDir -Force | Out-Null
-                Write-Host "  Cleared $dlqCount message(s) from dead letter queue" -ForegroundColor DarkGray
-            }
-        } catch {
-            Write-Host "  Failed to clear dead letter queue: $_" -ForegroundColor Yellow
-        }
-    }
-
-    if ($totalCleaned -gt 0) {
-        Write-Host "Startup cleanup complete: $totalCleaned item(s) removed" -ForegroundColor Green
-    } else {
-        Write-Host "Startup cleanup: No stale items found" -ForegroundColor DarkGray
-    }
-    Write-Host ""
-}
-
-# Run startup cleanup automatically (safe - only removes stale messages)
-Invoke-StartupCleanup
-
 # Ask about cleaning old session
-$cleanSession = $false  # Default: DON'T clean - only clean if user explicitly says "y"
-if (Test-Path (Join-Path $ProjectRoot "prd.json.session")) {
+$cleanSession = $true
+if (Test-Path (Join-Path $sessionDir "coordinator-state.json")) {
     Write-Host "Existing session found." -ForegroundColor Yellow
     $response = Read-Host "Clear old session data? (y/n, default: n)"
     if ($response -eq "y") {
@@ -130,31 +61,46 @@ if (Test-Path (Join-Path $ProjectRoot "prd.json.session")) {
 
 if ($cleanSession) {
     Write-Host "Cleaning session data..." -ForegroundColor Yellow
-
+    
     # Clear message queues
     Get-ChildItem -Path $messagesDir -Recurse -Filter "*.json" -ErrorAction SilentlyContinue | Remove-Item -Force
-
+    
     # Clear logs
     Get-ChildItem -Path $logsDir -Filter "*.log" -ErrorAction SilentlyContinue | Remove-Item -Force
-
-    # Clear legacy state files (no longer used - state is in prd.json.session)
-    @(
-        "coordinator-state.json",
-        "current-task.json",
-        "handoff-log.json",
-        "pending-handoff.json",
-        "handoff-signal.json",
-        "session-complete.flag"
-    ) | ForEach-Object {
+    
+    # Clear state files
+    @("test-developer") | ForEach-Object {
         $file = Join-Path $sessionDir $_
         if (Test-Path $file) { Remove-Item $file -Force }
     }
-
-    # Clear prd.json.session if exists
-    $prdSessionFile = Join-Path $ProjectRoot "prd.json.session"
-    if (Test-Path $prdSessionFile) { Remove-Item $prdSessionFile -Force }
-
+    
     Write-Host "Session cleaned." -ForegroundColor Green
+}
+
+# Initialize coordinator state
+$stateFile = Join-Path $sessionDir "coordinator-state.json"
+if (-not (Test-Path $stateFile)) {
+    # Source config for max iterations default
+    . "$PSScriptRoot\ralph-config.ps1"
+    $config = Get-RalphConfig
+    $maxIter = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
+
+    $initialState = @{
+        mode = "event-driven"
+        phase = "initializing"
+        startTime = [DateTime]::UtcNow.ToString("o")
+        maxIterations = $maxIter
+        iteration = 0
+        activeAgents = @("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer")
+        currentTasks = @{
+            pm = $null
+            developer = $null
+            qa = $null
+            gamedesigner = $null
+            techartist = $null
+        }
+    }
+    $initialState | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
 }
 
 # Check for PRD
@@ -212,7 +158,7 @@ Write-Host "Press Ctrl+C in watchdog window to stop all agents." -ForegroundColo
 Write-Host ""
 
 # Build watchdog arguments
-$watchdogArgs = @()
+$watchdogArgs = @('test-developer')
 if ($NoDashboard) { $watchdogArgs += "-NoDashboard" }
 if ($Debug) { $watchdogArgs += "-Debug" }
 if ($MaxIterations -gt 0) { $watchdogArgs += "-MaxIterations", $MaxIterations }

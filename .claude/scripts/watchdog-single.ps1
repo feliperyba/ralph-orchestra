@@ -239,43 +239,34 @@ function Update-CoordinatorState {
         [string]$PendingHandoff = $null,
         [string]$HandoffContext = $null
     )
-
-    # Use prd.json.session as the source of truth
-    $prdFile = Join-Path $ProjectRoot "prd.json"
-
-    $prd = @{}
-    if (Test-Path $prdFile) {
+    
+    $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
+    
+    $state = @{}
+    if (Test-Path $stateFile) {
         try {
-            $prd = Get-Content $prdFile -Raw | ConvertFrom-Json -AsHashtable
+            $state = Get-Content $stateFile -Raw | ConvertFrom-Json -AsHashtable
         } catch {
-            $prd = @{}
+            $state = @{}
         }
     }
-
-    # Ensure session section exists
-    if (-not $prd.session) {
-        $prd.session = @{}
-    }
-
-    # Update fields in session section
-    $prd.session.currentAgent = $ActiveAgent
-    $prd.session.lastUpdate = [DateTime]::UtcNow.ToString("o")
-    $prd.session.orchestrationMode = "single-agent"
-
+    
+    # Update fields
+    $state.currentAgent = $ActiveAgent
+    $state.lastUpdate = [DateTime]::UtcNow.ToString("o")
+    $state.orchestrationMode = "single-agent"
+    
     if ($PendingHandoff) {
-        $prd.session.pendingHandoff = @{
+        $state.pendingHandoff = @{
             targetAgent = $PendingHandoff
             context = $HandoffContext
             requestedAt = [DateTime]::UtcNow.ToString("o")
         }
     } else {
-        $prd.session.pendingHandoff = $null
+        $state.pendingHandoff = $null
     }
-
-    # Write atomically
-    $tempPath = $prdFile + ".tmp"
-    $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-    Move-Item -Path $tempPath -Destination $prdFile -Force
+    
+    $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
 }
 
 # ============================================================================
@@ -495,7 +486,7 @@ function Invoke-Handoff {
 $Context
 
 ---
-Read prd.json for full details (session state, current task, and items).
+Read current-task.json and coordinator-state.json for full details.
 "@
     
     # Start new agent with context
@@ -677,18 +668,16 @@ function Start-SingleAgentWatchdog {
             }
 
             # Check for max iterations reached
-            $prdFile = Join-Path $ProjectRoot "prd.json"
-            if (Test-Path $prdFile) {
+            $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
+            if (Test-Path $stateFile) {
                 try {
-                    $prd = Get-Content $prdFile -Raw | ConvertFrom-Json
-                    if ($prd -and $prd.session -and $prd.session.iteration -ge $prd.session.maxIterations) {
+                    $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+                    if ($state -and $state.iteration -ge $state.maxIterations) {
                         Write-Host ""
-                        Write-Host "[WATCHDOG] Max iterations reached: $($prd.session.iteration)/$($prd.session.maxIterations)" -ForegroundColor Yellow
+                        Write-Host "[WATCHDOG] Max iterations reached: $($state.iteration)/$($state.maxIterations)" -ForegroundColor Yellow
                         # Update status
-                        $prd.session.status = "max_iterations_reached"
-                        $tempPath = $prdFile + ".tmp"
-                        $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-                        Move-Item -Path $tempPath -Destination $prdFile -Force
+                        $state.status = "max_iterations_reached"
+                        $state | ConvertTo-Json -Depth 10 | Out-File -FilePath $stateFile -Encoding UTF8
                         $Script:SessionComplete = $true
                         break
                     }

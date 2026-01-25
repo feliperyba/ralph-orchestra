@@ -5,7 +5,7 @@
 # Key Design:
 # - Messages deleted immediately when processed (no grace period)
 # - State persists across watchdog restarts (crash recovery)
-# - prd.json.session holds longer-term state; this is for deduplication only
+# - coordinator-state.json holds longer-term state; this is for deduplication only
 
 # ============================================================================
 # CONFIGURATION
@@ -19,6 +19,7 @@ $Script:ProcessedMessagesCache = @{}
 $Script:CompletedTasksCache = @{}
 $Script:SentMessagesCache = @{}  # Tracks messages sent by PM to prevent duplicates
 $Script:StateLoaded = $false
+$Script:LastCleanupTime = $null  # Track when cleanup last ran (fixes memory leak)
 
 # ============================================================================
 # INITIALIZATION
@@ -111,6 +112,7 @@ function Write-MessageState {
     <#
     .SYNOPSIS
     Write current cache state to file (atomic write pattern).
+    Automatically triggers cleanup every 15 minutes to prevent memory leaks.
     #>
     param()
 
@@ -133,6 +135,17 @@ function Write-MessageState {
 
         # Atomic rename
         Move-Item -Path $tempPath -Destination $Script:MessageStateFile -Force
+
+        # AUTO-CLEANUP: Trigger cleanup every 15 minutes (fixes memory leak)
+        $currentUtc = [DateTime]::UtcNow
+        if ($null -eq $Script:LastCleanupTime) {
+            $Script:LastCleanupTime = $currentUtc
+        } elseif (($currentUtc - $Script:LastCleanupTime).TotalMinutes -ge 15) {
+            # Clean up entries older than 6 hours (suppress output, result tracked in state file)
+            $null = Invoke-StateCleanup -OlderThan $currentUtc.AddHours(-6)
+            $Script:LastCleanupTime = $currentUtc
+        }
+
         return $true
     } catch {
         return $false

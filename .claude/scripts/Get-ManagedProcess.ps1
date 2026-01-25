@@ -12,7 +12,7 @@
 
         # Start if not running
         if (-not $server) {
-            $server = .\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000 -Command "npm run dev:all:sh" -Agent "qa"
+            $server = .\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000 -Command "npm run dev" -Agent "qa"
         }
 
         # Cleanup on exit
@@ -37,7 +37,7 @@
     .\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000
 
 .EXAMPLE
-    .\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000 -Command "npm run dev:all:sh" -Agent "qa" -Purpose "browser-validation"
+    .\Get-ManagedProcess.ps1 -Name "dev-server" -Port 3000 -Command "npm run dev" -Agent "qa" -Purpose "browser-validation"
 #>
 
 [CmdletBinding(DefaultParameterSetName = "Check")]

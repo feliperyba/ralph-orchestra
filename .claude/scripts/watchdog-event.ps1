@@ -12,7 +12,7 @@
 
 param(
     [int]$MessageCheckIntervalMs = 500,    # How often to check message queue
-    [int]$HealthCheckIntervalMs = 10000,   # How often to check agent health 
+    [int]$HealthCheckIntervalMs = 10000,   # How often to check agent health
     [int]$GracefulShutdownSeconds = 30,
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,
@@ -32,6 +32,17 @@ if (-not $ProjectRoot) {
 . "$PSScriptRoot\message-queue.ps1"
 # Message-state-manager is already sourced by message-queue.ps1
 
+# Source pipe transport for named pipe messaging (Phase 2)
+$pipeTransportModule = Join-Path $PSScriptRoot "pipe-transport.ps1"
+if (Test-Path $pipeTransportModule) {
+    . $pipeTransportModule
+    $Script:UsePipeTransport = $true
+    Write-Host "[WATCHDOG] Pipe transport loaded - named pipes enabled" -ForegroundColor Cyan
+} else {
+    $Script:UsePipeTransport = $false
+    Write-Host "[WATCHDOG] Pipe transport not found - using file queue only" -ForegroundColor Yellow
+}
+
 # Source watchdog common utilities
 . "$PSScriptRoot\Watchdog-Common.ps1"
 
@@ -45,11 +56,97 @@ if (-not (Test-Path $Script:LogDir)) {
     New-Item -ItemType Directory -Path $Script:LogDir -Force | Out-Null
 }
 
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Activity log buffer for dashboard display - use Queue for O(1) operations
+$Script:ActivityLog = [System.Collections.Generic.Queue[string]]::new()
+$Script:MaxActivityLogSize = 5
+$Script:LastLogRotationCheck = [DateTime]::MinValue
+
+function Write-WatchdogLog {
+    param(
+        [string]$Message,
+        [ConsoleColor]$Color = [ConsoleColor]::White
+    )
+
+    # Add to activity log buffer (for dashboard)
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $logEntry = "[$timestamp] $Message"
+    $Script:ActivityLog.Enqueue($logEntry)
+
+    # Keep only last N entries - O(1) dequeue
+    while ($Script:ActivityLog.Count -gt $Script:MaxActivityLogSize) {
+        $null = $Script:ActivityLog.Dequeue()
+    }
+
+    # Check if log rotation is needed (check once per minute)
+    $logFile = Join-Path $Script:LogDir "watchdog.log"
+    if (([DateTime]::UtcNow - $Script:LastLogRotationCheck).TotalSeconds -gt 60) {
+        $Script:LastLogRotationCheck = [DateTime]::UtcNow
+        Invoke-LogRotation -LogFile $logFile
+    }
+
+    # Write to log file
+    "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8
+
+    # Only write to console if dashboard is disabled
+    if ($NoDashboard) {
+        Write-Host $Message -ForegroundColor $Color
+    }
+}
+
+function Invoke-LogRotation {
+    <#
+    .SYNOPSIS
+    Rotate log file if it exceeds MaxLogSizeMB.
+    Keeps up to 3 rotated files.
+    #>
+    param([string]$LogFile)
+
+    if (-not (Test-Path $LogFile)) { return }
+
+    try {
+        $maxSizeMB = $config.Watchdog.MaxLogSizeMB
+        if (-not $maxSizeMB) { $maxSizeMB = 50 }
+        $maxSizeBytes = $maxSizeMB * 1MB
+
+        $fileInfo = Get-Item $LogFile -ErrorAction SilentlyContinue
+        if (-not $fileInfo -or $fileInfo.Length -lt $maxSizeBytes) { return }
+
+        # Rotate: .log -> .log.1, .log.1 -> .log.2, .log.2 -> .log.3, delete .log.3
+        for ($i = 2; $i -ge 0; $i--) {
+            $src = if ($i -eq 0) { $LogFile } else { "$LogFile.$i" }
+            $dst = "$LogFile.$($i + 1)"
+            if (Test-Path $src) {
+                if ($i -eq 2) {
+                    Remove-Item $dst -Force -ErrorAction SilentlyContinue
+                }
+                Move-Item -Path $src -Destination $dst -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {
+        # Log rotation failure is non-critical
+    }
+}
+
 # Initialize message queue
 Initialize-MessageQueue -SessionDir $paths.SessionDir
 
 # Initialize message state manager for idempotency tracking
 Initialize-MessageStateManager -SessionDir $paths.SessionDir
+
+# Initialize pipe server for named pipe messaging (Phase 2)
+if ($Script:UsePipeTransport) {
+    $pipeInitialized = Initialize-PipeServer -SessionDir $paths.SessionDir
+    if ($pipeInitialized) {
+        Write-WatchdogLog "Named pipe server initialized" -Color Green
+    } else {
+        Write-WatchdogLog "Failed to initialize pipe server, using file queue only" -Color Yellow
+        $Script:UsePipeTransport = $false
+    }
+}
 
 # FIX: Clear stale consolidation mode on fresh watchdog startup
 # This prevents getting stuck in consolidation mode from previous sessions
@@ -86,81 +183,6 @@ if (-not $hasRunningAgents) {
 }
 
 # ============================================================================
-# LOGGING
-# ============================================================================
-
-# Activity log buffer for dashboard display - use Queue for O(1) operations
-$Script:ActivityLog = [System.Collections.Generic.Queue[string]]::new()
-$Script:MaxActivityLogSize = 5
-$Script:LastLogRotationCheck = [DateTime]::MinValue
-
-function Write-WatchdogLog {
-    param(
-        [string]$Message,
-        [ConsoleColor]$Color = [ConsoleColor]::White
-    )
-    
-    # Add to activity log buffer (for dashboard)
-    $timestamp = Get-Date -Format "HH:mm:ss"
-    $logEntry = "[$timestamp] $Message"
-    $Script:ActivityLog.Enqueue($logEntry)
-    
-    # Keep only last N entries - O(1) dequeue
-    while ($Script:ActivityLog.Count -gt $Script:MaxActivityLogSize) {
-        $null = $Script:ActivityLog.Dequeue()
-    }
-    
-    # Check if log rotation is needed (check once per minute)
-    $logFile = Join-Path $Script:LogDir "watchdog.log"
-    if (([DateTime]::UtcNow - $Script:LastLogRotationCheck).TotalSeconds -gt 60) {
-        $Script:LastLogRotationCheck = [DateTime]::UtcNow
-        Invoke-LogRotation -LogFile $logFile
-    }
-    
-    # Write to log file
-    "$timestamp $Message" | Out-File -FilePath $logFile -Append -Encoding utf8
-    
-    # Only write to console if dashboard is disabled
-    if ($NoDashboard) {
-        Write-Host $Message -ForegroundColor $Color
-    }
-}
-
-function Invoke-LogRotation {
-    <#
-    .SYNOPSIS
-    Rotate log file if it exceeds MaxLogSizeMB.
-    Keeps up to 3 rotated files.
-    #>
-    param([string]$LogFile)
-    
-    if (-not (Test-Path $LogFile)) { return }
-    
-    try {
-        $maxSizeMB = $config.MaxLogSizeMB
-        if (-not $maxSizeMB) { $maxSizeMB = 50 }
-        $maxSizeBytes = $maxSizeMB * 1MB
-        
-        $fileInfo = Get-Item $LogFile -ErrorAction SilentlyContinue
-        if (-not $fileInfo -or $fileInfo.Length -lt $maxSizeBytes) { return }
-        
-        # Rotate: .log -> .log.1, .log.1 -> .log.2, .log.2 -> .log.3, delete .log.3
-        for ($i = 2; $i -ge 0; $i--) {
-            $src = if ($i -eq 0) { $LogFile } else { "$LogFile.$i" }
-            $dst = "$LogFile.$($i + 1)"
-            if (Test-Path $src) {
-                if ($i -eq 2) {
-                    Remove-Item $dst -Force -ErrorAction SilentlyContinue
-                }
-                Move-Item -Path $src -Destination $dst -Force -ErrorAction SilentlyContinue
-            }
-        }
-    } catch {
-        # Log rotation failure is non-critical
-    }
-}
-
-# ============================================================================
 # STATE TRACKING
 # ============================================================================
 
@@ -172,20 +194,6 @@ $Script:LastHealthCheck = [DateTime]::MinValue
 
 # Max iterations - use parameter or config default
 $Script:MaxIterationsLimit = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
-
-# Startup mode: Only PM receives messages until it sends first message
-# This prevents workers from spawning with stale messages before PM consolidates
-$Script:StartupMode = $true
-$Script:StartupModeStartTime = [DateTime]::UtcNow
-$Script:StartupModeTimeoutSeconds = 300  # 5 minutes max
-
-# PM startup loop protection - track restart attempts during startup mode
-$Script:PMStartupAttempts = 0
-$Script:MaxPMStartupAttempts = 3  # After 3 failed attempts, force exit startup mode
-
-# Timeout cooldown tracking - prevents spamming work_blocked messages
-$Script:LastTimeoutSent = @{}
-$Script:TimeoutCooldownMinutes = 5  # Minimum minutes between timeout messages per agent
 
 # Agent tracking
 # ProcessState: stopped, running (actual process state)
@@ -259,7 +267,7 @@ $Script:DeliveryGraceSeconds = 10
 function Start-Agent {
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("pm", "developer", "qa", "gamedesigner", "techartist")]
+        [ValidateSet("developer", "gamedesigner", "pm", "prd-starter", "qa", "techartist", "test-developer")]
         [string]$AgentName,
         
         [array]$PendingMessages = @()  # Messages to deliver to agent on startup
@@ -285,11 +293,10 @@ function Start-Agent {
     $windowTitle = "Ralph Event: $AgentName"
     $scriptFile = Join-Path $Script:LogDir "$AgentName-runner.ps1"
     
-    # Create inbox path for this agent (individual message files: msg-{agent}-{timestamp}-{seq}.json)
+    # Create inbox path for this agent
     $inboxPath = Join-Path $paths.SessionDir "messages/$AgentName"
-
+    
     # Write pending messages to a context file for agent to read on startup
-    # Note: Individual message files are written to inboxPath above; this is for context delivery
     $pendingFile = Join-Path $Script:SessionDir "pending-messages-$AgentName.json"
     $pendingFileForScript = $pendingFile  # Same path, used in script generation
     if ($PendingMessages.Count -gt 0) {
@@ -320,39 +327,6 @@ Write-Host "========================================"  -ForegroundColor Cyan
 Write-Host "  RALPH EVENT-DRIVEN: $AgentName" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-
-# Initialize message queue for this agent process
-# Note: After Set-Location above, $PWD is the project root (not $PSScriptRoot which is the runner script location)
-Write-Host "Initializing message queue..." -ForegroundColor DarkGray
-`$mqScript = Join-Path `$PWD ".claude\scripts\message-queue.ps1"
-if (Test-Path `$mqScript) {
-    . `$mqScript
-    if (Get-Command Initialize-MessageQueue -ErrorAction SilentlyContinue) {
-        Initialize-MessageQueue -SessionDir (Join-Path `$PWD ".claude\session")
-        Write-Host "Message queue loaded successfully" -ForegroundColor Green
-    } else {
-        Write-Host "ERROR: Failed to load message queue functions" -ForegroundColor Red
-        Write-Host "Script was sourced but Initialize-MessageQueue not found" -ForegroundColor Red
-        Write-Host "Script path: `$mqScript" -ForegroundColor Red
-        Start-Sleep -Seconds 10
-        exit 1
-    }
-} else {
-    Write-Host "ERROR: Message queue script not found at: `$mqScript" -ForegroundColor Red
-    Write-Host "Current directory: `$PWD" -ForegroundColor Red
-    Start-Sleep -Seconds 10
-    exit 1
-}
-
-# Verify key functions are available
-`$requiredFunctions = @("Get-PendingMessages", "Send-AgentMessage", "Remove-AgentMessage", "Get-GlobalMessageState")
-`$missingFunctions = `$requiredFunctions | Where-Object { -not (Get-Command `$_ -ErrorAction SilentlyContinue) }
-if (`$missingFunctions) {
-    Write-Host "ERROR: Missing message queue functions: (`$missingFunctions -join ', ')" -ForegroundColor Red
-    Start-Sleep -Seconds 10
-    exit 1
-}
-
 Write-Host "Mode: EVENT-DRIVEN MULTI-AGENT"
 Write-Host "Working Dir: $safeProjectRoot"
 Write-Host ""
@@ -427,27 +401,18 @@ function Stop-Agent {
         [switch]$Graceful = $false,
         [string]$Reason = "unknown"
     )
-
+    
     $agent = $Script:Agents[$AgentName]
-
-    # Skip if agent doesn't exist, has no process, is already stopped, or process has exited
-    if (-not $agent) { return }
     if (-not $agent.Process) { return }
-    if ($agent.ProcessState -eq "stopped") { return }
-    if ($agent.Process.HasExited) {
-        # Update state to reflect actual status
-        $agent.ProcessState = "stopped"
-        return
-    }
-
+    
     Write-WatchdogLog "Stopping $AgentName ($Reason)" -Color Yellow
-
+    
     if ($Graceful) {
         # Send shutdown message
         Send-AgentMessage -From "watchdog" -To $AgentName -Type "shutdown" -Payload @{
             reason = $Reason
         } -Priority "urgent"
-
+        
         # Wait for graceful shutdown
         $deadline = [DateTime]::UtcNow.AddSeconds($GracefulShutdownSeconds)
         while ([DateTime]::UtcNow -lt $deadline) {
@@ -477,12 +442,12 @@ function Stop-Agent {
         if ($agent.Process) {
             try { $agent.Process.Dispose() } catch {}
         }
-        # Always update state to ensure clean tracking
-        $Script:Agents[$AgentName].Process = $null
-        $Script:Agents[$AgentName].ProcessState = "stopped"
-        $Script:Agents[$AgentName].WorkStatus = "idle"
-        $Script:Agents[$AgentName].CurrentMessage = $null
     }
+    
+    $Script:Agents[$AgentName].Process = $null
+    $Script:Agents[$AgentName].ProcessState = "stopped"
+    $Script:Agents[$AgentName].WorkStatus = "idle"
+    $Script:Agents[$AgentName].CurrentMessage = $null
 }
 
 function Restart-Agent {
@@ -571,19 +536,6 @@ function Invoke-MainLoop {
         # 5. Check retrospective timeout for idle agents
         Test-RetrospectiveTimeout
 
-        # 5.5. Check agent state timeouts (awaiting_* states)
-        Test-AgentStateTimeout
-
-        # 5.6. Check startup mode timeout
-        if ($Script:StartupMode) {
-            $elapsed = ([DateTime]::UtcNow - $Script:StartupModeStartTime).TotalSeconds
-            if ($elapsed -gt $Script:StartupModeTimeoutSeconds) {
-                Write-WatchdogLog "STARTUP MODE TIMEOUT (${elapsed}s) - forcing exit" -Color Yellow
-                Write-WatchdogLog "PM did not send env_ready within timeout - check PM startup sequence" -Color Red
-                Exit-StartupMode
-            }
-        }
-
         # 6. Check for session completion
         if (Test-SessionComplete) {
             Write-WatchdogLog "Session complete - shutting down agents" -Color Green
@@ -592,9 +544,6 @@ function Invoke-MainLoop {
         }
 
         # 7. Update dashboard
-        # Sync agent status from prd.json first (source of truth)
-        Sync-AgentStatusFromState
-
         if (-not $NoDashboard) {
             Show-EventDashboard
         }
@@ -638,12 +587,7 @@ function Invoke-ProcessWatchdogMessages {
     foreach ($msg in $messages) {
         switch ($msg.type) {
             "agent_ready" {
-                # Only log if not in startup mode (to avoid spamming during PM startup loop)
-                if (-not $Script:StartupMode -or $msg.from -ne "pm") {
-                    Write-WatchdogLog "Agent ready: $($msg.from)" -Color Green
-                } else {
-                    # Silent during startup - PM agent_ready is expected and logged in startup attempt count
-                }
+                Write-WatchdogLog "Agent ready: $($msg.from)" -Color Green
             }
             "status_update" {
                 $agent = $msg.from
@@ -663,446 +607,213 @@ function Invoke-ProcessWatchdogMessages {
             "error" {
                 Write-WatchdogLog "Error from $($msg.from): $($msg.payload.error)" -Color Red
             }
-            "context_checkpoint" {
-                # Worker hit context limit and sent checkpoint
-                $agent = $msg.from
-                $checkpoint = $msg.payload
-
-                Write-WatchdogLog "$agent context checkpoint: $($checkpoint.contextPercent)% - step: $($checkpoint.step)" -Color Yellow
-
-                # Save checkpoint to session for agent recovery
-                $checkpointFile = Join-Path $Script:SessionDir "context-checkpoint-$agent-$($checkpoint.taskId).json"
-                $checkpoint | ConvertTo-Json -Depth 10 | Out-File -FilePath $checkpointFile -Encoding UTF8
-
-                # Log checkpoint details
-                $completedCount = if ($checkpoint.completedSteps) { $checkpoint.completedSteps.Count } else { 0 }
-                $remainingCount = if ($checkpoint.remainingSteps) { $checkpoint.remainingSteps.Count } else { 0 }
-                Write-WatchdogLog "Checkpoint saved: $completedCount completed, $remainingCount remaining" -Color DarkGray
-
-                # Restart the agent with checkpoint context
-                if ($Script:Agents[$agent].Process -and -not $Script:Agents[$agent].Process.HasExited) {
-                    Stop-Agent -AgentName $agent -Reason "context_checkpoint"
-                    Start-Sleep -Seconds 2
-                }
-
-                # Start agent with checkpoint - watchdog will deliver checkpoint context
-                $null = Start-Agent -AgentName $agent
-
-                Write-WatchdogLog "$agent restarted from context checkpoint" -Color Green
-            }
         }
-
-        # STARTUP MODE: Exit startup mode when PM sends env_ready
-        # This indicates PM has completed consolidation and is ready for normal operations
-        # Exiting on ANY PM message (like status_update) would exit startup mode too early,
-        # causing workers to spawn with stale messages before PM consolidates
-        if ($Script:StartupMode -and $msg.from -eq "pm" -and $msg.type -eq "env_ready") {
-            Exit-StartupMode
-            # Reset PM startup counter when env_ready is received (successful startup)
-            $Script:PMStartupAttempts = 0
-        }
-
+        
         # Acknowledge message (with state tracking for idempotency)
         $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent "watchdog"
     }
 }
 
+# ============================================================================
+# RETROSPECTIVE CONSOLIDATION MODE (P2 FIX)
+# ============================================================================
+
+function Test-RetrospectiveConsolidationMode {
+    <#
+    .SYNOPSIS
+    Check if PM is in retrospective consolidation mode.
+    If so, batch messages and only wake PM when all workers have contributed.
+    #>
+    $prdPath = Join-Path $Script:SessionDir "prd.json"
+    if (-not (Test-Path $prdPath)) { return $false }
+
+    try {
+        $prd = Get-Content $prdPath -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if ($prd -and $prd.session -and $prd.session.retro -and $prd.session.retro.active) {
+            return $true
+        }
+    } catch {
+        # Ignore errors
+    }
+    return $false
+}
+
+function Get-RetrospectiveBatchStatus {
+    <#
+    .SYNOPSIS
+    Check if all expected worker contributions have arrived.
+    Returns hashtable with completion status and counts.
+    #>
+    $prdPath = Join-Path $Script:SessionDir "prd.json"
+    if (-not (Test-Path $prdPath)) {
+        return @{ complete = $false; pendingCount = 0; expectedCount = 3 }
+    }
+
+    try {
+        $prd = Get-Content $prdPath -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if ($prd -and $prd.session -and $prd.session.retro) {
+            $retro = $prd.session.retro
+            $expectedCount = $retro.expectedMessageCount
+            if ($null -eq $expectedCount -or $expectedCount -eq 0) { $expectedCount = 3 }
+
+            # Count pending retrospective_contribution messages
+            $pending = Get-PendingMessages -Agent "pm" | Where-Object { $_.type -eq "retrospective_contribution" }
+
+            return @{
+                complete = ($pending.Count -ge $expectedCount)
+                pendingCount = $pending.Count
+                expectedCount = $expectedCount
+            }
+        }
+    } catch {
+        # Ignore errors
+    }
+
+    return @{ complete = $false; pendingCount = 0; expectedCount = 3 }
+}
+
 function Invoke-DeliverPendingMessages {
     <#
     .SYNOPSIS
-    Check if agents have pending messages and deliver them by restarting agent with context
-    This is the key mechanism - agents don't poll, watchdog delivers messages by restart
+    Check if agents have pending messages and deliver them.
+    Phase 2: Uses named pipes if available and agent is connected.
+    Falls back to file queue + restart mechanism if pipes unavailable.
+    P2 FIX: Supports retrospective consolidation mode for PM.
     #>
 
     $counts = Get-MessageCount
 
     foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
         $count = $counts[$agentName]
-        if ($count -gt 0) {
-            # STARTUP MODE: Skip worker agents during startup - only PM receives messages
-            # This prevents workers from spawning with stale messages before PM consolidates
-            if ($Script:StartupMode -and $agentName -ne "pm") {
-                Write-WatchdogLog "${agentName}: skipping during startup mode (has $count pending message(s))" -Color DarkGray
-                continue
-            }
+        if ($count -eq 0) { continue }
 
-            $agent = $Script:Agents[$agentName]
-            
-            # IMPROVED: Verify actual process state, not just cached object
-            # This fixes race condition where process exits but watchdog still has reference
-            $processActuallyRunning = $false
-            if ($agent.Process) {
-                try {
-                    # Refresh the process state - check if actually still running
-                    if (-not $agent.Process.HasExited) {
-                        # Process is actually running - verify by getting the process again
-                        $actualProcess = Get-Process -Id $agent.Process.Id -ErrorAction SilentlyContinue
-                        if ($actualProcess) {
-                            $processActuallyRunning = $true
-                            $actualProcess.Dispose()  # Clean up the check process
-                        } else {
-                            # PID not found - process exited, clean up
-                            try { $agent.Process.Dispose() } catch {}
-                            $Script:Agents[$agentName].Process = $null
-                            $Script:Agents[$agentName].ProcessState = "stopped"
-                            $Script:Agents[$agentName].WorkStatus = "idle"
-                        }
-                    } else {
-                        # Process has exited - clean up the reference
-                        try { $agent.Process.Dispose() } catch {}
-                        $Script:Agents[$agentName].Process = $null
-                        $Script:Agents[$agentName].ProcessState = "stopped"
-                        $Script:Agents[$agentName].WorkStatus = "idle"
-                    }
-                } catch {
-                    # Process object is invalid or access error - clean up
-                    try { $agent.Process.Dispose() } catch {}
-                    $Script:Agents[$agentName].Process = $null
-                    $Script:Agents[$agentName].ProcessState = "stopped"
-                    $Script:Agents[$agentName].WorkStatus = "idle"
-                }
-            }
+        $agent = $Script:Agents[$agentName]
 
-            $isWorking = $agent.WorkStatus -in @("working", "starting")
+        # Get the pending messages
+        $pendingMessages = Get-PendingMessages -Agent $agentName
+        if ($pendingMessages.Count -eq 0) { continue }
 
-            # Only skip if process is ACTUALLY running AND working
-            if ($processActuallyRunning -and $isWorking) {
-                continue  # Don't interrupt working/starting agents
-            }
-            
-            # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
-            # This prevents restart loops when acknowledgment or status updates are slow
-            # IMPORTANT: Only apply grace period if process is ACTUALLY running AND agent is healthy
-            # If process has exited OR agent is stale, allow immediate delivery
-            $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
-            $agentHealth = Test-AgentHealth -AgentName $agentName
-            if ($processActuallyRunning -and $timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds -and $agentHealth -ne "stale") {
-                # Still within grace period - skip this agent
-                continue
-            }
-            
-            # Get the pending messages
-            $pendingMessages = Get-PendingMessages -Agent $agentName
-
-            if ($pendingMessages.Count -eq 0) { continue }
-
-            # RETROSPECTIVE BATCHING: If PM is in retrospective mode, batch messages instead of delivering
-            if ($agentName -eq "pm") {
-                $retroActive = Test-RetrospectiveActive
-                if ($retroActive) {
-                    # Batch PM messages during retrospective - don't deliver individually
-                    Add-BatchedRetrospectiveMessage -AgentName $agentName -Messages $pendingMessages
-
-                    # Acknowledge and remove from queue (they're now batched in prd.json.session.retro)
-                    foreach ($msg in $pendingMessages) {
-                        Invoke-AcknowledgeMessage -MessageId $msg.id -Agent $agentName | Out-Null
-                    }
-                    continue
-                }
-            }
-
-            # AGENT STATUS CHECK: Verify agent's actual status from prd.json.agents (source of truth)
-            # This prevents restarting an agent that just exited but hasn't updated watchdog's in-memory status yet
-            # which could cause PRD updates to be incomplete or agent confusion
-            #
-            # EXCEPTION: Allow retrospective_complete through even when status is working_on_retrospective
-            # This ensures PM can be woken up after all workers contribute to retrospective (pure event-driven)
-            $agentStatusFromState = Get-AgentStatusFromState -AgentName $agentName
-            if ($agentStatusFromState) {
-                # Check if any pending message is retrospective_complete (event-driven wake-up signal)
-                $hasRetrospectiveComplete = $pendingMessages | Where-Object { $_.type -eq "retrospective_complete" }
-
-                # Don't deliver if agent is actively working, UNLESS it's the retrospective completion signal
-                if ($agentStatusFromState -in @("working", "starting", "working_on_retrospective") -and -not $hasRetrospectiveComplete) {
-                    Write-WatchdogLog "${agentName}: skipping delivery (status from state: ${agentStatusFromState})" -Color DarkGray
-                    continue
-                }
-
-                # Log special case for retrospective completion
-                if ($hasRetrospectiveComplete -and $agentStatusFromState -eq "working_on_retrospective") {
-                    Write-WatchdogLog "${agentName}: delivering retrospective_complete (event-driven wake-up)" -Color Cyan
-                }
-            }
-
-            Write-WatchdogLog "${agentName}: delivering $count message(s)" -Color Magenta
-
-            # STARTUP MODE PROTECTION: Count PM restart attempts to prevent infinite loop
-            if ($Script:StartupMode -and $agentName -eq "pm") {
-                $Script:PMStartupAttempts++
-                Write-WatchdogLog "PM startup attempt #$Script:PMStartupAttempts (max: $Script:MaxPMStartupAttempts)" -Color Yellow
-
-                if ($Script:PMStartupAttempts -ge $Script:MaxPMStartupAttempts) {
-                    Write-WatchdogLog "PM startup loop detected ($Script:PMStartupAttempts attempts) - forcing exit from startup mode" -Color Red
-                    Write-WatchdogLog "This may indicate PM is not sending env_ready properly" -Color Yellow
-                    Exit-StartupMode
-                    $Script:PMStartupAttempts = 0  # Reset counter
-                }
-            }
-
-            # Stop the current agent if running (but not working - we already checked above)
-            if ($processActuallyRunning) {
-                Stop-Agent -AgentName $agentName -Reason "message_delivery"
-                Start-Sleep -Seconds 2
-            }
-            
-            # Convert messages to simple format for agent
-            $messageData = @()
+        # PHASE 2: Try pipe delivery first if available and agent is connected
+        if ($Script:UsePipeTransport -and (Test-PipeConnected -AgentName $agentName)) {
+            $pipeSuccess = $true
             foreach ($msg in $pendingMessages) {
-                $messageData += @{
+                $messageObj = @{
                     id = $msg.id
                     from = $msg.from
+                    to = $msg.to
                     type = $msg.type
                     priority = $msg.priority
                     payload = $msg.payload
                     timestamp = $msg.timestamp
                 }
+
+                if (-not (Send-MessageViaPipe -ToAgent $agentName -Message $messageObj -WaitForConnection $false)) {
+                    $pipeSuccess = $false
+                    break
+                }
+
+                # Acknowledge message immediately for pipe delivery
+                $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
             }
 
-            # Restart agent with the pending messages FIRST
-            # Only acknowledge messages if agent starts successfully
-            $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
-
-            if ($agentStarted) {
-                # Agent started successfully - it will read and delete messages itself
-                # DO NOT delete here - agent needs to read message files on startup
-                # Agent will call Remove-AgentMessage after processing each message
-                Write-WatchdogLog "Agent $agentName will process and delete $($pendingMessages.Count) message(s)" -Color Green
-
-                # Track delivery time to enforce grace period
+            if ($pipeSuccess) {
+                Write-WatchdogLog "${agentName}: delivered $count message(s) via pipe" -Color Cyan
+                $Script:TotalMessagesRouted += $count
+                $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
                 $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
-            } else {
-                Write-WatchdogLog "Failed to start $agentName - messages preserved in queue" -Color Red
-                # Messages remain in queue for retry on next iteration
+                $Script:Agents[$agentName].CurrentMessage = @{
+                    type = $pendingMessages[0].type
+                    from = $pendingMessages[0].from
+                }
                 continue
             }
-            
-            # Track the first/primary message being processed
-            if ($messageData.Count -gt 0) {
-                $Script:Agents[$agentName].CurrentMessage = $messageData[0]
+            # If pipe delivery failed, fall through to file queue method
+        }
+
+        # FALLBACK: File queue + restart method
+        # Check if agent is currently working or starting - don't interrupt!
+        $processIsRunning = $agent.Process -and (-not $agent.Process.HasExited)
+        $isWorking = $agent.WorkStatus -in @("working", "starting")
+
+        # Only deliver messages if agent is NOT actively working or booting
+        # Deliver if: agent stopped, idle, ready, or waiting for input
+        if ($processIsRunning -and $isWorking) {
+            continue  # Don't interrupt working/starting agents - let them finish booting
+        }
+
+        # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
+        # This prevents restart loops when acknowledgment or status updates are slow
+        $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
+
+        # P2 FIX: Use longer grace period during retrospective (30 seconds vs 10 seconds default)
+        $graceSeconds = $Script:DeliveryGraceSeconds
+        if ($agentName -eq "pm" -and (Test-RetrospectiveConsolidationMode)) {
+            $graceSeconds = 30  # Longer grace period during retrospective
+        }
+
+        if ($timeSinceLastDelivery -lt $graceSeconds) {
+            # Still within grace period - skip this agent
+            continue
+        }
+
+        # P2 FIX: Check if PM is in retrospective consolidation mode
+        if ($agentName -eq "pm" -and (Test-RetrospectiveConsolidationMode)) {
+            $batchStatus = Get-RetrospectiveBatchStatus
+            if (-not $batchStatus.complete) {
+                # Not all workers contributed yet - skip PM restart
+                Write-WatchdogLog "PM in retrospective mode: waiting for $($batchStatus.expectedCount - $batchStatus.pendingCount) more contribution(s)" -Color DarkGray
+                continue
             }
-            
-            $Script:TotalMessagesRouted += $count
-            $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
-        }
-    }
-}
-
-# ============================================================================
-# STARTUP MODE
-# ============================================================================
-
-function Exit-StartupMode {
-    <#
-    .SYNOPSIS
-    Exit startup mode and allow normal message delivery to all agents.
-    Called when PM sends env_ready message, indicating consolidation is complete.
-    #>
-    if ($Script:StartupMode) {
-        $Script:StartupMode = $false
-        $duration = ([DateTime]::UtcNow - $Script:StartupModeStartTime).TotalSeconds
-        Write-WatchdogLog "STARTUP MODE COMPLETE (after ${duration}s) - normal message delivery enabled" -Color Green
-    }
-}
-
-# ============================================================================
-# RETROSPECTIVE BATCHING
-# ============================================================================
-
-function Test-RetrospectiveActive {
-    <#
-    .SYNOPSIS
-    Check if retrospective is active in prd.json.session.
-    Used to determine if PM messages should be batched instead of delivered immediately.
-
-    .RETURNS
-    $true if retrospective is active, $false otherwise.
-    #>
-    $prdFile = $paths.PrdFile
-    if (-not (Test-Path $prdFile)) { return $false }
-
-    try {
-        $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-        return $prd.session -and $prd.session.retro -and $prd.session.retro.active -eq $true
-    } catch {
-        return $false
-    }
-}
-
-function Get-AgentStatusFromState {
-    <#
-    .SYNOPSIS
-    Get agent's actual status from prd.json.agents (source of truth).
-    This prevents delivering messages to agents that just exited but haven't updated watchdog's in-memory status yet.
-
-    .PARAMETER AgentName
-    The agent name to check.
-
-    .RETURNS
-    Agent status string, or $null if not found.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$AgentName
-    )
-
-    $prdFile = $paths.PrdFile
-    if (-not (Test-Path $prdFile)) { return $null }
-
-    try {
-        $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-        if ($prd -and $prd.agents -and $prd.agents.$AgentName) {
-            return $prd.agents.$AgentName.status
-        }
-    } catch {
-        # Return null on error
-    }
-    return $null
-}
-
-function Sync-AgentStatusFromState {
-    <#
-    .SYNOPSIS
-    Sync all agent statuses from prd.json.agents to in-memory $Script:Agents.
-    This ensures dashboard shows current status even without status_update messages.
-
-    prd.json.agents is the source of truth for agent status.
-
-    CRITICAL FIX: Don't overwrite WorkStatus if agent is actively working.
-    This prevents restart loop when agent hasn't updated prd.json yet.
-    #>
-    $prdFile = $paths.PrdFile
-    if (-not (Test-Path $prdFile)) { return }
-
-    try {
-        $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-        if ($prd -and $prd.agents) {
-            foreach ($agentName in @("pm", "developer", "qa", "gamedesigner", "techartist")) {
-                if ($prd.agents.$agentName) {
-                    $prdStatus = $prd.agents.$agentName.status
-                    $prdCurrentTaskId = $prd.agents.$agentName.currentTaskId
-
-                    # CRITICAL FIX: Don't overwrite WorkStatus if agent is actively working
-                    # This prevents restart loop when agent hasn't updated prd.json yet
-                    $agent = $Script:Agents[$agentName]
-                    $shouldSkipSync = $false
-
-                    # Skip if process is actually running
-                    if ($agent.Process -and -not $agent.Process.HasExited) {
-                        $shouldSkipSync = $true
-                    }
-
-                    # Skip if agent has recent activity (within 30 seconds)
-                    $timeSinceActivity = ([DateTime]::UtcNow - $agent.LastActivity).TotalSeconds
-                    if ($timeSinceActivity -lt 30) {
-                        $shouldSkipSync = $true
-                    }
-
-                    # Update status only if not actively working
-                    if (-not $shouldSkipSync -and $prdStatus) {
-                        $Script:Agents[$agentName].WorkStatus = $prdStatus
-                    }
-
-                    # Always update currentTaskId if available (doesn't cause restart loops)
-                    if ($prdCurrentTaskId) {
-                        $Script:Agents[$agentName].CurrentTask = $prdCurrentTaskId
-                    }
-                }
-            }
-        }
-    } catch {
-        # Silently fail - status sync is best-effort
-    }
-}
-
-function Add-BatchedRetrospectiveMessage {
-    <#
-    .SYNOPSIS
-    Add PM messages to the batched messages array during retrospective.
-    Messages are stored in prd.json.session.retro.batchedMessages and delivered when retrospective completes.
-
-    .PARAMETER AgentName
-    The agent name (should be "pm").
-
-    .PARAMETER Messages
-    Array of message objects to batch.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$AgentName,
-
-        [Parameter(Mandatory=$true)]
-        [array]$Messages
-    )
-
-    $prdFile = $paths.PrdFile
-
-    try {
-        $prd = Get-Content $prdFile -Raw -ErrorAction Stop | ConvertFrom-Json
-
-        # Ensure session.retro exists
-        if (-not $prd.session) { $prd | Add-Member -NotePropertyName "session" -NotePropertyValue @{} -Force }
-        if (-not $prd.session.retro) { $prd.session | Add-Member -NotePropertyName "retro" -NotePropertyValue @{} -Force }
-
-        # Initialize batchedMessages array if needed
-        if (-not $prd.session.retro.batchedMessages) {
-            $prd.session.retro.batchedMessages = @()
+            # All contributions received - proceed to wake PM
+            Write-WatchdogLog "PM in retrospective mode: all $($batchStatus.pendingCount) contributions received, waking PM for synthesis" -Color Green
         }
 
-        # Add messages to batch
-        foreach ($msg in $Messages) {
-            $prd.session.retro.batchedMessages += @{
+        Write-WatchdogLog "${agentName}: delivering $count message(s) via file queue" -Color Magenta
+
+        # Stop the current agent if running (but not working - we already checked above)
+        if ($processIsRunning) {
+            Stop-Agent -AgentName $agentName -Reason "message_delivery"
+            Start-Sleep -Seconds 2
+        }
+
+        # Convert messages to simple format for agent
+        $messageData = @()
+        foreach ($msg in $pendingMessages) {
+            $messageData += @{
                 id = $msg.id
                 from = $msg.from
                 type = $msg.type
+                priority = $msg.priority
                 payload = $msg.payload
                 timestamp = $msg.timestamp
             }
         }
 
-        # Write back atomically
-        $tempPath = $prdFile + ".tmp"
-        $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-        Move-Item -Path $tempPath -Destination $prdFile -Force
+        # Restart agent with the pending messages FIRST
+        # Only acknowledge messages if agent starts successfully
+        $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
 
-        Write-WatchdogLog "Batched $($Messages.Count) message(s) for PM during retrospective" -Color DarkGray
-    } catch {
-        Write-WatchdogLog "Failed to batch messages: $_" -Color Yellow
-    }
-}
+        if ($agentStarted) {
+            # Agent started successfully - acknowledge messages (with state tracking)
+            foreach ($msg in $pendingMessages) {
+                $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
+            }
 
-function Send-RetrospectiveCompletionSignal {
-    <#
-    .SYNOPSIS
-    Send a completion signal to PM's inbox when all retrospective contributions are received.
-    This signals PM to wake up and process the batched messages.
-    #>
-    $completionMsg = @{
-        id = (New-MessageId -RecipientAgent "pm")
-        from = "watchdog"
-        to = "pm"
-        type = "retrospective_complete"
-        priority = "high"
-        payload = @{
-            allContributionsReceived = $true
-        }
-        timestamp = [DateTime]::UtcNow.ToString("o")
-        status = "pending"
-    }
-
-    # Write directly to PM's inbox
-    $inbox = Join-Path $Script:SessionDir "messages\pm"
-    $filePath = Join-Path $inbox "$($completionMsg.id).json"
-
-    try {
-        # Ensure inbox exists
-        if (-not (Test-Path $inbox)) {
-            New-Item -ItemType Directory -Path $inbox -Force | Out-Null
+            # Track delivery time to enforce grace period
+            $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
+        } else {
+            Write-WatchdogLog "Failed to start $agentName - messages preserved in queue" -Color Red
+            # Messages remain in queue for retry on next iteration
+            continue
         }
 
-        $completionMsg | ConvertTo-Json -Depth 10 | Out-File -FilePath $filePath -Encoding UTF8
-        Write-WatchdogLog "Sent retrospective_complete signal to PM" -Color Green
-    } catch {
-        Write-WatchdogLog "Failed to send completion signal: $_" -Color Red
+        # Track the first/primary message being processed
+        if ($messageData.Count -gt 0) {
+            $Script:Agents[$agentName].CurrentMessage = $messageData[0]
+        }
+
+        $Script:TotalMessagesRouted += $count
+        $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
     }
 }
 
@@ -1126,108 +837,14 @@ function Invoke-HealthCheck {
                 }
                 # Silent if no pending work
             }
-            # REMOVED: "stale" case - idle agents should NOT be killed
+            "stale" {
+                Write-WatchdogLog "$agentName appears stale" -Color Yellow
+                # Could restart here if needed, but PM handles priority
+            }
             "healthy" {
                 # Healthy is normal - don't log
             }
         }
-    }
-}
-
-# ============================================================================
-# AGENT STATE TIMEOUT MONITOR
-# ============================================================================
-
-function Test-AgentStateTimeout {
-    <#
-    .SYNOPSIS
-    Check if agents are stuck in awaiting_* states and send timeout messages.
-    This addresses P0-2: All awaiting_* states without timeout.
-
-    Agents in event-driven mode may exit while waiting for responses.
-    If they remain in awaiting_* status too long, watchdog detects and notifies PM.
-
-    Includes cooldown mechanism to prevent spamming work_blocked messages.
-    #>
-    $prdFile = $paths.PrdFile
-    if (-not (Test-Path $prdFile)) { return }
-
-    try {
-        $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-        if (-not $prd -or -not $prd.agents) { return }
-
-        $now = [DateTime]::UtcNow
-
-        foreach ($agentName in @("developer", "qa", "techartist", "gamedesigner")) {
-            $agent = $prd.agents.$agentName
-            if (-not $agent) { continue }
-
-            # Check if agent is in an awaiting state
-            $isAwaiting = $agent.status -like "awaiting_*" -or
-                          $agent.status -eq "awaiting_pm" -or
-                          $agent.status -eq "awaiting_gd" -or
-                          $agent.status -eq "waiting"
-
-            if ($isAwaiting) {
-                # Calculate time since lastSeen
-                $lastSeen = if ($agent.lastSeen) {
-                    try { [DateTime]::Parse($agent.lastSeen) } catch { [DateTime]::MinValue }
-                } else {
-                    [DateTime]::MinValue
-                }
-                $elapsed = ($now - $lastSeen).TotalMinutes
-
-                # Timeout threshold: 10 minutes (configurable via environment)
-                $awaitingTimeout = if ($env:RALPH_AWAITING_TIMEOUT) {
-                    [int]$env:RALPH_AWAITING_TIMEOUT
-                } else {
-                    10  # default 10 minutes
-                }
-
-                if ($elapsed -gt $awaitingTimeout) {
-                    # COOLDOWN CHECK: Prevent spamming work_blocked messages
-                    $lastSent = $Script:LastTimeoutSent[$agentName]
-                    $cooldownElapsed = if ($lastSent) {
-                        ($now - $lastSent).TotalMinutes
-                    } else {
-                        [double]::PositiveInfinity
-                    }
-
-                    if ($cooldownElapsed -lt $Script:TimeoutCooldownMinutes) {
-                        # Skip - cooldown period not elapsed
-                        $remaining = [math]::Round($Script:TimeoutCooldownMinutes - $cooldownElapsed, 1)
-                        Write-WatchdogLog "$agentName timeout detected but cooldown active (${remaining}min remaining)" -Color DarkGray
-                        continue
-                    }
-
-                    Write-WatchdogLog "$agentName timeout in $($agent.status) state for $([math]::Round($elapsed, 1))min - sending work_blocked to PM" -Color Yellow
-
-                    # Send timeout message to PM (use work_blocked type, not agent_timeout)
-                    $taskId = if ($agent.currentTaskId) { $agent.currentTaskId } else { "unknown" }
-
-                    Send-AgentMessage -From "watchdog" -To "pm" -Type "work_blocked" -Payload @{
-                        agent = $agentName
-                        originalStatus = $agent.status
-                        elapsedMinutes = [math]::Round($elapsed, 1)
-                        taskId = $taskId
-                        message = "$agentName has been waiting for $($agent.status) for $([math]::Round($elapsed, 1)) minutes"
-                    } -Priority "high"
-
-                    # Update cooldown timestamp
-                    $Script:LastTimeoutSent[$agentName] = $now
-
-                    # Reset agent status to idle so PM can reassign or take action
-                    $prd.agents.$agentName.status = "idle"
-
-                    # Write back atomically
-                    $tempPath = $prdFile + ".tmp"
-                    $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-                    Move-Item -Path $tempPath -Destination $prdFile -Force
-                }
-            }
-        }
-    } catch {
-        Write-WatchdogLog "Error in agent state timeout check: $_" -Color Yellow
     }
 }
 
@@ -1290,51 +907,31 @@ function Start-RetrospectiveWatcher {
                         $Script:RetrospectiveContributions.qa = $content -match "### QA Perspective" -and $content -notmatch "WAITING"
                         $Script:RetrospectiveContributions.gamedesigner = $content -match "### Game Designer Perspective" -and $content -notmatch "WAITING"
 
-                        # Check if playtest was received - read from prd.json.session
-                        $prdFile = Join-Path (Split-Path $Event.MessageData -Parent) "prd.json"
+                        # Check if playtest was received
+                        $stateFile = Join-Path $Event.MessageData "coordinator-state.json"
                         $playtestReceived = $false
-                        if (Test-Path $prdFile) {
-                            $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-                            if ($prd -and $prd.session -and $prd.session.retro) {
-                                $playtestReceived = $prd.session.retro.playtestReportReceived -eq $true
+                        if (Test-Path $stateFile) {
+                            $state = Get-Content $stateFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+                            if ($state -and $state.retro) {
+                                $playtestReceived = $state.retro.playtestReportReceived -eq $true
                             }
                         }
 
                         # Check if all complete
-                        # Game Designer participation is optional - only required if section exists in file
-                        # This allows retrospectives for bugfixes/config tasks without Game Designer contribution
-                        $gamedesignerExpected = $content -match "### Game Designer Perspective"
-                        $allRequiredContributions = $Script:RetrospectiveContributions.developer -and
-                                                   $Script:RetrospectiveContributions.techartist -and
-                                                   $Script:RetrospectiveContributions.qa
-                        $gamedesignerComplete = -not $gamedesignerExpected -or $Script:RetrospectiveContributions.gamedesigner
-                        $playtestComplete = -not $gamedesignerExpected -or $playtestReceived
+                        if ($Script:RetrospectiveContributions.developer -and
+                            $Script:RetrospectiveContributions.techartist -and
+                            $Script:RetrospectiveContributions.qa -and
+                            $Script:RetrospectiveContributions.gamedesigner -and
+                            $playtestReceived) {
 
-                        if ($allRequiredContributions -and $gamedesignerComplete -and $playtestComplete) {
-
-                            Write-WatchdogLog "All retrospective contributions received. Sending completion signal to PM..." -Color Green
+                            Write-WatchdogLog "All retrospective contributions received. Waking PM for synthesis..." -Color Green
 
                             # Stop watching
                             $watcher = $Event.SourceObject
                             $watcher.EnableRaisingEvents = $false
 
-                            # Update prd.json.session: mark retrospective complete
-                            $prdFile = Join-Path (Split-Path $Event.MessageData -Parent) "prd.json"
-                            try {
-                                $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-                                if ($prd -and $prd.session -and $prd.session.retro) {
-                                    $prd.session.retro.active = $false
-                                    $prd.session.retro.completedAt = [DateTime]::UtcNow.ToString("o")
-                                    $tempPath = $prdFile + ".tmp"
-                                    $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-                                    Move-Item -Path $tempPath -Destination $prdFile -Force
-                                }
-                            } catch {
-                                Write-WatchdogLog "Failed to update retrospective state: $_" -Color Yellow
-                            }
-
-                            # Send completion signal to PM (wakes PM with all batched messages)
-                            Send-RetrospectiveCompletionSignal
+                            # Wake PM
+                            $null = Start-Agent -AgentName "pm"
                         }
                     }
                 } catch {
@@ -1394,76 +991,26 @@ function Test-RetrospectiveTimeout {
     .SYNOPSIS
     Check if retrospective has timed out and send reminders to idle agents.
     Called periodically from main loop.
-
-    PHASE 1 (5 min): Send reminders to idle agents who haven't contributed
-    PHASE 2 (15 min): Force skip retrospective and continue to next phase
-
-    This addresses P0-1: PM retrospective_complete wait without timeout.
     #>
     if (-not $Script:RetrospectiveStartTime) {
         return
     }
 
-    # Calculate elapsed time
+    # Check timeout (5 minutes)
     $elapsed = ([DateTime]::UtcNow - $Script:RetrospectiveStartTime).TotalMinutes
-
-    # Force-skip threshold: 15 minutes (configurable via environment)
-    $forceSkipMinutes = if ($env:RALPH_RETRO_FORCE_SKIP) {
-        [int]$env:RALPH_RETRO_FORCE_SKIP
-    } else {
-        15  # default 15 minutes
-    }
-
-    # Phase 2: Force skip after timeout (prevents infinite wait)
-    if ($elapsed -gt $forceSkipMinutes) {
-        Write-WatchdogLog "Retrospective timeout ($([math]::Round($elapsed, 1))min > ${forceSkipMinutes}min) - force skipping to playtest phase" -Color Yellow
-
-        try {
-            $prdFile = $paths.PrdFile
-            if (Test-Path $prdFile) {
-                $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-                if ($prd -and $prd.session -and $prd.session.retro) {
-                    # Mark retrospective as skipped
-                    $prd.session.retro.active = $false
-                    $prd.session.retro.skipped = $true
-                    $prd.session.retro.skipReason = "timeout_after_${forceSkipMinutes}_minutes"
-                    $prd.session.retro.skippedAt = [DateTime]::UtcNow.ToString("o")
-
-                    # Move to next phase
-                    if ($prd.session.currentTask) {
-                        $prd.session.currentTask.status = "retrospective_synthesized"
-                    }
-
-                    # Write atomically
-                    $tempPath = $prdFile + ".tmp"
-                    $prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-                    Move-Item -Path $tempPath -Destination $prdFile -Force
-
-                    # Wake up PM to continue to next phase
-                    Send-RetrospectiveCompletionSignal
-                    $Script:RetrospectiveStartTime = $null
-                    return
-                }
-            }
-        } catch {
-            Write-WatchdogLog "Error in retrospective force-skip: $_" -Color Yellow
-        }
-    }
-
-    # Phase 1: Send reminders at 5 minutes
     if ($elapsed -lt 5) {
         return
     }
 
     # Timeout reached - check who hasn't contributed and send reminder
     try {
-        $prdFile = $paths.PrdFile
-        if (-not (Test-Path $prdFile)) {
+        $stateFile = Join-Path $Script:SessionDir "coordinator-state.json"
+        if (-not (Test-Path $stateFile)) {
             return
         }
 
-        $prd = Get-Content $prdFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-        if (-not $prd -or -not $prd.session -or $prd.session.currentTask.status -ne "in_retrospective") {
+        $state = Get-Content $stateFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if (-not $state -or $state.currentTask.status -ne "in_retrospective") {
             return
         }
 
@@ -1473,13 +1020,13 @@ function Test-RetrospectiveTimeout {
         foreach ($agent in @("developer", "techartist", "qa", "gamedesigner")) {
             if (-not $Script:RetrospectiveContributions.$agent) {
                 # Agent hasn't contributed - check if they're idle
-                if ($prd.agents.$agent.status -ne "working_on_retrospective") {
+                if ($state.agents.$agent.status -ne "working_on_retrospective") {
                     Write-WatchdogLog "Sending retrospective reminder to idle agent: $agent" -Color Yellow
 
                     # Send reminder message
                     $retroFile = Join-Path $Script:SessionDir "retrospective.txt"
                     Send-AgentMessage -From "watchdog" -To $agent -Type "retrospective_initiate" -Payload @{
-                        taskId = $prd.session.currentTask.id
+                        taskId = $state.currentTask.id
                         retrospectiveFile = $retroFile
                         reminder = $true
                     } -Priority "normal"
@@ -1490,9 +1037,8 @@ function Test-RetrospectiveTimeout {
         }
 
         if ($remindersSent -gt 0) {
-            # Reset timer to avoid spamming (but still tracking total time for force-skip)
-            # Don't reset RetrospectiveStartTime - we need it for force-skip detection
-            Write-WatchdogLog "Reminders sent to $remindersSent agents. Total elapsed: $([math]::Round($elapsed, 1))min" -Color Cyan
+            # Reset timer to avoid spamming
+            $Script:RetrospectiveStartTime = [DateTime]::UtcNow
         }
 
     } catch {
@@ -1534,8 +1080,8 @@ function Invoke-ResourceCleanup {
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddHours(-1) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 
-        # Clean stale message files (format: msg-{agent}-{timestamp}-{seq}.json)
-        Get-ChildItem -Path $Script:SessionDir -Filter "msg-*-*.json" -Recurse -ErrorAction SilentlyContinue |
+        # Clean stale pending-messages files
+        Get-ChildItem -Path $Script:SessionDir -Filter "pending-messages-*.json" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddMinutes(-30) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 
@@ -1607,6 +1153,70 @@ function Clear-OldArchives {
 # Track if dashboard has been initialized
 $Script:DashboardInitialized = $false
 $Script:LastDashboardContent = @{}
+
+# Phase 3: Cell-level dashboard caching for frequently-formatted values
+$Script:DashboardCellCache = @{}
+$Script:CellCacheMaxAge = 1000  # 1 second TTL for cached cell values
+
+function Get-CachedDashboardCell {
+    <#
+    .SYNOPSIS
+    Get a cached dashboard cell value, or compute and cache it.
+
+    .DESCRIPTION
+    Reduces string allocations by caching frequently-formatted values
+    like uptime, timestamps, and message counts for up to CellCacheMaxAge ms.
+
+    .PARAMETER CellId
+    Unique identifier for this cell (e.g., "uptime", "msg_count_pm").
+
+    .PARAMETER Formatter
+    Script block that computes the cell value.
+
+    .RETURNS
+    The cached or newly computed cell value.
+
+    .EXAMPLE
+    $uptimeStr = Get-CachedDashboardCell -CellId "uptime" -Formatter {
+        $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
+        "{0:hh\:mm\:ss}" -f $uptime
+    }
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$CellId,
+
+        [Parameter(Mandatory=$true)]
+        [scriptblock]$Formatter
+    )
+
+    $now = [DateTime]::UtcNow
+
+    # Check cache
+    if ($Script:DashboardCellCache.ContainsKey($CellId)) {
+        $cached = $Script:DashboardCellCache[$CellId]
+        if (($now - $cached.Time).TotalMilliseconds -lt $Script:CellCacheMaxAge) {
+            return $cached.Value
+        }
+    }
+
+    # Compute and cache
+    $value = & $Formatter
+    $Script:DashboardCellCache[$CellId] = @{
+        Time = $now
+        Value = $value
+    }
+
+    return $value
+}
+
+function Clear-DashboardCellCache {
+    <#
+    .SYNOPSIS
+    Clear the dashboard cell cache. Useful for testing or forced refresh.
+    #>
+    $Script:DashboardCellCache.Clear()
+}
 
 function Write-LineAt {
     param(
@@ -1686,6 +1296,8 @@ function Initialize-DashboardScreen {
         }
         $Script:DashboardInitialized = $true
         $Script:LastDashboardContent = @{}
+        # Phase 3: Clear cell cache on initialization
+        $Script:DashboardCellCache.Clear()
     }
 }
 
@@ -1706,21 +1318,22 @@ function Draw-DashboardHeader {
     $separator = "  " + ("-" * ($Width - 4))
     $row = $StartRow
 
-    $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
-    $uptimeStr = "{0:hh\:mm\:ss}" -f $uptime
+    # Phase 3: Use cached uptime string (updated once per second)
+    $uptimeStr = Get-CachedDashboardCell -CellId "uptime" -Formatter {
+        $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime)
+        "{0:hh\:mm\:ss}" -f $uptime
+    }
+
+    # Also cache the stats line
+    $statsLine = Get-CachedDashboardCell -CellId "stats" -Formatter {
+        "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations"
+    }
 
     Write-LineAt -Row $row -Text $border -Color Cyan; $row++
     Write-LineAt -Row $row -Text "  RALPH WATCHDOG - Event-Driven Multi-Agent Mode" -Color Cyan; $row++
     Write-LineAt -Row $row -Text $border -Color Cyan; $row++
     Write-LineAt -Row $row -Text "" -Color White; $row++
-    Write-LineAt -Row $row -Text "  Uptime: $uptimeStr  |  Routed: $Script:TotalMessagesRouted  |  Cycles: $Script:TotalIterations" -Color White; $row++
-
-    # Show startup mode indicator
-    if ($Script:StartupMode) {
-        $elapsed = ([DateTime]::UtcNow - $Script:StartupModeStartTime).TotalSeconds
-        Write-LineAt -Row $row -Text "  [STARTUP MODE: ${elapsed}s elapsed - Only PM active]" -Color Yellow; $row++
-    }
-
+    Write-LineAt -Row $row -Text $statsLine -Color White; $row++
     Write-LineAt -Row $row -Text "" -Color White; $row++
 
     return $row
@@ -1977,8 +1590,9 @@ function Test-SessionComplete {
         }
     }
 
-    # Note: Watchdog uses its own MaxIterationsLimit, not prd.json.session.maxIterations
-    # The coordinator (PM agent) handles its own iteration counting in prd.json.session
+    # Check coordinator-state.json for max iterations reached
+    # Note: Use watchdog's own MaxIterationsLimit, not coordinator state
+    # The coordinator handles its own iteration counting
     # This check is only for legacy compatibility
 
     return $false
@@ -2049,7 +1663,13 @@ function Start-EventWatchdog {
         
         # Stop all agents
         Stop-AllAgents -Graceful -Reason "watchdog_shutdown"
-        
+
+        # Close pipe server if using named pipes (Phase 2)
+        if ($Script:UsePipeTransport) {
+            Close-PipeServer
+            Write-Host "[WATCHDOG] Named pipe server closed" -ForegroundColor Cyan
+        }
+
         # Final cleanup
         Invoke-ResourceCleanup -Force
         
