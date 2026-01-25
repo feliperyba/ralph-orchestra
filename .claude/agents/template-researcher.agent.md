@@ -41,10 +41,12 @@ If not found or cache expired → Continue to online search
 ### Step 2: Search Ralph Orchestra Repository
 
 ```
-Search GitHub for: felipemarinho/ralph-orchestra
+Search GitHub for: feliperyba/ralph-orchestra
 Look in: .claude/agents/ for sub-agents
 Look in: .claude/skills/ for skills
 ```
+
+> **Note:** Repository references (like "ralph-orchestra") refer to the GitHub repository name for online searching, not the local folder name. Users can clone the repo to any folder name.
 
 ### Step 3: Search Community Sources
 
@@ -109,9 +111,11 @@ Return structured data with:
 
 ## Research Sources
 
+> **Note:** Repository references refer to GitHub repository names for online searching. The local folder can be named anything - the framework is fully folder-name agnostic.
+
 Your primary research sources are defined in `docs/research-sources.md`:
 
-1. **Ralph Orchestra Official** - `github.com/felipemarinho/ralph-orchestra`
+1. **Ralph Orchestra Official** - `github.com/feliperyba/ralph-orchestra`
 2. **Claude Code Docs** - `code.claude.com/docs`
 3. **GitHub Community** - Search for `claude-code-agent`, `claude-code-skill`
 4. **Framework Docs** - R3F, Colyseus, Playwright, etc.

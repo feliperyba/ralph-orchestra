@@ -15,8 +15,10 @@ This file defines where to search and what to look for.
 
 ## Ralph Orchestra Official Sources
 
+> **Note:** References to "ralph-orchestra" in this document refer to the **GitHub repository name** for searching templates online. Your local folder can be named anything - the framework is fully folder-name agnostic.
+
 ### Main Repository
-- **URL**: `https://github.com/felipemarinho/ralph-orchestra`
+- **URL**: `https://github.com/feliperyba/ralph-orchestra`
 - **What to find**:
   - Example sub-agents in `.claude/agents/*.agent.md`
   - Example skills in `.claude/skills/*/SKILL.md`
@@ -24,7 +26,7 @@ This file defines where to search and what to look for.
   - Configuration templates in `.claude/templates/`
 
 ### Documentation
-- **URL**: `https://github.com/felipemarinho/ralph-orchestra/tree/main/docs`
+- **URL**: `https://github.com/feliperyba/ralph-orchestra/tree/main/docs`
 - **What to find**:
   - Architecture patterns
   - Best practices guides
@@ -53,7 +55,7 @@ claude-subagent
 
 | Repository | URL | Content |
 |------------|-----|---------|
-| Ralph Orchestra | `github.com/felipemarinho/ralph-orchestra` | Official examples |
+| Ralph Orchestra | `github.com/feliperyba/ralph-orchestra` | Official examples |
 | Claude Code Docs | `code.claude.com/docs` | Official subagent documentation |
 | Awesome Claude Agents | `github.com/topics/claude-code-agent` | Community agents |
 

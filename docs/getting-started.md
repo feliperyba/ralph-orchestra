@@ -7,10 +7,13 @@ This guide will help you get started with Ralph Orchestra - an agnostic framewor
 **Step 1: Install Ralph Orchestra**
 
 ```bash
-git clone https://github.com/feliperyba/ralph-orchestra
-cd ralph-orchestra
+# Clone the repository (you can rename the folder to anything you like)
+git clone https://github.com/feliperyba/ralph-orchestra my-project
+cd my-project
 npm install
 ```
+
+> **Note:** The repository name `ralph-orchestra` is just the default. You can clone it to any folder name - the framework is fully folder-name agnostic.
 
 **Step 2: Run the PRD Starter Wizard**
 

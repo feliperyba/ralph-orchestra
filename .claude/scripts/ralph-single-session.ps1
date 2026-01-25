@@ -87,8 +87,13 @@ Write-Host ""
 Write-Host "Starting single-agent watchdog..." -ForegroundColor Yellow
 Write-Host ""
 
-# Build arguments
-$watchdogArgs = @("-File", "-GracefulShutdownSeconds", "-InitialAgent", "-MaxRestarts", "-ProjectRoot", "test-developer")
+# Build arguments - use dynamic path resolution for folder-name agnostic behavior
+$watchdogScript = Join-Path $paths.ScriptsDir "watchdog-single.ps1"
+$watchdogArgs = @("-File", $watchdogScript)
+$watchdogArgs += "-GracefulShutdownSeconds", $GracefulShutdownSeconds
+$watchdogArgs += "-InitialAgent", $InitialAgent
+$watchdogArgs += "-MaxRestarts", $MaxRestarts
+$watchdogArgs += "-ProjectRoot", $ProjectRoot
 
 if ($NoDashboard) {
     $watchdogArgs += "-NoDashboard"
