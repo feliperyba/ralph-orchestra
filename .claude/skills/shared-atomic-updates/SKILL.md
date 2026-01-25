@@ -70,59 +70,34 @@ The worktree system uses isolated branches for code/assets, but ALL state coordi
 | `src/` | Code changes | Developer |
 | `src/assets/` | Asset changes | TechArtist |
 
-### PowerShell Pattern for Master Branch Updates
+### Pattern for Master Branch Updates
 
-When in a worktree, use the path resolution helpers from `ralph-config.ps1`:
+When in a worktree, coordination files MUST be updated in the master branch.
 
-```powershell
-# Source ralph-config for path helpers (do this once at startup)
-. .\.claude\scripts\ralph-config.ps1
+**Use Read/Edit tools (bash-safe approach):**
 
-# Get master paths - these work from ANY directory
-$masterPrdPath = Get-MasterPrdPath
-$masterSessionPath = Get-MasterSessionPath
+```bash
+# For PRD updates from worktree:
+# 1. Read master branch prd.json
+# 2. Use Edit tool to make changes
+# 3. Edit tool handles atomic writes automatically
 
-# Update PRD atomically in master branch
-$prd = Get-Content $masterPrdPath -Raw | ConvertFrom-Json
-$prd.agents.developer.status = "working"
-$prd.agents.developer.lastSeen = [DateTime]::UtcNow.ToString("o")
-$prd | ConvertTo-Json -Depth 10 | Set-Content -Path "$masterPrdPath.tmp"
-Move-Item -Path "$masterPrdPath.tmp" -Destination $masterPrdPath -Force
+# Example: Update agent status
+# Read("prd.json") - reads from master branch
+# Edit("prd.json") - updates atomically in master branch
 ```
 
-### Helper Functions
+**Key point:** When using Read/Edit tools from a worktree, ensure you're accessing the master branch copy of `prd.json` for coordination updates.
 
-Available after sourcing `ralph-config.ps1`:
+### Master Branch Path Resolution
 
-| Function | Returns |
-|----------|---------|
-| `Get-MasterRootPath` | Master branch root directory |
-| `Get-MasterPrdPath` | Path to `prd.json` in master |
-| `Get-MasterSessionPath` | Path to `.claude/session` in master |
-| `Get-MasterMessageQueuePath` | Path to `.claude/session/messages` in master |
+From any worktree, the master branch `prd.json` is at:
 
-### Example: Worker Updates Master PRD from Worktree
-
-```powershell
-# From developer-worktree, update master PRD
-. .\..\.claude\scripts\ralph-config.ps1
-
-$masterPrdPath = Get-MasterPrdPath
-$prd = Get-Content $masterPrdPath -Raw | ConvertFrom-Json
-
-# Update task status
-$prd.items | Where-Object { $_.id -eq "feat-001" } | ForEach-Object {
-    $_.status = "in_progress"
-}
-
-# Update agent heartbeat
-$prd.agents.developer.status = "working"
-$prd.agents.developer.lastSeen = [DateTime]::UtcNow.ToString("o")
-
-# Atomic write to master
-$prd | ConvertTo-Json -Depth 10 | Out-File -FilePath "$masterPrdPath.tmp" -Encoding UTF8
-Move-Item -Path "$masterPrdPath.tmp" -Destination $masterPrdPath -Force
 ```
+../agentic-threejs/prd.json  (if worktree is sibling to master)
+```
+
+Or use relative path from worktree to master root.
 
 ## Update Specific Field (jq)
 

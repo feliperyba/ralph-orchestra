@@ -252,10 +252,7 @@ When ALL checks pass:
 **Step 1: Delete validation screenshots** (always clean up after validation)
 
 ```bash
-# PowerShell
-Remove-Item ".claude/session/playwright-test/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
-
-# Bash
+# Bash (bash-safe)
 rm .claude/session/playwright-test/${taskId}-*.png 2>/dev/null || true
 ```
 
@@ -302,10 +299,7 @@ When ANY check fails:
 **Step 1: Clean up screenshots**
 
 ```bash
-# PowerShell
-Remove-Item ".claude/session/playwright-test/${taskId}-*.png" -Force -ErrorAction SilentlyContinue
-
-# Bash
+# Bash (bash-safe)
 rm .claude/session/playwright-test/${taskId}-*.png 2>/dev/null || true
 ```
 

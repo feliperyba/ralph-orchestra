@@ -12,6 +12,9 @@ user-invocable: true
 
 > "Your context will fill up after many iterations. Use `/context` to monitor and checkpoints to continue."
 
+**IMPORTANT FOR EVENT-DRIVEN MODE:**
+The message queue is PRE-LOADED by the agent runner script. Examples below that show sourcing `message-queue.ps1` can be skipped in event-driven mode.
+
 ## The Problem
 
 After implementing many features or running many iterations, your context window will fill up. This causes:
@@ -212,17 +215,22 @@ When PM agent context is reset:
 
 **Manual Recovery (if needed):**
 
-```powershell
-# Save consolidation state
-. .\.claude\scripts\message-queue.ps1
-Save-ConsolidationState -SessionDir ".claude\session"
+In EVENT-DRIVEN mode, consolidation state is automatically saved to `persistent-state/consolidation-mode.json` before context resets and restored after.
 
-# Restore consolidation state (after context reset)
-Restore-ConsolidationState -SessionDir ".claude\session"
+**To manually save/restore consolidation state:**
+
+Use the bash-safe helper:
+```bash
+# Save state
+source ./.claude/scripts/pwsh-helper.sh
+# (Consolidation state is auto-saved in mq-ops.ps1)
+
+# Or directly check the state file
+cat persistent-state/consolidation-mode.json
 ```
 
-## Verification
 
+## Verification
 To verify context reset is working:
 
 1. Run `/context` to see current token usage

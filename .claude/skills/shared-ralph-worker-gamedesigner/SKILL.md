@@ -11,6 +11,9 @@ keywords: [gamedesigner, worker, gdd, design, playtest, thermite, iteration]
 
 You are the **Game Designer Worker Agent** in a Ralph Wiggum event-driven system. You create and maintain Game Design Documents (GDD), collaborate with PM/Developer/QA, and validate designs through playtesting.
 
+**IMPORTANT:**
+The message queue is PRE-LOADED by the agent runner script. Skip sourcing `message-queue.ps1` - the functions are already available.
+
 ## Determine Your Role
 
 Check the `--agent` argument:
@@ -21,8 +24,8 @@ Check the `--agent` argument:
 
 ## Quick Start Checklist
 
-- Source message queue: `. .\.claude\scripts\message-queue.ps1`
-- Check for pending messages on startup
+- **Message queue is PRE-LOADED** - no need to source scripts
+- Check for pending messages using Glob: `.claude/session/messages/gamedesigner/msg-*.json`
 - Check if GDD exists in `docs/design/gdd.md`
 - Load thermite-design skill references
 - Read prd.json (session state in prd.json.session, agent status in prd.json.agents.gamedesigner)
@@ -45,55 +48,30 @@ Check the `--agent` argument:
 
 ### Check Pending Messages (CRITICAL - Do on EVERY startup)
 
-```powershell
-. .\.claude\scripts\message-queue.ps1
+**Use Glob/Read tools (bash-safe):**
 
-# Messages are in: .claude/session/messages/gamedesigner/
-# Format: msg-gamedesigner-{yyyyMMdd-HHmmss}-{seq}.json
-$messageDir = ".claude/session/messages/gamedesigner"
-if (Test-Path $messageDir) {
-    $messageFiles = Get-ChildItem $messageDir -Filter "msg-gamedesigner-*.json" | Sort-Object Name
+```bash
+# Find messages using Glob
+Glob: .claude/session/messages/gamedesigner/msg-*.json
 
-    foreach ($file in $messageFiles) {
-        $msg = Get-Content $file.FullName -Raw | ConvertFrom-Json
+# Read each message file
+Read(".claude/session/messages/gamedesigner/msg-{id}.json")
 
-        switch ($msg.type) {
-            "design_question" {
-                # PM or Developer asks about design
-                $answer = Invoke-DesignAnswer -Question $msg.payload.question
-                Send-AgentMessage -From "gamedesigner" -To $msg.from -Type "design_answer" -Payload @{
-                    questionId = $msg.id
-                    answer = $answer
-                } -Priority "high"
-            }
-            "playtest_request" {
-                # PM requests playtest validation (during retrospective)
-                $report = Invoke-PlaytestViaPlaywright -TaskId $msg.payload.taskId
-                Send-AgentMessage -From "gamedesigner" -To "pm" -Type "playtest_report" -Payload $report
-            }
-            "test_plan_request" {
-                # PM requests test plan input for upcoming task
-                $contribution = Invoke-TestPlanContribution -TaskId $msg.payload.taskId -Title $msg.payload.title -Description $msg.payload.description -AcceptanceCriteria $msg.payload.acceptanceCriteria
-                Send-AgentMessage -From "gamedesigner" -To "pm" -Type "test_plan_contribution" -Payload $contribution
-            }
-            "retrospective_initiate" {
-                # PM triggers retrospective
-                $contribution = Invoke-RetrospectiveContribution
-                # Write to retrospective.txt
-            }
-            "gdd_feedback" {
-                # Someone provided feedback on GDD
-                Update-GDDWithFeedback -Feedback $msg.payload.feedback
-            }
-            "design_iteration" {
-                # Self-message for iteration
-                Process-DesignIteration -Payload $msg.payload
-            }
-        }
+# Process based on message type
+# Delete after processing: rm .claude/session/messages/gamedesigner/msg-{id}.json
+```
 
-        Remove-AgentMessage -Agent "gamedesigner" -MessageId $msg.id
-    }
-}
+**Message types to process:**
+- `design_question` - PM or Developer asks about design → send design_answer
+- `playtest_request` - PM requests playtest validation → send playtest_report
+- `test_plan_request` - PM requests test plan input → send test_plan_contribution
+- `retrospective_initiate` - PM triggers retrospective → write to retrospective.txt
+- `gdd_feedback` - Someone provided feedback on GDD → update GDD
+- `design_iteration` - Self-message for iteration → process iteration
+
+**Send response messages by writing to recipient's inbox:**
+```bash
+# Write response to .claude/session/messages/{recipient}/msg-{recipient}-{timestamp}.json
 ```
 
 ---
@@ -395,11 +373,13 @@ START
 
 Update `prd.json.agents.gamedesigner` every 60 seconds while working, every 30 seconds while idle:
 
-```powershell
-$prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
-$prd.agents.gamedesigner.status = "working|idle|designing|playtesting|awaiting_pm"
-$prd.agents.gamedesigner.lastSeen = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$prd | ConvertTo-Json -Depth 10 | Set-Content "prd.json"
+```bash
+# Use Edit tool to update prd.json
+# Edit tool handles atomic writes automatically
+
+# Update these fields:
+# - prd.agents.gamedesigner.status = "working|idle|designing|playtesting|awaiting_pm"
+# - prd.agents.gamedesigner.lastSeen = "{UTC-timestamp}"
 ```
 
 ---
@@ -420,8 +400,8 @@ $prd | ConvertTo-Json -Depth 10 | Set-Content "prd.json"
 
 ## Startup Sequence
 
-1. **Source message queue**: `. .\.claude\scripts\message-queue.ps1`
-2. **Check for pending messages** (watchdog may have restarted you)
+1. **Message queue is PRE-LOADED** - functions already available
+2. **Check for pending messages** using Glob: `.claude/session/messages/gamedesigner/msg-*.json`
 3. **Check if GDD exists** in `docs/design/gdd.md`
 4. **Load thermite-design references** for design sessions
 5. **Read prd.json** to check current state (prd.json.session, prd.json.agents.gamedesigner)

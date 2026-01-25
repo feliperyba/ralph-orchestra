@@ -208,33 +208,21 @@ Each message is stored as its own JSON file:
 
 After processing each message, you **MUST** delete it using the message queue script:
 
-```powershell
-# Source the message queue script first
-. .\.claude\scripts\message-queue.ps1
+**NOTE: In EVENT-DRIVEN mode, the message queue is PRE-LOADED by the runner script.**
 
-# After processing each message, delete it:
-Remove-AgentMessage -Agent {your-agent} -MessageId $msg.id
+**Recommended: Use Glob/Read tools (simplest):**
+```
+1. Glob: .claude/session/messages/{agent}/msg-*.json
+2. Read each message file
+3. Process based on message type
+4. Delete: rm .claude/session/messages/{agent}/msg-{id}.json
 ```
 
-**Example for Developer agent:**
-```powershell
-# 1. Read message files
-$inbox = ".claude/session/messages/developer"
-$messageFiles = Get-ChildItem $inbox -Filter "msg-developer-*.json" | Sort-Object Name
-
-# 2. Process each message
-foreach ($file in $messageFiles) {
-    $msg = Get-Content $file.FullName | ConvertFrom-Json
-
-    # 3. Process based on message type
-    switch ($msg.type) {
-        "task_assign" { /* ... */ }
-        "bug_report" { /* ... */ }
-    }
-
-    # 4. DELETE after processing (REQUIRED!)
-    Remove-AgentMessage -Agent "developer" -MessageId $msg.id
-}
+**Alternative: Use pq-* helper functions:**
+```bash
+source ./.claude/scripts/pwsh-helper.sh
+pq-get {agent}      # Get all messages
+pq-remove {agent} msg-id  # Delete after processing
 ```
 
 **Why deletion is required:**

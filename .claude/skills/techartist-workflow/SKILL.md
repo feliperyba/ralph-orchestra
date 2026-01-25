@@ -32,8 +32,8 @@ For detailed worktree setup, PRD updates, and message patterns:
 | PRD/messages | Master branch |
 
 **Key Reminders:**
-- Source config: `. .\.claude\scripts\ralph-config.ps1`
-- Use `Get-MasterPrdPath`, `Get-MasterSessionPath` helpers
+- Use Read/Edit tools for PRD updates (bash-safe)
+- Access master PRD from worktree via relative path
 - If state changes, PRD changes IMMEDIATELY
 
 ## Startup Workflow
@@ -42,34 +42,31 @@ For detailed worktree setup, PRD updates, and message patterns:
 0. Worktree Setup
    → Use Skill("shared-worker-worktree")
 
-1. Source Config
-   . .\.claude\scripts\ralph-config.ps1
-
-2. Check Messages
-   → Use Skill("shared-worker-worktree") for message queue patterns
+1. Check Messages
+   → Use Glob: .claude/session/messages/techartist/msg-*.json
    → Delete messages after processing (prevents watchdog restart loop)
 
-3. Read PRD
+2. Read PRD
    → Check prd.json.session.currentTask
    → Update prd.json.agents.techartist status and lastSeen
 
-4. Load Skills
+3. Load Skills
    → Skill("ta-router") - determines domain skills needed
    → Skill("shared-worker-worktree")
    → Skill("shared-worker-task-memory")
 
-5. Asset Research (MANDATORY)
+4. Asset Research (MANDATORY)
    → Check src/assets/ for existing assets
    → Invoke techartist-asset-researcher sub-agent
 
-6. Create Asset
+5. Create Asset
    → Follow patterns from loaded domain skills
 
-7. Test
+6. Test
    → Visual verification (Playwright MCP screenshot)
    → Skill("shared-validation-feedback-loops")
 
-8. Commit
+7. Commit
    → Push to techartist-worktree branch
    → Send validation_request to QA
 ```

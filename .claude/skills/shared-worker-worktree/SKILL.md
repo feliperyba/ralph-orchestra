@@ -184,58 +184,31 @@ git push origin main
    └── If validation fails: sends bug_report via master queue
 ```
 
-### PowerShell Helper Functions
+### Master Branch Path Resolution
 
-After sourcing `ralph-config.ps1`, these helpers are available from ANY directory:
+When working in a worktree, coordination files MUST be accessed from the master branch:
 
-```powershell
-# Source config (do this once at startup)
-. .\.claude\scripts\ralph-config.ps1
+```bash
+# From worktree, master branch prd.json is typically at:
+../agentic-threejs/prd.json  (if worktree is sibling to master)
 
-# Get master paths from anywhere
-$masterRoot = Get-MasterRootPath           # Master branch root
-$masterPrd = Get-MasterPrdPath             # prd.json in master
-$masterSession = Get-MasterSessionPath     # .claude/session in master
-$masterMessages = Get-MasterMessageQueuePath  # messages/ in master
+# Or determine path by navigating up from worktree to master root
+# Use relative paths to access master branch coordination files
 ```
 
 ### Example: Complete Status Update
 
-```powershell
-# From developer-worktree, update master PRD
-. .\.claude\scripts\ralph-config.ps1
+```bash
+# Use Read/Edit tools for bash-safe PRD updates
 
-$masterPrdPath = Get-MasterPrdPath
-$prd = Get-Content $masterPrdPath -Raw | ConvertFrom-Json
+# Step 1: Read master PRD from worktree
+Read("../agentic-threejs/prd.json")
 
-# Update task status
-$prd.items | Where-Object { $_.id -eq "feat-001" } | ForEach-Object {
-    $_.status = "in_progress"
-}
+# Step 2: Use Edit tool to update status
+# Edit tool handles atomic writes automatically
+# Updates to agent status, task status, heartbeat, etc.
 
-# Update agent heartbeat
-$prd.agents.developer.status = "working"
-$prd.agents.developer.lastSeen = [DateTime]::UtcNow.ToString("o")
-
-# Atomic write to master
-$prd | ConvertTo-Json -Depth 10 | Out-File -FilePath "$masterPrdPath.tmp" -Encoding UTF8
-Move-Item -Path "$masterPrdPath.tmp" -Destination $masterPrdPath -Force
-```
-
-### NEVER Update Local Worktree State Files
-
-❌ **DON'T do this from worktree:**
-```powershell
-# This only updates worktree copy - PM won't see it!
-$prd = Get-Content prd.json | ConvertFrom-Json
-$prd.agents.developer.status = "working"
-$prd | ConvertTo-Json | Set-Content prd.json
-```
-
-✅ **DO this instead:**
-```powershell
-$masterPrdPath = Get-MasterPrdPath
-# ... update master PRD ...
+# The Edit tool writes atomically - no need for manual temp file pattern
 ```
 
 ## File Conflict Prevention

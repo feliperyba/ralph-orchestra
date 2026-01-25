@@ -9,18 +9,18 @@ description: Complete QA Validator workflow - orchestration of validation steps,
 
 ## Quick Reference: Validation Steps
 
-| Step                             | Use This Skill / Sub-Agent                     |
-| -------------------------------- | ---------------------------------------------- |
-| **1. Message Processing**        | `Skill("shared-message-handling")`             |
-| **2. Worktree Navigation**       | `Skill("shared-worker-worktree")`              |
-| **3. Task Memory**               | `Skill("shared-worker-task-memory")`           |
-| **4. Test Coverage Check**       | `Skill("qa-test-creation")`                    |
-| **5. Code Review**               | `Skill("qa-code-review")`                      |
-| **6. Feedback Loops**            | `Skill("shared-validation-feedback-loops")`    |
-| **7. Browser Testing**           | `Skill("qa-browser-testing")`                  |
-| **8. Bug Reporting**             | `Skill("qa-bug-reporting")`                    |
-| **9. Context Reset** (big tasks) | `Skill("shared-context-management")`           |
-| **10. Retrospective**            | `Skill("shared-worker-retrospective")`         |
+| Step                             | Use This Skill / Sub-Agent                  |
+| -------------------------------- | ------------------------------------------- |
+| **1. Message Processing**        | `Skill("shared-message-handling")`          |
+| **2. Worktree Navigation**       | `Skill("shared-worker-worktree")`           |
+| **3. Task Memory**               | `Skill("shared-worker-task-memory")`        |
+| **4. Test Coverage Check**       | `Skill("qa-test-creation")`                 |
+| **5. Code Review**               | `Skill("qa-code-review")`                   |
+| **6. Feedback Loops**            | `Skill("shared-validation-feedback-loops")` |
+| **7. Browser Testing**           | `Skill("qa-browser-testing")`               |
+| **8. Bug Reporting**             | `Skill("qa-bug-reporting")`                 |
+| **9. Context Reset** (big tasks) | `Skill("shared-context-management")`        |
+| **10. Retrospective**            | `Skill("shared-worker-retrospective")`      |
 
 ---
 
@@ -313,7 +313,7 @@ PRD: feat-XXX | Agent: qa | Iteration: N
 
 When `retrospective_initiate` message is received:
 
-1. READ ALL your task memory files
+1. READ ALL your task memory files - .claude/session/agents/{agent}/task-{taskId}-memory.md
 2. READ the retrospective file
 3. WRITE your contribution to retrospective.txt
 4. DELETE ALL task memory files

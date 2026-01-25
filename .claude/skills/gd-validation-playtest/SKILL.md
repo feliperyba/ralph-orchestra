@@ -414,10 +414,23 @@ Is it fun?
 
 ## Sending Playtest Report
 
-After completing playtest:
+After completing playtest, write message file to PM's inbox:
 
-```powershell
-Send-AgentMessage -From "gamedesigner" -To "pm" -Type "playtest_report" -Payload $report
+```bash
+# Write playtest report to PM inbox
+File: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
+{
+  "id": "msg-pm-{timestamp}-{seq}",
+  "from": "gamedesigner",
+  "to": "pm",
+  "type": "playtest_report",
+  "priority": "high",
+  "payload": {
+    // Include all findings from playtest
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
+}
 ```
 
 ## Retrospective Participation

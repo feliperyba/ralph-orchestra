@@ -7,6 +7,9 @@ description: Request and process playtest session from Game Designer after retro
 
 > "Separate playtest phase enables context reset and focused Game Designer validation."
 
+**IMPORTANT FOR EVENT-DRIVEN MODE:**
+The message queue is PRE-LOADED by the agent runner script. Examples below that show sourcing `message-queue.ps1` can be skipped.
+
 ## When to Use This Skill
 
 Use when:
@@ -18,43 +21,43 @@ Use when:
 
 ## Quick Start
 
-```powershell
+```bash
 # Phase 1: Request Playtest
-if ($currentTask.status -eq "retrospective_synthesized") {
-    # Send playtest_session_request to Game Designer
-    Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_session_request" -Payload @{
-        taskId = $currentTask.id
-        taskTitle = $currentTask.title
-        retrospectiveComplete = $true
-        context = "Retrospective synthesis complete, validate implementation through playtest"
-        focus = "all"
-        gddReference = "docs/design/gdd.md"
-    } -Priority "high"
+# Check currentTask.status from prd.json using Read tool
+if status is "retrospective_synthesized":
+    # Write playtest_session_request message file
+    File: .claude/session/messages/gamedesigner/msg-gamedesigner-{timestamp}-001.json
+    {
+      "id": "msg-gamedesigner-{timestamp}-001",
+      "from": "pm",
+      "to": "gamedesigner",
+      "type": "playtest_session_request",
+      "priority": "high",
+      "payload": {
+        "taskId": "{taskId}",
+        "taskTitle": "{taskTitle}",
+        "retrospectiveComplete": true,
+        "context": "Retrospective synthesis complete, validate implementation through playtest",
+        "focus": "all",
+        "gddReference": "docs/design/gdd.md"
+      },
+      "timestamp": "{UTC-timestamp}",
+      "status": "pending"
+    }
 
-    # Set status and exit for context reset
-    $currentTask.status = "playtest_phase"
-    Update-CurrentTask -Task $currentTask
-    exit 0
+    # Use Edit tool to set status to "playtest_phase"
+    # Exit for context reset
 }
 
 # Phase 2: Process Playtest Report (on wake-up)
-$playtestReport = Get-PendingMessages | Where-Object { $_.type -eq "playtest_session_report" }
-if ($playtestReport) {
-    # Review findings
-    Review-PlaytestFindings -Report $playtestReport
-
-    # Update PRD if needed based on findings
-    if ($playtestReport.payload.issues.Count -gt 0) {
-        Update-PRD-Issues -Issues $playtestReport.payload.issues
-        # Commit PRD changes
-        Invoke-GitCommit -Message "[ralph] [pm] $($currentTask.id): Updated PRD based on playtest findings"
-    }
-
-    # Set status and exit for context reset
-    $currentTask.status = "playtest_complete"
-    Update-CurrentTask -Task $currentTask
-    exit 0
-}
+# Use Glob to check for messages: .claude/session/messages/pm/msg-*.json
+# Read each message file and process playtest_session_report type
+if playtest_session_report found:
+    # Review findings from message payload
+    # Update PRD using Edit tool if needed
+    # Commit PRD changes: git add prd.json && git commit -m "..."
+    # Set status to "playtest_complete" using Edit tool
+    # Exit for context reset
 ```
 
 ## State Flow
@@ -78,96 +81,63 @@ retrospective_synthesized → playtest_phase → playtest_complete
 
 After worker retrospective synthesis is complete:
 
-```powershell
-# Source message queue
-. .\.claude\scripts\message-queue.ps1
+```bash
+# Write playtest_session_request message to gamedesigner inbox
+File: .claude/session/messages/gamedesigner/msg-gamedesigner-{timestamp}-001.json
+{
+  "id": "msg-gamedesigner-{timestamp}-001",
+  "from": "pm",
+  "to": "gamedesigner",
+  "type": "playtest_session_request",
+  "priority": "high",
+  "payload": {
+    "taskId": "{taskId}",
+    "taskTitle": "{taskTitle}",
+    "retrospectiveComplete": true,
+    "context": "Retrospective synthesis complete, validate implementation through playtest",
+    "focus": "all",
+    "gddReference": "docs/design/gdd.md"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
+}
 
-# Send playtest_session_request to Game Designer
-Send-AgentMessage -From "pm" -To "gamedesigner" -Type "playtest_session_request" -Payload @{
-    taskId = $currentTask.id
-    taskTitle = $currentTask.title
-    retrospectiveComplete = $true
-    context = "Retrospective synthesis complete, validate implementation through playtest"
-    focus = "all"
-    gddReference = "docs/design/gdd.md"
-} -Priority "high"
-
-# Update currentTask status
-$currentTask.status = "playtest_phase"
-Update-CurrentTask -Task $currentTask
-
+# Use Edit tool to update prd.json: set currentTask.status = "playtest_phase"
 # Exit for context reset
-exit 0
 ```
 
 ### Level 2: Process Playtest Report
 
 When Game Designer sends `playtest_session_report`:
 
-```powershell
-# Check for playtest_session_report message
-$messages = Get-PendingMessages -Agent "pm"
-$playtestReport = $messages | Where-Object { $_.type -eq "playtest_session_report" }
+```bash
+# Check for playtest_session_report message using Glob
+Glob: .claude/session/messages/pm/msg-*.json
 
-if ($playtestReport) {
-    # Extract findings
-    $taskId = $playtestReport.payload.taskId
-    $screenshots = $playtestReport.payload.screenshots
-    $playwrightUsed = $playtestReport.payload.playwrightUsed
-    $visionMcpUsed = $playtestReport.payload.visionMcpUsed
-    $findings = $playtestReport.payload.findings
-    $gddCompliance = $playtestReport.payload.gddCompliance
-    $issues = $playtestReport.payload.issues
-    $recommendations = $playtestReport.payload.recommendations
+# Read each message file, find playtest_session_report type
+if playtest_session_report found:
+    # Extract findings from message payload
+    # Verify mandatory fields: playwrightUsed=true, visionMcpUsed=true
 
-    # Verify mandatory fields
-    if (-not $playwrightUsed -or -not $visionMcpUsed) {
-        Send-AgentMessage -From "pm" -To "gamedesigner" -Type "question" -Payload @{
-            question = "Playtest must use Playwright MCP and Vision MCP. Please re-run playtest."
-        } -Priority "high"
-        exit 0
+    # If validation failed:
+    # Write question message back to gamedesigner
+    File: .claude/session/messages/gamedesigner/msg-gamedesigner-{timestamp}-002.json
+    {
+      "type": "question",
+      "payload": { "question": "Playtest must use Playwright MCP and Vision MCP. Please re-run playtest." }
     }
+    # Exit and wait for new playtest
 
-    # Review findings
-    Write-Host "Playtest findings for $taskId :" -ForegroundColor Cyan
-    Write-Host "  GDD Compliance: $gddCompliance" -ForegroundColor (if ($gddCompliance -eq "pass") { "Green" } else { "Yellow" })
-    Write-Host "  Findings: $findings"
+    # If validation passed:
+    # Review findings, screenshots, GDD compliance
+    # If issues found: create tasks using Edit tool on prd.json
+    # If recommendations: update PRD using Edit tool
+    # Commit PRD changes: git add prd.json && git commit -m "..."
 
-    if ($issues.Count -gt 0) {
-        Write-Host "  Issues found:" -ForegroundColor Yellow
-        foreach ($issue in $issues) {
-            Write-Host "    - $issue" -ForegroundColor Yellow
-        }
+    # Delete processed message: rm .claude/session/messages/pm/msg-{id}.json
 
-        # Create tasks for issues if needed
-        foreach ($issue in $issues) {
-            # Check if issue already has a task
-            $existingTask = Find-TaskByIssue -Issue $issue
-            if (-not $existingTask) {
-                New-PRDTask -Issue $issue -Source "playtest"
-            }
-        }
-    }
-
-    # Update PRD if needed
-    if ($issues.Count -gt 0 -or $recommendations.Count -gt 0) {
-        Update-PRD-From-Playtest -Issues $issues -Recommendations $recommendations
-
-        # Commit PRD changes
-        $commitMessage = "[ralph] [pm] $($taskId): Updated PRD based on playtest findings"
-        Invoke-GitCommit -Message $commitMessage
-    }
-
-    # Acknowledge message
-    Invoke-AcknowledgeMessage -MessageId $playtestReport.id -Agent "pm"
-
-    # Set status to playtest_complete
-    $currentTask.status = "playtest_complete"
-    Update-CurrentTask -Task $currentTask
-
+    # Use Edit tool to set status to "playtest_complete"
     # Exit for context reset
-    exit 0
-}
 ```
 
 ## Message Types

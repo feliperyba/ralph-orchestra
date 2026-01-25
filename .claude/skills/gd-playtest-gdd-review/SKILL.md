@@ -76,23 +76,21 @@ Look for patterns indicating GDD issues:
 
 ### Step 3: Catalog Questions from Workers
 
-```powershell
-# Review worker messages for repeated questions
-$workerMessages = Get-ChildItem ".claude/session/messages/" -Recurse -Filter "msg-*.json"
-
-$questionPatterns = @{
-    "design_question" = @()
-    "reference_request" = @()
-    "clarification" = @()
-}
-
-foreach ($msg in $workerMessages) {
-    $content = Get-Content $msg.FullName | ConvertFrom-Json
-    if ($content.type -eq "question") {
-        $questionPatterns[$content.category] += $content.payload.question
-    }
-}
+**Use Glob tool to find all messages:**
 ```
+Glob: .claude/session/messages/*/msg-*.json
+```
+
+**Then read each message file to find questions:**
+- Look for `type: "question"` or `type: "design_question"`
+- Track patterns of what workers are asking about
+
+**Question patterns to catalog:**
+| Pattern | What it means | Action |
+| -------- | ------------- | ------ |
+| design_question | Asking about design intent | Clarify in GDD |
+| reference_request | Needs visual reference | Add/update references |
+| clarification | Unclear specification | Add details to GDD |
 
 ## Phase 2: Game State Review
 

@@ -4,7 +4,7 @@ description: Complete Developer workflow orchestration - worktree coordination, 
 category: workflow
 keywords: [dev, workflow, development, process, tasks, implementation, git, worktree]
 version: 3.0
-changelog: "MAJOR REFACTOR: Removed 400+ lines of duplication. Now a thin orchestration layer that references specialized skills."
+changelog: 'MAJOR REFACTOR: Removed 400+ lines of duplication. Now a thin orchestration layer that references specialized skills.'
 ---
 
 # Developer Workflow
@@ -13,18 +13,18 @@ changelog: "MAJOR REFACTOR: Removed 400+ lines of duplication. Now a thin orches
 
 ## Quick Reference
 
-| Phase | Invoke With |
-|-------|-------------|
-| Worktree Setup | `Skill("shared-worker-worktree")` |
-| Task Research | `Skill("dev-research-gdd-reading")`, `Skill("dev-research-codebase-exploration")`, `Skill("dev-research-pattern-finding")` |
-| Skill Selection | `Skill("dev-router")` |
-| E2E Testing | `Skill("dev-validation-browser-testing")` |
-| Quality Gates | `Skill("dev-validation-quality-gates")` |
-| Feedback Loops | `Skill("dev-validation-feedback-loops")` |
-| Git/Commits | `Skill("dev-coordination-git-protocol")` |
-| Task Memory | `Skill("shared-worker-task-memory")` |
-| Retrospective | `Skill("shared-worker-retrospective")` |
-| Context Management | `Skill("shared-context-management")` |
+| Phase              | Invoke With                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Worktree Setup     | `Skill("shared-worker-worktree")`                                                                                          |
+| Task Research      | `Skill("dev-research-gdd-reading")`, `Skill("dev-research-codebase-exploration")`, `Skill("dev-research-pattern-finding")` |
+| Skill Selection    | `Skill("dev-router")`                                                                                                      |
+| E2E Testing        | `Skill("dev-validation-browser-testing")`                                                                                  |
+| Quality Gates      | `Skill("dev-validation-quality-gates")`                                                                                    |
+| Feedback Loops     | `Skill("dev-validation-feedback-loops")`                                                                                   |
+| Git/Commits        | `Skill("dev-coordination-git-protocol")`                                                                                   |
+| Task Memory        | `Skill("shared-worker-task-memory")`                                                                                       |
+| Retrospective      | `Skill("shared-worker-retrospective")`                                                                                     |
+| Context Management | `Skill("shared-context-management")`                                                                                       |
 
 ---
 
@@ -33,6 +33,7 @@ changelog: "MAJOR REFACTOR: Removed 400+ lines of duplication. Now a thin orches
 **CRITICAL**: You work in a git worktree (`../developer-worktree/`). All code goes to worktree branch, all coordination targets master branch.
 
 For complete worktree setup and master branch coordination:
+
 ```
 Skill("shared-worker-worktree")
 ```
@@ -61,29 +62,36 @@ On agent startup or task assignment:
 **⚠️ BLOCKING RULE: You MUST invoke code-research sub-agent BEFORE writing any code.**
 
 ### Step 1: GDD Reading
+
 ```
 Skill("dev-research-gdd-reading")
 ```
+
 - Read `docs/design/gdd/index.md` for overview
 - Read feature-specific GDD files
 - Check decision log and open questions
 
 ### Step 2: Codebase Exploration
+
 ```
 Skill("dev-research-codebase-exploration")
 ```
+
 - Use Glob to find relevant files
 - Use Grep to search for patterns
 - Read similar implementations
 
 ### Step 3: Pattern Finding
+
 ```
 Skill("dev-research-pattern-finding")
 ```
+
 - Document existing patterns
 - Identify import patterns, component structure, state management
 
 ### Step 4: Invoke code-research sub-agent (optional but recommended)
+
 ```
 Task({
   subagent_type: "developer-code-research",
@@ -104,6 +112,7 @@ Skill("dev-router")
 ```
 
 The router provides:
+
 - 31 developer skills in 9 categories (R3F, Multiplayer, Assets, Performance, Patterns, TypeScript, Validation, Research, Coordination)
 - Signal-based keyword routing
 - 5 sub-agents: orchestrator, code-research, implementation, validation, commit
@@ -138,6 +147,7 @@ The router provides:
    - Exit and wait
 
 7. **FEEDBACK LOOPS** (MANDATORY) - `Skill("dev-validation-feedback-loops")`
+
    ```bash
    npm run type-check  # 0 errors
    npm run lint        # 0 warnings
@@ -146,6 +156,7 @@ The router provides:
    ```
 
 8. **COMMIT** - `Skill("dev-coordination-git-protocol")`
+
    ```
    [ralph] [developer] {taskId}: Brief description
    ```
@@ -163,6 +174,7 @@ The router provides:
 ```
 Skill("dev-validation-quality-gates")
 ```
+
 - No `any` types, `@ts-ignore`, `eslint-disable`, `as any`, non-null assertions
 - Proper test coverage
 - Meaningful names, no console.log in production
@@ -187,14 +199,14 @@ Skill("dev-validation-quality-gates")
 
 ### PRD Status Reference
 
-| Scenario | Task Status | Agent Status | Message |
-|----------|-------------|--------------|---------|
-| Starting work | `in_progress` | `working` | (none) |
-| Blocked/question | `awaiting_pm_clarification` | `awaiting_pm` | `question` to PM |
-| Sending to QA | `awaiting_qa` | `idle` | `implementation_complete` to QA |
-| QA returned bugs | `in_progress` | `working` | (none) |
-| Fixes complete | `awaiting_qa` | `idle` | `implementation_complete` to QA |
-| Heartbeat | (unchanged) | (update `lastSeen`) | `status_update` |
+| Scenario         | Task Status                 | Agent Status        | Message                         |
+| ---------------- | --------------------------- | ------------------- | ------------------------------- |
+| Starting work    | `in_progress`               | `working`           | (none)                          |
+| Blocked/question | `awaiting_pm_clarification` | `awaiting_pm`       | `question` to PM                |
+| Sending to QA    | `awaiting_qa`               | `idle`              | `implementation_complete` to QA |
+| QA returned bugs | `in_progress`               | `working`           | (none)                          |
+| Fixes complete   | `awaiting_qa`               | `idle`              | `implementation_complete` to QA |
+| Heartbeat        | (unchanged)                 | (update `lastSeen`) | `status_update`                 |
 
 **ALWAYS update BOTH task status AND agent status before exiting!**
 
@@ -207,6 +219,7 @@ For big tasks (5+ acceptance criteria, 3+ files, architectural):
 ```
 Skill("shared-context-management")
 ```
+
 - Context checking with `/context` command
 - Checkpoint creation when >= 70%
 - Worker resumption procedure
@@ -220,6 +233,7 @@ When `retrospective_initiate` message received:
 1. **Read ALL task memory files** - `Skill("shared-worker-task-memory")`
    - Directory: `.claude/session/agents/developer/`
    - Pattern: `task-*.md`
+   - .claude/session/agents/{agent}/task-{taskId}-memory.md
 
 2. **Read retrospective.txt**
 
@@ -235,6 +249,7 @@ When `retrospective_initiate` message received:
 ## Domain-Specific Skills
 
 For multiplayer features:
+
 ```
 Skill("dev-multiplayer-server-authoritative")  # Server-authoritative architecture
 Skill("dev-multiplayer-colyseus-server")       # Colyseus server setup
@@ -242,6 +257,7 @@ Skill("dev-multiplayer-prediction-basics")     # Client-side prediction
 ```
 
 For performance optimization:
+
 ```
 Skill("dev-performance-performance-basics")    # Core optimization principles
 Skill("dev-performance-instancing")            # InstancedMesh patterns
@@ -249,6 +265,7 @@ Skill("dev-patterns-object-pooling")           # Object pooling
 ```
 
 For R3F development:
+
 ```
 Skill("dev-r3f-r3f-fundamentals")  # Scene composition, useFrame
 Skill("dev-r3f-r3f-physics")       # @react-three/rapier

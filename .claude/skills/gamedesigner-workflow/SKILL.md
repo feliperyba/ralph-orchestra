@@ -51,9 +51,10 @@ changelog: "v3.0: ADDED GDD REVIEW PHASE during playtest. After gameplay testing
 1. Load router skill (MANDATORY - first step)
    Skill("gd-router")
 
-2. Source message queue script
-   . "$PSScriptRoot\.claude\scripts\message-queue.ps1"
-   Initialize-MessageQueue -SessionDir ".claude/session"
+2. Message queue (PRE-INITIALIZED)
+   - The queue is already loaded in the agent runner script
+   - DO NOT run initialization commands
+   - Available functions: Get-PendingMessages, Send-AgentMessage, Remove-AgentMessage
 
 3. Check and process pending messages (MANDATORY - prevents watchdog restart loop)
    - Get pending messages: $messages = Get-PendingMessages -Agent "gamedesigner"

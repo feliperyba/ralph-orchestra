@@ -9,6 +9,9 @@ description: Facilitate file-based retrospective after task completion with work
 
 > **IMPORTANT**: Playtest is now a SEPARATE phase. This skill handles worker retrospective contributions ONLY.
 
+**NOTE FOR EVENT-DRIVEN MODE:**
+The message queue is PRE-LOADED by the agent runner script. Skip sourcing `message-queue.ps1` in examples below.
+
 ## When to Use This Skill
 
 Use when:
@@ -138,50 +141,65 @@ if (qaContributed) updateCheckbox('QA contributed', true);
 
 **⚠️ CRITICAL: This phase is for worker contributions ONLY. Game Designer playtest is separate.**
 
-```powershell
-# === STEP 1: Initial messages to workers ===
-. .\\.claude\\scripts\\message-queue.ps1
+**Use Write tool to create message files directly (bash-safe):**
 
-# === Initialize retrospective state for message batching ===
-# This tells the watchdog to batch PM messages during retrospective
-$prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
+```bash
+# === STEP 1: Update prd.json with Edit tool ===
+# Add/update prd.json.session.retro section for batching
 
-# Add or update retro section in prd.json.session for batching
-if (-not $prd.session) { $prd | Add-Member -Type NoteProperty -Name "session" -Value @{} }
-if (-not $prd.session.retro) {
-    $prd.session | Add-Member -Type NoteProperty -Name "retro" -Value @{
-        active = $true
-        startedAt = [DateTime]::UtcNow.ToString("o")
-        pendingContributions = @("developer", "techartist", "qa")
-        receivedContributions = @()
-    }
-}
-$tempPath = "prd.json.tmp"
-$prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-Move-Item -Path $tempPath -Destination "prd.json" -Force
-
-# Now send messages to workers ONLY...
+# === STEP 2: Send messages to workers ===
+# Write message files to .claude/session/messages/{agent}/
 
 # To Developer (retrospective_initiate)
-Send-AgentMessage -From "pm" -To "developer" -Type "retrospective_initiate" -Payload @{
-    taskId = $currentTask.id
-    taskTitle = $currentTask.title
-    retrospectiveFile = ".claude/session/retrospective.txt"
-} -Priority "normal"
+File: .claude/session/messages/developer/msg-developer-{timestamp}-001.json
+{
+  "id": "msg-developer-{timestamp}-001",
+  "from": "pm",
+  "to": "developer",
+  "type": "retrospective_initiate",
+  "priority": "normal",
+  "payload": {
+    "taskId": "{taskId}",
+    "taskTitle": "{taskTitle}",
+    "retrospectiveFile": ".claude/session/retrospective.txt"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
+}
 
 # To Tech Artist (retrospective_initiate)
-Send-AgentMessage -From "pm" -To "techartist" -Type "retrospective_initiate" -Payload @{
-    taskId = $currentTask.id
-    taskTitle = $currentTask.title
-    retrospectiveFile = ".claude/session/retrospective.txt"
-} -Priority "normal"
+File: .claude/session/messages/techartist/msg-techartist-{timestamp}-001.json
+{
+  "id": "msg-techartist-{timestamp}-001",
+  "from": "pm",
+  "to": "techartist",
+  "type": "retrospective_initiate",
+  "priority": "normal",
+  "payload": {
+    "taskId": "{taskId}",
+    "taskTitle": "{taskTitle}",
+    "retrospectiveFile": ".claude/session/retrospective.txt"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
+}
 
 # To QA (retrospective_initiate)
-Send-AgentMessage -From "pm" -To "qa" -Type "retrospective_initiate" -Payload @{
-    taskId = $currentTask.id
-    taskTitle = $currentTask.title
-    retrospectiveFile = ".claude/session/retrospective.txt"
-} -Priority "normal"
+File: .claude/session/messages/qa/msg-qa-{timestamp}-001.json
+{
+  "id": "msg-qa-{timestamp}-001",
+  "from": "pm",
+  "to": "qa",
+  "type": "retrospective_initiate",
+  "priority": "normal",
+  "payload": {
+    "taskId": "{taskId}",
+    "taskTitle": "{taskTitle}",
+    "retrospectiveFile": ".claude/session/retrospective.txt"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
+}
 
 # === NOTE: Do NOT send any message to Game Designer in this phase ===
 # Game Designer will be invoked in the separate playtest phase
@@ -189,6 +207,11 @@ Send-AgentMessage -From "pm" -To "qa" -Type "retrospective_initiate" -Payload @{
 # === EXIT and wait for workers to respond ===
 # Watchdog will wake you when messages arrive
 ```
+
+**Alternative: Use Glob/Read to check for messages (simplest):**
+- Glob: `.claude/session/messages/pm/msg-*.json` (find your messages)
+- Read each message file to understand content
+- Delete: `rm .claude/session/messages/pm/msg-{id}.json` (after processing)
 
 **Message Flow:**
 
@@ -218,34 +241,21 @@ PM             Developer      TechArtist       QA
 
 **Event-driven flow (NO loops, NO timers, NO blocking):**
 
-```powershell
+```bash
 # After sending retrospective_initiate:
 # 1. EXIT immediately - watchdog monitors file and wakes you when complete
 # 2. On wake-up, all workers should have contributed
 
 # When PM wakes up (watchdog signals all complete):
-. .\\.claude\\scripts\\message-queue.ps1
+# Use Read tool to verify all contributions received
 
-# Load state from prd.json
-$prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
+# Read contribution files directly:
+Read(".claude/session/retrospective-developer.json")
+Read(".claude/session/retrospective-techartist.json")
+Read(".claude/session/retrospective-qa.json")
 
-# Read retrospective file and verify contributions
-$retroFile = ".claude/session/retrospective.txt"
-$retroContent = Get-Content $retroFile -Raw
-
-# Check each agent's section for WAITING marker
-$devContributed = $retroContent -match "### Developer Perspective" -and $retroContent -notmatch "Developer Perspective[\s\S]*?<!-- WAITING"
-$taContributed = $retroContent -match "### Tech Artist Perspective" -and $retroContent -notmatch "Tech Artist Perspective[\s\S]*?<!-- WAITING"
-$qaContributed = $retroContent -match "### QA Perspective" -and $retroContent -notmatch "QA Perspective[\s\S]*?<!-- WAITING"
-
-# Watchdog should only wake PM when all conditions met
-if ($devContributed -and $taContributed -and $qaContributed) {
-    # All complete - proceed to synthesis
-} else {
-    # Shouldn't happen - watchdog ensures completeness before waking
-    # If somehow incomplete, exit and wait for watchdog
-    exit 0
-}
+# If any file missing → EXIT and wait for next wake-up
+# All files present → proceed to synthesis
 ```
 
 **Key principles:**
@@ -269,71 +279,70 @@ if ($devContributed -and $taContributed -and $qaContributed) {
 
 **Step 1: Read all contribution files**
 
-```powershell
-# Read contribution files
-$devRetro = Get-Content ".claude/session/retrospective-developer.json" -Raw | ConvertFrom-Json
-$taRetro = Get-Content ".claude/session/retrospective-techartist.json" -Raw | ConvertFrom-Json
-$qaRetro = Get-Content ".claude/session/retrospective-qa.json" -Raw | ConvertFrom-Json
+```bash
+# Use Read tool to read contribution files
+Read(".claude/session/retrospective-developer.json")
+Read(".claude/session/retrospective-techartist.json")
+Read(".claude/session/retrospective-qa.json")
 ```
 
 **Step 2: Merge into retrospective.txt**
 
-```powershell
-# Build markdown from JSON contributions
-$devSection = @"
-### Developer Perspective
+```markdown
+# Build markdown from JSON contributions and write using Write tool
+# Format each agent's contribution into markdown sections
 
-**Implementation Decisions**:
-$($devRetro.contribution.implementationDecisions | ForEach-Object { "- $_" } | Out-String)
+# Write merged retrospective.txt using Write tool:
+File: .claude/session/retrospective.txt
+# Retrospective: {taskId} - {taskTitle}
 
-**Technical Challenges Faced**:
-$($devRetro.contribution.technicalChallenges | ForEach-Object { "- $_" } | Out-String)
-
-**What Worked Well**:
-$($devRetro.contribution.whatWorkedWell | ForEach-Object { "- $_" } | Out-String)
-
-**Areas for Improvement**:
-$($devRetro.contribution.areasForImprovement | ForEach-Object { "- $_" } | Out-String)
-
-**Lessons Learned**:
-$($devRetro.contribution.lessonsLearned | ForEach-Object { "- $_" } | Out-String)
-
-_**Contributed by**: Developer Agent | $($devRetro.timestamp)_
-"@
-
-# Build similar sections for Tech Artist and QA...
-
-# Write merged retrospective.txt
-$retroContent = @"
-# Retrospective: $($currentTask.id) - $($currentTask.title)
-
-**Started**: $($prd.session.retro.startedAt)
-**Task**: $($currentTask.id)
+**Started**: {timestamp}
+**Task**: {taskId}
 
 ---
 
-$devSection
+### Developer Perspective
 
-$taSection
+**Implementation Decisions**:
+- (from developer contribution)
 
-$qaSection
+**Technical Challenges Faced**:
+- (from developer contribution)
+
+**What Worked Well**:
+- (from developer contribution)
+
+**Areas for Improvement**:
+- (from developer contribution)
+
+**Lessons Learned**:
+- (from developer contribution)
+
+_**Contributed by**: Developer Agent | {timestamp}_
+
+### Tech Artist Perspective
+
+(Similar sections from tech artist contribution)
+
+### QA Perspective
+
+(Similar sections from QA contribution)
 
 ### PM Synthesis
 
 **Summary**:
-- Task accomplished: $($currentTask.title)
+- Task accomplished: {taskTitle}
 - Contributors: Developer, Tech Artist, QA
 - All contributions received via separate files (P1 FIX - no race conditions)
+```
 
-"@
+**Step 3: Clean up contribution files**
 
-# Write merged file
-$retroContent | Out-File -FilePath ".claude/session/retrospective.txt" -Encoding UTF8
-
-# Clean up contribution files
-Remove-Item ".claude/session/retrospective-developer.json" -ErrorAction SilentlyContinue
-Remove-Item ".claude/session/retrospective-techartist.json" -ErrorAction SilentlyContinue
-Remove-Item ".claude/session/retrospective-qa.json" -ErrorAction SilentlyContinue
+```bash
+# Remove contribution files using Bash
+rm .claude/session/retrospective-developer.json 2>/dev/null || true
+rm .claude/session/retrospective-techartist.json 2>/dev/null || true
+rm .claude/session/retrospective-qa.json 2>/dev/null || true
 ```
 
 **Step 3: Add PM synthesis**
@@ -378,38 +387,26 @@ When ALL conditions met, add synthesis covering:
 
 **⚠️ CRITICAL: After synthesis, MUST commit before exiting:**
 
-```powershell
+```bash
 # Commit retrospective synthesis
-$commitMessage = "[ralph] [pm] $($currentTask.id) retrospective: Worker contributions synthesized
+git add .claude/session/retrospective.txt prd.json
+git commit -m "[ralph] [pm] {taskId} retrospective: Worker contributions synthesized
 
 - Synthesized contributions from Developer, Tech Artist, QA
-- Identified $($newTasks.Count) new tasks from findings
+- Identified {count} new tasks from findings
 - Updated risk assessment
 
-PRD: $($currentTask.id) | Agent: pm | Iteration: $($prd.session.iteration)"
-```
-
-```powershell
-# Use Bash tool to commit
-git add ".claude/session/retrospective.txt" "prd.json"
-git commit -m $commitMessage
+PRD: {taskId} | Agent: pm | Iteration: {iteration}"
 ```
 
 Then set status and exit:
 
-```powershell
-# Set status to retrospective_synthesized
-$currentTask.status = "retrospective_synthesized"
-Update-CurrentTask -Task $currentTask
-
-# Clear retrospective batching state
-$prd.session.PSObject.Properties.Remove("retro")
-$tempPath = "prd.json.tmp"
-$prd | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempPath -Encoding UTF8
-Move-Item -Path $tempPath -Destination "prd.json" -Force
+```bash
+# Use Edit tool to update prd.json:
+# 1. Set currentTask.status = "retrospective_synthesized"
+# 2. Clear prd.json.session.retro section
 
 # Exit for context reset
-exit 0
 ```
 
 ## Anti-Patterns

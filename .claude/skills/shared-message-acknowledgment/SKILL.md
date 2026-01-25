@@ -9,6 +9,9 @@ keywords: [ack, acknowledgment, message, confirmation, delivery, protocol]
 
 > "Always acknowledge received messages - PM needs confirmation you got them."
 
+**IMPORTANT FOR EVENT-DRIVEN MODE:**
+The message queue is PRE-LOADED by the agent runner script. All examples below that show sourcing `message-queue.ps1` can be skipped - the functions are already available.
+
 ## When to Use This Skill
 
 Use this EVERY TIME you receive a message from PM. **Acknowledgment is MANDATORY for all message types.**
@@ -26,37 +29,30 @@ Without acknowledgment:
 
 **CRITICAL**: Send acknowledgment IMMEDIATELY after reading the message, BEFORE processing it.
 
-```powershell
-. .\.claude\scripts\message-queue.ps1
+**NOTE: In EVENT-DRIVEN mode, the message queue is PRE-LOADED. Skip sourcing the script.**
 
-# Messages are in: .claude/session/messages/{agent}/
-# Format: msg-{agent}-{yyyyMMdd-HHmmss}-{seq}.json
-$messageDir = ".claude/session/messages/{agent}"
-if (Test-Path $messageDir) {
-    $messageFiles = Get-ChildItem $messageDir -Filter "msg-{agent}-*.json" | Sort-Object Name
-    foreach ($file in $messageFiles) {
-        $msg = Get-Content $file.FullName -Raw | ConvertFrom-Json
+**Recommended: Use Glob/Read tools (simplest):**
+```
+1. Glob: .claude/session/messages/{agent}/msg-*.json
+2. For EACH message file:
+   a. Read the file
+   b. Send acknowledgment using pq-send
+   c. Process the message
+   d. Delete the file: rm .claude/session/messages/{agent}/msg-{id}.json
+```
 
-        # STEP 1: ACKNOWLEDGE FIRST (before any processing)
-        Send-AgentMessage -From "{agent}" -To "pm" -Type "message_ack" -Payload @{
-            originalMessageId = $msg.id
-            originalMessageType = $msg.type
-            acknowledgedAt = (Get-Date).ToUniversalTime().ToString("o")
-            status = "received"
-        } -Priority "normal"
+**Using pq-* helpers:**
+```bash
+source ./.claude/scripts/pwsh-helper.sh
 
-        # STEP 2: THEN process the message
-        switch ($msg.type) {
-            "task_assign" { # ... handle assignment }
-            "test_plan_request" { # ... provide test plan }
-            "retrospective_initiate" { # ... contribute to retrospective }
-            # ... other message types
-        }
+# Get messages
+pq-get {agent}
 
-        # STEP 3: Remove after processing
-        Remove-AgentMessage -Agent "{agent}" -MessageId $msg.id
-    }
-}
+# Send acknowledgment
+pq-send {agent} pm message_ack '{"originalMessageId":"msg-id","originalMessageType":"task_assign","acknowledgedAt":"2026-01-25T00:00:00Z","status":"received"}'
+
+# Remove after processing
+pq-remove {agent} msg-id
 ```
 
 ## Acknowledgment Message Format
@@ -77,7 +73,8 @@ if (Test-Path $messageDir) {
 ### Developer Agent
 
 ```powershell
-# . .\.claude\scripts\message-queue.ps1
+# From Bash: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ". '.\.claude\scripts\message-queue.ps1'"
+# From PowerShell: . .\.claude\scripts\message-queue.ps1
 
 # Messages are in: .claude/session/messages/developer/
 # Format: msg-developer-{yyyyMMdd-HHmmss}-{seq}.json
@@ -133,7 +130,8 @@ if (Test-Path $messageDir) {
 ### QA Agent
 
 ```powershell
-# . .\.claude\scripts\message-queue.ps1
+# From Bash: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ". '.\.claude\scripts\message-queue.ps1'"
+# From PowerShell: . .\.claude\scripts\message-queue.ps1
 
 # Messages are in: .claude/session/messages/qa/
 # Format: msg-qa-{yyyyMMdd-HHmmss}-{seq}.json
@@ -187,7 +185,8 @@ if (Test-Path $messageDir) {
 ### Game Designer Agent
 
 ```powershell
-# . .\.claude\scripts\message-queue.ps1
+# From Bash: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ". '.\.claude\scripts\message-queue.ps1'"
+# From PowerShell: . .\.claude\scripts\message-queue.ps1
 
 # Messages are in: .claude/session/messages/gamedesigner/
 # Format: msg-gamedesigner-{yyyyMMdd-HHmmss}-{seq}.json
