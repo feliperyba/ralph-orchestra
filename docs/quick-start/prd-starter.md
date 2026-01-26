@@ -4,7 +4,7 @@ The PRD Starter is an interactive setup wizard that generates custom agents, ski
 
 ## Overview
 
-PRD Starter guides you through an 8-phase workflow to create a complete Ralph Orchestra setup tailored to your specific needs:
+PRD Starter guides you through a 13-phase workflow to create a complete Ralph Orchestra setup tailored to your specific needs:
 
 - **Project-Agnostic** - Works with web apps, games, mobile, backend, data, DevOps, or custom projects
 - **Custom Agents** - Define N agents with any roles, skills, and permissions
@@ -24,81 +24,118 @@ Or use the skill directly:
 /skill ralph-prd-starter
 ```
 
-## 8-Phase Workflow
+## 13-Phase Workflow
 
-### Phase 1: Project Identification
+### Phase 1: Entry Point Selection
 
-Define your project's basic information:
+Choose your configuration mode:
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| Project Type | Application category | Web Application, Game Development, Backend API |
+| Option | Description | Best For |
+|--------|-------------|----------|
+| ⚡ **Quick Start** | Choose a named preset and customize project name | First-time users, common scenarios |
+| 🎯 **Standard Mode** | Guided questions with AI recommendations | Most users, balanced approach |
+| 🔧 **Expert Mode** | Full control over every configuration | Advanced users, custom needs |
+
+**Based on selection:**
+- **Quick Start** → Skip to Phase 2 (Named Presets)
+- **Standard/Expert** → Skip to Phase 3 (Project Deep Dive)
+
+### Phase 2: Named Presets (Quick Start Only)
+
+Choose from 14 preset configurations organized by category:
+
+**🎮 Game Development Presets:**
+- **Indie Game Dev** - Solo/small team 3D games with R3F
+- **Game Studio** - Professional game studio with multiplayer
+- **Mobile Game** - iOS/Android games with performance focus
+- **Multiplayer Arena** - Server-authoritative multiplayer games
+
+**🌐 Web Application Presets:**
+- **Modern Web App** - React/Vue/Svelte single-page apps
+- **Full Stack SaaS** - Complete web applications with backend
+- **Dashboard/Analytics** - Data-heavy applications with charts
+- **Content Platform** - Blogs, docs, content sites
+
+**🏢 Business & Commerce Presets:**
+- **E-Commerce Store** - Online stores with checkout flow
+- **SaaS Product** - Subscription-based products
+- **Enterprise Suite** - Large-scale business applications
+
+**🔧 Technical Presets:**
+- **API Server** - Node.js/Python/Go API services
+- **Data/ML Pipeline** - ML models and data processing
+- **DevOps/Infrastructure** - CI/CD, deployment, automation
+- **Custom** - Build your own from scratch
+
+After preset selection, the wizard asks for project name, then skips to Phase 8 (Initial Features).
+
+### Phase 3: Project Deep Dive (Standard/Expert)
+
+Answer questions about your project:
+
+| Question | Description | Example |
+|----------|-------------|---------|
 | Project Name | Human-readable name | "My E-Commerce Site" |
-| Project ID | Machine-readable identifier | `my-ecommerce-site` |
-| Description | Brief project summary | "A modern e-commerce platform with real-time inventory" |
+| One-Line Summary | Brief project description | "A modern e-commerce platform with real-time inventory" |
+| Project Category | Application category | Web Application, Game Development, Backend API |
+| Technology Stack | Primary technologies | React, TypeScript, Node.js |
+| Team Size | Team composition | Solo, Small Team (2-5), Medium (6-20), Enterprise (20+) |
+| Project Scale | Project scope | Prototype/MVP, Startup Product, Production System |
+| Success Factors | Multi-select priorities | Speed to market, Code quality, Visual excellence, etc. |
 
-### Phase 2: Agent Configuration
+### Phase 4: Agent Configuration (Standard/Expert)
 
-Define your custom agents:
+Configure custom agents using a dynamic creation loop. The wizard launches the `pm-agent-creator` sub-agent to guide you through:
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| Agent Name | Human-readable name | "Frontend Developer" |
-| Agent ID | Machine-readable identifier | `frontend-dev` |
-| Role | Primary responsibility | "Implements React components and state management" |
-| Skills | List of skill IDs | `react-hooks`, `typescript-patterns`, `vitest-testing` |
-| MCP Servers | Available MCP servers | `github`, `filesystem`, `web-search` |
+1. **Agent Definition** - Name, type, primary responsibility
+2. **Skills Configuration** - Select existing skills or create new ones
+3. **Sub-Agents Configuration** - Choose sub-agents for delegation
+4. **Workflow Configuration** - Define states, transitions, and message handling
+5. **File Generation** - Generate AGENT.md with `pm-agent-file-generator`
 
-You can define any number of agents with custom roles and permissions.
+**Options:**
+- **Use Standard Preset** - Quick configure all 5 standard agents (PM, Developer, Tech Artist, QA, Game Designer)
+- **Custom Configuration** - Create agents individually with full control
+- **Skip for Now** - Use default agents, configure later
 
-### Phase 3: Workflow Pattern
+### Phase 5: Orchestration Configuration (Standard/Expert)
 
-Choose how agents collaborate:
+Configure how agents coordinate:
 
-| Pattern | Description | Best For |
-|---------|-------------|----------|
-| **Waterfall** | Sequential handoffs | Clear dependencies, smaller teams |
-| **Collaborative** | Parallel with messaging | Independent workstreams, faster delivery |
-| **Autonomous** | Self-coordinating | Mature teams, well-defined boundaries |
+| Setting | Options |
+|---------|---------|
+| Orchestration Mode | Event-Driven, Sequential, Polling, HITL |
+| Max Iterations | Default: 200 |
+| Context Reset Behavior | Auto-reset at 70%, 80%, or Manual only |
 
-### Phase 4: Orchestration Mode
+### Phase 6: MCP Server Configuration (Expert Only)
 
-Select the coordination mechanism:
+For each enabled agent, confirm which MCP servers to enable:
 
-| Mode | Description | Token Efficiency | Parallelism |
-|------|-------------|------------------|-------------|
-| **Event-Driven** | Named pipes + message queues | Medium | Full |
-| **Sequential** | Handoff-based | High | None |
-| **HITL** | Human-in-the-loop | Standard | Single |
+| Agent | Available MCP Servers |
+|-------|----------------------|
+| **PM** | github, filesystem, web-search, brave-search |
+| **Developer** | github, filesystem, web-search, brave-search |
+| **Tech Artist** | playwright, vision, blender, shadertoy, image-process, filesystem, github |
+| **QA** | playwright, vision, filesystem, github |
+| **Game Designer** | playwright, vision, filesystem, github, web-search |
 
-### Phase 5: Technology Stack
+### Phase 7: Quality Standards (Standard/Expert)
 
-Define your project's technologies:
-
-| Category | Options |
-|----------|---------|
-| Frontend | React, Vue, Svelte, Angular, None |
-| Backend | Node.js, Python, Go, Rust, None |
-| Database | PostgreSQL, MongoDB, MySQL, Redis, None |
-| Build Tools | Vite, Webpack, esbuild, None |
-| Testing | Vitest, Jest, Playwright, Cypress, None |
-
-### Phase 6: Quality Standards
-
-Set quality gates:
+Set quality gates for generated code:
 
 | Standard | Options |
 |----------|---------|
-| TypeScript Mode | Strict, Moderate, Loose, None |
-| Test Coverage Target | 80%, 60%, 40%, None |
-| Linting | ESLint, Prettier, Both, None |
-| CI/CD | GitHub Actions, GitLab CI, None |
+| TypeScript Strictness | Strict, Standard, Loose, None |
+| Test Coverage Target | 95%, 80%, 60%, None |
+| Lint Rules | ESLint Recommended, Custom, None |
+| Commit Convention | [ralph] format, Conventional, Custom |
+| CI/CD Integration | GitHub Actions, GitLab CI, None |
+| Additional Quality Gates | Multi-select from available options |
 
-### Phase 7: Initial Features
+### Phase 8: Initial Features (All Modes)
 
-Define your starting feature set:
-
-For each feature:
+Describe your starting features in natural language. The wizard parses your input into structured PRD items with:
 - **Title** - Human-readable name
 - **Description** - What the feature does
 - **Acceptance Criteria** - Pass/fail conditions
@@ -107,34 +144,38 @@ For each feature:
 
 ### Phase 8b: Deep Research (All Modes)
 
-The wizard launches the `pm-research-specialist` sub-agent to:
+The wizard launches the `pm-research-specialist` sub-agent to perform deep domain research:
 
 1. **Research similar projects** - Find and analyze similar projects on GitHub
 2. **Identify best practices** - Tech stack specific recommendations
-3. **Generate clarifying questions** - 5-10 targeted questions based on research gaps
-4. **Present findings** - User reviews research and answers questions
+3. **Discover common pitfalls** - Known challenges and how to avoid them
+4. **Generate clarifying questions** - 5-10 targeted questions based on research gaps
+5. **Present findings** - User reviews research and answers questions
 
-**User Review Gate:** User can request more research or modify questions before continuing.
+**User Review Gate:** User can request more research, modify questions, or continue.
+
+**Output:** Research data saved to state file, questions and answers collected.
 
 ### Phase 8c: GDD Creation (Game Projects Only)
 
-For game development projects, the wizard launches the `gamedesigner-thermite-facilitator` to:
+For game development projects, the wizard launches the `gamedesigner-thermite-facilitator` to run a Thermite Design Session:
 
 1. **Run Thermite Design Session** - Boardroom Retreat with expert personas
 2. **Create design decisions** - DEC-NNN format with rationale
 3. **Document open questions** - OQ-NNN format with priority
 4. **Establish design pillars** - Core design principles
+5. **Define core mechanics** - Key gameplay systems
 
 **Output files:**
 - `docs/design/decision_log.md` - All design decisions
 - `docs/design/open_questions.md` - Unresolved questions
 - `docs/design/gdd.md` - GDD summary
 
-**User Review Gate:** User can request additional Thermite sessions or modify GDD.
+**User Review Gate:** User can request additional Thermite sessions, modify GDD, or continue.
 
 ### Phase 8d: PRD Creation (All Modes)
 
-The wizard launches the `pm-prd-creator` agent to:
+The wizard launches the `pm-prd-creator` agent to create the final prd.json:
 
 1. **Load all inputs** - Research data, GDD (if game), user answers, initial features
 2. **Apply PM expertise** - Use task selection and organization skills
@@ -145,16 +186,48 @@ The wizard launches the `pm-prd-creator` agent to:
 
 **User Review Gate:** User can approve, request modifications, or request new research.
 
-### Phase 9: Review and Confirm
+**Output:** `prd.json` file created with properly structured PRD items.
 
-Review all selections and confirm generation. The wizard will display:
+### Phase 8e: Project Location Selection (All Modes)
 
-- Project summary
-- Agent list with roles
-- Feature breakdown by agent
-- Technology stack summary
+Before generating files, specify where to create the project:
 
-Confirm to generate all files, or go back to adjust.
+| Option | Description |
+|--------|-------------|
+| 📁 **Subdirectory (Recommended)** | Create a folder with project name in ralph-orchestra |
+| 📍 **Custom Path** | Specify a custom location for the project |
+| 🔄 **Current Directory** | Generate in the current directory (not recommended) |
+
+**Default:** Subdirectory mode creates the project at `{ralph-orchestra-root}/{project-name}/`.
+
+**Output:** Project location saved to state file.
+
+### Phase 9: Review and Generate
+
+Review the complete configuration summary:
+
+```
+══════════════════════════════════════════════════════════════
+                    RALPH ORCHESTRA SETUP
+══════════════════════════════════════════════════════════════
+
+📁 PROJECT: {projectName}
+📋 TYPE: {projectCategory} ({techStack})
+👥 TEAM: {teamSize}
+🎯 MODE: {orchestrationMode}
+
+───────────────────────────────────────────────────────────────
+AGENTS ({count})
+───────────────────────────────────────────────────────────────
+  {agent summaries}
+
+───────────────────────────────────────────────────────────────
+FEATURES ({count})
+───────────────────────────────────────────────────────────────
+  {feature summaries}
+```
+
+**Confirm to generate** all files, or go back to adjust.
 
 ## Generated Files
 
@@ -325,60 +398,71 @@ pip install -r .claude/scripts/prd-starter-requirements.txt
 
 ## Examples
 
-### Web Application Setup
+### Web Application Setup (Quick Start Mode)
 
 ```
-Phase 1: Web Application → React, TypeScript
-Phase 2: Frontend Developer (React + TS), QA (Playwright)
-Phase 3: Collaborative workflow
-Phase 4: Event-driven orchestration
-Phase 5: Vite, Vitest, ESLint
-Phase 6: TypeScript strict, 80% coverage
-Phase 7: Auth feature, Dashboard feature
-Phase 8: Generate
+Phase 1: Quick Start mode selected
+Phase 2: Modern Web App preset chosen
+Phase 8: Auth feature, Dashboard feature
+Phase 8b: Deep Research (web app best practices)
+Phase 8d: PRD Creation
+Phase 8e: Subdirectory location
+Phase 9: Review and Generate
 ```
 
 **Generated:**
-- `agents/frontend-dev/AGENT.md` - React/TypeScript specialist
+- `agents/pm/AGENT.md` - Coordinator agent
+- `agents/developer/AGENT.md` - React/TypeScript specialist
 - `agents/qa/AGENT.md` - Playwright testing specialist
-- `.claude/settings.frontend-dev.json` - MCP config with GitHub, filesystem
-- `.claude/settings.qa.json` - MCP config with Playwright, filesystem
+- `.claude/settings.{agent}.json` - MCP configs for each agent
 - `prd.json` - Initial feature backlog
 
-### Game Development Setup
+### Game Development Setup (Standard Mode)
 
 ```
-Phase 1: Game Development → Three.js, React Three Fiber
-Phase 2: Game Developer (R3F), Tech Artist (shaders), QA (E2E)
-Phase 3: Collaborative workflow
-Phase 4: Event-driven orchestration
-Phase 5: Vite, Playwright
-Phase 6: TypeScript strict, 80% coverage
-Phase 7: Player controller, Physics, UI overlay
-Phase 8: Generate
+Phase 1: Standard mode selected
+Phase 3: Game Development category, R3F tech stack
+Phase 4: Developer, Tech Artist, QA agents configured
+Phase 5: Event-driven orchestration
+Phase 7: TypeScript strict, 80% coverage
+Phase 8: Player controller, Physics, UI overlay
+Phase 8b: Deep Research (game dev patterns)
+Phase 8c: GDD Creation (Thermite session)
+Phase 8d: PRD Creation
+Phase 8e: Subdirectory location
+Phase 9: Review and Generate
 ```
 
 **Generated:**
-- `agents/game-dev/AGENT.md` - R3F game mechanics
-- `agents/tech-artist/AGENT.md` - Shader and VFX creation
+- `agents/pm/AGENT.md` - Coordinator agent
+- `agents/developer/AGENT.md` - R3F game mechanics
+- `agents/techartist/AGENT.md` - Shader and VFX creation
 - `agents/qa/AGENT.md` - E2E gameplay testing
+- `agents/gamedesigner/AGENT.md` - Design and GDD
 - `prd.json` - Game feature backlog
+- `docs/design/decision_log.md` - Design decisions
+- `docs/design/open_questions.md` - Open questions
+- `docs/design/gdd.md` - GDD summary
 
-### Backend API Setup
+### Backend API Setup (Expert Mode)
 
 ```
-Phase 1: Backend API → Node.js, Express
-Phase 2: Backend Developer (Node.js), QA (integration tests)
-Phase 3: Waterfall workflow
-Phase 4: Sequential orchestration
-Phase 5: Jest, Supertest
-Phase 6: TypeScript strict, 80% coverage
-Phase 7: Auth endpoints, User CRUD, WebSocket support
-Phase 8: Generate
+Phase 1: Expert mode selected
+Phase 3: Backend API category, Node.js/Express stack
+Phase 4: Backend Developer, QA agents configured
+Phase 5: Sequential orchestration
+Phase 6: MCP servers confirmed
+Phase 7: TypeScript strict, 80% coverage, custom lint rules
+Phase 8: Auth endpoints, User CRUD, WebSocket support
+Phase 8b: Deep Research (backend best practices)
+Phase 8d: PRD Creation
+Phase 8e: Custom path location
+Phase 9: Review and Generate
 ```
 
 **Generated:**
-- `agents/backend-dev/AGENT.md` - Node.js/Express API development
+- `agents/pm/AGENT.md` - Coordinator agent
+- `agents/developer/AGENT.md` - Node.js/Express API development
 - `agents/qa/AGENT.md` - Integration testing
 - `prd.json` - API endpoint backlog
 
