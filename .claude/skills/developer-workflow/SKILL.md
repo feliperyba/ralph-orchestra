@@ -280,3 +280,5 @@ Skill("dev-r3f-r3f-materials")     # Custom shaders
 | `shared-worker-retrospective`      | Retrospective contribution |
 | `shared-context-management`        | Context reset              |
 | `dev-router`                       | Complete skill catalog     |
+| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure docs |
+| `.claude/protocols/event-driven.md`    | 🆕 V2 event-driven protocol |

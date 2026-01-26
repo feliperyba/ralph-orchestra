@@ -339,3 +339,17 @@ When `Retrospective` message received from PM:
 3. DELETE all task memory files
 4. UPDATE status in prd.json
 5. SEND `Retrospective` message back to PM with your contribution
+
+---
+
+## References
+
+| Resource | Purpose |
+|----------|---------|
+| `shared-ralph-core` | Session structure, status values |
+| `shared-ralph-event-protocol` | V2 event-driven messaging |
+| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure: Event Sourcing, Actor Model, CQRS |
+| `.claude/protocols/event-driven.md` | 🆕 V2 event-driven protocol details |
+| `ta-router` | Complete Tech Artist skill catalog |
+
+---

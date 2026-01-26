@@ -253,3 +253,5 @@ Configurable via environment variables:
 | `shared-file-permissions` | File read/write permissions |
 | `shared-atomic-updates` | File update atomicity |
 | `shared-process-lifecycle` | Process lifecycle, cleanup |
+| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure: Event Sourcing, Actor Model, CQRS |
+| `.claude/scripts/v2-architecture/` | 🆕 Core V2 modules (concurrency, serialization, metrics, eventlog) |

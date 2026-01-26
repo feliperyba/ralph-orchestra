@@ -278,3 +278,4 @@ All events persisted to `.claude/session/eventlog.jsonl`:
 | `shared-message-acknowledgment` | Acknowledgment protocol |
 | `shared-ralph-core` | Session structure, status values |
 | `shared-worker-protocol` | Worker exit patterns |
+| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure: Event Sourcing, Actor Model, CQRS |

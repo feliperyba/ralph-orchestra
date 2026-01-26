@@ -1,6 +1,6 @@
 ---
 name: ralph-worker-event
-description: Worker (Developer/QA) in event-driven multi-agent mode
+description: Worker (Developer/QA/TechArtist/GameDesigner) in event-driven multi-agent mode
 arguments:
   agent: developer qa techartist gamedesigner
 allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Bash Command, Computer, mcp__gitkraken
@@ -9,30 +9,94 @@ allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Ba
 # EVENT-DRIVEN MODE - $arguments.agent Worker
 
 You are the **$arguments.agent** in **EVENT-DRIVEN MULTI-AGENT** mode.
-All agents run in parallel. You communicate via message queue.
+All agents run in parallel. You communicate via named pipes with a PowerShell bridge.
 
-**KEY BEHAVIOR: Watchdog delivers messages by restarting you with context.**
+**KEY BEHAVIOR: The PowerShell bridge invokes you for each message.**
 
 ---
 
-## FIRST: Load your AGENT.md file and understand your role and workflow.
+## How You Are Invoked
 
-## SECOND: Load your workflow skill - `Skill("{agent}-workflow")` - to see all available capabilities.
+1. **PowerShell bridge** connects to watchdog pipe `ralph-$arguments.agent-main` and stays alive
+2. **When a message arrives**, bridge saves it to `.claude/session/agents/$arguments.agent/pending-message.json`
+3. **Bridge invokes CLI** with `/ralph-worker-event --agent $arguments.agent` command
+4. **You process the message** (read pending-message.json for context)
+5. **You write response** to `.claude/session/agents/$arguments.agent/response.json`
+6. **Bridge reads response** and sends it through the pipe
 
-## THIRD: Use your skills and sub-agents to research about the task. Check the GDD and internet to find solutions for the problems before acting on them. Spawn parallel sub-agents using the built-in tool Task()
+---
 
-## FORTH: When working with Code Tasks, MUST use the Skill() `worker-worktree`
+## FIRST: Check for Pending Message
 
-## FIFTH: Always update the PRD and send the status update message to the watchdog queue before exit
+**CRITICAL STARTUP: Always check for pending-message.json FIRST:**
 
-## SIXTH: Check for Pending Messages
+```powershell
+$pendingMessage = ".claude\session\agents\$arguments.agent\pending-message.json"
+if (Test-Path $pendingMessage) {
+    $message = Get-Content $pendingMessage | ConvertFrom-Json
+    Write-Host "[$arguments.agent] Received message: $($message.type) from $($message.from)" -ForegroundColor Cyan
+    # Process this message before doing anything else
+}
+```
 
-The watchdog delivers messages by restarting you with a context file.
-**Always check this file first on startup:**
+---
 
-- If you get "No pending messages", double check if you can still find .json files in your inbox. If so, keep the cycle normally and react to them.
-- If you have more than 1 message on the pending queue, always solve all of them together, checking if they are still valid or stale. Delete all messages after that.
-- If messages exist, process them according to their type before doing anything else.
+## SECOND: Load your AGENT.md file and understand your role and workflow.
+
+## THIRD: Load your workflow skill - `Skill("{agent}-workflow")` - to see all available capabilities.
+
+## FOURTH: Use your skills and sub-agents to research about the task. Check the GDD and internet to find solutions for the problems before acting on them. Spawn parallel sub-agents using the built-in tool Task()
+
+## FIFTH: When working with Code Tasks, MUST use the Skill() `worker-worktree`
+
+## SIXTH: Always update the PRD and send the status update message before exit
+
+---
+
+## Message Protocol
+
+### Receiving Messages
+
+Messages are delivered via `.claude/session/agents/$arguments.agent/pending-message.json`:
+
+```json
+{
+  "id": "msg-20250126-120000-001",
+  "from": "pm",
+  "to": "$arguments.agent",
+  "type": "WorkAssign",
+  "payload": {
+    "taskId": "feat-001",
+    "title": "Task title",
+    "description": "Task description",
+    "acceptanceCriteria": ["Criteria 1", "Criteria 2"]
+  },
+  "timestamp": "2026-01-26T12:00:00Z"
+}
+```
+
+### Sending Responses
+
+Write your response to `.claude/session/agents/$arguments.agent/response.json`:
+
+```powershell
+$response = @{
+    id = "msg-20250126-120001-001"
+    from = "$arguments.agent"
+    to = "pm"
+    type = "WorkComplete"
+    payload = @{
+        taskId = "feat-001"
+        result = "success"
+        notes = "Task completed successfully"
+    }
+    timestamp = [DateTime]::UtcNow.ToString("o")
+    inReplyTo = $message.id
+}
+$response | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude\session\agents\$arguments.agent\response.json" -Encoding utf8
+```
+
+---
 
 ## Context Window Monitoring (For Big Tasks)
 

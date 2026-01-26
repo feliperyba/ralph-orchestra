@@ -42,13 +42,14 @@ Welcome to the Ralph Orchestra documentation. Start with the **Quick Start** gui
 | Document | Description |
 |----------|-------------|
 | **[PowerShell Guide](./powershell/README.md)** | PowerShell documentation index |
+| **[V2 Architecture](./powershell/v2-architecture.md)** | ⭐ NEW: Event Sourcing, Actor Model, CQRS |
 | **[PowerShell Architecture](./powershell/powershell-architecture.md)** | Core orchestration architecture overview |
 | **[Event-Driven Mode](./powershell/powershell-event-mode.md)** | Event-driven parallel mode deep dive |
 | **[Sequential Mode](./powershell/powershell-sequential-mode.md)** | Sequential handoff mode deep dive |
 | **[Message System](./powershell/powershell-messaging.md)** | V2 messaging: event sourcing, named pipes |
 | **[Configuration Reference](./powershell/powershell-configuration.md)** | Environment variables and settings |
 | **[Testing Guide](./powershell/powershell-testing.md)** | Test scripts and troubleshooting |
-| **[Scripts README](../.claude/scripts/README.md)** | Quick script reference |
+| **[Scripts README](../.claude/scripts/README.md)** | Quick script reference with V2 modules |
 
 ## Best Practices
 

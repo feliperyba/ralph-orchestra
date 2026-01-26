@@ -21,8 +21,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Determine project root
+# Script is at: .claude/scripts/watchdog/watchdog-event-v2.ps1
+# PSScriptRoot = .claude/scripts/watchdog
+# Project root is: (script dir) -> .. (scripts/) -> .. (.claude/) -> .. (project root) = 3 levels up
 if (-not $ProjectRoot) {
-    $ProjectRoot = (Get-Item $PSScriptRoot).Parent.Parent.FullName
+    $ProjectRoot = (Get-Item $PSScriptRoot).Parent.Parent.Parent.FullName
 }
 
 # Source configuration
@@ -230,6 +233,30 @@ function Process-MessageFromAgent {
             }
         }
 
+        "CLIInvoke" {
+            # Broker requesting CLI invocation
+            Write-WatchdogLog "CLI invoke request from $FromAgent" -Color Yellow
+
+            $agentName = $Message.payload.agentName
+            $messageFile = $Message.payload.messageFile
+            $responseFile = $Message.payload.responseFile
+
+            # Spawn CLI process
+            $invokeId = $Script:Supervisor.SpawnCLIProcess($agentName, $messageFile, $responseFile)
+
+            if (-not $invokeId) {
+                # Send immediate failure response if spawn failed
+                $errorMsg = New-CLICompleteMessage -To $FromAgent -AgentName $agentName -Success $false -ExitCode -1 -Error "Failed to spawn CLI process"
+                Send-MessageToAgent -AgentName $FromAgent -Message $errorMsg
+            }
+        }
+
+        "CLIComplete" {
+            # CLI completed notification - already handled by supervisor's SuperviseCLIProcesses
+            # This is just for logging
+            Write-Host "[WATCHDOG] CLI complete: $($Message.payload.agentName) - success: $($Message.payload.success)" -ForegroundColor DarkGray
+        }
+
         default {
             Write-Warning "[WATCHDOG] Unknown message type: $msgType from $FromAgent"
         }
@@ -237,57 +264,134 @@ function Process-MessageFromAgent {
 }
 
 # ============================================================================
-# DASHBOARD
+# DASHBOARD - Row-based rendering for flicker-free updates
 # ============================================================================
+
+# Track previous dashboard content for diffing
+$Script:DashboardLines = $null
+$Script:DashboardColors = $null
+$Script:DashboardInitialized = $false
 
 function Show-WatchdogDashboard {
     <#
     .SYNOPSIS
-    Display the watchdog dashboard with agent status.
+    Display the watchdog dashboard using selective row updates.
+    Only updates rows that have changed - no full redraws.
     #>
     param(
         [int]$Iteration,
         [int]$MaxIterations
     )
 
-    Clear-Host
+    $rawUI = $Host.UI.RawUI
+
+    # Calculate uptime
+    $uptime = ([DateTime]::UtcNow - $Script:WatchdogStartTime).ToString('hh\:mm\:ss')
+
+    # Build dashboard lines
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    $newColors = [System.Collections.Generic.List[ConsoleColor]]::new()
 
     # Header
-    Write-Host "=== RALPH WATCHDOG V2 ===" -ForegroundColor Cyan
-    Write-Host "Iteration: $Iteration / $MaxIterations" -ForegroundColor Cyan
-    Write-Host "Uptime: $(([DateTime]::UtcNow - $Script:WatchdogStartTime).ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-    Write-Host ""
+    $newLines.Add("=== RALPH WATCHDOG V2 ===")
+    $newColors.Add([ConsoleColor]::Cyan)
+    $newLines.Add("Iteration: $Iteration / $MaxIterations")
+    $newColors.Add([ConsoleColor]::Cyan)
+    $newLines.Add("Uptime: $uptime")
+    $newColors.Add([ConsoleColor]::Cyan)
+    $newLines.Add("")
+    $newColors.Add([ConsoleColor]::White)
 
     # Supervisor status
     if ($Script:Supervisor) {
-        Write-Host "--- SUPERVISOR ---" -ForegroundColor Green
-        Write-Host "Total Restarts: $($Script:Supervisor.TotalRestarts)" -ForegroundColor White
-        Write-Host ""
+        $newLines.Add("--- SUPERVISOR ---")
+        $newColors.Add([ConsoleColor]::Green)
+        $newLines.Add("Total Restarts: $($Script:Supervisor.TotalRestarts)")
+        $newColors.Add([ConsoleColor]::White)
+        $newLines.Add("")
+        $newColors.Add([ConsoleColor]::White)
 
         # Agent status
-        Write-Host "--- AGENTS ---" -ForegroundColor Green
+        $newLines.Add("--- AGENTS ---")
+        $newColors.Add([ConsoleColor]::Green)
         $status = $Script:Supervisor.GetStatus()
         foreach ($agentName in $status.Keys) {
             $agent = $status[$agentName]
-
-            $statusColor = if ($agent.hasExited) { "Red" } else { "Green" }
-            $workColor = "White"
-
-            Write-Host "[$agentName]" -ForegroundColor $statusColor -NoNewline
-            Write-Host " PID: $($agent.pid)" -ForegroundColor DarkGray -NoNewline
-            Write-Host " Restarts: $($agent.restartCount)" -ForegroundColor DarkGray
+            $statusColor = if ($agent.hasExited) { [ConsoleColor]::Red } else { [ConsoleColor]::Green }
+            $newLines.Add("[$agentName] PID: $($agent.pid)  Restarts: $($agent.restartCount)")
+            $newColors.Add($statusColor)
         }
     }
 
-    Write-Host ""
+    $newLines.Add("")
+    $newColors.Add([ConsoleColor]::White)
 
-    # Activity log
-    Write-Host "--- ACTIVITY ---" -ForegroundColor Green
-    foreach ($logEntry in $Script:ActivityLog) {
-        Write-Host $logEntry
+    # Activity log (last 5 entries)
+    $newLines.Add("--- ACTIVITY ---")
+    $newColors.Add([ConsoleColor]::Green)
+    $recentActivity = $Script:ActivityLog | Select-Object -Last 5
+    foreach ($logEntry in $recentActivity) {
+        $newLines.Add($logEntry)
+        $newColors.Add([ConsoleColor]::White)
     }
 
-    Write-Host ""
+    $newLines.Add("")
+    $newColors.Add([ConsoleColor]::White)
+    $newLines.Add("Press Ctrl+C to shutdown")
+    $newColors.Add([ConsoleColor]::DarkGray)
+
+    # First time initialization
+    if (-not $Script:DashboardInitialized) {
+        Clear-Host
+        $Script:DashboardInitialized = $true
+        for ($i = 0; $i -lt $newLines.Count; $i++) {
+            Write-Host $newLines[$i] -ForegroundColor $newColors[$i] -NoNewline
+            Write-Host ""
+        }
+        $Script:DashboardLines = [string[]]$newLines
+        $Script:DashboardColors = [ConsoleColor[]]$newColors
+        return
+    }
+
+    # Compare with previous and only update changed rows
+    $origPos = $rawUI.CursorPosition
+    $maxLines = [Math]::Max($newLines.Count, $Script:DashboardLines.Count)
+
+    for ($i = 0; $i -lt $maxLines; $i++) {
+        # Check if this row changed
+        $lineChanged = $false
+        if ($i -ge $newLines.Count) {
+            # Row was removed - need to clear it
+            $lineChanged = $true
+        } elseif ($i -ge $Script:DashboardLines.Count) {
+            # New row - need to write it
+            $lineChanged = $true
+        } elseif ($newLines[$i] -ne $Script:DashboardLines[$i] -or $newColors[$i] -ne $Script:DashboardColors[$i]) {
+            # Content or color changed
+            $lineChanged = $true
+        }
+
+        if ($lineChanged) {
+            # Move cursor to this row
+            $rawUI.CursorPosition = @{ X = 0; Y = $i }
+
+            if ($i -lt $newLines.Count) {
+                # Write new content
+                Write-Host $newLines[$i] -ForegroundColor $newColors[$i] -NoNewline
+            }
+
+            # Clear to end of line
+            $bufferWidth = $rawUI.BufferSize.Width
+            $currentLen = if ($i -lt $newLines.Count) { $newLines[$i].Length } else { 0 }
+            if ($currentLen -lt $bufferWidth) {
+                Write-Host (" " * ($bufferWidth - $currentLen)) -NoNewline
+            }
+        }
+    }
+
+    # Store current state
+    $Script:DashboardLines = [string[]]$newLines
+    $Script:DashboardColors = [ConsoleColor[]]$newColors
 }
 
 # ============================================================================
@@ -318,13 +422,35 @@ function Start-WatchdogV2 {
     $Script:MaxIterationsLimit = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
     $Script:SessionComplete = $false
 
+    # Track iterations based on PRD task completion (not supervisor frames)
+    $Script:CompletedTaskCount = 0
+    $prdPath = Join-Path $ProjectRoot "prd.json"
+    if (Test-Path $prdPath) {
+        $prd = Get-Content $prdPath | ConvertFrom-Json
+        $Script:CompletedTaskCount = ($prd | Where-Object { $_.passes -eq $true }).Count
+    }
+
     # Session loop
     try {
         while (-not $Script:SessionComplete -and $iteration -lt $Script:MaxIterationsLimit) {
-            $iteration++
+            # Check PRD for completed tasks and update iteration count
+            $prdPath = Join-Path $ProjectRoot "prd.json"
+            if (Test-Path $prdPath) {
+                $prd = Get-Content $prdPath | ConvertFrom-Json
+                $newCompletedCount = ($prd | Where-Object { $_.passes -eq $true }).Count
+                if ($newCompletedCount -gt $Script:CompletedTaskCount) {
+                    $tasksJustCompleted = $newCompletedCount - $Script:CompletedTaskCount
+                    $iteration += $tasksJustCompleted
+                    $Script:CompletedTaskCount = $newCompletedCount
+                    Write-WatchdogLog "Iteration advanced: $tasksJustCompleted task(s) completed (total: $iteration / $($Script:MaxIterationsLimit))" -Color Green
+                }
+            }
 
             # 1. Supervise (check for crashed agents and restart)
             $Script:Supervisor.Supervise()
+
+            # 1.5. Supervise CLI processes (check for completion/timeout)
+            $Script:Supervisor.SuperviseCLIProcesses()
 
             # 2. Read messages from all agent pipes (non-blocking)
             $messages = Receive-AllPendingMessages
@@ -334,10 +460,10 @@ function Start-WatchdogV2 {
             }
 
             # 3. Deliver undelivered messages (retry failed sends)
-            Retry-AllUndelivered
+            $null = Retry-AllUndelivered
 
             # 4. Update agent status from event log (materialized view)
-            Export-AgentStatus
+            $null = Export-AgentStatus
 
             # 5. Check session completion
             # TODO: Add logic to check if all PRD items are complete
@@ -383,5 +509,131 @@ function Start-WatchdogV2 {
 
 # Auto-start if this script is executed directly
 if ($MyInvocation.InvocationName -eq $MyInvocation.MyCommand.Name) {
+    # Track child processes spawned by this watchdog
+    $Script:WatchdogChildProcesses = [System.Collections.Generic.HashSet[int]]::new()
+
+    # Register the cleanup script for exit signals
+    trap {
+        Write-Host ""
+        Write-Host "[WATCHDOG] Error: $_" -ForegroundColor Red
+
+        # Cleanup: close pipes and kill child processes only
+        try {
+            if ($Script:Supervisor) {
+                $Script:Supervisor.StopAll()
+            }
+            Close-AllPipes
+        } catch {
+            # Ignore cleanup errors
+        }
+
+        exit 1
+    }
+
+    # Set up cleanup action for graceful shutdown
+    $cleanupAction = {
+        Write-Host ""
+        Write-Host "[WATCHDOG] Shutdown triggered..." -ForegroundColor Yellow
+
+        # Close all pipes first
+        try {
+            Close-AllPipes
+        } catch {
+            # Ignore cleanup errors
+        }
+
+        # Kill only child processes spawned by this watchdog
+        try {
+            $sessionPid = $PID
+
+            # Read session marker to get parent session PID
+            $sessionMarkerFile = Join-Path $paths.SessionDir "session-pid.txt"
+            $parentSessionPid = $null
+            if (Test-Path $sessionMarkerFile) {
+                try {
+                    $sessionData = Get-Content $sessionMarkerFile | ConvertFrom-Json
+                    $parentSessionPid = $sessionData.SessionPid
+                } catch {
+                    # Invalid marker file
+                }
+            }
+
+            # Function to check if a process is in our session tree
+            function Test-IsSessionChild {
+                param([int]$TargetPid)
+
+                if ($TargetPid -eq $sessionPid) { return $true }  # It's us
+                if ($TargetPid -eq $parentSessionPid) { return $true }  # It's our parent
+
+                # Check ancestors
+                try {
+                    $targetProc = Get-Process -Id $TargetPid -ErrorAction SilentlyContinue
+                    if (-not $targetProc) { return $false }
+
+                    $ancestorPid = $targetProc.Parent.Id
+                    $maxDepth = 5
+                    $depth = 0
+
+                    while ($ancestorPid -and $depth -lt $maxDepth) {
+                        if ($ancestorPid -eq $sessionPid -or $ancestorPid -eq $parentSessionPid) {
+                            return $true
+                        }
+                        try {
+                            $ancestorProc = Get-Process -Id $ancestorPid -ErrorAction SilentlyContinue
+                            if ($ancestorProc) {
+                                $ancestorPid = $ancestorProc.Parent.Id
+                            } else {
+                                break
+                            }
+                        } catch {
+                            break
+                        }
+                        $depth++
+                    }
+                } catch {
+                    return $false
+                }
+
+                return $false
+            }
+
+            # Get all Ralph PowerShell processes
+            $ralphProcesses = Get-Process -Name "pwsh", "powershell" -ErrorAction SilentlyContinue | Where-Object {
+                try {
+                    $cmdLine = (Get-WmiObject Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+                    $cmdLine -and ($cmdLine.Contains("Start-AgentLoop") -or $cmdLine.Contains("agent-runtime.ps1"))
+                } catch {
+                    $false
+                }
+            }
+
+            # Only kill processes that are in our session tree
+            $killedCount = 0
+            foreach ($proc in $ralphProcesses) {
+                if (Test-IsSessionChild -TargetPid $proc.Id) {
+                    try {
+                        Write-Host "[WATCHDOG] Killing child process (PID: $($proc.Id))" -ForegroundColor DarkGray
+                        $proc.Kill()
+                        $killedCount++
+                    } catch {
+                        # Process already exited
+                    }
+                }
+            }
+
+            if ($killedCount -gt 0) {
+                Start-Sleep -Milliseconds 200
+            }
+        } catch {
+            # Ignore cleanup errors
+        }
+
+        Write-Host "[WATCHDOG] Cleanup complete" -ForegroundColor Green
+    }
+
+    # Register cleanup for Ctrl+C and normal exit
+    [Console]::TreatControlCAsInput = $false
+    Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action $cleanupAction -ErrorAction SilentlyContinue
+
     Start-WatchdogV2
 }

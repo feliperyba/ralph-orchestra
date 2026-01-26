@@ -14,6 +14,61 @@ $Script:EventLogFile = $null
 $Script:EventLogSessionDir = $null
 
 # ============================================================================
+# CONCURRENCY PROTECTION
+# ============================================================================
+
+# Import or initialize mutex for event log protection
+$Script:EventLogMutex = $null
+$Script:SequenceMutex = $null
+$Script:SessionId = $null
+
+function Initialize-EventLogMutex {
+    <#
+    .SYNOPSIS
+    Initialize mutexes for event log concurrent access protection.
+
+    .DESCRIPTION
+    Creates cross-process mutexes for:
+    1. Sequence number allocation (prevents duplicates)
+    2. File write operations (prevents corruption)
+
+    .PARAMETER SessionId
+    Optional session ID for mutex names (enables isolation).
+    #>
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$SessionId = ""
+    )
+
+    $Script:SessionId = $SessionId
+
+    if ($SessionId) {
+        $seqMutexName = "Global\Ralph_${SessionId}_EventSeq"
+        $writeMutexName = "Global\Ralph_${SessionId}_EventWrite"
+    } else {
+        $seqMutexName = "Global\RalphEventSeq"
+        $writeMutexName = "Global\RalphEventWrite"
+    }
+
+    $Script:SequenceMutex = [System.Threading.Mutex]::new($false, $seqMutexName)
+    $Script:EventLogMutex = [System.Threading.Mutex]::new($false, $writeMutexName)
+}
+
+function Get-SequenceMutex {
+    if (-not $Script:SequenceMutex) {
+        Initialize-EventLogMutex -SessionId $Script:SessionId
+    }
+    return $Script:SequenceMutex
+}
+
+function Get-EventLogMutexInternal {
+    if (-not $Script:EventLogMutex) {
+        Initialize-EventLogMutex -SessionId $Script:SessionId
+    }
+    return $Script:EventLogMutex
+}
+
+# ============================================================================
 # INITIALIZATION
 # ============================================================================
 
@@ -25,20 +80,31 @@ function Initialize-EventLog {
     .DESCRIPTION
     Creates or opens the append-only event log file (eventlog.jsonl).
     This file is the single source of truth for all system events.
+    Also initializes mutexes for concurrent access protection.
 
     .PARAMETER SessionDir
     The session directory path.
+
+    .PARAMETER SessionId
+    Optional session ID for mutex isolation.
 
     .RETURNS
     The full path to the event log file.
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [string]$SessionDir
+        [string]$SessionDir,
+
+        [Parameter(Mandatory=$false)]
+        [string]$SessionId = ""
     )
 
     $Script:EventLogSessionDir = $SessionDir
     $Script:EventLogFile = Join-Path $SessionDir "eventlog.jsonl"
+    $Script:SessionId = $SessionId
+
+    # Initialize mutexes for concurrent access protection
+    Initialize-EventLogMutex -SessionId $SessionId
 
     # Create log file if doesn't exist
     if (-not (Test-Path $Script:EventLogFile)) {
@@ -95,6 +161,12 @@ $Script:EventTypes = @{
     "WatchdogStarted" = "The watchdog supervisor was started"
     "WatchdogStopped" = "The watchdog supervisor was stopped"
     "SessionInitialized" = "A new Ralph session was initialized"
+
+    # CLI Process Events
+    "CLIStarted" = "A CLI process was started for an agent"
+    "CLICompleted" = "A CLI process completed"
+    "CLITimeout" = "A CLI process timed out and was killed"
+    "CLIFailed" = "A CLI process failed to start"
 }
 
 function Get-EventType {
@@ -122,12 +194,17 @@ function Get-EventType {
 function Write-Event {
     <#
     .SYNOPSIS
-    Append a new event to the event log.
+    Append a new event to the event log with mutex protection.
 
     .DESCRIPTION
     This is the primary write operation for the event log.
     All state changes must go through this function to ensure
     the single source of truth is maintained.
+
+    CRITICAL FIX: Uses mutex protection for both sequence allocation
+    and file writing to prevent:
+    1. Duplicate sequence numbers (TOCTOU)
+    2. File corruption from concurrent writes
 
     .PARAMETER Type
     The event type (e.g., "AgentStarted", "MessageSent").
@@ -156,31 +233,49 @@ function Write-Event {
         throw "Event log not initialized. Call Initialize-EventLog first."
     }
 
-    $seq = Get-NextSequenceNumber
+    $mutex = Get-EventLogMutexInternal
 
-    $evtData = @{
-        seq = $seq
-        type = $Type
-        timestamp = $Timestamp.ToString("o")  # ISO 8601 with timezone
-        data = $Data
+    # Acquire mutex for the entire write operation
+    $acquired = $mutex.WaitOne(5000)
+    if (-not $acquired) {
+        throw "Failed to acquire event log write mutex within timeout"
     }
 
-    # Serialize and append atomically
-    $json = $evtData | ConvertTo-Json -Compress -Depth 10
-
-    # Atomic write: write to temp file, then rename
-    $tempPath = "$Script:EventLogFile.tmp"
     try {
-        Add-Content -Path $Script:EventLogFile -Value $json -Encoding UTF8
-    } catch {
-        # Fallback to temp file method if direct append fails
-        $json | Out-File -FilePath $tempPath -Append -Encoding UTF8
-        if (Test-Path $tempPath) {
-            Move-Item -Path $tempPath -Destination $Script:EventLogFile -Force
-        }
-    }
+        # Get sequence number (still uses its own mutex for safety)
+        $seq = Get-NextSequenceNumber
 
-    return $seq
+        $evtData = @{
+            seq = $seq
+            type = $Type
+            timestamp = $Timestamp.ToString("o")  # ISO 8601 with timezone
+            data = $Data
+        }
+
+        # Serialize and append atomically
+        $json = $evtData | ConvertTo-Json -Compress -Depth 10
+
+        # Atomic write: use FileStream with FileShare.None
+        $stream = $null
+        $writer = $null
+        try {
+            $stream = [System.IO.File]::Open(
+                $Script:EventLogFile,
+                [System.IO.FileMode]::Append,
+                [System.IO.FileAccess]::Write,
+                [System.IO.FileShare]::None
+            )
+            $writer = [System.IO.StreamWriter]::new($stream, [System.Text.Encoding]::UTF8)
+            $writer.WriteLine($json)
+        } finally {
+            if ($writer -ne $null) { $writer.Dispose() }
+            if ($stream -ne $null) { $stream.Dispose() }
+        }
+
+        return $seq
+    } finally {
+        $mutex.ReleaseMutex()
+    }
 }
 
 function Write-AgentStartedEvent {
@@ -303,28 +398,46 @@ function Write-MessageSentEvent {
 function Get-NextSequenceNumber {
     <#
     .SYNOPSIS
-    Calculate the next sequence number for the event log.
+    Calculate the next sequence number for the event log with mutex protection.
+
+    .DESCRIPTION
+    CRITICAL FIX: This function uses mutex protection to prevent TOCTOU
+    (Time-Of-Check-Time-Of-Use) race conditions. Without mutex protection,
+    multiple processes could read the same last sequence number and
+    generate duplicates, causing event log corruption.
 
     .RETURNS
     The next sequence number to use.
     #>
-    if (-not $Script:EventLogFile -or -not (Test-Path $Script:EventLogFile)) {
-        return 1
+    $mutex = Get-SequenceMutex
+
+    # Acquire mutex for the entire read-modify-write sequence
+    $acquired = $mutex.WaitOne(5000)
+    if (-not $acquired) {
+        throw "Failed to acquire sequence mutex within timeout"
     }
 
     try {
-        $lastLine = Get-Content $Script:EventLogFile -Tail 1 -ErrorAction SilentlyContinue
-        if ($lastLine -and $lastLine -match '\S') {
-            $lastEvt = $lastLine | ConvertFrom-Json
-            if ($lastEvt.seq) {
-                return $lastEvt.seq + 1
-            }
+        if (-not $Script:EventLogFile -or -not (Test-Path $Script:EventLogFile)) {
+            return 1
         }
-    } catch {
-        # File might be empty or corrupted
-    }
 
-    return 1
+        try {
+            $lastLine = Get-Content $Script:EventLogFile -Tail 1 -ErrorAction SilentlyContinue
+            if ($lastLine -and $lastLine -match '\S') {
+                $lastEvt = $lastLine | ConvertFrom-Json
+                if ($lastEvt.seq) {
+                    return $lastEvt.seq + 1
+                }
+            }
+        } catch {
+            # File might be empty or corrupted
+        }
+
+        return 1
+    } finally {
+        $mutex.ReleaseMutex()
+    }
 }
 
 function Get-EventsSince {
@@ -418,9 +531,11 @@ function Get-EventsByAgent {
 
     $events = Get-EventsSince -FromSeq 0
     return $events | Where-Object {
-        $_.data.agent -eq $AgentName -or
-        $_.data.from -eq $AgentName -or
-        $_.data.to -eq $AgentName
+        $_.data -and (
+            $_.data.agent -eq $AgentName -or
+            $_.data.from -eq $AgentName -or
+            $_.data.to -eq $AgentName
+        )
     }
 }
 
@@ -445,28 +560,38 @@ function Rebuild-AgentStatus {
     $status = @{}
 
     foreach ($evt in $events) {
+        # Skip events that don't have the expected event sourcing format
+        # Event sourcing format has 'data' field, message protocol has 'from/to'
+        if (-not $evt.data) {
+            continue
+        }
+
         switch ($evt.type) {
             "AgentStarted" {
-                $status[$evt.data.agent] = @{
-                    state = "running"
-                    pid = $evt.data.pid
-                    lastEvent = $evt.seq
-                    lastEventTime = $evt.timestamp
+                if ($evt.data.agent) {
+                    $status[$evt.data.agent] = @{
+                        state = "running"
+                        pid = $evt.data.pid
+                        lastEvent = $evt.seq
+                        lastEventTime = $evt.timestamp
+                    }
                 }
             }
             "AgentExited" {
-                if ($status[$evt.data.agent]) {
+                if ($evt.data.agent -and $status[$evt.data.agent]) {
                     $status[$evt.data.agent].state = "stopped"
                     $status[$evt.data.agent].lastEvent = $evt.seq
                     $status[$evt.data.agent].lastEventTime = $evt.timestamp
                 }
             }
             "AgentCrashed" {
-                $status[$evt.data.agent] = @{
-                    state = "crashed"
-                    exitCode = $evt.data.exitCode
-                    lastEvent = $evt.seq
-                    lastEventTime = $evt.timestamp
+                if ($evt.data.agent) {
+                    $status[$evt.data.agent] = @{
+                        state = "crashed"
+                        exitCode = $evt.data.exitCode
+                        lastEvent = $evt.seq
+                        lastEventTime = $evt.timestamp
+                    }
                 }
             }
         }

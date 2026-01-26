@@ -34,6 +34,7 @@ if (Test-Path $eventBusModule) {
 
 class ActorSupervisor {
     [System.Collections.Generic.Dictionary[string,object]]$Actors
+    [System.Collections.Generic.Dictionary[string,object]]$CLIProcesses
     [string]$SessionDir
     [string]$Name
     [datetime]$StartedAt
@@ -42,6 +43,7 @@ class ActorSupervisor {
     # Constructor
     ActorSupervisor([string]$SessionDir, [string]$Name = "main") {
         $this.Actors = [System.Collections.Generic.Dictionary[string,object]]::new()
+        $this.CLIProcesses = [System.Collections.Generic.Dictionary[string,object]]::new()
         $this.SessionDir = $SessionDir
         $this.Name = $Name
         $this.StartedAt = [DateTime]::UtcNow
@@ -63,9 +65,22 @@ class ActorSupervisor {
     }
 
     [void] StartActor([string]$AgentName, [string]$RestartType, [int]$MaxRestarts, [string]$RestartStrategy) {
+        # Check if actor is already running
         if ($this.Actors.ContainsKey($AgentName)) {
             Write-Host "[SUP] Actor $AgentName already running" -ForegroundColor Yellow
             return
+        }
+
+        # Check if actor is currently being disposed (prevents race condition)
+        $disposingKey = "__disposing__$AgentName"
+        if ($this.Actors.ContainsKey($disposingKey)) {
+            Write-Host "[SUP] Actor $AgentName is currently being disposed, retrying..." -ForegroundColor Yellow
+            Start-Sleep -Milliseconds 500
+            # Retry once after disposal completes
+            if ($this.Actors.ContainsKey($AgentName)) {
+                Write-Host "[SUP] Actor $AgentName already running (after disposal)" -ForegroundColor Yellow
+                return
+            }
         }
 
         Write-Host "[SUP] Starting actor: $AgentName" -ForegroundColor Cyan
@@ -104,25 +119,41 @@ class ActorSupervisor {
 
     # Internal method to start an agent process
     [System.Diagnostics.Process] StartAgentProcess([string]$AgentName) {
-        # Determine the command to run
-        $command = switch ($AgentName) {
-            "pm" { "/ralph-coordinator-event" }
-            "prd-starter" { "/ralph-prd-starter" }
-            default { "/ralph-worker-event --agent $AgentName" }
+        # V2: Start PowerShell bridge process directly (not via CLI slash commands)
+        # The bridge connects to the pipe and stays alive for message delivery
+        # When work arrives, watchdog restarts the actual CLI agent with context
+
+        # Derive project root from SessionDir (SessionDir is .claude\session, project root is 2 levels up)
+        $sessionDirItem = Get-Item $this.SessionDir
+        $projectRoot = $sessionDirItem.Parent.Parent.FullName
+
+        # Path to agent runtime script
+        $runtimeScript = Join-Path $projectRoot ".claude\scripts\v2-architecture\agent-runtime.ps1"
+
+        if (-not (Test-Path $runtimeScript)) {
+            throw "Agent runtime script not found: $runtimeScript"
         }
 
+        # Start PowerShell bridge process
         $psi = [System.Diagnostics.ProcessStartInfo]::new()
-        $psi.FileName = "claude"
-        $psi.Arguments = $command
+        $psi.FileName = "powershell.exe"
+        $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& { . '$runtimeScript'; Start-AgentLoop -AgentName '$AgentName' }`""
+
+        # Process settings
         $psi.UseShellExecute = $false
         $psi.RedirectStandardOutput = $true
         $psi.RedirectStandardError = $true
         $psi.CreateNoWindow = $true
-        # Run in a new window so we can see agent activity
-        # $psi.CreateNoWindow = $false  # Set to $false for debugging
 
-        $process = [System.Diagnostics.Process]::Start($psi)
-        return $process
+        # Log the command being run for diagnostics
+        Write-Host "[SUP] Starting: $($psi.FileName) $($psi.Arguments)" -ForegroundColor DarkGray
+
+        try {
+            $process = [System.Diagnostics.Process]::Start($psi)
+            return $process
+        } catch {
+            throw "Failed to start agent bridge: $_`n  FileName: $($psi.FileName)`n  Arguments: $($psi.Arguments)"
+        }
     }
 
     # Main supervision loop - check all actors
@@ -145,18 +176,22 @@ class ActorSupervisor {
         # Log the exit
         Write-AgentExitedEvent -AgentName $agentName -ExitCode $exitCode
 
-        # Check for graceful shutdown (0 = normal, 42 = our graceful shutdown code)
-        if ($exitCode -eq 0 -or $exitCode -eq 42) {
-            Write-Host "[SUP] Actor $agentName exited gracefully (code: $exitCode)" -ForegroundColor Green
+        # Check for graceful shutdown (42 = our intentional shutdown code)
+        if ($exitCode -eq 42) {
+            Write-Host "[SUP] Actor $agentName shut down intentionally (code: 42)" -ForegroundColor Green
             $this.Actors.Remove($agentName)
             return
         }
 
-        # Crash - apply restart strategy based on RestartType
+        # For V2 architecture, "permanent" agents are always restarted
+        # Exit code 0 just means the agent completed its current task, not that it should stop
         if ($Actor.RestartType -eq "permanent") {
+            if ($exitCode -eq 0) {
+                Write-Host "[SUP] Actor $agentName completed task (code: 0), restarting..." -ForegroundColor Cyan
+            }
             $this.RestartActor($Actor, $exitCode)
         } elseif ($Actor.RestartType -eq "transient") {
-            # Only restart if abnormal exit (not normal, shutdown, or {shutdown,_})
+            # Only restart if abnormal exit (not normal)
             if ($exitCode -ne 0) {
                 $this.RestartActor($Actor, $exitCode)
             } else {
@@ -180,35 +215,73 @@ class ActorSupervisor {
             return
         }
 
-        # Exponential backoff delay
-        $delay = [Math]::Min(5 * [Math]::Pow(2, $Actor.RestartCount), 60)
-        Write-Host "[SUP] Waiting ${delay}s before restarting $agentName..." -ForegroundColor Yellow
-        Start-Sleep -Seconds $delay
-
-        # Remove old actor entry
-        $this.Actors.Remove($agentName)
-
-        # Clean up old pipe if it exists
-        if ($Actor.Pipe) {
-            Close-Pipe -AgentName $agentName
+        # Exponential backoff delay - but NOT for successful task completion (exit code 0)
+        if ($ExitCode -ne 0) {
+            $delay = [Math]::Min(5 * [Math]::Pow(2, $Actor.RestartCount), 60)
+            Write-Host "[SUP] Waiting ${delay}s before restarting $agentName..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $delay
+        } else {
+            # Immediate restart for successful task completion
+            Start-Sleep -Milliseconds 100  # Brief pause to let resources free up
         }
 
+        # CRITICAL FIX: Mark actor as disposing BEFORE removal to prevent race condition
+        # If we remove first, another StartActor call could create a new pipe
+        # while we're still disposing the old one, causing the old disposal to close the new pipe
+        $disposingKey = "__disposing__$agentName"
+        $this.Actors[$disposingKey] = $true
+
         try {
-            # Restart with same configuration
-            $this.StartActor(
-                $agentName,
-                $Actor.RestartType,
-                $Actor.MaxRestarts,
-                $Actor.RestartStrategy
-            )
+            # FIRST: Dispose all resources while still tracked
+            if ($Actor.Pipe) {
+                try {
+                    if ($Actor.Pipe.Pipe -and -not $Actor.Pipe.Pipe.IsDisposed) {
+                        # Disconnect if connected
+                        if ($Actor.Pipe.Pipe.IsConnected) {
+                            try {
+                                $Actor.Pipe.Pipe.Disconnect()
+                            } catch {
+                                # Ignore disconnect errors
+                            }
+                        }
+                        # Dispose to release pipe handle
+                        $Actor.Pipe.Pipe.Dispose()
+                        Write-Host "[SUP] Disposed pipe for $agentName" -ForegroundColor DarkGray
+                    }
+                } catch {
+                    # Ignore dispose errors
+                }
+            }
 
-            # Increment restart count
-            $this.Actors[$agentName].RestartCount = $Actor.RestartCount + 1
-            $this.TotalRestarts++
+            # Also call Close-Pipe to clean up event bus state
+            Close-Pipe -AgentName $agentName
 
-            Write-Host "[SUP] Restarted $agentName (restart #$($Actor.RestartCount + 1))" -ForegroundColor Yellow
-        } catch {
-            Write-Warning "[SUP] Failed to restart $agentName`: $_"
+            # Extra delay to let OS release the pipe
+            Start-Sleep -Milliseconds 200
+
+            # SECOND: Now safe to remove from dictionary
+            $this.Actors.Remove($agentName)
+
+            try {
+                # Restart with same configuration
+                $this.StartActor(
+                    $agentName,
+                    $Actor.RestartType,
+                    $Actor.MaxRestarts,
+                    $Actor.RestartStrategy
+                )
+
+                # Increment restart count
+                $this.Actors[$agentName].RestartCount = $Actor.RestartCount + 1
+                $this.TotalRestarts++
+
+                Write-Host "[SUP] Restarted $agentName (restart #$($Actor.RestartCount + 1))" -ForegroundColor Yellow
+            } catch {
+                Write-Warning "[SUP] Failed to restart $agentName`: $_"
+            }
+        } finally {
+            # Clean up disposing marker
+            $this.Actors.Remove($disposingKey)
         }
     }
 
@@ -254,6 +327,20 @@ class ActorSupervisor {
     [void] StopAll() {
         Write-Host "[SUP] Stopping all actors..." -ForegroundColor Yellow
 
+        # First, clean up any CLI processes
+        foreach ($kv in $this.CLIProcesses.GetEnumerator()) {
+            $cliInfo = $kv.Value
+            try {
+                if (-not $cliInfo.Process.HasExited) {
+                    Write-Host "[SUP] Stopping CLI process: $($kv.Key)" -ForegroundColor Yellow
+                    $cliInfo.Process.Kill()
+                }
+            } catch {
+                # Already exited
+            }
+        }
+        $this.CLIProcesses.Clear()
+
         # Stop in reverse order of start (dependencies)
         $reversedActors = @($this.Actors.Keys)
         [Array]::Reverse($reversedActors) | ForEach-Object {
@@ -261,6 +348,159 @@ class ActorSupervisor {
         }
 
         Write-Host "[SUP] All actors stopped" -ForegroundColor Green
+    }
+
+    # Spawn a CLI process for an agent (VISIBLE WINDOW)
+    [string] SpawnCLIProcess([string]$AgentName, [string]$MessageFile, [string]$ResponseFile) {
+        $invokeId = "cli-$AgentName-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$(Get-Random -Minimum 1000 -Maximum 9999)"
+
+        Write-Host "[SUP] Spawning CLI for $AgentName (ID: $invokeId)" -ForegroundColor Cyan
+
+        # Determine CLI command based on agent
+        $cliCommand = if ($AgentName -eq "pm") {
+            "/ralph-coordinator-event"
+        } else {
+            "/ralph-worker-event --agent $AgentName"
+        }
+
+        # Start CLI process with VISIBLE WINDOW
+        $psi = [System.Diagnostics.ProcessStartInfo]::new()
+        $psi.FileName = "claude"
+        $psi.Arguments = $cliCommand
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $false  # CRITICAL: Visible window
+
+        try {
+            $process = [System.Diagnostics.Process]::Start($psi)
+
+            # Track this CLI process
+            $cliInfo = @{
+                Id = $invokeId
+                Process = $process
+                AgentName = $AgentName
+                MessageFile = $MessageFile
+                ResponseFile = $ResponseFile
+                StartedAt = [DateTime]::UtcNow
+                TimeoutMs = 300000  # 5 minute timeout
+                Notified = $false
+            }
+
+            $this.CLIProcesses[$invokeId] = $cliInfo
+
+            # Log the event
+            Write-Event -Type "CLIStarted" -Data @{
+                invokeId = $invokeId
+                agent = $AgentName
+                pid = $process.Id
+            }
+
+            Write-Host "[SUP] CLI spawned (PID: $($process.Id))" -ForegroundColor Green
+            return $invokeId
+        } catch {
+            Write-Warning "[SUP] Failed to spawn CLI: $_"
+            return $null
+        }
+    }
+
+    # Check and clean up completed CLI processes
+    [void] SuperviseCLIProcesses() {
+        $completed = @()
+        $now = [DateTime]::UtcNow
+
+        foreach ($kv in $this.CLIProcesses.GetEnumerator()) {
+            $invokeId = $kv.Key
+            $cliInfo = $kv.Value
+            $process = $cliInfo.Process
+
+            # Check if process has exited
+            if ($process.HasExited) {
+                $exitCode = $process.ExitCode
+                $success = ($exitCode -eq 0)
+
+                Write-Host "[SUP] CLI completed: $invokeId (exit: $exitCode)" -ForegroundColor Green
+
+                # Send CLIComplete message to the agent
+                $this.NotifyCLIComplete($cliInfo.AgentName, $invokeId, $success, $exitCode)
+
+                # Log the event
+                Write-Event -Type "CLICompleted" -Data @{
+                    invokeId = $invokeId
+                    agent = $cliInfo.AgentName
+                    exitCode = $exitCode
+                    durationMs = ($now - $cliInfo.StartedAt).TotalMilliseconds
+                }
+
+                $completed += $invokeId
+            } else {
+                # Check for timeout
+                $elapsedMs = ($now - $cliInfo.StartedAt).TotalMilliseconds
+                if ($elapsedMs -gt $cliInfo.TimeoutMs) {
+                    Write-Warning "[SUP] CLI timeout: $invokeId (${elapsedMs}ms)"
+
+                    # Kill the process
+                    try {
+                        $process.Kill()
+                        Write-Warning "[SUP] Killed timed out CLI: $invokeId"
+                    } catch {
+                        Write-Warning "[SUP] Failed to kill timed out CLI: $_"
+                    }
+
+                    # Send failure notification
+                    $this.NotifyCLIComplete($cliInfo.AgentName, $invokeId, $false, -1, "CLI timeout after $($cliInfo.TimeoutMs)ms")
+
+                    # Log the event
+                    Write-Event -Type "CLITimeout" -Data @{
+                        invokeId = $invokeId
+                        agent = $cliInfo.AgentName
+                        timeoutMs = $cliInfo.TimeoutMs
+                    }
+
+                    $completed += $invokeId
+                }
+            }
+        }
+
+        # Remove completed CLI processes from tracking
+        foreach ($invokeId in $completed) {
+            $this.CLIProcesses.Remove($invokeId)
+        }
+    }
+
+    # Notify an agent that CLI has completed
+    [void] NotifyCLIComplete([string]$AgentName, [string]$InvokeId, [bool]$Success, [int]$ExitCode, [string]$Error = "") {
+        # Import message protocol for creating messages
+        $messageProtocolPath = Join-Path $Script:SupervisorModuleDir "message-protocol.ps1"
+        if (Test-Path $messageProtocolPath) {
+            . $messageProtocolPath
+
+            $msg = New-CLICompleteMessage -To $AgentName -AgentName $AgentName -ExitCode $ExitCode -Success $Success -Error $Error
+
+            # Send to agent via pipe
+            Send-MessageToAgent -AgentName $AgentName -Message $msg
+        }
+    }
+
+    # Get status of all active CLI processes
+    [hashtable] GetCLIProcessStatus() {
+        $status = @{}
+
+        foreach ($kv in $this.CLIProcesses.GetEnumerator()) {
+            $cliInfo = $kv.Value
+            $elapsed = ([DateTime]::UtcNow - $cliInfo.StartedAt).TotalMilliseconds
+
+            $status[$kv.Key] = @{
+                agentName = $cliInfo.AgentName
+                pid = $cliInfo.Process.Id
+                hasExited = $cliInfo.Process.HasExited
+                elapsedMs = $elapsed
+                timeoutMs = $cliInfo.TimeoutMs
+                messageFile = $cliInfo.MessageFile
+            }
+        }
+
+        return $status
     }
 
     # Get status of all actors

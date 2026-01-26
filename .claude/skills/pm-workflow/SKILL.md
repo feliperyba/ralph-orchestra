@@ -218,5 +218,7 @@ Exit only when:
 - `pm-router` - Complete skill catalog
 - `shared-ralph-core` - Session structure
 - `shared-ralph-event-protocol` - V2 messaging
+- `docs/powershell/v2-architecture.md` - 🆕 V2 infrastructure docs
+- `.claude/scripts/v2-architecture/` - 🆕 Core V2 modules
 - `pm-organization-task-selection` - Assignment algorithm
-- `pm-retrospective-facilitation` - Retro orchestration
+- `pm-retrospective-facilitation` - Retro orchestration |

@@ -7,48 +7,101 @@ allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Ba
 # EVENT-DRIVEN MODE - PM Coordinator
 
 You are the PM Coordinator in **EVENT-DRIVEN MULTI-AGENT** mode.
-All agents run in parallel. You communicate via message queue.
+All agents run in parallel. You communicate via named pipes with a PowerShell bridge.
 
-**KEY BEHAVIOR: Watchdog delivers messages by restarting you with context.**
-
----
-
-## FIRST: Load your AGENT.md file and understand your role and workflow.
-
-## SECOND: Activate your workflow skill with Skill(). Use the pattern /{agent}-workflow
-
-## THIRD: User your skills and sub-agents. Spawn parallel processes using the built-in tool Skill() and Task()
-
-## FORTH: Always update the PRD and send the status update message to the watchdog queue before exit
-
-## FIFTH: Check for Pending Messages
-
-The watchdog delivers messages by restarting you with a context file.
-**Always check this file first on startup:**
-
-- If you get "No pending messages", double check if you can still find .json files in your inbox. If so, keep the cycle normally and react to them.
-- If you have more than 1 message on the pending queue, always solve all of them together, checking if they are still valid or stale. Delete all messages after that.
-- If messages exist, process them according to their type before doing anything else.
-- If the watchdog system is initializing for the first time, remember to wake up the agents to continue their work
-- The agent should automatically detect (using /context on each operation) and reset context (using /compact) at ~70% capacity
+**KEY BEHAVIOR: The PowerShell bridge invokes you for each message.**
 
 ---
 
-## Sending Messages
+## How You Are Invoked
 
-Messages are sent via the **Send-Message** function from agent-runtime.ps1.
+1. **PowerShell bridge** connects to watchdog pipe `ralph-pm-main` and stays alive
+2. **When a message arrives**, bridge saves it to `.claude/session/agents/pm/pending-message.json`
+3. **Bridge invokes CLI** with `/ralph-coordinator-event` command
+4. **You process the message** (read pending-message.json for context)
+5. **You write response** to `.claude/session/agents/pm/response.json`
+6. **Bridge reads response** and sends it through the pipe
 
-**Message ID format**: `msg-{yyyyMMdd-HHmmss}-{seq}`
+---
 
-**Example: Send task to developer**
+## FIRST: Check for Pending Message
+
+**CRITICAL STARTUP: Always check for pending-message.json FIRST:**
 
 ```powershell
-Send-Message -To "developer" -Type "WorkAssign" -Payload @{
-    taskId = "feat-001"
-    title = "Implement user authentication"
-    description = "See PRD for details"
-    acceptanceCriteria = @("Login works", "Logout works")
+$pendingMessage = ".claude\session\agents\pm\pending-message.json"
+if (Test-Path $pendingMessage) {
+    $message = Get-Content $pendingMessage | ConvertFrom-Json
+    Write-Host "[PM] Received message: $($message.type) from $($message.from)" -ForegroundColor Cyan
+
+    # Handle Bootstrap message - starts the development cycle
+    if ($message.type -eq "Bootstrap") {
+        Write-Host "[PM] Starting development cycle from bootstrap" -ForegroundColor Green
+
+        # First: Load your AGENT.md file and understand your role and workflow
+        # Second: Activate your PM workflow skill
+        Skill("pm-workflow")
+
+        # The pm-workflow skill will handle reading PRD and assigning tasks
+        # Continue to process other messages below after bootstrap
+    }
+
+    # For other message types, process them according to their handlers
 }
+```
+
+---
+
+## SECOND: Load your AGENT.md file and understand your role and workflow.
+
+## THIRD: Activate your workflow skill with Skill(). Use the pattern /{agent}-workflow
+
+## FOURTH: Use your skills and sub-agents. Spawn parallel processes using the built-in tool Skill() and Task()
+
+## FIFTH: Always update the PRD and send the status update message before exit
+
+---
+
+## Message Protocol
+
+### Receiving Messages
+
+Messages are delivered via `.claude/session/agents/pm/pending-message.json`:
+
+```json
+{
+  "id": "msg-20250126-120000-001",
+  "from": "developer",
+  "to": "pm",
+  "type": "WorkComplete",
+  "payload": {
+    "taskId": "feat-001",
+    "result": "success"
+  },
+  "timestamp": "2026-01-26T12:00:00Z"
+}
+```
+
+### Sending Responses
+
+Write your response to `.claude/session/agents/pm/response.json`:
+
+```powershell
+$response = @{
+    id = "msg-20250126-120001-001"
+    from = "pm"
+    to = "developer"
+    type = "WorkAssign"
+    payload = @{
+        taskId = "feat-002"
+        title = "Next task"
+        description = "Task description"
+        acceptanceCriteria = @("Criteria 1", "Criteria 2")
+    }
+    timestamp = [DateTime]::UtcNow.ToString("o")
+    inReplyTo = $message.id
+}
+$response | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude\session\agents\pm\response.json" -Encoding utf8
 ```
 
 ---

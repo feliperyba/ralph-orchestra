@@ -35,15 +35,13 @@
 | Document                                                   | Purpose                                        |
 | ---------------------------------------------------------- | ---------------------------------------------- |
 | [README.md](README.md)                                     | Project overview and quick start               |
-| [docs/getting-started.md](docs/getting-started.md)         | Installation, prerequisites, first run         |
-| [docs/orchestration-modes.md](docs/orchestration-modes.md) | All 4 orchestration modes explained            |
-| [docs/architecture.md](docs/architecture.md)               | System architecture, agent roles, message flow |
-| [docs/configuration.md](docs/configuration.md)             | PRD format, agent settings, watchdog config    |
-| [docs/extending.md](docs/extending.md)                     | Adding custom agents, skills, routing          |
-| [docs/monitoring.md](docs/monitoring.md)                   | Dashboard, logs, troubleshooting               |
-| [.claude/scripts/README.md](.claude/scripts/README.md)     | Script reference                               |
+| [docs/README.md](docs/README.md)                           | Complete documentation index                   |
+| [docs/quick-start/getting-started.md](docs/quick-start/getting-started.md) | Installation, prerequisites, first run         |
+| [docs/core/orchestration-modes.md](docs/core/orchestration-modes.md) | All orchestration modes explained            |
+| [docs/powershell/v2-architecture.md](docs/powershell/v2-architecture.md) | ⭐ V2: Event Sourcing, Actor Model, CQRS |
+| [.claude/scripts/README.md](.claude/scripts/README.md)     | Script reference with V2 modules               |
 | [agents/\*/AGENT.md](agents/)                              | Per-agent behavior instructions                |
-| [.claude/skills/](.claude/skills/)                         | Centralized orchestration skills (56+ skills)  |
+| [.claude/skills/](.claude/skills/)                         | Centralized orchestration skills (100+ skills) |
 
 ---
 

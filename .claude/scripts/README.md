@@ -305,3 +305,110 @@ $Script:AgentConfig = @{
 - [Commands](../commands/) - Slash command definitions
 - [Skills](../skills/) - Orchestration skills (YAML frontmatter)
 - [Agent Definitions](../../agents/) - Per-agent behavior docs
+
+---
+
+## 🏗️ V2 Architecture Modules
+
+The `v2-architecture/` directory contains the next-generation orchestration infrastructure with event sourcing, Actor Model, and true parallel execution.
+
+### Module Overview
+
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `concurrency.ps1` | Thread-safe primitives (Mutex, Event, AtomicCounter, ReadWriteLock) | ✅ PS 5.1 Compatible |
+| `serialization.ps1` | Fast JSON message serialization | ✅ PS 5.1 Compatible |
+| `metrics.ps1` | Performance tracking (p50/p95/p99 latencies) | ✅ PS 5.1 Compatible |
+| `eventlog.ps1` | Event sourcing foundation with mutex-protected writes | ✅ PS 5.1 Compatible |
+| `event-bus.ps1` | Bidirectional named pipe transport | ✅ PS 5.1 Compatible |
+| `supervisor.ps1` | Actor lifecycle management (Erlang/OTP-style) | ✅ PS 5.1 Compatible |
+| `actor.ps1` | Actor Model with mailboxes and selective receive | ✅ Experimental |
+| `supervision-tree.ps1` | Hierarchical supervision with restart strategies | ✅ Experimental |
+| `event-store.ps1` | Production event store with snapshots/compaction | ✅ Experimental |
+| `event-versioning.ps1` | Event versioning and migration | ⚠️ PS 7+ Only |
+| `projections.ps1` | CQRS read models (materialized views) | ⚠️ PS 7+ Only |
+| `async-pipes.ps1` | Event-driven pipe I/O for sub-10ms latency | ✅ Experimental |
+| `message-protocol.ps1` | Message format and routing | ✅ Stable |
+| `agent-runtime.ps1` | Agent process lifecycle management | ✅ Stable |
+| `cleanup-stale-ps.ps1` | Cleanup stale PowerShell processes | ✅ Stable |
+
+### Key V2 Features
+
+**Event Sourcing:**
+- Append-only JSONL event log (`eventlog.jsonl`)
+- Mutex-protected sequence numbers (prevents duplicates)
+- Materialized views for fast queries (`agent-status.json`)
+- Crash recovery via log replay
+
+**Actor Model:**
+- Named pipes as actor addresses
+- Per-actor mailboxes with priority queues
+- Selective receive (filter messages before processing)
+- Supervision trees with restart strategies
+
+**Performance:**
+- < 10ms message delivery via named pipes
+- Metrics tracking (p50, p95, p99 latencies)
+- Throughput counters (ops/sec)
+- Error rate tracking by type
+
+**PowerShell 5.1 Compatibility:**
+- All core modules use PS 5.1 compatible syntax
+- `Monitor.Enter/Exit` instead of `lock()`
+- `if ($null -ne $x)` instead of `$x?.Method()`
+- ConvertTo-Json instead of System.Text.Json
+
+### Testing
+
+V2 modules are tested with Pester:
+
+| Test File | Purpose | Pass Rate |
+|-----------|---------|-----------|
+| `Test-Concurrency.ps1` | Concurrency primitives and thread safety | 15/15 (100%) |
+| `Test-Performance.ps1` | Performance benchmarks and targets | 14/14 (100%) |
+| `Test-Reliability.ps1` | Integration and reliability tests | ⚠️ Requires PS 7+ |
+
+Run tests:
+```powershell
+cd .claude\tests
+Invoke-Pester Test-Concurrency.ps1
+Invoke-Pester Test-Performance.ps1
+```
+
+### V2 Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    V2 EVENT-DRIVEN ARCHITECTURE                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐  │
+│   │   Concurrency│    │ Serialization│    │      Metrics        │  │
+│   │   Primitives │    │   Module     │    │      Tracking      │  │
+│   └──────┬──────┘    └──────┬───────┘    └──────────┬──────────┘  │
+│          │                  │                        │              │
+│          └──────────────────┼────────────────────────┘              │
+│                             │                                       │
+│                    ┌────────▼─────────┐                            │
+│                    │  Event Log (JSONL)│                           │
+│                    │  - Sequence Numbers │                          │
+│                    │  - Mutex Protection │                          │
+│                    │  - Crash Recovery    │                          │
+│                    └────────┬─────────┘                            │
+│                             │                                       │
+│          ┌──────────────────┼──────────────────┐                    │
+│          │                  │                  │                    │
+│    ┌─────▼─────┐     ┌──────▼──────┐   ┌─────▼──────┐             │
+│    │ Event Bus │     │ Supervisor  │   │Event Store │             │
+│    │ (Pipes)   │     │ (Actor Mgmt)│   │(Snapshots) │             │
+│    └─────┬─────┘     └──────┬──────┘   └───────────┘             │
+│          │                  │                                       │
+│          └──────────────────┼──────────────────┐                    │
+│                             │                  │                    │
+│                    ┌────────▼─────────┐  ┌───▼──────┐             │
+│                    │   Named Pipes    │  │Projections│             │
+│                    │   PM/Dev/QA/etc  │  │(CQRS)    │             │
+│                    └──────────────────┘  └──────────┘             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```

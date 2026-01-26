@@ -517,6 +517,268 @@ function IsConnected {
 }
 
 # ============================================================================
+# CONVENIENCE FUNCTIONS
+# ============================================================================
+
+function Start-AgentLoop {
+    <#
+    .SYNOPSIS
+    Connect to watchdog and enter the message processing loop.
+
+    .DESCRIPTION
+    Convenience function that combines Connect-ToWatchdog and Enter-AgentLoop.
+    Uses a default message handler that logs messages and takes no action.
+
+    .PARAMETER AgentName
+    The name of this agent (pm, developer, qa, etc.).
+
+    .PARAMETER SessionDir
+    The session directory path (optional, auto-detected if not provided).
+
+    .PARAMETER TimeoutMs
+    Timeout for message receive in each iteration (default: 5000ms).
+
+    .RETURNS
+    $true if connection successful and loop exited normally.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$AgentName,
+
+        [Parameter(Mandatory=$false)]
+        [string]$SessionDir = "",
+
+        [Parameter(Mandatory=$false)]
+        [int]$TimeoutMs = 5000
+    )
+
+    # Connect first
+    $connected = Connect-ToWatchdog -AgentName $AgentName -SessionDir $SessionDir
+    if (-not $connected) {
+        Write-Error "[$AgentName] Failed to connect to watchdog"
+        return $false
+    }
+
+    # ============================================================================
+    # PM BOOTSTRAP: PM agent needs an initial message to start the development cycle
+    # ============================================================================
+    if ($AgentName -eq "pm") {
+        # PM needs to bootstrap - create a self-message to start the cycle
+        $contextDir = Join-Path $SessionDir "agents\pm"
+        if (-not (Test-Path $contextDir)) {
+            New-Item -ItemType Directory -Path $contextDir -Force | Out-Null
+        }
+
+        # Only create bootstrap if no pending message exists
+        $pendingMessageFile = Join-Path $contextDir "pending-message.json"
+        if (-not (Test-Path $pendingMessageFile)) {
+            $bootstrapMsg = @{
+                id = "bootstrap-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$(Get-Random -Minimum 1000 -Maximum 9999)"
+                from = "watchdog"
+                to = "pm"
+                type = "Bootstrap"
+                payload = @{
+                    action = "StartDevelopmentCycle"
+                    reason = "Initial startup"
+                }
+                timestamp = [DateTime]::UtcNow.ToString("o")
+            }
+
+            $bootstrapMsg | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingMessageFile -Encoding utf8
+            Write-Host "[PM] Bootstrap message created - invoking CLI immediately" -ForegroundColor Green
+
+            # Immediately invoke CLI to process the bootstrap message
+            # This is the PM's first action - start the development cycle
+            $responseFile = Join-Path $contextDir "response.json"
+
+            $invokeMsg = @{
+                id = "invoke-bootstrap-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$(Get-Random -Minimum 1000 -Maximum 9999)"
+                type = "CLIInvoke"
+                from = "pm"
+                to = "watchdog"
+                payload = @{
+                    agentName = "pm"
+                    messageFile = $pendingMessageFile
+                    responseFile = $responseFile
+                    requestedAt = [DateTime]::UtcNow.ToString("o")
+                }
+                timestamp = [DateTime]::UtcNow.ToString("o")
+            }
+
+            try {
+                $json = $invokeMsg | ConvertTo-Json -Compress -Depth 10
+                $Script:AgentRuntime.Writer.WriteLine($json)
+                Write-Host "[PM] Waiting for CLI to complete bootstrap..." -ForegroundColor DarkGray
+            } catch {
+                Write-Error "[PM] Failed to send CLIInvoke for bootstrap: $_"
+                return $false
+            }
+
+            # Wait for CLIComplete message after bootstrap
+            $timeoutMs = 330000  # 5.5 minutes
+            $startTime = [DateTime]::UtcNow
+            $cliComplete = $false
+
+            while (([DateTime]::UtcNow - $startTime).TotalMilliseconds -lt $timeoutMs) {
+                try {
+                    if ($Script:AgentRuntime.Reader.Peek() -gt 0) {
+                        $line = $Script:AgentRuntime.Reader.ReadLine()
+                        if ($line -and $line -match '\S') {
+                            $msg = $line | ConvertFrom-Json
+
+                            if ($msg.type -in $Script:MessageTypes) {
+                                # It's a new-style message
+                            } else {
+                                $msg.type = Convert-LegacyMessageType -LegacyType $msg.type
+                            }
+
+                            if ($msg.type -eq "CLIComplete" -and $msg.payload.agentName -eq "pm") {
+                                $cliComplete = $true
+                                Write-Host "[PM] Bootstrap CLI completed: $($msg.payload.success)" -ForegroundColor Green
+                                break
+                            }
+                        }
+                    }
+                } catch {
+                    # Continue waiting
+                }
+                Start-Sleep -Milliseconds 100
+            }
+
+            if (-not $cliComplete) {
+                Write-Warning "[PM] Timeout waiting for bootstrap CLI completion"
+            }
+
+            # Clean up bootstrap message file
+            if (Test-Path $pendingMessageFile) {
+                Remove-Item $pendingMessageFile -Force
+            }
+        }
+    }
+
+    # Default message handler - request CLI invocation from supervisor
+    # Capture variables in closure using GetNewClosure()
+    $defaultHandler = {
+        param($Message)
+
+        # Get the agent name from the script scope
+        $agentName = $Script:AgentRuntime.AgentName
+        $sessionDir = $Script:AgentRuntime.SessionDir
+
+        Write-Host "[$agentName] Processing message: $($Message.type) from $($Message.from)" -ForegroundColor Cyan
+
+        # Skip CLIInvoke messages (these are our own requests echoing back)
+        if ($Message.type -eq "CLIInvoke") {
+            return $null
+        }
+
+        # Handle CLIComplete messages (supervisor's response)
+        if ($Message.type -eq "CLIComplete") {
+            Write-Host "[$agentName] CLI completed: $($Message.payload.success)" -ForegroundColor Green
+            return $null
+        }
+
+        # Save message to temp file for CLI context
+        $contextDir = Join-Path $sessionDir "agents\$agentName"
+        if (-not (Test-Path $contextDir)) {
+            New-Item -ItemType Directory -Path $contextDir -Force | Out-Null
+        }
+        $messageFile = Join-Path $contextDir "pending-message.json"
+        $responseFile = Join-Path $contextDir "response.json"
+        $Message | ConvertTo-Json -Depth 10 | Out-File -FilePath $messageFile -Encoding utf8
+
+        # Request supervisor to spawn CLI (instead of spawning ourselves)
+        Write-Host "[$agentName] Requesting CLI invocation from supervisor" -ForegroundColor DarkGray
+
+        $invokeMsg = @{
+            id = "invoke-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$(Get-Random -Minimum 1000 -Maximum 9999)"
+            type = "CLIInvoke"
+            from = $agentName
+            to = "watchdog"
+            payload = @{
+                agentName = $agentName
+                messageFile = $messageFile
+                responseFile = $responseFile
+                requestedAt = [DateTime]::UtcNow.ToString("o")
+            }
+            timestamp = [DateTime]::UtcNow.ToString("o")
+        }
+
+        try {
+            $json = $invokeMsg | ConvertTo-Json -Compress -Depth 10
+            $Script:AgentRuntime.Writer.WriteLine($json)
+        } catch {
+            Write-Error "[$agentName] Failed to send CLIInvoke: $_"
+            # Clean up message file
+            if (Test-Path $messageFile) {
+                Remove-Item $messageFile -Force
+            }
+            return $null
+        }
+
+        # Wait for CLIComplete message from supervisor
+        Write-Host "[$agentName] Waiting for CLI to complete..." -ForegroundColor DarkGray
+        $timeoutMs = 330000  # 5.5 minutes (slightly longer than supervisor timeout)
+        $startTime = [DateTime]::UtcNow
+        $cliComplete = $false
+
+        while (([DateTime]::UtcNow - $startTime).TotalMilliseconds -lt $timeoutMs) {
+            # Check for message (non-blocking poll)
+            try {
+                if ($Script:AgentRuntime.Reader.Peek() -gt 0) {
+                    $line = $Script:AgentRuntime.Reader.ReadLine()
+                    if ($line -and $line -match '\S') {
+                        $msg = $line | ConvertFrom-Json
+
+                        # Convert legacy message types if needed
+                        if ($msg.type -notin $Script:MessageTypes) {
+                            $msg.type = Convert-LegacyMessageType -LegacyType $msg.type
+                        }
+
+                        if ($msg.type -eq "CLIComplete" -and $msg.payload.agentName -eq $agentName) {
+                            $cliComplete = $true
+                            Write-Host "[$agentName] CLI completed: $($msg.payload.success)" -ForegroundColor Green
+                            break
+                        }
+
+                        # Not our CLIComplete - could be another message, queue it for next loop
+                        # For now, just log and continue waiting
+                        Write-Warning "[$agentName] Received unexpected message while waiting for CLI: $($msg.type)"
+                    }
+                }
+            } catch {
+                Write-Warning "[$agentName] Error reading message while waiting for CLI: $_"
+            }
+
+            Start-Sleep -Milliseconds 100
+        }
+
+        if (-not $cliComplete) {
+            Write-Warning "[$agentName] Timeout waiting for CLI completion"
+            # Clean up message file
+            if (Test-Path $messageFile) {
+                Remove-Item $messageFile -Force
+            }
+            return $null
+        }
+
+        # Check for response file
+        if (Test-Path $responseFile) {
+            $response = Get-Content $responseFile | ConvertFrom-Json
+            Remove-Item $responseFile -Force
+            Write-Host "[$agentName] CLI returned response" -ForegroundColor Green
+            return $response
+        }
+
+        Write-Warning "[$agentName] CLI did not produce response file"
+        return $null
+    }.GetNewClosure()
+
+    # Enter the loop
+    return Enter-AgentLoop -MessageHandler $defaultHandler -TimeoutMs $TimeoutMs
+}
+
+# ============================================================================
 # EXPORTS
 # ============================================================================
 
@@ -535,6 +797,7 @@ Export-ModuleMember -Function @(
 
     # Agent Loop
     'Enter-AgentLoop',
+    'Start-AgentLoop',
 
     # Helpers
     'Get-AgentName',

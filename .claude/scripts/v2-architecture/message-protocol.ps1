@@ -13,6 +13,9 @@ $Script:MessageTypes = @(
     # Agent Lifecycle (2 types: agent_ready, status_update)
     "AgentStatus",
 
+    # Bootstrap (1 type: initial startup trigger for PM)
+    "Bootstrap",
+
     # Work Management (4 types: task_assign, asset_assign, task_complete, etc.)
     "WorkAssign",
     "WorkComplete",
@@ -46,7 +49,11 @@ $Script:MessageTypes = @(
     "System",
 
     # Playtesting (2 types: playtest_request, playtest_report)
-    "Playtest"
+    "Playtest",
+
+    # CLI Process Management (2 types: CLI invoke request, CLI completion notification)
+    "CLIInvoke",
+    "CLIComplete"
 )
 
 # Map old message types to new types
@@ -149,7 +156,7 @@ function New-Message {
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet("AgentStatus", "WorkAssign", "WorkComplete", "WorkAbandoned", "WorkBlocked", "ProblemReport", "Query", "Response", "ValidationRequest", "ValidationResult", "DesignUpdate", "Retrospective", "PlanUpdate", "ResearchUpdate", "System", "Playtest")]
+        [ValidateSet("AgentStatus", "Bootstrap", "WorkAssign", "WorkComplete", "WorkAbandoned", "WorkBlocked", "ProblemReport", "Query", "Response", "ValidationRequest", "ValidationResult", "DesignUpdate", "Retrospective", "PlanUpdate", "ResearchUpdate", "System", "Playtest", "CLIInvoke", "CLIComplete")]
         [string]$Type,
 
         [Parameter(Mandatory=$true)]
@@ -548,6 +555,151 @@ function New-SystemMessage {
     return New-Message -Type "System" -From $From -To $To -Payload $payload
 }
 
+function New-CLIInvokeMessage {
+    <#
+    .SYNOPSIS
+    Create a CLIInvoke message to request supervisor to spawn CLI.
+
+    .PARAMETER From
+    Sender agent (the agent requesting CLI invocation).
+
+    .PARAMETER AgentName
+    The agent this CLI is for (pm, developer, qa, etc.).
+
+    .PARAMETER MessageFile
+    Path to the pending-message.json file.
+
+    .PARAMETER ResponseFile
+    Path where response should be written.
+
+    .RETURNS
+    CLIInvoke message hashtable.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$From,
+
+        [Parameter(Mandatory=$true)]
+        [string]$AgentName,
+
+        [Parameter(Mandatory=$true)]
+        [string]$MessageFile,
+
+        [Parameter(Mandatory=$false)]
+        [string]$ResponseFile = ""
+    )
+
+    if (-not $ResponseFile) {
+        # Derive response file from message file path
+        $ResponseFile = $MessageFile -replace "pending-message\.json$", "response.json"
+    }
+
+    $payload = @{
+        agentName = $AgentName
+        messageFile = $MessageFile
+        responseFile = $ResponseFile
+        requestedAt = [DateTime]::UtcNow.ToString("o")
+    }
+
+    return New-Message -Type "CLIInvoke" -From $From -To "watchdog" -Payload $payload
+}
+
+function New-BootstrapMessage {
+    <#
+    .SYNOPSIS
+    Create a Bootstrap message for PM startup.
+
+    .PARAMETER From
+    Sender agent (usually watchdog).
+
+    .PARAMETER To
+    Recipient agent (usually pm).
+
+    .PARAMETER Action
+    The bootstrap action (StartDevelopmentCycle).
+
+    .PARAMETER Reason
+    Reason for bootstrap (Initial startup, Restart, etc.).
+
+    .RETURNS
+    Bootstrap message hashtable.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$From,
+
+        [Parameter(Mandatory=$true)]
+        [string]$To,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Action,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Reason = ""
+    )
+
+    $payload = @{
+        action = $Action
+        reason = $Reason
+    }
+
+    return New-Message -Type "Bootstrap" -From $From -To $To -Payload $payload
+}
+
+function New-CLICompleteMessage {
+    <#
+    .SYNOPSIS
+    Create a CLIComplete message to notify broker CLI finished.
+
+    .PARAMETER To
+    Recipient agent name.
+
+    .PARAMETER AgentName
+    The agent that invoked the CLI.
+
+    .PARAMETER ExitCode
+    The CLI process exit code.
+
+    .PARAMETER Success
+    Whether the CLI completed successfully.
+
+    .PARAMETER Error
+    Error message if CLI failed.
+
+    .RETURNS
+    CLIComplete message hashtable.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$To,
+
+        [Parameter(Mandatory=$true)]
+        [string]$AgentName,
+
+        [Parameter(Mandatory=$false)]
+        [int]$ExitCode = 0,
+
+        [Parameter(Mandatory=$false)]
+        [bool]$Success = $true,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Error = ""
+    )
+
+    $payload = @{
+        agentName = $AgentName
+        exitCode = $ExitCode
+        success = $Success
+        completedAt = [DateTime]::UtcNow.ToString("o")
+    }
+
+    if ($Error) {
+        $payload.error = $Error
+    }
+
+    return New-Message -Type "CLIComplete" -From "watchdog" -To $To -Payload $payload
+}
+
 # ============================================================================
 # MESSAGE VALIDATION
 # ============================================================================
@@ -603,6 +755,9 @@ try {
         'New-ProblemReportMessage',
         'New-ValidationRequestMessage',
         'New-SystemMessage',
+        'New-BootstrapMessage',
+        'New-CLIInvokeMessage',
+        'New-CLICompleteMessage',
 
         # Legacy support
         'Convert-LegacyMessageType',

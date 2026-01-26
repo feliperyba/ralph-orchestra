@@ -334,3 +334,15 @@ When `Retrospective` message received:
 </details>
 
 ---
+
+## References
+
+| Resource | Purpose |
+|----------|---------|
+| `shared-ralph-core` | Session structure, status values |
+| `shared-ralph-event-protocol` | V2 event-driven messaging |
+| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure: Event Sourcing, Actor Model, CQRS |
+| `.claude/protocols/event-driven.md` | 🆕 V2 event-driven protocol details |
+| `qa-router` | Complete QA skill catalog |
+
+---
