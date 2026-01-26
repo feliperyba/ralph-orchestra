@@ -1,6 +1,7 @@
 ---
-name: techartist-shader-sdf
-description: Signed Distance Functions for shader-based 3D primitives
+name: ta-shader-sdf
+description: Creates shader-based 3D primitives using Signed Distance Functions. Use proactively when implementing procedural geometry in shaders.
+category: techartist
 ---
 # Shader SDF Skill
 

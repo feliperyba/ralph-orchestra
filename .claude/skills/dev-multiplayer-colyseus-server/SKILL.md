@@ -173,6 +173,148 @@ const gameServer = new Server({
 });
 ```
 
+## Security Considerations
+
+### Input Validation
+
+**CRITICAL**: Never trust data from clients. Always validate server-side.
+
+```typescript
+onMessage(client: Client, data: any) {
+  // Validate message structure
+  if (!data || typeof data !== 'object') return;
+
+  // Validate message type (allowlist only)
+  const allowedTypes = ['player_input', 'paint_fire', 'emote'];
+  if (!allowedTypes.includes(data.type)) return;
+
+  // Validate data types
+  if (data.type === 'player_input') {
+    // Ensure input object exists and has expected properties
+    if (!data.input || typeof data.input !== 'object') return;
+
+    // Sanitize boolean inputs
+    const input = {
+      forward: Boolean(data.input?.forward),
+      backward: Boolean(data.input?.backward),
+      left: Boolean(data.input?.left),
+      right: Boolean(data.input?.right),
+      jump: Boolean(data.input?.jump),
+    };
+
+    this.handleInput(client, input);
+  }
+}
+```
+
+### Rate Limiting
+
+Prevent message spam exploits that can degrade server performance.
+
+```typescript
+export class GameRoom extends Room {
+  private messageCounts = new Map<string, number>();
+  private lastReset = Date.now();
+
+  onMessage(client: Client, data: any) {
+    // Reset counters every second
+    const now = Date.now();
+    if (now - this.lastReset > 1000) {
+      this.messageCounts.clear();
+      this.lastReset = now;
+    }
+
+    // Count messages from this client
+    const count = (this.messageCounts.get(client.sessionId) || 0) + 1;
+
+    // Max 60 messages per second
+    if (count > 60) {
+      console.warn(`Rate limit exceeded: ${client.sessionId}`);
+      return; // Silently drop excess messages
+    }
+
+    this.messageCounts.set(client.sessionId, count);
+
+    // Process message...
+  }
+}
+```
+
+### DDoS Protection
+
+```typescript
+// Limit max connections per IP
+const ipConnectionCount = new Map<string, number>();
+
+function checkConnectionLimit(ip: string): boolean {
+  const count = ipConnectionCount.get(ip) || 0;
+  if (count >= 5) { // Max 5 connections per IP
+    return false;
+  }
+  ipConnectionCount.set(ip, count + 1);
+  return true;
+}
+
+// Clean up on disconnect
+onLeave(client: Client) {
+  const ip = client.address?.address;
+  if (ip) {
+    const count = Math.max(0, (ipConnectionCount.get(ip) || 0) - 1);
+    ipConnectionCount.set(ip, count);
+  }
+}
+```
+
+### Authentication
+
+```typescript
+// Verify JWT token on join
+async function verifyToken(token: string): Promise<{ userId: string } | null> {
+  try {
+    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
+    return { userId: decoded.sub };
+  } catch {
+    return null;
+  }
+}
+
+onJoin(client: Client, options: any) {
+  // Verify authentication
+  if (!options.authToken) {
+    client.leave(4001); // Unauthorized
+    return;
+  }
+
+  const user = await verifyToken(options.authToken);
+  if (!user) {
+    client.leave(4001);
+    return;
+  }
+
+  // Store user info for this session
+  client.userData = { userId: user.userId };
+}
+```
+
+### Data Sanitization
+
+```typescript
+// Sanitize strings to prevent injection attacks
+function sanitizeString(input: string, maxLength: number = 100): string {
+  if (typeof input !== 'string') return '';
+  return input
+    .slice(0, maxLength)
+    .replace(/[<>]/g, ''); // Remove potential HTML
+}
+
+// Sanitize numbers to prevent overflow
+function sanitizeNumber(input: any, min: number, max: number, default: number): number {
+  const num = Number(input);
+  if (isNaN(num)) return default;
+  return Math.max(min, Math.min(max, num));
+}
+```
+
 ## Best Practices
 
 1. **Always use ESM** - `"type": "module"` in package.json
@@ -180,6 +322,9 @@ const gameServer = new Server({
 3. **Rate limit actions** - Prevent spam exploits
 4. **Log room lifecycle** - For debugging
 5. **Use Schema for state** - Efficient binary serialization
+6. **Sanitize all client data** - Prevent injection attacks
+7. **Implement authentication** - Verify user identity
+8. **Monitor for abuse** - Track suspicious patterns
 
 ## Common Mistakes
 

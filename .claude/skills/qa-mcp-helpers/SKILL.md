@@ -7,7 +7,7 @@ description: Shared helper patterns for Playwright MCP validation agents. Reuses
 
 > "Share code between E2E tests and MCP validation"
 
-This skill provides common patterns for using Playwright MCP tools in validation agents. These patterns align with the Page Object Model used in automated E2E tests.
+This skill provides common patterns for Playwright MCP tools in validation agents. These align with Page Object Model used in automated E2E tests.
 
 ## Quick Reference
 
@@ -17,18 +17,28 @@ This skill provides common patterns for using Playwright MCP tools in validation
 | `await gamePage.goto()` | `await page.goto('http://localhost:3000')` |
 | `await expect(element).toBeVisible()` | Check visibility, take screenshot |
 
-## Common MCP Patterns
+## Helper Libraries
+
+**See these helper files for complete implementations:**
+
+| Helper File | Purpose |
+|-------------|---------|
+| `tests/helpers/gameplay-patterns.ts` | Movement, input, FPS monitoring |
+| `tests/helpers/visual-analysis.ts` | Screenshot analysis, GDD compliance |
+| `tests/pages/base.page.ts` | Base page class with common methods |
+| `tests/pages/game.page.ts` | Game-specific interactions |
+| `tests/pages/multiplayer.page.ts` | Multi-client testing |
+
+---
+
+## Core Patterns
 
 ### Navigation
 
 ```typescript
 // Navigate to the application
 await page.goto('http://localhost:3000');
-
-// Wait for page to fully load
 await page.waitForLoadState('networkidle');
-
-// Wait for canvas to be ready
 await page.waitForSelector('canvas');
 ```
 
@@ -37,15 +47,11 @@ await page.waitForSelector('canvas');
 ```typescript
 // Track console errors during validation
 const errors: string[] = [];
-
 page.on('console', (msg) => {
-  if (msg.type() === 'error') {
-    errors.push(msg.text());
-  }
+  if (msg.type() === 'error') errors.push(msg.text());
 });
 
-// After performing actions:
-// Check that no errors occurred
+// After actions: verify no errors
 expect(errors).toHaveLength(0);
 ```
 
@@ -59,31 +65,12 @@ await page.screenshot({
 });
 ```
 
-### Using Page Object Selectors
-
-When the E2E test uses specific selectors, use the same approach in MCP validation:
-
-```typescript
-// Character Selection Screen
-// E2E test: page.locator('#characterName')
-// MCP: page.locator('#characterName')
-
-// Select Character Button
-// E2E test: page.locator('button:has-text("Select Character")')
-// MCP: page.locator('button:has-text("Select Character")')
-
-// Lobby State
-// E2E test: page.getByText('LOBBY')
-// MCP: page.getByText('LOBBY')
-
-// Connection State
-// E2E test: page.getByText('Connected')
-// MCP: page.getByText('Connected')
-```
+---
 
 ## Game-Specific Patterns
 
-### Character Selection Flow
+<details>
+<summary>Character Selection Flow</summary>
 
 ```typescript
 // Navigate to game
@@ -93,15 +80,12 @@ await page.waitForLoadState('networkidle');
 // Check if at Character Selection screen
 const atCharacterSelection = await page.evaluate(() => {
   const bodyText = document.body.textContent || '';
-  return bodyText.includes('Choose Your Character') ||
-         bodyText.includes('Character Selection');
+  return bodyText.includes('Choose Your Character');
 });
 
 if (atCharacterSelection) {
   // Enter character name
   await page.fill('#characterName', 'TestPlayer');
-
-  // Wait for state update
   await page.waitForTimeout(500);
 
   // Click Select Character button
@@ -109,25 +93,23 @@ if (atCharacterSelection) {
   await selectButton.click();
 
   // Wait for Lobby screen
-  await page.waitForFunction(
-    () => {
-      const bodyText = document.body.textContent || '';
-      return bodyText.includes('LOBBY') ||
-             bodyText.includes('Connecting to server');
-    },
-    { timeout: 10000 }
-  );
+  await page.waitForFunction(() => {
+    const bodyText = document.body.textContent || '';
+    return bodyText.includes('LOBBY');
+  }, { timeout: 10000 });
 }
 ```
 
-### Connection Verification
+</details>
+
+<details>
+<summary>Connection Verification</summary>
 
 ```typescript
 // Wait for server connection
 await page.waitForFunction(
   () => {
     const bodyText = document.body.textContent || '';
-    // Must show "Connected" but not "Connecting to server"
     return bodyText.includes('Connected') &&
            !bodyText.includes('Connecting to server');
   },
@@ -138,24 +120,25 @@ await page.waitForFunction(
 const isConnected = await page.evaluate(() => {
   const bodyText = document.body.textContent || '';
   return bodyText.includes('Connected') &&
-         bodyText.includes('Players in Lobby') &&
-         !bodyText.includes('Connecting to server');
+         bodyText.includes('Players in Lobby');
 });
 ```
+
+</details>
+
+---
 
 ## Input Testing Patterns
 
 ### Keyboard Input (Movement)
 
 ```typescript
-// Continuous movement for gameplay testing
-await page.keyboard.down('KeyW');
-await page.waitForTimeout(1000); // Move for 1 second
-await page.keyboard.up('KeyW');
+// Continuous movement - use gameplay-patterns.ts helpers
+import { moveForward, strafeLeft, jump } from '@/helpers/gameplay-patterns';
 
-// Individual key presses
-await page.keyboard.press('KeyA');
-await page.waitForTimeout(500);
+await moveForward(page, 1000);  // Move forward for 1 second
+await strafeLeft(page, 500);    // Strafe left for 500ms
+await jump(page);               // Jump once
 ```
 
 ### Mouse Input (Pointer Lock)
@@ -165,9 +148,9 @@ await page.waitForTimeout(500);
 await page.mouse.click(400, 300);
 await page.waitForTimeout(500);
 
-// Simulate mouse movement (movementX/Y only work when locked)
+// Simulate mouse movement
 await page.mouse.move(100, 100);
-await page.mouse.move(200, 150); // movementX: 100, movementY: 50
+await page.mouse.move(200, 150);
 
 // Mouse click (shoot action)
 await page.mouse.down();
@@ -188,82 +171,55 @@ const isLocked = await page.evaluate(() => {
 expect(isLocked).toBe(false);
 ```
 
-## Selector Best Practices
+---
 
-When writing MCP validation scripts, follow these selector priorities:
+## Selector Best Practices
 
 ### Priority Order
 
-1. **Role-based selectors** (Preferred - accessible)
-   ```typescript
-   page.getByRole('button', { name: 'Submit' })
-   page.getByRole('textbox', { name: 'Username' })
-   ```
-
-2. **Label-based selectors** (Good - accessible)
-   ```typescript
-   page.getByLabel('Character Name')
-   page.getByLabel('Email address')
-   ```
-
-3. **Test ID selectors** (When no accessible name)
-   ```typescript
-   page.getByTestId('submit-button')
-   page.getByTestId('character-name-input')
-   ```
-
-4. **Text content** (For existing patterns)
-   ```typescript
-   page.getByText('LOBBY')
-   page.locator('button:has-text("Select Character")')
-   ```
-
-5. **ID selectors** (For legacy/existing code)
-   ```typescript
-   page.locator('#characterName')
-   ```
+| Priority | Type | Example |
+|----------|------|---------|
+| 1 (Best) | Role-based | `page.getByRole('button', { name: 'Submit' })` |
+| 2 (Good) | Label-based | `page.getByLabel('Character Name')` |
+| 3 (When needed) | Test ID | `page.getByTestId('submit-button')` |
+| 4 (Existing) | Text content | `page.getByText('LOBBY')` |
+| 5 (Legacy) | ID selector | `page.locator('#characterName')` |
 
 ### Avoid
 
 ❌ **Brittle CSS selectors:**
 ```typescript
-// Bad - breaks with CSS changes
+// Breaks with CSS changes
 page.locator('.btn-primary:first-child')
 page.locator('div.container > div:nth-child(2)')
-
-// Bad - fragile to DOM structure changes
-page.locator('body > div > div > button')
 ```
 
-## Anti-Patterns
+✅ **Stable accessible selectors:**
+```typescript
+// Uses semantic HTML
+page.getByRole('button', { name: 'Submit' })
+page.getByLabel('Email address')
+```
 
-### Don't Use Hard-coded Waits
+---
+
+## Common Page Object Selectors
+
+When E2E tests use specific selectors, use the same approach in MCP validation:
 
 ```typescript
-// Bad - arbitrary delay
-await page.waitForTimeout(5000);
+// Character Selection Screen
+await page.fill('#characterName', 'TestPlayer');
+await page.locator('button:has-text("Select Character")').first().click();
 
-// Good - wait for specific condition
-await page.waitForSelector('canvas');
-await page.waitForFunction(() => {
-  return document.body.textContent?.includes('Connected');
-});
+// Lobby State
+await expect(page.getByText('LOBBY')).toBeVisible();
+
+// Connection State
+await expect(page.getByText('Connected')).toBeVisible();
 ```
 
-### Don't Skip Error Checking
-
-```typescript
-// Always check for console errors
-const errors: string[] = [];
-page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text());
-});
-
-// After validation, verify no errors
-if (errors.length > 0) {
-  console.error('Console errors found:', errors);
-}
-```
+---
 
 ## Alignment with E2E Tests
 
@@ -289,10 +245,23 @@ export class GamePage {
 await page.fill('#characterName', 'TestPlayer');
 ```
 
+---
+
+## Anti-Patterns
+
+| ❌ DON'T | ✅ DO |
+|----------|-------|
+| Hardcoded waits (`waitForTimeout(5000)`) | Wait for specific condition (`waitForSelector`) |
+| Skip error checking | Always monitor console for errors |
+| Use brittle CSS selectors | Use role-based selectors |
+| Duplicate E2E test logic | Focus on NEW feature validation |
+| Ignore page object patterns | Reuse selectors from `tests/pages/` |
+
+---
+
 ## References
 
 - [tests/pages/base.page.ts](tests/pages/base.page.ts) - Base page class
-- [tests/pages/game.page.ts](tests/pages/game.page.ts) - Game-specific interactions
-- [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts) - Multiplayer test helpers
-- [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) - Example E2E tests
-- [.claude/skills/qa-browser-testing/SKILL.md](.claude/skills/qa-browser-testing/SKILL.md) - Browser testing skill
+- [tests/pages/game.page.ts](tests/pages/game.page.ts) - Game page object
+- [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts) - Multiplayer helpers
+- **[qa-browser-testing/SKILL.md](../qa-browser-testing/SKILL.md)** - Browser testing skill

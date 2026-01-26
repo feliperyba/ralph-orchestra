@@ -354,6 +354,6 @@ ui                     │ techartist
 
 ## See Also
 
-- [Architecture Documentation](../architecture.md) - System architecture overview
-- [Configuration Guide](../configuration.md) - PRD format and agent settings
-- [Skills Best Practices](../skills-best-practices.md) - Creating and maintaining skills
+- [Architecture Documentation](../core/architecture.md) - System architecture overview
+- [Configuration Guide](../core/configuration.md) - PRD format and agent settings
+- [Skills Best Practices](../best-practices/skills-best-practices.md) - Creating and maintaining skills

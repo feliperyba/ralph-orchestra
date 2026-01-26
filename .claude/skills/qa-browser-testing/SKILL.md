@@ -7,66 +7,57 @@ description: E2E test creation and execution for QA. Validates implementations u
 
 > "Validate implementations with E2E tests that become regression tests for the project."
 
-## When to Use This Skill
+## When to Use
 
-Use for **every validation** after automated checks pass:
-- Validating Developer implementation
-- Verifying Tech Artist visual assets
-- Testing gameplay mechanics
-- Checking UI components
-- Before marking PRD items as passed
+Use for **every validation** after automated checks pass.
+
+---
 
 ## Quick Start
 
 ```bash
-# 1. Check if E2E test exists for the feature
+# 1. Check if E2E test exists
 ls tests/e2e/{feature}-suite.spec.ts
 
-# 2. If missing, create using qa-e2e-test-creation patterns
-# Use Skill("qa-e2e-test-creation")
+# 2. If missing, create using qa-e2e-test-creation
+# Skill("qa-e2e-test-creation")
 
-# 3. Run E2E tests to validate implementation
+# 3. Run E2E tests
 npm run test:e2e
-
-# 4. Review test output for acceptance criteria verification
 ```
+
+---
 
 ## Core Principle: Run Tests, Don't Use MCP
 
-**❌ OLD APPROACH (Do NOT do this):**
+**❌ OLD (Do NOT do this):**
 ```typescript
-// Interactive MCP validation - NO!
 mcp__playwright__browser_navigate('http://localhost:3000');
 mcp__playwright__browser_take_screenshot({ filename: 'validation.png' });
 ```
 
-**✅ NEW APPROACH (Do this):**
+**✅ NEW (Do this):**
 ```typescript
-// Write or run E2E test - YES!
 npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
 ```
 
-## Validation Workflow
+---
 
-### Level 0: Test Coverage Check (BEFORE Validation)
+## Test Categories
 
-**⚠️ CRITICAL: Ensure tests exist before validation**
+| Category | What to Check | Test Pattern |
+|----------|---------------|--------------|
+| **Load** | Page loads, canvas renders | `test('page loads', ...)` |
+| **Console** | No errors or warnings | Console listener test |
+| **Functional** | Features work as specified | Acceptance criteria tests |
+| **Visual** | UI appears correctly | Screenshot comparison |
+| **Performance** | 60 FPS, no stuttering | FPS monitoring test |
+| **Input** | Controls respond correctly | WASD/mouse tests |
 
-1. **Check if E2E test exists** for the validated feature:
-   ```bash
-   # Look for test file
-   ls tests/e2e/{feature}-suite.spec.ts
+---
 
-   # Or search for task/feature in tests
-   grep -r "taskId" tests/e2e/
-   ```
-
-2. **If test is missing:**
-   - Load `qa-e2e-test-creation` skill
-   - Create test covering acceptance criteria
-   - Verify test runs successfully
-
-### Level 1: Run E2E Tests
+<details>
+<summary>Test Execution Commands</summary>
 
 ```bash
 # Run all E2E tests
@@ -83,92 +74,20 @@ npm run test:e2e -- --headed
 
 # Run with debug mode
 npm run test:e2e -- --debug
+
+# Run on different browsers
+npm run test:e2e -- --project=chromium
+npm run test:e2e -- --project=firefox
+npm run test:e2e -- --project=webkit
 ```
 
-### Level 2: Verify Acceptance Criteria
+</details>
 
-For each acceptance criterion in `prd.json.items[{taskId}]`:
+---
 
-```markdown
-## Acceptance Criteria Verification
+## Common Test Patterns
 
-### Criterion 1: "Feature does X"
-
-- **Test**: `npm run test:e2e -- -g "feature does X"`
-- **Result**: ✅ PASS / ❌ FAIL
-- **Evidence**: Test output shows expected behavior
-```
-
-### Level 3: Report Results
-
-**If ALL tests pass:**
-```json
-{
-  "id": "{taskId}",
-  "passes": true,
-  "status": "passed",
-  "validatedAt": "{ISO_TIMESTAMP}",
-  "testResults": {
-    "e2eTests": "passed",
-    "testFile": "tests/e2e/{feature}-suite.spec.ts"
-  }
-}
-```
-
-**If ANY test fails:**
-```json
-{
-  "id": "{taskId}",
-  "status": "needs_fixes",
-  "bugNotes": "Test failure details...",
-  "retryCount": 1,
-  "testResults": {
-    "e2eTests": "failed",
-    "failureReason": "Test output excerpt"
-  }
-}
-```
-
-## Test Categories
-
-| Category | What to Check | Test Pattern |
-|----------|---------------|--------------|
-| **Load** | Page loads, canvas renders | `test('page loads', ...)` |
-| **Console** | No errors or warnings | Console listener test |
-| **Functional** | Features work as specified | Acceptance criteria tests |
-| **Visual** | UI appears correctly | Screenshot comparison |
-| **Performance** | 60 FPS, no stuttering | FPS monitoring test |
-| **Input** | Controls respond correctly | WASD/mouse tests |
-
-## Creating Tests for Missing Coverage
-
-When Developer/Tech Artist didn't create tests:
-
-```typescript
-// tests/e2e/{feature}-suite.spec.ts
-import { test, expect } from '@playwright/test';
-
-test.describe('Feature Name - {taskId}', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:3000');
-  });
-
-  test('should meet acceptance criterion 1', async ({ page }) => {
-    // Test implementation
-  });
-
-  test('should meet acceptance criterion 2', async ({ page }) => {
-    // Test implementation
-  });
-});
-```
-
-**Then verify:**
-```bash
-npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
-```
-
-## Common Test Patterns for Validation
+See [tests/pages/](tests/pages/) for Page Object Model classes.
 
 ### Basic Load Test
 
@@ -176,17 +95,15 @@ npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
 test('page loads correctly', async ({ page }) => {
   await page.goto('http://localhost:3000');
 
-  // Wait for canvas
   const canvas = page.locator('canvas');
   await expect(canvas).toBeVisible();
 
-  // Check for console errors
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(msg.text());
   });
 
-  await page.waitForTimeout(5000); // Wait for initial load
+  await page.waitForTimeout(5000);
   expect(errors).toHaveLength(0);
 });
 ```
@@ -196,12 +113,8 @@ test('page loads correctly', async ({ page }) => {
 ```typescript
 test('keyboard controls work', async ({ page }) => {
   await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Focus canvas
   await page.click('canvas');
 
-  // Press WASD keys
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/after-w.png' });
@@ -214,27 +127,21 @@ test('keyboard controls work', async ({ page }) => {
 ```typescript
 test('visual appearance matches', async ({ page }) => {
   await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-  await page.waitForTimeout(2000); // Wait for scene to stabilize
+  await page.waitForTimeout(2000);
 
-  // Compare with baseline
   await expect(page).toHaveScreenshot('baseline.png', {
     maxDiffPixelRatio: 0.01,
   });
 });
 ```
 
-### Pointer Lock Testing (FPS/TPS)
+### Pointer Lock Testing
 
 ```typescript
-test('pointer lock activates on game start', async ({ page }) => {
+test('pointer lock activates', async ({ page }) => {
   await page.goto('http://localhost:3000');
-  await page.waitForSelector('canvas');
-
-  // Wait for auto-lock timeout (typically 100ms)
   await page.waitForTimeout(200);
 
-  // Check if pointer lock is active
   const isLocked = await page.evaluate(() => {
     return document.pointerLockElement === document.body;
   });
@@ -249,10 +156,8 @@ test('pointer lock activates on game start', async ({ page }) => {
 test('performance is acceptable', async ({ page }) => {
   await page.goto('http://localhost:3000');
 
-  // Get performance metrics
   const metrics = await page.evaluate(() => {
-    const entries = performance.getEntriesByType('navigation');
-    const nav = entries[0] as PerformanceNavigationTiming;
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
     return {
       loadTime: nav.loadEventEnd - nav.startTime,
       domContentLoaded: nav.domContentLoadedEventEnd - nav.startTime,
@@ -264,29 +169,7 @@ test('performance is acceptable', async ({ page }) => {
 });
 ```
 
-## Console Error Monitoring
-
-Every validation should include console error checking:
-
-```typescript
-test.describe('Console Error Check', () => {
-  test('should have no console errors', async ({ page }) => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(msg.text());
-      if (msg.type() === 'warning') warnings.push(msg.text());
-    });
-
-    await page.goto('http://localhost:3000');
-    await page.waitForTimeout(5000);
-
-    expect(errors).toHaveLength(0);
-    expect(warnings).toHaveLength(0);
-  });
-});
-```
+---
 
 ## Page Object Model Usage
 
@@ -320,6 +203,46 @@ test('multiplayer state sync', async ({ browser }) => {
 });
 ```
 
+---
+
+## Verification Output Format
+
+```markdown
+## Browser Validation Results
+
+### E2E Tests
+- Test file: tests/e2e/{feature}-suite.spec.ts
+- Tests passed: X/Y
+- Failed: [list]
+
+### Console Status
+- Errors: X
+- Warnings: X
+
+### Acceptance Criteria
+- Criterion 1: ✅ Pass / ❌ Fail - {details}
+- Criterion 2: ✅ Pass / ❌ Fail - {details}
+
+### Screenshots
+- {screenshot-path}
+
+### Overall Result
+- Status: ✅ PASS / ❌ FAIL
+```
+
+---
+
+## Decision Framework
+
+| Test Result | Action |
+|-------------|--------|
+| All E2E tests pass | Mark as PASSED |
+| Some tests fail | Mark as NEEDS_FIXES with bug notes |
+| Console errors | Mark as NEEDS_FIXES |
+| No test exists | Create test first, then validate |
+
+---
+
 ## Cross-Browser Testing
 
 | Browser | Priority | Notes |
@@ -329,16 +252,9 @@ test('multiplayer state sync', async ({ browser }) => {
 | Safari/WebKit | If targeting iOS | Significant differences |
 | Edge | Optional | Uses Chromium |
 
-```bash
-# Run on different browsers
-npm run test:e2e -- --project=chromium
-npm run test:e2e -- --project=firefox
-npm run test:e2e -- --project=webkit
-```
+---
 
 ## Hybrid Model: Tests Serve Dual Purpose
-
-**New Feature Validation → Regression Tests**
 
 ```
 Developer/Tech Artist writes E2E test
@@ -352,34 +268,25 @@ Developer/Tech Artist writes E2E test
     Test becomes regression check in CI/CD
 ```
 
-## Decision Framework
-
-| Test Result | Action |
-|-------------|--------|
-| All E2E tests pass | Mark as PASSED |
-| Some tests fail | Mark as NEEDS_FIXES with bug notes |
-| Console errors | Mark as NEEDS_FIXES |
-| No test exists | Create test first, then validate |
+---
 
 ## Anti-Patterns
 
 ❌ **DON'T:**
-
 - Use Playwright MCP directly for validation
 - Skip E2E tests because automated checks passed
 - Mark as passed without running tests
 - Assume "it works on my machine"
 
 ✅ **DO:**
-
 - Always run E2E tests for validation
 - Create tests if missing
 - Verify all acceptance criteria with tests
 - Document failures with test output
 
-## Validation Checklist
+---
 
-For each validation:
+## Validation Checklist
 
 - [ ] E2E test file exists in `tests/e2e/`
 - [ ] `npm run test:e2e` runs without errors
@@ -388,6 +295,8 @@ For each validation:
 - [ ] Performance acceptable (60 FPS target)
 - [ ] Screenshot comparison passes (for visual features)
 - [ ] Tests committed to repository
+
+---
 
 ## Bug Report Format
 
@@ -408,8 +317,10 @@ When tests fail, include in bug notes:
 **Actual**: {actual behavior from test output}
 ```
 
+---
+
 ## References
 
 - **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E test patterns
+- **[tests/pages/](tests/pages/)** - Page Object Model classes
 - [Playwright Documentation](https://playwright.dev/docs/intro)
-- [tests/pages/](tests/pages/) - Page Object Model classes

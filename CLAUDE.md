@@ -140,16 +140,17 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
 | `.claude/session/coordinator-state.json` | Shared coordination state                |
 | `.claude/session/current-task.json`      | Active task details                      |
 | `.claude/session/handoff-signal.json`    | Agent switching signals (sequential)     |
-| `.claude/session/messages/`              | Message queues (event-driven)            |
-| `.claude/session/pipes/`                 | Named pipe endpoints (Phase 2)           |
+| `.claude/session/pipes/`                 | Named pipe endpoints (V2)                |
+| `.claude/session/eventlog.jsonl`         | Append-only event log (V2 source of truth)|
+| `.claude/session/agent-status.json`      | Materialized view from event log (V2)     |
 
 ### Multi-Session Architecture
 
-**Event-Driven Mode (Recommended):**
+**Event-Driven Mode (V2 - Recommended):**
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    WATCHDOG (Message Broker)                         │
+│              ACTOR SUPERVISOR (Event Sourcing) V2                    │
 │              (Routes messages, monitors health)                      │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 │
@@ -157,14 +158,14 @@ Ralph Wiggum is a plugin that enables autonomous AI development loops with multi
         ▼                       ▼                       ▼
    ┌─────────┐            ┌─────────┐            ┌─────────┐
    │   PM    │◄──────────►│Developer│◄──────────►│   QA    │
-   │ (inbox) │            │ (pipes) │            │ (pipes) │
+   │ (pipes) │            │ (pipes) │            │ (pipes) │
    └─────────┘            └─────────┘            └─────────┘
         │                      │                      │
         └──────────────────────┼──────────────────────┼───────────────────┐
                                ▼                      ▼                   ▼
                     ┌──────────────────┐    ┌───────────────┐   ┌───────────────┐
-                    │  Message Queues  │    │ TechArtist    │   │ GameDesigner  │
-                    │   (Named Pipes)  │    │  (pipes)      │   │  (pipes)      │
+                    │  Event Log       │    │ TechArtist    │   │ GameDesigner  │
+                    │  (JSONL)         │    │  (pipes)      │   │  (pipes)      │
                     └──────────────────┘    └───────────────┘   └───────────────┘
 ```
 
@@ -252,7 +253,7 @@ All Ralph work follows production standards:
 2. Verify `.claude/hooks/stop-hook.ps1` returns exit code 42
 3. Check terminal for any error messages
 4. For sequential mode, verify handoff signals are being written
-5. For event-driven mode, check message queue in `.claude/session/messages/`
+5. For event-driven V2 mode, check eventlog.jsonl and agent-status.json
 
 #### Context window overflow
 
@@ -271,9 +272,9 @@ All Ralph work follows production standards:
 
 **Solutions**:
 
-1. Use launcher scripts (`ralph-event-session.ps1`, `ralph-single-session.ps1`) which auto-create session
+1. Use launcher scripts (`ralph-event-v2-session.ps1`, `ralph-single-session.ps1`) which auto-create session
 2. For manual setup, ensure `.claude/session/` directory exists
-3. For event-driven mode, ensure `.claude/session/messages/` subdirectories exist
+3. For event-driven V2 mode, ensure eventlog.jsonl exists and watchdog is running
 4. Check file permissions on the session directory
 
 #### Named pipe issues
@@ -282,9 +283,9 @@ All Ralph work follows production standards:
 
 **Solutions**:
 
-1. Check that watchdog is running (creates named pipes)
+1. Check that watchdog V2 is running (creates named pipes)
 2. Verify `.claude/session/pipes/` directory exists
-3. System should automatically fallback to file queue if pipes fail
+3. Check undelivered.jsonl for failed message delivery
 4. Restart session if issues persist
 
 #### MCP filesystem path errors

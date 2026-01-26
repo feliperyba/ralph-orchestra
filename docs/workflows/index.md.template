@@ -81,8 +81,8 @@ When adding new agents or modifying existing workflows:
 ## See Also
 
 - [README.md](./README.md) - Workflow template standards and style guide
-- [../architecture.md](../architecture.md) - System architecture overview
-- [../configuration.md](../configuration.md) - PRD format and agent settings
+- [../core/architecture.md](../core/architecture.md) - System architecture overview
+- [../core/configuration.md](../core/configuration.md) - PRD format and agent settings
 
 ---
 

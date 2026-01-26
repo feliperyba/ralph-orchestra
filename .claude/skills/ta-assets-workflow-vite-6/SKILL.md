@@ -1,6 +1,7 @@
 ---
 name: ta-assets-workflow-vite-6
-description: Vite 6 asset handling and optimization workflow for Tech Artists. Use when creating and optimizing assets for Vite 6 builds, setting up texture atlases and sprite sheets, optimizing FBX models for web loading, or configuring Vite plugins for asset processing.
+description: Handles Vite 6 asset loading and optimization. Use proactively when optimizing assets for Vite 6 builds or configuring Vite plugins for asset processing.
+category: techartist
 ---
 
 # Vite 6 Asset Workflow for Tech Artists

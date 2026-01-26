@@ -133,8 +133,8 @@ main() {
     # Install dependencies if needed
     install_dependencies "$PYTHON"
 
-    # Path to Python script
-    SCRIPT_PATH="$SCRIPT_DIR/prd-starter-generator.py"
+    # Path to Python script (now in prd-starter subdirectory)
+    SCRIPT_PATH="$SCRIPT_DIR/prd-starter/prd-starter-generator.py"
 
     if [[ ! -f "$SCRIPT_PATH" ]]; then
         echo -e "${RED}Error: Generator script not found: $SCRIPT_PATH${NC}" >&2

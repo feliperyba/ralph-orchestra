@@ -1,6 +1,9 @@
 ---
 name: gd-design-mechanic
 description: Game mechanics documentation and design. Use when designing core gameplay systems, documenting player actions and responses, balancing game systems, or explaining mechanics to developers.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Game Mechanics Design

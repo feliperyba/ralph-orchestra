@@ -1,6 +1,7 @@
 ---
-name: techartist-r3f-performance
-description: Performance optimization techniques for R3F and Three.js
+name: ta-r3f-performance
+description: Optimizes R3F rendering for frame rate and memory. Use proactively when addressing FPS drops, GPU bottlenecks, or memory issues.
+category: techartist
 ---
 # R3F Performance Skill
 

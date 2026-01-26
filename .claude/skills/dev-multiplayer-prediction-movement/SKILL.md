@@ -307,6 +307,160 @@ function normalizeInput(input: PlayerInput): PlayerInput {
 | Not re-applying pending inputs | Always re-apply after reconciliation |
 | Fixed smoothing factor | Dynamic smoothing based on distance |
 
+## Security Considerations
+
+### Server-Side Boundary Enforcement
+
+**CRITICAL**: Server must enforce all movement constraints to prevent teleport cheats.
+
+```typescript
+processPlayerInput(player: PlayerState, input: PlayerInput, dt: number) {
+  // Apply movement
+  if (input.forward) player.z -= speed * dt;
+  if (input.backward) player.z += speed * dt;
+  if (input.left) player.x -= speed * dt;
+  if (input.right) player.x += speed * dt;
+
+  // ❌ WRONG - No boundary validation
+  // Player can teleport anywhere
+
+  // ✅ RIGHT - Strict boundary enforcement
+  player.x = Math.max(MAP_MIN_X, Math.min(MAP_MAX_X, player.x));
+  player.y = Math.max(MAP_MIN_Y, Math.min(MAP_MAX_Y, player.y));
+  player.z = Math.max(MAP_MIN_Z, Math.min(MAP_MAX_Z, player.z));
+}
+```
+
+### Speed Limit Validation
+
+Detect and prevent speed hacks where players move faster than possible.
+
+```typescript
+class SpeedValidator {
+  private lastPositions = new Map<string, { x: number; z: number; time: number }>();
+
+  validate(clientId: string, newX: number, newZ: number, currentTime: number): boolean {
+    const last = this.lastPositions.get(clientId);
+    if (!last) {
+      this.lastPositions.set(clientId, { x: newX, z: newZ, time: currentTime });
+      return true;
+    }
+
+    const dt = (currentTime - last.time) / 1000;
+    const dx = newX - last.x;
+    const dz = newZ - last.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+
+    // Max speed = walkSpeed + small buffer for network jitter
+    const maxDistance = MOVEMENT_CONFIG.walkSpeed * dt + 0.5;
+
+    if (distance > maxDistance) {
+      console.warn(`Speed hack detected: ${distance}m in ${dt}s (max: ${maxDistance})`);
+      // Reject movement or clamp to max
+      return false;
+    }
+
+    this.lastPositions.set(clientId, { x: newX, z: newZ, time: currentTime });
+    return true;
+  }
+}
+```
+
+### Invalid Sequence Detection
+
+Detect when clients send malformed or malicious sequence numbers.
+
+```typescript
+onMessage(client: Client, data: any) {
+  const player = this.state.players.get(client.sessionId);
+  if (!player) return;
+
+  // Validate sequence number
+  const expectedSeq = player.lastProcessedSequence + 1;
+
+  if (data.sequence < expectedSeq) {
+    // Old sequence - duplicate or reordered packet
+    console.warn(`Old sequence ${data.sequence} (expected ${expectedSeq})`);
+    return;
+  }
+
+  if (data.sequence > expectedSeq + 10) {
+    // Large sequence gap - may indicate packet manipulation
+    console.warn(`Large sequence gap from ${client.sessionId}`);
+    // Could reset or require reconnect
+    return;
+  }
+
+  // Accept valid input
+  this.inputBuffers.get(client.sessionId)?.push({
+    ...data.input,
+    sequence: data.sequence,
+  });
+
+  player.lastProcessedSequence = data.sequence;
+}
+```
+
+### Movement Sanitization
+
+Sanitize input flags to prevent injection attacks through boolean inputs.
+
+```typescript
+onMessage(client: Client, data: any) {
+  // ❌ WRONG - Direct use of client data
+  if (data.input.jump) player.jump();
+
+  // ✅ RIGHT - Sanitize boolean inputs
+  const sanitized = {
+    forward: Boolean(data.input?.forward),
+    backward: Boolean(data.input?.backward),
+    left: Boolean(data.input?.left),
+    right: Boolean(data.input?.right),
+    jump: Boolean(data.input?.jump),
+    sprint: Boolean(data.input?.sprint),
+    // Ensure no extra properties
+    crouch: Boolean(data.input?.crouch),
+  };
+
+  this.processPlayerInput(player, sanitized);
+}
+```
+
+### Delta Time Protection
+
+Prevent clients from sending malicious delta time values to speed up movement.
+
+```typescript
+// ❌ WRONG - Client sends deltaTime
+onMessage(client: Client, data: any) {
+  const position = applyInput(player.position, data.input, data.deltaTime);
+  // Client can speed up by sending larger deltaTime!
+}
+
+// ✅ RIGHT - Server uses authoritative deltaTime
+onMessage(client: Client, data: any) {
+  // Client only sends input, server controls timing
+  this.inputBuffers.get(client.sessionId)?.push({
+    ...data.input,
+    sequence: data.sequence,
+    // No deltaTime - server uses fixed simulation tick
+  });
+}
+
+// Server uses fixed tick rate
+update(dt: number) {
+  const deltaTime = dt / 1000;
+
+  // Cap deltaTime to prevent spiral of death
+  const safeDelta = Math.min(deltaTime, 0.1);
+
+  for (const [sessionId, player] of this.state.players) {
+    // Process with server-controlled timing
+    this.updatePlayerPosition(player, safeDelta);
+  }
+}
+```
+
 ## Reference
 
 - [prediction-basics.md](./prediction-basics.md) - Core concepts

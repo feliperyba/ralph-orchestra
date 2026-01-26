@@ -1,6 +1,9 @@
 ---
 name: gd-gdd-creation
 description: Game Design Document creation and structure. Use when no GDD exists in the project, starting a new game project, major feature requires design documentation, GDD needs updating due to changes, or preparing for prototype or production.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # GDD Creation

@@ -1,0 +1,135 @@
+{
+  "_comment": "Template for pm-research-specialist sub-agent output format",
+  "version": "1.0.0",
+  "agent": "pm-research-specialist",
+  "outputFormat": "structured",
+  "generatedAt": "YYYY-MM-DDTHH:mm:ss.sssZ",
+
+  "researchData": {
+    "similarProjects": [
+      {
+        "name": "Project Name",
+        "url": "https://example.com/project",
+        "relevance": "Why this project is relevant to the user's idea",
+        "techStack": ["tech1", "tech2"],
+        "keyFeatures": ["feature1", "feature2"],
+        "lessons": [
+          "What we can learn from this project",
+          "Architecture patterns used",
+          "Common challenges they faced"
+        ]
+      }
+    ],
+
+    "bestPractices": [
+      {
+        "practice": "Name of the best practice",
+        "reason": "Why this is considered a best practice",
+        "source": "Reference URL or citation",
+        "applicability": "How this applies to the user's project"
+      }
+    ],
+
+    "commonPitfalls": [
+      {
+        "pitfall": "Description of the common mistake",
+        "consequence": "What goes wrong if this mistake is made",
+        "avoidance": "How to avoid this pitfall",
+        "severity": "high | medium | low"
+      }
+    ],
+
+    "techStackInsights": {
+      "strengths": [
+        "What this tech stack does well",
+        "Built-in advantages"
+      ],
+      "weaknesses": [
+        "Known limitations",
+        "Common pain points"
+      ],
+      "recommendedLibraries": [
+        {
+          "name": "Library Name",
+          "purpose": "What problem it solves",
+          "url": "https://example.com"
+        }
+      ]
+    },
+
+    "questionsAsked": [
+      {
+        "id": "Q-001",
+        "question": "The clarifying question to ask the user",
+        "context": "Why we need this information",
+        "impact": "How the answer affects project setup",
+        "options": [
+          "Possible answer 1 (if multiple choice)",
+          "Possible answer 2"
+        ],
+        "category": "technical | design | scope | constraints"
+      }
+    ],
+
+    "questionsAnswered": [
+      {
+        "questionId": "Q-001",
+        "question": "The question that was asked",
+        "answer": "User's response",
+        "answeredAt": "YYYY-MM-DDTHH:mm:ss.sssZ"
+      }
+    ],
+
+    "recommendedRefinements": [
+      {
+        "feature": "Original feature description",
+        "refinement": "Suggested improvement based on research",
+        "rationale": "Why this refinement is recommended",
+        "references": ["URL1", "URL2"]
+      }
+    ],
+
+    "references": [
+      {
+        "title": "Resource Title",
+        "url": "https://example.com",
+        "type": "article | documentation | video | github | example",
+        "relevance": "Why this reference is included"
+      }
+    ],
+
+    "discoveredCommands": {
+      "runtime": "string - e.g., 'elixir', 'zig', 'dart'",
+      "runtimeSource": "string - where this came from (user, preset, research.web, hardcoded)",
+      "discoveredAt": "YYYY-MM-DDTHH:mm:ss.sssZ",
+      "confidence": "high | medium | low",
+      "commands": {
+        "packageManager": "string - e.g., 'hex', 'zig', 'pub'",
+        "init": "string - e.g., 'mix new {PROJECT_NAME}'",
+        "install": "string - e.g., 'mix deps.get'",
+        "dev": "string - e.g., 'mix phx.server'",
+        "build": "string - e.g., 'mix release'",
+        "test": "string - e.g., 'mix test'",
+        "typeCheck": "string - e.g., 'mix compile --warnings-as-errors'"
+      },
+      "feedbackLoops": [
+        "string - feedback loop commands for this runtime"
+      ],
+      "discoverySources": [
+        {
+          "url": "https://example.com/docs",
+          "type": "documentation | github | blog | official | other",
+          "title": "Source Title"
+        }
+      ]
+    }
+  },
+
+  "metadata": {
+    "projectName": "From prd-starter state",
+    "projectCategory": "From prd-starter state",
+    "techStack": "From prd-starter state",
+    "researchDuration": "Time taken to complete research",
+    "searchQueriesUsed": ["query1", "query2"]
+  }
+}

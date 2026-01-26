@@ -1,6 +1,9 @@
 ---
 name: gd-validation-playtest
 description: Playwright-based game playtesting and design validation. Use when validating implementation against GDD, testing gameplay mechanics, capturing screenshot evidence, performing game state detection via Vision MCP, or conducting visual GDD compliance validation.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Playtest Validation

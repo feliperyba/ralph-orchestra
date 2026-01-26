@@ -1,6 +1,9 @@
 ---
 name: gd-playtest-gdd-review
 description: GDD review and research during playtest phase. Use during playtest phase BEFORE sending playtest_session_report to PM, after completing gameplay testing, after reviewing retrospective pain points, or before finalizing the playtest report.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Playtest GDD Review

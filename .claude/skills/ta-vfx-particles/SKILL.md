@@ -1,6 +1,7 @@
 ---
-name: techartist-particles-gpu
-description: GPU particle systems for high-performance visual effects
+name: ta-vfx-particles
+description: Implements GPU particle systems for fire, smoke, spark effects. Use proactively when rendering large particle counts (>1000) or building magical/sci-fi effects.
+category: techartist
 ---
 
 # GPU Particles Skill

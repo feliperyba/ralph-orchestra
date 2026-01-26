@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "prd-starter-state.schema.json",
-  "title": "PRD Starter State File Schema v3.1",
-  "description": "JSON schema for the prd-starter state file with Quick Start, Standard, and Expert modes",
+  "title": "PRD Starter State File Schema v4.0",
+  "description": "JSON schema for the prd-starter state file with Quick Start, Standard, and Expert modes including deep research and PM-generated PRD",
   "type": "object",
   "required": ["version", "startedAt", "currentPhase"],
   "properties": {
     "version": {
       "type": "string",
       "description": "State file version",
-      "pattern": "^3\\.0\\."
+      "pattern": "^[34]\\.[0-9]+\\."
     },
     "startedAt": {
       "type": "string",
@@ -77,13 +77,24 @@
         "preset_selection",
         "project_identity",
         "project_scope",
-        "agent_selection",
+        "agent_configuration",
+        "agent_definition",
+        "agent_skills",
+        "agent_subagents",
+        "agent_workflow",
+        "agent_files_generation",
         "skill_configuration",
         "subagent_configuration",
         "orchestration_configuration",
         "mcp_configuration",
         "quality_standards",
         "initial_features",
+        "deep_research",
+        "user_questions",
+        "gdd_creation",
+        "prd_creation",
+        "final_review",
+        "project_location_selection",
         "review_generate",
         "project_initialization",
         "completed"
@@ -93,6 +104,13 @@
     "currentSubPhase": {
       "type": ["string", "null"],
       "description": "Current sub-phase for multi-step phases"
+    },
+    "customAgents": {
+      "type": "array",
+      "description": "Custom agent configurations (dynamic, N agents)",
+      "items": {
+        "$ref": "#/definitions/customAgentConfig"
+      }
     },
     "project": {
       "type": "object",
@@ -162,6 +180,34 @@
             ]
           },
           "description": "Critical success factors"
+        }
+      }
+    },
+    "projectLocation": {
+      "type": "object",
+      "description": "Target location for project generation",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["current", "subdirectory", "custom", "ralph-orchestra-root"],
+          "description": "Location type"
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute or relative path to target directory"
+        },
+        "createSubdirectory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to create a subdirectory with project name"
+        },
+        "subdirectoryName": {
+          "type": "string",
+          "description": "Name of subdirectory to create (defaults to project.name)"
+        },
+        "ralphOrchestraRoot": {
+          "type": "string",
+          "description": "Path to ralph-orchestra root (for reference during copy)"
         }
       }
     },
@@ -448,6 +494,228 @@
         }
       }
     },
+    "researchData": {
+      "type": "object",
+      "description": "Data collected by pm-research-specialist during deep research phase",
+      "properties": {
+        "similarProjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "url": { "type": "string" },
+              "relevance": { "type": "string" }
+            }
+          }
+        },
+        "bestPractices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "practice": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "commonPitfalls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pitfall": { "type": "string" },
+              "avoidance": { "type": "string" }
+            }
+          }
+        },
+        "techStackInsights": {
+          "type": "object",
+          "description": "Tech stack specific insights and recommendations"
+        },
+        "questionsAsked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "context": { "type": "string" },
+              "impact": { "type": "string" }
+            }
+          }
+        },
+        "questionsAnswered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "answer": { "type": "string" }
+            }
+          }
+        },
+        "recommendedRefinements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "feature": { "type": "string" },
+              "refinement": { "type": "string" }
+            }
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "url": { "type": "string" }
+            }
+          }
+        },
+        "discoveredCommands": {
+          "type": "object",
+          "description": "Tech stack commands discovered by pm-research-specialist for unknown runtimes",
+          "properties": {
+            "runtime": {
+              "type": "string",
+              "description": "Discovered runtime name (e.g., 'elixir', 'zig', 'dart')"
+            },
+            "runtimeSource": {
+              "type": "string",
+              "enum": ["user", "preset", "research.web", "hardcoded"],
+              "description": "Source of the runtime command discovery"
+            },
+            "discoveredAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When these commands were discovered"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": ["high", "medium", "low"],
+              "description": "Confidence level in the discovered commands"
+            },
+            "commands": {
+              "type": "object",
+              "description": "Discovered tech stack commands",
+              "properties": {
+                "packageManager": { "type": "string" },
+                "init": { "type": "string" },
+                "install": { "type": "string" },
+                "dev": { "type": "string" },
+                "build": { "type": "string" },
+                "test": { "type": "string" },
+                "typeCheck": { "type": "string" }
+              }
+            },
+            "feedbackLoops": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Feedback loop commands for this runtime"
+            },
+            "discoverySources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": { "type": "string" },
+                  "type": {
+                    "type": "string",
+                    "enum": ["documentation", "github", "blog", "official", "other"]
+                  },
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "gddData": {
+      "type": "object",
+      "description": "Game Design Document data created by thermite facilitator (game projects only)",
+      "properties": {
+        "designDecisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^DEC-\\d+$" },
+              "title": { "type": "string" },
+              "decision": { "type": "string" },
+              "rationale": { "type": "string" }
+            }
+          }
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^OQ-\\d+$" },
+              "question": { "type": "string" },
+              "priority": { "type": "string", "enum": ["high", "medium", "low"] }
+            }
+          }
+        },
+        "designPillars": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "coreMechanics": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "thermiteSessionType": {
+          "type": "string",
+          "enum": ["boardroom-retreat", "deep-dive"]
+        },
+        "participants": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "prdSpecification": {
+      "type": "object",
+      "description": "Prepared specification for PM agent to create final PRD",
+      "properties": {
+        "refinedFeatures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "priority": { "type": "string" },
+              "category": { "type": "string" },
+              "acceptanceCriteria": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "taskId": { "type": "string" },
+              "dependsOn": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "priorities": {
+          "type": "object",
+          "description": "Priority assignments based on user goals and research"
+        },
+        "technicalRecommendations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "phases": {
       "type": "object",
       "description": "Legacy phase tracking (deprecated in v3.0 but kept for compatibility)"
@@ -515,6 +783,178 @@
         }
       },
       "required": ["enabled"]
+    },
+    "customAgentConfig": {
+      "type": "object",
+      "description": "Custom agent configuration for dynamic agent creation",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique agent ID (kebab-case)",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "agent_type": {
+          "type": "string",
+          "enum": ["pm", "developer", "techartist", "qa", "gamedesigner", "custom"],
+          "description": "Base type for skill inheritance"
+        },
+        "custom_type_description": {
+          "type": "string",
+          "description": "Description of custom type"
+        },
+        "icon": {
+          "type": "string",
+          "description": "ASCII icon (3-6 lines, pipe-separated)"
+        },
+        "primary_responsibility": {
+          "type": "string",
+          "description": "Main focus area"
+        },
+        "main_activities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Key activities this agent performs"
+        },
+        "interaction_pattern": {
+          "type": "string",
+          "enum": ["coordinate", "collaborate", "autonomous", "receive-only", "send-only"],
+          "description": "How this agent interacts with others"
+        },
+        "works_with": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Other agent IDs this collaborates with"
+        },
+        "cannot_do": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Things this agent should not do"
+        },
+        "may_write": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths this agent may write to"
+        },
+        "may_not_write": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths this agent may not write to"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "action": {
+                "type": "string",
+                "enum": ["use_existing", "create_new"]
+              }
+            },
+            "required": ["name", "action"]
+          },
+          "description": "Skills configuration"
+        },
+        "subAgents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "action": {
+                "type": "string",
+                "enum": ["use_existing", "create_new"]
+              }
+            },
+            "required": ["name", "action"]
+          },
+          "description": "Sub-agents configuration"
+        },
+        "workflow": {
+          "$ref": "#/definitions/workflowConfig"
+        },
+        "mcpServers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP servers to enable"
+        },
+        "model": {
+          "type": "string",
+          "enum": ["haiku", "sonnet", "opus", "inherit"],
+          "description": "Default model for this agent"
+        }
+      },
+      "required": ["id", "display_name", "agent_type"]
+    },
+    "workflowConfig": {
+      "type": "object",
+      "description": "Workflow configuration for custom agents",
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" }
+            },
+            "required": ["name"]
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string" },
+              "trigger": { "type": "string" },
+              "action": { "type": "string" },
+              "to": { "type": "string" },
+              "skill_to_use": { "type": "string" }
+            },
+            "required": ["from", "trigger", "to"]
+          }
+        },
+        "messages_sent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event_type": { "type": "string" },
+              "to": { "type": "string" },
+              "priority": {
+                "type": "string",
+                "enum": ["urgent", "high", "normal", "low"]
+              }
+            },
+            "required": ["event_type", "to"]
+          }
+        },
+        "messages_received": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event_type": { "type": "string" },
+              "from": { "type": "string" },
+              "action": { "type": "string" }
+            },
+            "required": ["event_type", "from", "action"]
+          }
+        },
+        "entry_actions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "exit_actions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
     }
   }
 }

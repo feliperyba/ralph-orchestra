@@ -1,6 +1,7 @@
 ---
-name: techartist-input-validation-pattern
-description: Player input validation testing patterns for WASD, mouse, and touch controls
+name: ta-input-validation
+description: Validates player input for WASD, mouse, and touch controls. Use proactively when testing camera-relative movement, input handling, or controls.
+category: techartist
 ---
 
 # Input Validation Pattern Skill

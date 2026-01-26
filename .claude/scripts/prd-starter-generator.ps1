@@ -144,8 +144,8 @@ if ($Verbose) {
     $argsList += "--verbose"
 }
 
-# Invoke Python script
-$scriptPath = Join-Path $PSScriptRoot "prd-starter-generator.py"
+# Invoke Python script (now in prd-starter subdirectory)
+$scriptPath = Join-Path $PSScriptRoot "prd-starter\prd-starter-generator.py"
 
 if (-not (Test-Path $scriptPath)) {
     Write-Error "Generator script not found: $scriptPath"

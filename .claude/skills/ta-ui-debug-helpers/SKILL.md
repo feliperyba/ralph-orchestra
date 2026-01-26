@@ -1,6 +1,7 @@
 ---
-name: techartist-visual-debug-helpers
-description: Debug visualization helpers using drei and Three.js for game development
+name: ta-ui-debug-helpers
+description: Adds debug visualization (helpers, gizmos, stats). Use proactively when debugging 3D scenes, physics colliders, or rendering issues.
+category: techartist
 ---
 
 # Visual Debug Helpers Skill

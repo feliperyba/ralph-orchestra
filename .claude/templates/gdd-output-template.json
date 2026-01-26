@@ -1,0 +1,136 @@
+{
+  "_comment": "Template for gamedesigner-thermite-facilitator sub-agent output format",
+  "version": "1.0.0",
+  "agent": "gamedesigner-thermite-facilitator",
+  "skill": "gamedesigner-thermite-integration",
+  "thermiteSessionType": "boardroom-retreat | deep-dive",
+  "generatedAt": "YYYY-MM-DDTHH:mm:ss.sssZ",
+
+  "gddData": {
+    "sessionInfo": {
+      "type": "boardroom-retreat",
+      "topic": "Design session topic",
+      "duration": "Session duration",
+      "participants": [
+        "Persona 1 (e.g., Shinji Tanaka)",
+        "Persona 2 (e.g., Viktor Volkov)"
+      ]
+    },
+
+    "designDecisions": [
+      {
+        "id": "DEC-001",
+        "title": "Short decision title",
+        "status": "Decided | Tentative | Revisit After Playtest",
+        "session": 1,
+        "date": "YYYY-MM-DD",
+        "pillars": ["Meaningful Risk", "Readable Chaos"],
+        "context": "Why this decision came up",
+        "decision": "What was chosen",
+        "rationale": "Why this decision was made",
+        "alternativesConsidered": [
+          {
+            "option": "Alternative option",
+            "pros": ["Pro 1", "Pro 2"],
+            "cons": ["Con 1", "Con 2"],
+            "whyRejected": "Reason for rejection"
+          }
+        ],
+        "dissent": {
+          "persona": "Persona name (if any dissent)",
+          "concern": "Their concern about the decision",
+          "resolution": "How the concern was addressed"
+        },
+        "validationNeeded": [
+          "What to test to confirm this decision",
+          "Success criteria for validation"
+        ]
+      }
+    ],
+
+    "openQuestions": [
+      {
+        "id": "OQ-001",
+        "question": "Unresolved design question",
+        "priority": "high | medium | low",
+        "raisedInSession": 1,
+        "owner": "Persona responsible for this domain",
+        "blockerFor": [
+          "What this question blocks",
+          "Feature or system affected"
+        ],
+        "tags": ["gameplay", "economy", "combat"],
+        "suggestedInvestigation": "How to approach answering this"
+      }
+    ],
+
+    "designPillars": [
+      {
+        "name": "Meaningful Risk",
+        "description": "Every action matters. Gear has weight. Victories feel earned because defeat has consequences.",
+        "guardrails": [
+          "No insurance that always returns everything",
+          "No pay-to-skip-risk monetization",
+          "Death must sting, but not devastate progression"
+        ],
+        "kpi": "How we measure if this pillar is being met"
+      }
+    ],
+
+    "coreMechanics": [
+      {
+        "name": "Mechanic Name",
+        "description": "How the mechanic works",
+        "pillars": ["Which pillars this serves"],
+        "interactions": ["Related mechanics it combines with"],
+        "riskFactors": ["Potential issues to watch"]
+      }
+    ],
+
+    "tensionsExplored": [
+      {
+        "axis": "Complexity vs Simplicity",
+        "positionA": "Detailed systems (Viktor's view)",
+        "positionB": "Simple, readable systems (Shinji's view)",
+        "resolution": "How the tension was resolved",
+        "decision": "DEC-001"
+      }
+    ],
+
+    "keyInsights": [
+      "Insight 1 from the session",
+      "Insight 2 from the session",
+      "Insight 3 from the session"
+    ],
+
+    "actionItems": [
+      {
+        "task": "Action to take",
+        "owner": "Which role owns this",
+        "priority": "high | medium | low",
+        "dependencies": ["Other actions or decisions"]
+      }
+    ]
+  },
+
+  "artifactsToCreate": {
+    "docs/design/decision_log.md": "All design decisions with full details",
+    "docs/design/open_questions.md": "Unresolved questions with tags",
+    "docs/design/gdd.md": "Main game design document",
+    "docs/design/core_loop.md": "Minute-by-minute gameplay loop",
+    "docs/design/mechanics/": "Individual mechanic specifications"
+  },
+
+  "nextSession": {
+    "topic": "Suggested topic for next thermite session",
+    "reason": "Why this should be explored next",
+    "participants": ["Which personas should be involved"]
+  },
+
+  "metadata": {
+    "projectName": "From prd-starter state",
+    "features": "From prd-starter state",
+    "researchDataUsed": true,
+    "userAnswersUsed": true
+  }
+}

@@ -14,11 +14,13 @@ Review code quality before running type-check, lint, test, and build. This catch
 
 Use at the start of validation, before type-check/lint/test/build loops.
 
+---
+
 ## Quality Checks
 
-| Check | Pattern | Severity | Action if Found |
-|-------|---------|----------|-----------------|
-| TypeScript suppressions | `@ts-ignore`, `@@ts-expect-error` | **HIGH** | FAIL - Report location |
+| Check | Pattern | Severity | Action |
+|-------|---------|----------|--------|
+| TypeScript suppressions | `@ts-ignore`, `@ts-expect-error` | **HIGH** | FAIL - Report location |
 | Any types | `: any`, `<any>`, `as any` | **HIGH** | FAIL - Report location |
 | Missing dependencies | `useEffect` without deps | **HIGH** | FAIL - Report location |
 | State mutations | Direct object/array mutation | **HIGH** | FAIL - Report location |
@@ -28,6 +30,8 @@ Use at the start of validation, before type-check/lint/test/build loops.
 | Empty catch blocks | `catch {}` with no handling | **MEDIUM** | FAIL - Swallows errors |
 | TODO comments | `TODO`, `FIXME` in production code | **LOW** | NOTE - Track separately |
 
+---
+
 ## Process
 
 1. **Identify changed files** from the task
@@ -36,7 +40,9 @@ Use at the start of validation, before type-check/lint/test/build loops.
 4. **Check** for quality issues using the table above
 5. **Report** findings with specific file locations and line numbers
 
-## Grep Patterns for Code Review
+---
+
+## Grep Patterns
 
 ```bash
 # TypeScript suppressions
@@ -44,9 +50,6 @@ grep -r "@ts-ignore\|@ts-expect-error" src/
 
 # Any types
 grep -r ": any\|<any>\|as any" src/
-
-# Missing dependencies (manual review needed)
-grep -r "useEffect" src/ | grep -v "useEffect(("
 
 # Console logs
 grep -r "console\." src/
@@ -57,6 +60,10 @@ grep -r "catch {}" src/
 # TODO comments
 grep -r "TODO\|FIXME" src/
 ```
+
+---
+
+<output-format>
 
 ## Output Format
 
@@ -87,6 +94,88 @@ grep -r "TODO\|FIXME" src/
 {Additional observations or concerns}
 ```
 
+</output-format>
+
+---
+
+<examples>
+
+## Example Outputs
+
+### Example 1: Clean Code (PASS)
+
+```markdown
+## Code Review Results
+
+### Files Reviewed
+- src/components/player/Player.tsx
+- src/components/player/PlayerControls.tsx
+- src/hooks/usePlayerInput.ts
+
+### Issues Found
+
+**No quality issues found.** Code is ready for automated validation.
+
+### Overall Result
+- Status: ✅ PASS
+
+### Notes
+- Type annotations are proper
+- No error suppressions detected
+- Code follows established patterns
+```
+
+### Example 2: High Severity Issues (FAIL)
+
+```markdown
+## Code Review Results
+
+### Files Reviewed
+- src/components/lobby/Lobby.tsx
+- src/network/networkManager.ts
+
+### Issues Found
+
+| Severity | File | Line | Issue | Suggestion |
+|----------|------|------|-------|------------|
+| high | src/components/lobby/Lobby.tsx | 47 | @ts-ignore used | Remove suppression, fix Colyseus type |
+| high | src/network/networkManager.ts | 23 | : any type | Specify proper message type |
+| medium | src/components/lobby/Lobby.tsx | 89 | console.log left | Remove before commit |
+
+### Overall Result
+- Status: ❌ FAIL
+
+### Notes
+- Type suppression at Lobby.tsx:47 hides potential runtime error
+- Consider using proper Colyseus schema types
+```
+
+### Example 3: Debug Flags Found (FAIL)
+
+```markdown
+## Code Review Results
+
+### Files Reviewed
+- src/effects/projectiles/PaintProjectile.tsx
+
+### Issues Found
+
+| Severity | File | Line | Issue | Suggestion |
+|----------|------|------|-------|------------|
+| medium | src/effects/projectiles/PaintProjectile.tsx | 12 | debug && flag gates feature | Remove debug conditional |
+
+### Overall Result
+- Status: ❌ FAIL
+
+### Notes
+- Feature is hidden behind debug flag - not accessible in production
+- This appears to be a visibility bug, not intentional debugging
+```
+
+</examples>
+
+---
+
 ## Decision Framework
 
 | Issue Count | Action |
@@ -96,6 +185,8 @@ grep -r "TODO\|FIXME" src/
 | 1+ medium-severity | FAIL - Fix recommended |
 | Low-severity only | PASS - Note in report |
 
+---
+
 ## Important
 
 - Report exact file paths and line numbers
@@ -104,6 +195,8 @@ grep -r "TODO\|FIXME" src/
 - Console warnings are considered failures
 - Check for debug flags that may hide features from users
 - Be thorough - missed issues become bugs later
+
+---
 
 ## Code Quality Fail Criteria
 
@@ -115,6 +208,8 @@ grep -r "TODO\|FIXME" src/
 - Memory leaks (event listeners not cleaned up)
 - Empty catch blocks that swallow errors
 - Debug flags that disable features
+
+---
 
 ## See Also
 

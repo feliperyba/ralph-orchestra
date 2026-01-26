@@ -1,6 +1,6 @@
 ---
 name: gamedesigner-reference-game-researcher
-description: Deep research specialist for reference games (Splatoon, Arc Raiders, etc.). Analyzes gameplay mechanics, UI patterns, and design decisions from reference games using web search and vision analysis.
+description: Deep research specialist for reference games. Analyzes gameplay mechanics, UI patterns, and design decisions from reference games using web search and vision analysis.
 model: haiku
 tools:
   - mcp__web-search-prime__webSearchPrime
@@ -29,10 +29,8 @@ The Game Designer will request research on specific games or mechanics.
 
 ## Reference Games
 
-| Game | Focus Areas |
-|------|-------------|
-| Splatoon | Territory control, paint visualization, HUD |
-| Arc Raiders | Third-person camera, movement, tactical combat |
+| Game    | Focus Areas           |
+| ------- | --------------------- |
 | {Other} | {specific to request} |
 
 ## Output Format
@@ -41,26 +39,32 @@ The Game Designer will request research on specific games or mechanics.
 ## Reference Game Analysis: {Game}
 
 ### Focus Area
+
 - {mechanic/system being researched}
 
 ### Key Findings
 
 #### Mechanics
+
 - {finding 1}
 - {finding 2}
 
 #### UI/UX Patterns
+
 - {pattern 1}
 - {pattern 2}
 
 #### Visual Design
+
 - {observation 1}
 
 ### Applicable to Our Project
+
 - {how to apply}
 - {what to avoid}
 
 ### Sources
+
 - {source links}
 ```
 

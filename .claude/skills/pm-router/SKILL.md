@@ -1,6 +1,11 @@
 ---
 name: pm-router
-description: Routes PM coordinator to appropriate skills and sub-agents based on workflow phase, task category, and signal keywords. Use when starting PM session, assigning tasks, running retrospectives, or managing PRD.
+description: Routes PM to appropriate skills based on workflow phase, task category, and signals
+category: pm
+user-invocable: true
+model: inherit
+agent: pm
+degrees-of-freedom: high
 ---
 
 # PM Skill Router
@@ -22,8 +27,8 @@ description: Routes PM coordinator to appropriate skills and sub-agents based on
 
 ## Route by Task Category
 
-| Category | Agent | PM Skills to Load |
-|----------|-------|-------------------|
+| Category | Agent | PM Skills |
+|----------|-------|-----------|
 | `architectural` | developer | `pm-organization-task-research`, `pm-validation-architecture` |
 | `integration` | developer | `pm-organization-task-research` |
 | `functional` | developer | `pm-organization-task-research` |
@@ -44,22 +49,25 @@ description: Routes PM coordinator to appropriate skills and sub-agents based on
 
 ## All PM Skills
 
-| Skill | Purpose | Phase |
-|-------|---------|-------|
-| `pm-organization-scale-adaptive` | Adjust planning depth by PRD size | Startup |
-| `pm-organization-task-selection` | Priority algorithm for task selection | Task Selection |
-| `pm-organization-task-research` | Codebase research before assignment | Task Selection |
-| `pm-planning-test-planning` | Collaborative test planning | Test Planning |
-| `pm-configuration-asset-coordination` | Asset coordination for parallel work | Assignment |
-| `pm-configuration-vite-assets` | Vite 6 asset patterns | Assignment |
-| `pm-validation-architecture` | Server-authoritative validation | Assignment |
-| `pm-retrospective-facilitation` | Worker retrospective orchestration | Retrospective |
-| `pm-retrospective-playtest-session` | Game Designer playtest coordination | Retrospective |
-| `pm-organization-prd-reorganization` | GDD-to-PRD task extraction | PRD Update |
-| `pm-improvement-skill-research` | Multi-agent skill improvements | Skill Research |
-| `pm-improvement-self-improvement` | PM self-improvement | Skill Research |
+| Category | Skill | Purpose |
+|----------|-------|---------|
+| **Core** | `pm-workflow` | Full orchestration flow |
+| **Core** | `pm-router` | This routing table |
+| **Organization** | `pm-organization-scale-adaptive` | Adjust planning depth by PRD size |
+| **Organization** | `pm-organization-task-selection` | Priority algorithm for task selection |
+| **Organization** | `pm-organization-task-research` | Codebase research before assignment |
+| **Organization** | `pm-organization-prd-reorganization` | GDD-to-PRD task extraction |
+| **Planning** | `pm-planning-test-planning` | Collaborative test planning |
+| **Configuration** | `pm-configuration-asset-coordination` | Asset coordination for parallel work |
+| **Configuration** | `pm-configuration-vite-assets` | Vite 6 asset patterns |
+| **Validation** | `pm-validation-architecture` | Server-authoritative validation |
+| **Retrospective** | `pm-retrospective-facilitation` | Worker retrospective orchestration |
+| **Retrospective** | `pm-retrospective-playtest-session` | Game Designer playtest coordination |
+| **Improvement** | `pm-improvement-skill-research` | Multi-agent skill improvements |
+| **Improvement** | `pm-improvement-self-improvement` | PM self-improvement |
+| **Improvement** | `pm-improvement-asset-coordination` | PM asset coordination learnings |
 
-## Sub-Agents (via Task tool)
+## Sub-Agents
 
 | Sub-Agent | Model | Purpose |
 |-----------|-------|---------|
@@ -72,16 +80,12 @@ description: Routes PM coordinator to appropriate skills and sub-agents based on
 
 ## Usage
 
-Load this router at PM startup:
+Load at PM startup: `/pm-router`
 
-```
-/pm-router
-```
-
-Then use `pm-workflow` for the full orchestration.
+Then use `pm-workflow` for full orchestration.
 
 ## References
 
 - [pm-workflow](../pm-workflow/SKILL.md) - Full PM workflow
-- [shared-ralph-core](../shared-ralph-core/SKILL.md) - Core orchestration concepts
-- [shared-ralph-event-protocol](../shared-ralph-event-protocol/SKILL.md) - Event-driven messaging
+- [shared-ralph-core](../shared-ralph-core/SKILL.md) - Core concepts
+- [shared-ralph-event-protocol](../shared-ralph-event-protocol/SKILL.md) - Messaging

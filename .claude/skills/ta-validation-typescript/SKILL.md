@@ -1,6 +1,7 @@
 ---
-name: techartist-typescript-patterns
-description: TypeScript best practices for game development
+name: ta-validation-typescript
+description: Ensures TypeScript best practices for game code. Use proactively when writing React components, Zustand stores, or type-safe utilities.
+category: techartist
 ---
 
 # TypeScript Patterns Skill

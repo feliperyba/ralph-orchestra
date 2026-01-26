@@ -1,6 +1,7 @@
 ---
-name: techartist-tps-camera
-description: Third-person shooter camera implementation patterns with proper player-relative controls
+name: ta-camera-tps
+description: Implements third-person camera with proper player-relative controls. Use proactively when setting up TPS cameras, pointer lock, or camera follow behavior.
+category: techartist
 ---
 # TPS Camera Skill
 

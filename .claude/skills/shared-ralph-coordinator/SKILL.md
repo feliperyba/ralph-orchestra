@@ -1,8 +1,6 @@
 ---
 name: ralph-coordinator
 description: PM coordinator loop - assign tasks and manage multi-session Ralph
-category: orchestration
-keywords: [pm, coordinator, event-driven, orchestration, task-assignment, polling, message]
 ---
 
 # Ralph Coordinator
@@ -355,7 +353,7 @@ Update both agents:
    **⚠️ CRITICAL: ATOMIC ASSIGNMENT (all 4 steps must complete together before exiting):**
    1. **Update PRD** - Set task's `status: "assigned"` and `assignedAt: timestamp`
    2. **Update prd.json** - Set `currentTasks.{agent} = { id, status: "assigned", assignedAt }`
-   3. **Send message** - Create `.claude/session/messages/{agent}/msg-task-assign-{timestamp}.json`
+   3. **Send message** - Use `Send-WorkAssign` from `agent-runtime.ps1` via named pipe
    4. **Log handoff** - Append to `handoff-log.json`
 
 5. **Completion Detection** (ONLY after QA validation):
@@ -399,7 +397,9 @@ const incomplete = prd.items.filter((item) => !item.passes);
 
 // Filter unblocked (all dependencies passed)
 const unblocked = incomplete.filter((item) =>
-  item.dependencies.every((dep) => prd.items.find((p) => p.id === dep)?.passes === true)
+  item.dependencies.every(
+    (dep) => prd.items.find((p) => p.id === dep)?.passes === true,
+  ),
 );
 
 // Sort by priority
@@ -411,7 +411,9 @@ const priority = {
   functional: 4,
   polish: 5,
 };
-const sorted = unblocked.sort((a, b) => priority[a.category] - priority[b.category]);
+const sorted = unblocked.sort(
+  (a, b) => priority[a.category] - priority[b.category],
+);
 
 // Select top item
 const selected = sorted[0];

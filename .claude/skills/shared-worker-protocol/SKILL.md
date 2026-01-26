@@ -1,232 +1,181 @@
 ---
-name: worker-protocol
-description: Worker pool architecture - agents complete work and exit, watchdog orchestrates
+name: shared-worker-protocol
+description: Worker pool architecture with ActorSupervisor spawning agents. Use proactively when implementing worker agent behavior or understanding exit patterns.
 category: orchestration
-version: 2.0
-keywords: [worker, pool, exit, complete, watchdog, message, task, orchestration]
+tags: [actor-model, supervisor, worker, exit, lifecycle]
+dependencies: [shared-ralph-event-protocol, shared-message-handling, shared-ralph-core]
 ---
 
 # Worker Protocol
 
-> "The heartbeat of Ralph agents - complete work, send message, exit."
+> "Complete work, send message via pipe, exit. Supervisor restarts if needed."
 
-## Overview
+## When to Use This Skill
 
-The **Worker Protocol** is the underlying pattern for all Ralph agents in both event-driven and sequential modes:
+Use **when**:
+- Implementing worker agent behavior
+- Understanding when/how to exit
+- Understanding supervisor auto-restart
 
-- **Agents** are workers that complete assigned tasks and exit
-- **Watchdog** orchestrates by spawning agents based on message delivery
-- **Message queues** provide communication for task assignment and completion signaling
-- **NO polling** - agents do not continuously check state
-- **NO infinite loops** - agents complete work and exit
+Use **proactively**:
+- Reference before implementing agent message loops
+- After completing work, before exiting
+
+---
+
+## Quick Start
+
+<examples>
+Example 1: Agent connection and message loop
+```powershell
+# Source runtime library
+. "$PSScriptRoot\..\..\scripts\agent-runtime.ps1"
+
+# Connect to watchdog
+Connect-ToWatchdog -AgentName "developer" -SessionDir ".\.claude\session"
+
+# Enter message loop
+Enter-AgentLoop -MessageHandler {
+    param($Message)
+    switch ($Message.type) {
+        "WorkAssign" {
+            Send-WorkComplete -TaskId $Message.payload.taskId -Result "success"
+        }
+    }
+}
+```
+
+Example 2: Send work complete
+```powershell
+Send-WorkComplete -TaskId "feat-001" -Result "success" -Notes "Complete"
+```
+
+Example 3: Exit conditions
+- Work complete → `WorkComplete` → Exit (code 0)
+- Need clarification → `Query` → Exit (code 0)
+- Shutdown received → Exit (code 42)
+```
+</examples>
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    WATCHDOG (Orchestrator)                       │
-│                                                                   │
-│  1. Spawn agent with task (or pending messages)                │
-│  2. Wait for agent to exit                                       │
-│  3. Check for new messages in agent inboxes                     │
-│  4. Decide next agent based on message types                    │
-│  5. Repeat until session complete                               │
-└───────────────────────────┬─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│              ACTOR SUPERVISOR (Watchdog)                      │
+│  1. StartActor(agentName) - creates bidirectional pipe       │
+│  2. Wait for agent connection via agent-runtime.ps1          │
+│  3. Supervise() - check for crashes, restart with backoff    │
+│  4. Route messages between agents via pipes                  │
+│  5. StopAll() - graceful shutdown                            │
+└───────────────────────────┬───────────────────────────────────┘
                             │
                 ┌───────────▼─────────────┐
-                │  Message Flow:          │
-                │  PM → Workers           │
-                │  Workers → PM           │
-                │  Workers → Watchdog     │
+                │  PM ↔ Workers (pipes)   │
+                │  Event Log (source)     │
                 └──────────────────────────┘
 ```
+
+---
 
 ## Agent Lifecycle
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   START     │ ──▶ │  DO WORK     │ ──▶ │   EXIT      │
-│ (check for  │     │ (complete    │     │ (send pipe  │
-│  messages)  │     │  single task) │     │  message)   │
-└─────────────┘     └──────────────┘     └─────────────┘
+│   CONNECT   │ ──▶ │  DO WORK     │ ──▶ │   EXIT      │
+│ (agent-     │     │ (receive via │     │ (supervisor  │
+│  runtime)   │     │  pipe,       │     │  may restart)│
+└─────────────┘     │  process)    │     └─────────────┘
+                    └──────────────┘
 ```
 
-**Key Principle:** Each agent run does ONE unit of work, then exits. Watchdog restarts when needed.
+**Key Principle**: Each agent run processes messages, completes work, exits. Supervisor restarts when needed.
 
-## Message Format
-
-```json
-{
-  "type": "task_assign|task_complete|question|answer",
-  "from": "pm|developer|qa|techartist|gamedesigner",
-  "to": "pm|developer|qa|techartist|gamedesigner",
-  "payload": {
-    "taskId": "feat-001",
-    "status": "completed|needs_fixes|passed|failed"
-  },
-  "id": "msg-{recipient_agent}-{timestamp}-{seq}",
-  "timestamp": "2026-01-21T10:15:30Z"
-}
-```
-
-**Message ID format:** `msg-{recipient_agent}-{timestamp}-{seq}`
-- `recipient_agent`: The agent receiving the message (pm, developer, qa, etc.)
-- `timestamp`: Compact format `yyyyMMdd-HHmmss` (e.g., `20250123-101530`)
-- `seq`: 3-digit sequence number (001, 002, etc.) prevents collisions
+---
 
 ## Event-Driven vs Sequential Mode
 
-| Aspect | Event-Driven Mode | Sequential Mode |
-|--------|-------------------|-----------------|
-| **Agent spawning** | Watchdog detects inbox messages, spawns agent | One agent at a time, handoff between agents |
-| **Message delivery** | Inbox files + agent restart | Handoff signal file |
-| **Parallel work** | Yes - multiple agents can run simultaneously | No - agents take turns |
-| **Startup command** | `/ralph-coordinator-event` + worker skills | `/ralph-coordinator-single` + worker skills |
+| Aspect | Event-Driven | Sequential |
+|--------|-------------|------------|
+| Agent spawning | On demand | One at a time |
+| Message delivery | Named pipes | Handoff file |
+| Parallel work | Yes | No |
+| Startup | `/ralph-coordinator-event` | `/ralph-coordinator-single` |
+| Connection | `agent-runtime.ps1` | Handoff files |
 
-## Agent Workflow
-
-### 1. Startup
-
-```
-Check for messages: .claude/session/messages/{agent}/msg-{agent}-{yyyyMMdd-HHmmss}-{seq}.json
-```
-
-### 2. Receive Task
-
-If `task_assign` message in agent's message directory:
-```
-- Extract task details from message payload
-- Begin implementation
-```
-
-### 3. Complete Work
-
-```
-- Do the assigned work (implement feature, run validation, etc.)
-- Update status in prd.json.agents.{agent}
-```
-
-### 4. Send Completion Message
-
-```
-Write: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
-```
-
-### 5. Exit
-
-```
-- Clean up, send status_update to watchdog
-- Exit - watchdog will spawn again when needed
-```
-
-## Watchdog Workflow
-
-### 1. Initialize Session
-
-```
-Initialize prd.json.session with iteration=0, phase=initializing
-```
-
-### 2. Spawn PM Agent First
-
-```
-PM reads state, determines which workers need messages
-PM sends task messages to worker inboxes
-PM exits
-```
-
-### 3. Spawn Workers Based on Messages
-
-```
-Check .claude/session/messages/{worker}/ for pending messages
-Spawn corresponding worker agents
-Wait for workers to exit
-```
-
-### 4. Process Completion Messages
-
-```
-Check .claude/session/messages/pm/ for completion/status messages
-Decide next action:
-  - task_complete from worker → assign next task or send to QA
-  - task_complete from QA (passed) → trigger retrospective
-  - bug_report from QA → reassign to worker
-```
-
-### 5. Repeat or Complete
-
-```
-if (all PRD tasks complete) {
-    signal session complete
-    exit
-} else {
-    repeat from step 2
-}
-```
-
-## Key Differences from Polling
-
-| Aspect | Polling (Legacy) | Worker Pool (Current) |
-| ------- | ---------------- | --------------------- |
-| Agent lifecycle | Infinite loop | Complete work and exit |
-| State checking | Every 30 seconds | Once per task |
-| Watchdog role | Route messages | Orchestrate agent spawning |
-| Message delivery | Restart agent with pending messages | Detect inbox messages |
-
-## Message Types and Workflow
-
-| Message Type | From | When Sent | Next Agent | Payload |
-| ------------ | ---- | --------- | ---------- | ------- |
-| `task_assign` | pm | Task selected | developer/techartist | Task details |
-| `task_complete` | developer | Implementation done | qa | taskId, summary |
-| `task_complete` | techartist | Asset work done | qa | taskId, summary |
-| `task_complete` | qa | Validation complete | pm | taskId, validationPassed |
-| `bug_report` | qa | Validation failed | pm | taskId, bugs |
-| `question` | any | Needs clarification | pm | question, context |
-| `answer` | pm | Response to question | requester | answer |
-| `retrospective_initiate` | pm | QA passed validation | all | taskId |
-| `playtest_request` | pm | Retrospective started | gamedesigner | taskId |
-| `session_complete` | pm | All tasks done | watchdog | {} |
-
-## File-Based Communication
-
-**Sending messages:** Use Write tool to create files
-
-```
-.claude/session/messages/{recipient}/{message-id}.json
-```
-
-**Receiving messages:** Watchdog checks for message files
-
-```
-.claude/session/messages/{agent}/msg-{agent}-*.json
-```
-
-**State tracking:**
-
-```
-prd.json.session (session state)
-prd.json.agents.{agent} (agent status)
-prd.json.items[{taskId}] (task details)
-```
+---
 
 ## Exit Conditions
 
-Agents exit under these conditions:
+| Condition | Action | Exit Code | Restarted |
+|-----------|--------|-----------|-----------|
+| Work complete | Send `WorkComplete` | 0 | No (new task will spawn) |
+| Need clarification | Send `Query` | 0 | No |
+| Blocking issue | Send `WorkBlocked` | 0 | No |
+| Shutdown received | - | 42 | No |
+| Crash | - | Non-zero | Yes (with backoff) |
 
-1. **Work completed** → Send completion message → Exit
-2. **Need PM clarification** → Send `question` message → Exit
-3. **Blocking issue** → Send `work_blocked` message → Exit
-4. **Session complete** → PM sends `session_complete` → All exit
+**Supervisor restart strategy**:
+- Exponential backoff: 5s, 10s, 20s, 40s, 60s (max)
+- Max 3 restarts per agent
+- Graceful exits (0 or 42) are not restarted
 
-Watchdog exits when:
+---
 
-1. All PRD items have `passes: true`
-2. PM sends `session_complete` message
-3. `/cancel-ralph` invoked
+## V2 vs V1
 
-## See Also
+| Aspect | V1 (Legacy) | V2 (Current) |
+|--------|-------------|--------------|
+| Agent lifecycle | File queue monitoring | Pipe-based event loop |
+| Delivery latency | 2-5 seconds | <10 milliseconds |
+| Crash recovery | Manual health checks | Automatic (ActorSupervisor) |
+| State persistence | Multiple files | Single event log |
+| Message types | 47+ types | 12 core types |
+| Restart strategy | None | Exponential backoff |
 
-- [`.claude/skills/ralph-core.md`](ralph-core.md) — Session structure
-- [`.claude/skills/ralph-event-protocol.md`](ralph-event-protocol.md) — Event-driven architecture
-- [`.claude/skills/message-handling.md`](message-handling.md) — Message processing
+---
+
+## Complete Worker Example
+
+```powershell
+# Source runtime library
+. "$PSScriptRoot\..\..\scripts\agent-runtime.ps1"
+
+# Connect to watchdog
+$connected = Connect-ToWatchdog -AgentName "developer" -SessionDir ".\.claude\session"
+if (-not $connected) { exit 1 }
+
+# Enter message loop
+Enter-AgentLoop -MessageHandler {
+    param($Message)
+
+    switch ($Message.type) {
+        "WorkAssign" {
+            $taskId = $Message.payload.taskId
+            # Do work...
+            Send-WorkComplete -TaskId $taskId -Result "success"
+        }
+        "Query" {
+            Send-Message -To "pm" -Type "Response" -Payload @{
+                answer = "Here's the answer..."
+            } -InReplyTo $Message.id
+        }
+        "System" {
+            if ($Message.payload.systemEvent -eq "shutdown") {
+                # Loop exits automatically
+            }
+        }
+    }
+}
+```
+
+---
+
+## Related Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `shared-ralph-event-protocol` | V2 message protocol |
+| `shared-message-handling` | V2 message delivery |
+| `shared-ralph-core` | Core instructions |

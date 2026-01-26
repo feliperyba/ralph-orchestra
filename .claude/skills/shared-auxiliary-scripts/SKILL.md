@@ -1,137 +1,128 @@
 ---
-name: auxiliary-scripts
-description: Auxiliary script management rules for Ralph agents
-category: orchestration
-keywords: [auxiliary, scripts, automation, session, cleanup, reusable]
+name: shared-auxiliary-scripts
+description: Auxiliary script management rules for Ralph agents. Use proactively when creating helper scripts in .claude/session/.
+category: infrastructure
+tags: [scripts, auxiliary, automation, cleanup]
+dependencies: [shared-file-permissions, shared-ralph-core]
 ---
 
 # Auxiliary Script Management
 
-> "Auxiliary scripts in `.claude/session/` help with automation and cleanup. Session state is stored in `prd.json.session`, agent status in `prd.json.agents`."
+> "Auxiliary scripts help with automation – temporary scripts auto-cleanup after 1 hour."
 
-## Script Classification
+## When to Use This Skill
 
-Scripts created in `.claude/session/` are automatically classified:
+Use **when**:
+- Creating helper scripts in `.claude/session/`
+- Managing script cleanup and retention
+- Understanding script classification
 
-| Classification | Pattern | Retention |
-|---------------|--------|-----------|
-| **Temporary** | `*-runner.ps1`, `msg-*-*.json`, `*.exit`, `restart-flag-*.json`, `*.tmp` | Auto-deleted after 1 hour |
-| **Reusable** | Documented below | Persist across sessions |
-| **Unknown** | Everything else | Manual cleanup required |
+Use **proactively**:
+- Document reusable scripts in AGENT.md
+- Use descriptive naming for scripts
 
-## Temporary Scripts
+---
 
-Auto-cleaned after 1 hour:
+## Quick Start
 
-- `*-runner.ps1` - Agent runner scripts
-- `msg-*-*.json` - Individual message files (format: `msg-{agent}-{timestamp}-{seq}.json`)
-- `*.exit` - Agent exit status files
-- `restart-flag-*.json` - Restart signal files
-- `*.tmp` - Temporary files
+<examples>
+Example 1: Script classification
+```
+*.runner.ps1           → Temporary (auto-deleted after 1 hour)
+msg-*-*.json           → Temporary (auto-deleted after 1 hour)
+{agent}-{purpose}.ps1  → Reusable (persist across sessions)
+```
 
-**Do NOT rely on these persisting.** They will be automatically deleted.
-
-## Creating Reusable Scripts
-
-If you create a helper script that provides value across multiple sessions:
-
-1. **Document it** in the "Reusable Scripts" section of your AGENT.md
-2. **Use descriptive naming**: `{agent}-{purpose}.ps1`
-3. **Add to `AuxiliaryScripts.Reusable`** in `ralph-config.ps1`
-4. **Explain its purpose** so future sessions understand its value
-
-### Reusable Scripts Template
-
+Example 2: Reusable script template
 ```powershell
-# Script: {AGENT}-{PURPOSE}.ps1
-# Purpose: {Brief description}
-# Created: {DATE}
-# Used by: {Which agents use this}
+# Script: developer-deployment.ps1
+# Purpose: Deploy build artifacts to staging
+# Created: 2026-01-23
+# Used by: developer
 
-param(
-    [Parameter(Mandatory=$false)]
-    [string]$SomeParameter
-)
+param([string]$Environment)
 
 # Script logic here
 ```
 
-### Adding to ralph-config.ps1
-
+Example 3: Adding to config
 ```powershell
 $Script:AuxiliaryScripts.Reusable = @{
-    "{AGENT}-{PURPOSE}.ps1" = @{
-        Purpose = "Brief description"
-        Created = "2026-01-19"
-        UsedBy = @("pm", "developer")
+    "developer-deployment.ps1" = @{
+        Purpose = "Deploy build artifacts"
+        Created = "2026-01-23"
+        UsedBy = @("developer")
     }
 }
 ```
+</examples>
+
+---
+
+## Script Classification
+
+| Classification | Pattern | Retention |
+|---------------|---------|-----------|
+| **Temporary** | `*-runner.ps1`, `msg-*-*.json`, `*.exit`, `*.tmp` | Auto-deleted after 1 hour |
+| **Reusable** | Documented in AGENT.md | Persist across sessions |
+| **Unknown** | Everything else | Manual cleanup required |
+
+---
+
+## Temporary Scripts
+
+Auto-cleaned after 1 hour:
+- `*-runner.ps1` - Agent runner scripts
+- `msg-*-*.json` - Message files
+- `*.exit` - Agent exit status files
+- `restart-flag-*.json` - Restart signal files
+- `*.tmp` - Temporary files
+
+**Do NOT rely on these persisting.**
+
+---
+
+## Creating Reusable Scripts
+
+1. **Document it** in AGENT.md "Reusable Scripts" section
+2. **Use descriptive naming**: `{agent}-{purpose}.ps1`
+3. **Add to ralph-config.ps1** under `AuxiliaryScripts.Reusable`
+4. **Explain purpose** for future sessions
+
+**Template:**
+```powershell
+# Script: {AGENT}-{PURPOSE}.ps1
+# Purpose: {Brief description}
+# Created: {DATE}
+# Used by: {Which agents}
+
+param([string]$SomeParameter)
+# Script logic
+```
+
+---
 
 ## Documentation in AGENT.md
 
-Maintain a "Reusable Scripts" section in your AGENT.md:
-
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| *(none yet)* | | |
+| _(none yet)_ | | |
 
 Update this table when creating new reusable scripts.
 
-## Cleanup Guidelines
-
-### When Deleting Scripts
-
-1. **Check if active** - ensure no agent is currently using it
-2. **Check dependencies** - ensure no other scripts depend on it
-3. **Document removal** - add note to progress file if significant
-
-### When Keeping Scripts
-
-1. **Document purpose** - add comment header explaining what it does
-2. **Date stamp** - include creation date
-3. **Version** - if modified, track version changes
-
-## Common Script Patterns
-
-### Message Delivery Script
-
-```powershell
-# Used by watchdog to deliver messages to agents
-param([string]$TargetAgent, [string]$MessagePath)
-
-$message = Get-Content $MessagePath | ConvertFrom-Json
-$inbox = ".claude/session/messages/$TargetAgent/"
-# Use the message's existing ID (from JSON content) for filename
-$destPath = Join-Path $inbox "$($message.id).json"
-Copy-Item $MessagePath $destPath
-```
-
-### Health Check Script
-
-```powershell
-# Used to check if agent is responsive
-param([string]$AgentName)
-
-$prdFile = "prd.json"
-$prd = Get-Content $prdFile | ConvertFrom-Json
-$lastSeen = [DateTime]::Parse($prd.agents.$AgentName.lastSeen)
-$age = (Get-Date) - $lastSeen
-
-if ($age.TotalSeconds -gt 60) {
-    Write-Warning "Agent $AgentName unresponsive for $($age.TotalSeconds)s"
-    return $false
-}
-return $true
-```
+---
 
 ## Script Permissions
 
-- All scripts in `.claude/session/` should be executable by agents
-- Never create scripts that modify source code without explicit task assignment
-- Scripts should only update session files or state files
+- All scripts in `.claude/session/` executable by agents
+- Never create scripts that modify source code without task assignment
+- Scripts should only update session/state files
 
-## Reference
+---
 
-- [file-permissions.md](file-permissions.md) — What agents can write to
-- [context-management.md](context-management.md) — Context reset procedures
+## Related Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `shared-file-permissions` | File write permissions |
+| `shared-context-management` | Context reset procedures |

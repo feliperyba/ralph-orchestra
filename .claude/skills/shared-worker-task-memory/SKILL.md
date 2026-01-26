@@ -1,25 +1,71 @@
 ---
-name: worker-task-memory
-description: Task memory management for retrospective contributions. Use to track good points, pain points, and decisions during task execution.
-category: workflow
-keywords: [shared, task-memory, retrospective, tracking, good-points, pain-points, worker]
-version: 1.1
-changelog: |
-  v1.1 - Changed file format to task-{taskId}-memory.md to support multiple concurrent tasks
-  v1.0 - Initial version with task memory lifecycle for retrospectives
+name: shared-worker-task-memory
+description: Task memory management for retrospective contributions. Use proactively when starting any task to track good points, pain points, and decisions during execution.
+category: infrastructure
+tags: [memory, retrospective, tracking, documentation]
+dependencies: [shared-worker-retrospective, shared-file-permissions]
 ---
 
 # Worker Task Memory
 
-> "Remember what happened during the task – write to task memory, use it for retrospectives."
+> "Remember what happened during the task – write to memory, use for retrospectives."
 
-## Overview
+## When to Use This Skill
 
-Task Memory is a temporary file that records your experiences during task execution. When retrospective is triggered, you read ALL your task memory files to populate your contribution, then delete them.
+Use **proactively**:
+- **IMMEDIATELY** when starting a task (create memory file)
+- During task execution (append when notable events happen)
+- When retrospective is triggered (read ALL memory files)
 
-**Problem solved**: Agents lose context between sessions and have nothing specific to contribute to retrospectives.
+---
 
-**Multiple tasks**: Each task gets its own memory file, so agents can work on N tasks simultaneously without mixing memories.
+## Quick Start
+
+<examples>
+Example 1: Create task memory on assignment
+```bash
+# When task_assigned received for P1-004
+File: .claude/session/agents/developer/task-P1-004-memory.md
+
+# Task Memory: P1-004 - Vehicle Physics Implementation
+# **Started**: 2026-01-23T10:30:00Z
+# **Agent**: developer
+#
+# ## Good Points
+# _To be filled during task execution_
+#
+# ## Pain Points
+# _To be filled during task execution_
+#
+# ## Technical Decisions
+# _To be filled during task execution_
+#
+# ## Notes
+# _To be filled during task execution_
+```
+
+Example 2: Append during execution
+```markdown
+## Good Points
+
+- Used InstancedMesh for 1000+ objects at 60fps
+- TypeScript caught null reference early
+
+## Pain Points
+
+- Rapier docs unclear on collision events – had to inspect source
+```
+
+Example 3: Read and delete at retrospective
+```bash
+# Read ALL task memory files
+Dir .claude/session/agents/developer/task-*.md
+
+# Use contents for retrospective contribution
+
+# Delete ALL task memory files after contribution
+```
+</examples>
 
 ---
 
@@ -29,410 +75,167 @@ Task Memory is a temporary file that records your experiences during task execut
 .claude/session/agents/{agent}/task-{taskId}-memory.md
 ```
 
-Where:
-- `{agent}` is one of: `developer`, `techartist`, `qa`, `gamedesigner`
-- `{taskId}` is the PRD task ID (e.g., `P1-004`, `vis-002`)
-
-**Example files:**
-- `.claude/session/agents/developer/task-P1-004-memory.md`
-- `.claude/session/agents/techartist/task-vis-001-memory.md`
-- `.claude/session/agents/qa/task-P1-005-memory.md`
-
----
-
-## File Format
-
-```markdown
-# Task Memory: {taskId} - {title}
-
-**Started**: {timestamp}
-**Agent**: {agent}
-
-## Good Points
-- [Solutions that worked well]
-- [Effective patterns used]
-
-## Pain Points
-- [Issues encountered]
-- [Difficulties and how resolved]
-
-## Technical Decisions
-- [Key decisions made and why]
-
-## Notes
-- [Any other notes for retrospective]
-```
+| Variable | Values |
+|----------|--------|
+| `{agent}` | `developer`, `techartist`, `qa`, `gamedesigner` |
+| `{taskId}` | PRD task ID (e.g., `P1-004`, `vis-002`) |
 
 ---
 
 ## Task Memory Lifecycle
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  1. TASK START                                                  │
-│     - Receive task_assign or asset_assign message              │
-│     - CREATE .claude/session/agents/{agent}/task-{taskId}-memory.md
-│     - Initialize with task ID, title, timestamp, empty sections│
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  1. TASK START                                               │
+│     CREATE task-{taskId}-memory.md with empty sections       │
+└─────────────────────────────────────────────────────────────┘
                           │
                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  2. DURING TASK EXECUTION                                      │
-│     - When something notable happens, APPEND to task-{taskId}-memory.md
-│     - Good points: solutions that worked well                  │
-│     - Pain points: blockers, difficulties, unclear docs        │
-│     - Technical decisions: architectural choices, workarounds   │
-│     - Notes: context for future reference                      │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  2. DURING TASK EXECUTION                                   │
+│     APPEND notable events to appropriate sections            │
+└─────────────────────────────────────────────────────────────┘
                           │
                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  3. RETROSPECTIVE TRIGGERED                                     │
-│     - Receive retrospective_initiate message                    │
-│     - READ ALL task-*.md files from .claude/session/agents/{agent}/
-│     - Use contents to populate retrospective contribution       │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  3. RETROSPECTIVE TRIGGERED                                  │
+│     READ ALL task-*.md files                                │
+│     Use contents for retrospective contribution              │
+└─────────────────────────────────────────────────────────────┘
                           │
                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  4. AFTER CONTRIBUTION                                          │
-│     - DELETE ALL task-*.md files from .claude/session/agents/{agent}/
-│     - Verify files are removed                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  4. AFTER CONTRIBUTUTION                                     │
+│     DELETE ALL task-*.md files                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Creating Task Memory
+## What to Write
 
-**When**: Immediately after receiving `task_assign` or `asset_assign` message.
+### Good Points
+- Solutions that worked well
+- Effective patterns
+- Things that exceeded expectations
 
-**Steps**:
+### Pain Points
+- Blockers or difficulties
+- Unclear/missing documentation
+- Issues requiring workarounds
 
-1. **Extract taskId** from the message payload (e.g., `P1-004`, `vis-002`)
+### Technical Decisions
+- Architectural choices
+- Selection between alternatives
+- PRD deviations (with reasons)
 
-2. **Create directory** (if not exists):
-   ```
-   .claude/session/agents/{agent}/
-   ```
-
-3. **Create file**: `.claude/session/agents/{agent}/task-{taskId}-memory.md`
-
-4. **Initialize with**:
-   ```markdown
-   # Task Memory: {taskId} - {title}
-
-   **Started**: {current_timestamp}
-   **Agent**: {agent}
-
-   ## Good Points
-   _To be filled during task execution_
-
-   ## Pain Points
-   _To be filled during task execution_
-
-   ## Technical Decisions
-   _To be filled during task execution_
-
-   ## Notes
-   _To be filled during task execution_
-   ```
-
-**Example for Developer starting task P1-004**:
-```markdown
-File: .claude/session/agents/developer/task-P1-004-memory.md
-
-# Task Memory: P1-004 - Vehicle Physics Implementation
-
-**Started**: 2026-01-23T10:30:00Z
-**Agent**: developer
-
-## Good Points
-_To be filled during task execution_
-
-## Pain Points
-_To be filled during task execution_
-
-## Technical Decisions
-_To be filled during task execution_
-
-## Notes
-_To be filled during task execution_
-```
+### Notes
+- Context for future reference
+- Questions for PM
 
 ---
 
-## Writing to Task Memory
+## Agent-Specific Tracking
 
-**When**: During task execution, when something notable happens.
-
-### What to Write
-
-**Good Points** - Write when:
-- A solution works particularly well
-- A pattern proves effective
-- Something exceeds expectations
-- A skill or library saves time
-
-**Pain Points** - Write when:
-- Encountering a blocker or difficulty
-- Documentation is unclear or missing
-- A pattern causes issues
-- Something takes longer than expected
-- You need to implement a workaround
-
-**Technical Decisions** - Write when:
-- Making an architectural choice
-- Choosing between alternatives
-- Implementing a workaround
-- Deciding not to follow PRD exactly (and why)
-
-**Notes** - Write when:
-- Remembering something for later
-- Noting context for future reference
-- Recording a question for PM
-
-### How to Append
-
-**Read the current file** (task-{taskId}-memory.md), then **append to the appropriate section**:
-
-```markdown
-## Good Points
-_To be filled during task execution_
-- Used React Three Fiber's InstancedMesh for performance – rendered 1000+ objects at 60fps
-- TypeScript strict mode caught a potential null reference early
-
-## Pain Points
-_To be filled during task execution_
-- Rapier documentation unclear on collision event handling – had to inspect source code
-- Initial approach used individual meshes – performance was terrible at 15fps
-
-## Technical Decisions
-_To be filled during task execution_
-- Chose InstancedMesh over individual meshes for performance (1000+ objects)
-- Decided to use Rapier's collision events instead of manual distance checks
-```
-
-**⚠️ Important: Always append to the correct task's memory file.**
-- Working on P1-004? Append to `task-P1-004-memory.md`
-- Working on vis-001? Append to `task-vis-001-memory.md`
-- Multiple tasks active? Track which file belongs to which task
-
-### Agent-Specific Examples
-
-**Developer** tracks:
-- Code patterns that worked well
-- TypeScript challenges faced
-- Build issues and resolutions
-- Architectural decisions made
-- Library integration difficulties
-
-**Tech Artist** tracks:
-- Visual techniques that were effective
-- Shader compilation issues
-- Performance optimizations (draw calls, triangle count)
-- Asset integration challenges
-- Material/texture decisions
-
-**QA** tracks:
-- Code quality observations
-- Validation difficulties (false positives, missing tests)
-- Test coverage gaps
-- Browser testing issues
-- Unclear acceptance criteria
-
-**Game Designer** tracks:
-- Design decisions made
-- GDD clarity issues
-- Playtest findings
-- Mechanics that need refinement
-- Balancing adjustments
+| Agent | Tracks |
+|-------|--------|
+| **Developer** | Code patterns, TypeScript challenges, build issues, architectural decisions |
+| **Tech Artist** | Visual techniques, shader issues, performance metrics, asset integration |
+| **QA** | Code quality observations, validation difficulties, test gaps, browser issues |
+| **Game Designer** | Design decisions, GDD clarity, playtest findings, balancing adjustments |
 
 ---
 
-## Reading Task Memory
+## Memory to Retrospective Mapping
 
-**When**: Immediately after receiving `retrospective_initiate` message.
-
-**Steps**:
-
-1. **Find ALL task memory files**:
-   ```
-   Directory: .claude/session/agents/{agent}/
-   Pattern: task-*.md
-   ```
-
-2. **Read each task memory file**:
-   - Example: `task-P1-004-memory.md`
-   - Example: `task-P1-005-memory.md`
-   - Combine all contents into your retrospective
-
-3. **Map contents to retrospective sections**:
-   | Task Memory Section | Retrospective Section |
-   |---------------------|----------------------|
-   | Good Points | "What Worked Well" |
-   | Pain Points | "Technical Challenges Faced" / "Areas for Improvement" |
-   | Technical Decisions | "Implementation Decisions" |
-   | Notes | "Lessons Learned" |
-
-4. **Use the combined content** to write detailed, specific contribution
-
-**Example mapping with multiple tasks**:
-```
-Task Memory (P1-004):                  →  Retrospective:
-- "InstancedMesh gave 60fps"           →  "What Worked Well: Used InstancedMesh pattern for high-performance rendering"
-
-Task Memory (P1-005):                  →  Retrospective:
-- "Colyseus Schema worked well"        →  "What Worked Well: Colyseus Schema serialization reduced bandwidth by 80%"
-```
-
----
-
-## Deleting Task Memory
-
-**When**: Immediately after writing retrospective contribution to `retrospective.txt`.
-
-**Steps**:
-
-1. **Find ALL task memory files**:
-   ```
-   Directory: .claude/session/agents/{agent}/
-   Pattern: task-*.md
-   ```
-
-2. **Delete ALL task memory files**:
-   - Delete: `task-P1-004-memory.md`
-   - Delete: `task-P1-005-memory.md`
-   - Delete any matching `task-*.md` files
-
-3. **Verify** files are removed (check with Glob or Read tool)
-
-4. **Continue** with retrospective workflow (update status, log, etc.)
+| Task Memory Section | Retrospective Section |
+|---------------------|----------------------|
+| Good Points | "What Worked Well" |
+| Pain Points | "Technical Challenges" / "Areas for Improvement" |
+| Technical Decisions | "Implementation Decisions" |
+| Notes | "Lessons Learned" |
 
 ---
 
 ## Important Rules
 
-✅ **DO:**
+✅ **DO**:
+- Create memory IMMEDIATELY when starting task
+- Append throughout execution (not just at end)
+- Track which task's memory file you're writing
+- Be specific – mention file names, error messages
+- Write as soon as something happens
+- Read ALL memory files before retrospective
+- Delete ALL memory files after contribution
 
-- Create task memory IMMEDIATELY when starting a task (use task-{taskId}-memory.md format)
-- Append to memory throughout execution (not just at end)
-- Track which task's memory file you're writing to
-- Be specific – mention file names, error messages, exact issues
-- Write to memory as soon as something happens (don't wait)
-- Read ALL task memory files before writing retrospective contribution
-- Delete ALL task memory files after contribution is complete
-
-❌ **DON'T:**
-
+❌ **DON'T**:
 - Skip creating task memory
-- Write to memory only at the end (you'll forget details)
+- Write only at end (you'll forget)
 - Be vague or generic
-- Mix up which task's memory file you're writing to
-- Forget to delete memory after retrospective
-- Edit another agent's task memory file
-- Create task memory in wrong location
+- Mix up which task's file you're writing
+- Forget to delete after retrospective
+- Edit another agent's memory
 
 ---
 
 ## Complete Example
 
-### Developer Task Memory Example
-
-**File**: `.claude/session/agents/developer/task-P1-005-memory.md`
-
+**Input** - Task Memory:
 ```markdown
-# Task Memory: P1-005 - Multiplayer Room State Synchronization
-
-**Started**: 2026-01-23T14:15:00Z
-**Agent**: developer
+# Task Memory: P1-005 - Multiplayer State Sync
 
 ## Good Points
-- Colyseus's `Schema` serialization worked perfectly for state sync
-- Used @colyseus/schema `ArraySchema` for player list – type-safe and efficient
-- Client-side prediction reduced perceived lag significantly
+- Colyseus Schema worked perfectly
+- Client-side prediction reduced perceived lag
 
 ## Pain Points
-- Colyseus documentation on `onChange` callbacks was unclear – had to test multiple approaches
-- Initial state structure caused 500kb payloads – had to refactor to use `Schema`
-- TypeScript types for Colyseus state weren't exported – had to create custom types
+- Documentation unclear on onChange callbacks
+- Initial state caused 500kb payloads
 
 ## Technical Decisions
-- Chose Colyseus `Schema` over raw JSON for bandwidth (80% reduction)
-- Implemented client-side prediction for movement despite added complexity
-- Decided NOT to sync animation state to server (client-authoritative for cosmetics)
-
-## Notes
-- Need to ask PM about weapon fire synchronization – current approach feels laggy
-- GDD doesn't specify if physics should be server-authoritative
+- Chose Schema over JSON (80% bandwidth reduction)
+- Animation state is client-authoritative (cosmetics only)
 ```
 
-### Resulting Retrospective Contribution
-
+**Output** - Retrospective Contribution:
 ```markdown
 ### Developer Perspective
 
 **Implementation Decisions**:
-
-- Used Colyseus `Schema` serialization instead of raw JSON for state sync (80% bandwidth reduction)
-- Chose `ArraySchema` for player list to maintain type safety
-- Implemented client-side prediction for movement despite added complexity
-- Decided to keep animation state client-authoritative (cosmetics only)
+- Used Colyseus Schema serialization (80% bandwidth reduction)
+- Implemented client-side prediction for movement
+- Kept animation state client-authoritative
 
 **Technical Challenges Faced**:
-
-- Colyseus documentation on `onChange` callbacks unclear – had to experiment with multiple approaches
-- Initial state design caused 500kb payloads – required major refactor to `Schema`
-- TypeScript types not exported from Colyseus – created custom type definitions
+- Colyseus onChange docs unclear – experimented with multiple approaches
+- Initial design caused 500kb payloads – refactored to Schema
 
 **What Worked Well**:
-
-- `Schema` serialization worked perfectly once implemented
-- Client-side prediction significantly reduced perceived lag
-- Type-safe player list with `ArraySchema`
+- Schema serialization worked perfectly once implemented
+- Client-side prediction significantly reduced lag
 
 **Areas for Improvement**:
-
-- GDD should specify server-authoritative requirements for physics
-- Weapon fire synchronization approach needs review – feels laggy
 - Should prototype state size earlier in development
-
-**Lessons Learned**:
-
-- Always prototype state payload size before committing to approach
-- Client-side prediction worth the complexity for fast-paced games
-- Need clearer specification on what must be server-authoritative
-
-_**Contributed by**: Developer Agent | 2026-01-23T15:45:00Z_
+- GDD should specify server-authoritative requirements
 ```
 
 ---
 
 ## Verification Checklist
 
-Before starting a task:
-- [ ] Task memory file created at correct path: `.claude/session/agents/{agent}/task-{taskId}-memory.md`
-- [ ] File name includes task ID (e.g., `task-P1-004-memory.md`)
-- [ ] File initialized with task ID, title, timestamp
-- [ ] Empty sections ready for appending
-
-During task execution:
-- [ ] Writing to memory when notable events happen
-- [ ] Being specific with file names, error messages
-- [ ] Appending to correct section
-- [ ] Writing to the correct task's memory file (multiple tasks possible)
-
-When retrospective triggered:
-- [ ] Finding ALL task memory files (pattern: `task-*.md`)
-- [ ] Reading all task memory files
-- [ ] Using contents to populate contribution
-- [ ] Deleting ALL task memory files after contribution
+| When | Checklist |
+|------|-----------|
+| **Starting task** | Memory file created, correct path, initialized |
+| **During execution** | Writing notable events, specific details, correct file |
+| **Retrospective** | Finding ALL files, reading all, deleting ALL after |
 
 ---
 
-## Reference
+## Related Skills
 
-- [`worker-retrospective.md`](worker-retrospective.md) — How to contribute to retrospectives
-- [`developer-workflow.md`](developer-workflow.md) — Complete Developer workflow
-- [`techartist-workflow.md`](techartist-workflow.md) — Complete Tech Artist workflow
-- [`qa-workflow.md`](qa-workflow.md) — Complete QA workflow
+| Skill | Purpose |
+|-------|---------|
+| `shared-worker-retrospective` | Retrospective contribution format |
+| `developer-workflow` | Complete Developer workflow |
+| `techartist-workflow` | Complete Tech Artist workflow |
+| `qa-workflow` | Complete QA workflow |

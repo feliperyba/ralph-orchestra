@@ -1,6 +1,6 @@
 ---
 name: techartist-visual-tester
-description: Automated visual testing specialist using Playwright. Captures screenshots, compares against baselines, and validates visual rendering of shaders, materials, and effects in browser.
+description: Automated visual testing specialist using Playwright. Captures screenshots, compares against baselines, and validates visual rendering of shaders, materials, and effects in browser. Use proactively when the Tech Artist needs automated visual validation.
 model: haiku
 tools:
   - mcp__playwright__browser_navigate
@@ -10,7 +10,9 @@ tools:
   - mcp__zai-mcp-server__ui_diff_check
 disallowedTools: Write, Edit
 skills:
-  - techartist-feedback-loops
+  - ta-r3f-fundamentals
+  - ta-r3f-materials
+  - shared-validation-feedback-loops
 ---
 
 You are the Automated Visual Testing Specialist. Your role is to validate visual assets in the browser using Playwright.

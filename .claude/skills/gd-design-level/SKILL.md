@@ -1,6 +1,9 @@
 ---
 name: gd-design-level
 description: Map and level design documentation. Use when designing map layouts, creating level templates, placing loot and spawns, designing flow and pacing, or creating navigation systems.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Level Design

@@ -1,166 +1,185 @@
 ---
-name: file-permissions
-description: File read/write permissions for all Ralph agents
-category: orchestration
-keywords: [permissions, file-ownership, read-write, atomic, single-writer, concurrency]
+name: shared-file-permissions
+description: File read/write permissions for all Ralph agents. Use proactively when unsure about file ownership or write permissions.
+category: infrastructure
+tags: [permissions, ownership, files, concurrency]
+dependencies: [shared-ralph-core, shared-atomic-updates]
 ---
 
 # File Permissions
 
-> "Single-writer principle prevents race conditions."
+> "Single-writer principle prevents race conditions – know what you can write to."
+
+## When to Use This Skill
+
+Use **when**:
+- Unsure if you can write to a file
+- Need to know who owns a specific file
+- Resolving file conflicts
+
+Use **proactively**:
+- Before writing to any shared file
+- When coordinating between agents
+
+---
+
+## Quick Start
+
+<examples>
+Example 1: PM writing to prd.json
+```json
+// ✅ PM CAN write these fields:
+{
+  "items": [{ "status": "in_progress" }],  // ✅ PM only
+  "session": { "iteration": 5 },           // ✅ PM only
+  "agents": { "developer": { "status": "working" } }  // ✅ PM only
+}
+```
+
+Example 2: Developer updating own status
+```json
+// ✅ Developer CAN update own agent fields:
+{
+  "agents": {
+    "developer": { "lastHeartbeat": "2026-01-23T12:00:00Z", "status": "working" }  // ✅
+  }
+}
+// ❌ CANNOT update other agents' fields
+```
+
+Example 3: QA updating validation results
+```json
+// ✅ QA CAN update validation fields:
+{
+  "items": [{ "id": "feat-001", "passes": true, "validationResults": {...} }]  // ✅
+}
+```
+</examples>
+
+---
 
 ## Core Principle
 
 Each file has a **primary owner** to avoid conflicts. Only the owner may write to that file.
 
+---
+
 ## File Ownership
 
 | File | Primary Owner | Other Agents |
 |------|---------------|--------------|
-| `prd.json.session` | PM | Workers may update their own `prd.json.agents.{role}.*` fields only |
-| `prd.json.items[{taskId}]` | PM (creates) | Workers may update `status`, `completedAt`, `commit`, `retryCount`, `bugNotes` |
-| `prd.json` | PM (fields) | QA may update `passes`, `validationResults`, `bugs` |
-| `session.log` | All agents | All append-only |
-| `coordinator-progress.txt` | PM | All append-only |
-| `developer-progress.txt` | Developer | PM may append notes |
-| `qa-progress.txt` | QA | PM may append notes |
+| `prd.json.session` | PM | Workers: own `agents.{role}.*` only |
+| `prd.json.items[{taskId}]` | PM (creates) | Workers: `status`, `completedAt`, `commit`, `retryCount`, `bugNotes` |
+| `prd.json` | PM (fields) | QA: `passes`, `validationResults`, `bugs` |
+| Session files | PM | All agents (append-only) |
+| Progress files | Respective agent | PM (append notes only) |
+
+---
 
 ## Permission Rules
 
-1. **Read-modify-write atomically** - see [atomic-updates.md](atomic-updates.md)
-2. **Only update fields you own** - never overwrite another agent's data
-3. **Append-only for logs** - never delete or reorder entries
-4. **Retry on conflict** - if write fails, re-read and retry once
-5. **Use per-agent files** for frequently updated data to reduce contention
+1. **Read-modify-write atomically** - See `shared-atomic-updates`
+2. **Only update fields you own** - Never overwrite another agent's data
+3. **Append-only for logs** - Never delete or reorder entries
+4. **Retry on conflict** - If write fails, re-read and retry once
+5. **Use per-agent files** for frequently updated data
+
+---
 
 ## What Each Agent CAN Write To
 
 ### PM Coordinator
-- ✅ `.claude/session/*` - All session files
-- ✅ `prd.json` - ONLY task status fields: `passes`, `status`, `assignedAt`, `assignedTo`, `completedAt`
-- ✅ `prd.json.session` - Full ownership of session state
-- ✅ `prd.json.agents.*` - Full ownership of agent status tracking
-- ✅ `coordinator-progress.txt` - Full ownership
-- ✅ `developer-progress.txt` - May append notes
-- ✅ `qa-progress.txt` - May append notes
-- ❌ Source code files (`src/`, `server/`, `public/`)
-- ❌ Test files
-- ❌ Configuration files
+
+| ✅ Can Write | ❌ Cannot Write |
+|-------------|----------------|
+| `.claude/session/*` | Source code (`src/`, `server/`, `public/`) |
+| `prd.json` - task status fields | Test files |
+| `prd.json.session` | Configuration files |
+| `prd.json.agents.*` | |
+| `coordinator-progress.txt` | |
+| `*-progress.txt` (append notes) | |
 
 ### Developer Worker
-- ✅ `.claude/session/session.log` - Append log entries
-- ✅ `.claude/session/developer-progress.txt` - Full ownership
-- ✅ `prd.json.agents.developer` - May update own status: `lastHeartbeat`, `status`, `currentTask`
-- ✅ `prd.json.items[{taskId}]` - May update: `status`, `completedAt`, `commit`, `question`, `questionType`
-- ✅ Source code files (`src/`, etc.) - Full ownership
-- ❌ `prd.json` - Read-only (except items assigned to developer and own agent status)
-- ❌ `coordinator-progress.txt` - Read-only (PM manages this)
-- ❌ `qa-progress.txt` - Read-only
+
+| ✅ Can Write | ❌ Cannot Write |
+|-------------|----------------|
+| Source code (`src/`, etc.) | `prd.json` (except assigned tasks) |
+| `.claude/session/session.log` (append) | `coordinator-progress.txt` |
+| `developer-progress.txt` | `qa-progress.txt` |
+| `prd.json.agents.developer` | |
+| `prd.json.items[{taskId}]` (assigned) | |
 
 ### QA Worker
-- ✅ `.claude/session/session.log` - Append log entries
-- ✅ `.claude/session/qa-progress.txt` - Full ownership
-- ✅ `prd.json.agents.qa` - May update own status: `lastHeartbeat`, `status`, `currentTask`
-- ✅ `prd.json.items[{taskId}]` - May update: `status`, `validatedAt`, `validationResults`, `bugs`
-- ✅ `prd.json` - May update: `passes`, `validationResults`, `bugs`
-- ❌ Source code files - Read-only (validates only, doesn't edit)
-- ❌ `coordinator-progress.txt` - Read-only
-- ❌ `developer-progress.txt` - Read-only
 
-### Game Designer Worker
-- ✅ `.claude/session/session.log` - Append log entries
-- ✅ `.claude/session/gamedesigner-progress.txt` - Full ownership
-- ✅ `prd.json.agents.gamedesigner` - May update own status: `lastHeartbeat`, `status`, `currentTask`
-- ✅ `docs/design/` - Full ownership of all design artifacts
-- ✅ Design artifacts in project root
-- ❌ Source code files - Read-only
-- ❌ `prd.json` task descriptions - Read-only (PM only)
+| ✅ Can Write | ❌ Cannot Write |
+|-------------|----------------|
+| `.claude/session/session.log` (append) | Source code (read-only) |
+| `qa-progress.txt` | `coordinator-progress.txt` |
+| `prd.json.agents.qa` | `developer-progress.txt` |
+| `prd.json.items[{taskId}]` (validation) | |
+| `prd.json` (`passes`, `validationResults`, `bugs`) | |
 
 ### Tech Artist Worker
-- ✅ `.claude/session/session.log` - Append log entries
-- ✅ `.claude/session/techartist-progress.txt` - Full ownership
-- ✅ `prd.json.agents.techartist` - May update own status: `lastHeartbeat`, `status`, `currentTask`
-- ✅ `src/assets/` - All 3D models, textures, materials
-- ✅ `src/components/**/*.{materials,shaders,effects}*` - Visual components
-- ✅ `src/styles/` - UI styles and visual themes
-- ✅ `src/vfx/` - Particle systems and effects
-- ❌ Core game logic (store/, hooks/, utils/) - Read-only
-- ❌ Network code (server/) - Read-only
-- ❌ `prd.json` task descriptions - Read-only (PM only)
+
+| ✅ Can Write | ❌ Cannot Write |
+|-------------|----------------|
+| `src/assets/` (3D models, textures) | Core game logic (`stores/`, `hooks/`, `utils/`) |
+| `src/components/**/*.{materials,shaders,effects}*` | Network code (`server/`) |
+| `src/styles/` | `prd.json` task descriptions |
+| `src/vfx/` | |
+| `techartist-progress.txt` | |
+
+### Game Designer Worker
+
+| ✅ Can Write | ❌ Cannot Write |
+|-------------|----------------|
+| `docs/design/` | Source code |
+| Design artifacts | `prd.json` task descriptions |
+| `gamedesigner-progress.txt` | |
+
+---
 
 ## Commit Permissions
 
-**ALL agents MUST commit their file changes** following the Ralph commit format.
+**ALL agents MUST commit their file changes.**
 
-| Agent | Must Commit | Commit Scope |
-|-------|-------------|--------------|
-| **PM** | ✅ Yes | `prd.json` (all fields), `.claude/session/coordinator-progress.txt`, skill files, retrospective artifacts |
-| **Developer** | ✅ Yes | Source files, tests, `prd.json.items[{taskId}]` (assigned tasks), `prd.json.agents.developer`, own progress files |
-| **Tech Artist** | ✅ Yes | Asset files, visual components, shaders, styles, `prd.json.agents.techartist`, own progress files |
-| **QA** | ✅ Yes | `prd.json` (validation fields), `prd.json.agents.qa`, bug reports, own progress files |
-| **Game Designer** | ✅ Yes | `docs/design/`, GDD, design artifacts, `prd.json.agents.gamedesigner`, own progress files |
+| Agent | Must Commit | Scope |
+|-------|-------------|-------|
+| **PM** | ✅ Yes | `prd.json`, session files, retrospectives |
+| **Developer** | ✅ Yes | Source files, tests, own agent status |
+| **Tech Artist** | ✅ Yes | Assets, visual components, shaders |
+| **QA** | ✅ Yes | Validation fields, bug reports |
+| **Game Designer** | ✅ Yes | Design docs, GDD, artifacts |
 
-**Commit Format:**
-```
-[ralph] [{{AGENT}}] {{TASK_ID}}: {{Brief description}}
+**No Commit Exceptions**: Heartbeat updates, temporary message files.
 
-- Change 1
-- Change 2
-
-PRD: {{TASK_ID}} | Agent: {{AGENT}} | Iteration: {{N}}
-```
-
-**No Commit Exceptions:**
-- Heartbeat updates (prd.json.agents.{role}.lastHeartbeat timestamps)
-- Temporary/pending message files (deleted after processing)
-
-> See [ralph-core.md](ralph-core.md#universal-commit-rule-all-agents) for complete commit rules.
+---
 
 ## Concurrency Rules
 
-1. **Never overwrite entire files** - update specific fields only
-2. **Use atomic updates** - read-modify-write to temp file, then rename
-3. **Check file locks** - if `.lock` file exists, wait or retry
-4. **Additive updates** - for logs, append only (never delete except by PM archiving)
-5. **Field-level ownership** - multiple agents can update different fields in same file
+1. **Never overwrite entire files** - Update specific fields only
+2. **Use atomic updates** - Read-modify-write to temp file, then rename
+3. **Check file locks** - If `.lock` file exists, wait or retry
+4. **Additive updates** - For logs, append only
+5. **Field-level ownership** - Multiple agents can update different fields in same file
 
-## Atomic Update Pattern
-
-```bash
-# Read
-STATE=$(cat file.json)
-# Modify
-NEW_STATE=$(echo "$STATE" | jq '.field = "value"')
-# Write atomically
-echo "$NEW_STATE" > file.json.tmp && mv file.json.tmp file.json
-```
-
-## Logging Best Practices
-
-- **Use structured logs** - JSON format where possible
-- **Include timestamps** - ISO 8601 format
-- **Include agent identifier** - who made the change
-- **Append only** - never rewrite log files
-- **Archive, don't delete** - PM may archive old logs
+---
 
 ## Conflict Resolution
 
 If you encounter a write conflict:
 
-1. **Re-read the file** - get the latest state
-2. **Re-apply your changes** - on top of the new state
-3. **Write again** - using atomic pattern
-4. **If still conflicts** - log the issue and wait 30 seconds
+1. **Re-read the file** - Get latest state
+2. **Re-apply your changes** - On top of new state
+3. **Write again** - Using atomic pattern
+4. **If still conflicts** - Log issue and wait 30 seconds
 
-## File Locking
+---
 
-The system uses `.lock` files to prevent concurrent writes:
+## Related Skills
 
-- `{file}.lock` - Created before writing, removed after
-- Stale locks (>30s) are automatically removed
-- Use `Invoke-WithFileLock` (PowerShell) for custom critical sections
-
-## Reference
-
-- [ralph-core.md](ralph-core.md) — Session structure and file ownership table
-- [atomic-updates.md](atomic-updates.md) — Atomic update patterns
+| Skill | Purpose |
+|-------|---------|
+| `shared-ralph-core` | Session structure and file ownership |
+| `shared-atomic-updates` | Atomic update patterns |
+| `shared-worker-worktree` | Parallel development coordination |

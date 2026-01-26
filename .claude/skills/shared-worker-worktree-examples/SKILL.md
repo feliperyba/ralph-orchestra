@@ -1,8 +1,6 @@
 ---
 name: worker-worktree-examples
 description: Git worktree practical examples for parallel agent development
-category: workflow
-keywords: [worktree, git, examples, parallel, isolation, branch, merge]
 ---
 
 # Worker Worktree Examples

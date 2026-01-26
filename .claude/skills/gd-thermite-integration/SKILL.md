@@ -1,6 +1,9 @@
 ---
 name: gd-thermite-integration
 description: Integration with thermite-design skill for structured game design sessions. Use when user mentions thermite, design session, creative team, retreat, running GDD creation sessions, generating design artifacts, updating decision logs, simulating creative team discussions, validating against design pillars, or brainstorming new features.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Thermite Design Integration

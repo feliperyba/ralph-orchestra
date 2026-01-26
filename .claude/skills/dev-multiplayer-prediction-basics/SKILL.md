@@ -178,6 +178,154 @@ onJoin(client: Client) {
 - Use object pooling for input objects
 - Batch reconciliation updates (not every frame)
 
+## Security Considerations
+
+### Server Must Always Validate
+
+**CRITICAL**: Prediction is for responsiveness ONLY. Server is always authoritative.
+
+```typescript
+// ❌ WRONG - Server trusts client prediction
+onMessage(client: Client, data: any) {
+  // Client sends predicted position
+  const player = this.state.players.get(client.sessionId);
+  player.x = data.x;  // trusting client = cheating!
+  player.y = data.y;
+}
+
+// ✅ RIGHT - Server validates everything
+onMessage(client: Client, data: any) {
+  // Client sends INPUT only
+  const player = this.state.players.get(client.sessionId);
+
+  // Server processes input server-side
+  if (data.input.forward) player.z -= MOVEMENT_CONFIG.walkSpeed * dt;
+  if (data.input.backward) player.z += MOVEMENT_CONFIG.walkSpeed * dt;
+
+  // Server validates result
+  player.x = clamp(player.x, -50, 50);  // Boundary check
+  player.y = clamp(player.y, 0, 10);    // Ground check
+}
+```
+
+### Detect Desynchronization Attacks
+
+Attackers may try to desync state to cause unfair gameplay.
+
+```typescript
+// Track reconciliation errors
+class ReconciliationTracker {
+  private errorCount = 0;
+  private maxErrors = 10;
+
+  onErrorDetected(clientPosition: Vector3, serverPosition: Vector3) {
+    const distance = Math.sqrt(
+      (clientPosition.x - serverPosition.x) ** 2 +
+      (clientPosition.y - serverPosition.y) ** 2 +
+      (clientPosition.z - serverPosition.z) ** 2
+    );
+
+    // Large discrepancies may indicate tampering
+    if (distance > 10) {
+      this.errorCount++;
+
+      if (this.errorCount > this.maxErrors) {
+        // Too many desyncs - possible cheat attempt
+        console.warn(`Excessive desync for client - possible cheat`);
+        // Could kick player or increase scrutiny
+      }
+    }
+  }
+}
+```
+
+### Sequence Number Security
+
+Sequence numbers can be exploited if not validated properly.
+
+```typescript
+// Server validates sequence numbers
+onMessage(client: Client, data: any) {
+  const player = this.state.players.get(client.sessionId);
+
+  // ❌ WRONG - No validation
+  player.lastProcessedSequence = data.sequence;
+
+  // ✅ RIGHT - Validate sequence
+  // Sequence must be greater than last processed (no duplicates)
+  // Sequence must be within reasonable range (no huge gaps)
+  if (data.sequence <= player.lastProcessedSequence) {
+    console.warn(`Duplicate/old sequence from ${client.sessionId}`);
+    return; // Reject
+  }
+
+  if (data.sequence - player.lastProcessedSequence > 100) {
+    console.warn(`Sequence gap too large from ${client.sessionId}`);
+    return; // Possible sequence attack
+  }
+
+  player.lastProcessedSequence = data.sequence;
+}
+```
+
+### Prevent Speed Hacks
+
+Attackers may try to send inputs faster than legitimate.
+
+```typescript
+// Track input rate per client
+class InputRateTracker {
+  private inputTimes = new Map<string, number[]>();
+
+  canAcceptInput(clientId: string): boolean {
+    const now = Date.now();
+    const times = this.inputTimes.get(clientId) || [];
+
+    // Clean old entries
+    const recent = times.filter(t => now - t < 1000);
+    this.inputTimes.set(clientId, recent);
+
+    // Max 100 inputs per second (reasonable for human)
+    if (recent.length >= 100) {
+      console.warn(`Input rate limit exceeded: ${clientId}`);
+      return false;
+    }
+
+    recent.push(now);
+    return true;
+  }
+}
+```
+
+### Rollback Detection
+
+If rollback happens too frequently, something may be wrong.
+
+```typescript
+class RollbackDetector {
+  private rollbackCount = 0;
+  private rollbackThreshold = 10; // per minute
+
+  onRollback() {
+    this.rollbackCount++;
+
+    if (this.rollbackCount > this.rollbackThreshold) {
+      console.error('Excessive rollbacks - config mismatch or cheating');
+
+      // Request config resync from server
+      networkManager.send({ type: 'request_config' });
+    }
+  }
+
+  reset() {
+    // Reset counter every minute
+    setInterval(() => {
+      this.rollbackCount = 0;
+    }, 60000);
+  }
+}
+```
+
 ## Reference
 
 - [Valve Latency Compensation](https://developer.valvesoftware.com/wiki/Latency_Compensating_Methods)

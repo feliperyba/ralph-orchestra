@@ -1,6 +1,7 @@
 ---
-name: techartist-r3f-materials
-description: Material selection, shaders, and visual effects for R3F
+name: ta-r3f-materials
+description: Creates and configures PBR materials, textures, and shaders. Use proactively when working with material properties, texture mapping, or shader materials.
+category: techartist
 ---
 # R3F Materials Skill
 

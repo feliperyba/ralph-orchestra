@@ -1,36 +1,37 @@
-# Event-Driven Protocol
+# Event-Driven Protocol V2
 
-Message-based communication protocol for event-driven multi-agent orchestration.
+Message-based communication protocol for V2 event-driven multi-agent orchestration using Actor Model with Event Sourcing.
 
-## Architecture Overview
+## Architecture Overview (V2)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    WATCHDOG (Message Broker)                     │
-│  - Routes messages between agents                                │
-│  - Monitors agent health                                         │
-│  - Restarts agents with messages                                 │
+│              ACTOR SUPERVISOR (Event Sourcing)                   │
+│  - Routes messages between agents via named pipes               │
+│  - Monitors agent health with auto-restart                      │
+│  - Event log as single source of truth                          │
 │  - Manages session lifecycle                                     │
 └─────────────────────────────────────────────────────────────────┘
            │                    │                    │
            ▼                    ▼                    ▼
     ┌───────────┐        ┌───────────┐        ┌───────────┐
     │    PM     │◄──────►│ Developer │◄──────►│    QA     │
-    │(Coordinator)       │ (Worker)  │        │ (Worker)  │
+    │  (Pipe)   │        │  (Pipe)   │        │  (Pipe)   │
     └───────────┘        └───────────┘        └───────────┘
 ```
 
-## Worker Pool Model
+## Worker Pool Model (V2)
 
-**CRITICAL:** In event-driven mode, agents do NOT run continuously.
+**CRITICAL:** In V2 event-driven mode, agents do NOT run continuously.
 
 **Pattern:**
 ```
-1. Watchdog spawns agent (with or without pending messages)
-2. Agent processes messages / does work
-3. Agent sends completion/status message
-4. Agent EXITS
-5. Watchdog spawns agent again when needed
+1. ActorSupervisor spawns agent (creates pipe, starts process)
+2. Agent connects via agent-runtime.ps1 to named pipe
+3. Agent processes messages / does work
+4. Agent sends completion/status message via pipe
+5. Agent EXITS (exit code 0 or 42)
+6. ActorSupervisor auto-restarts if crashed (exponential backoff)
 ```
 
 **❌ DO NOT:**
@@ -39,39 +40,44 @@ Message-based communication protocol for event-driven multi-agent orchestration.
 - Use timers to wait
 
 **✅ DO:**
-- Use Read tool / Write tool for file operations
-- Process pending messages on startup
+- Connect via agent-runtime.ps1 and Enter-AgentLoop
+- Process messages from named pipe
 - Exit after completing work
-- Send status_update to watchdog before exiting
+- Send messages via Send-Message function
 
-## Message Queue Structure
+## Session Structure (V2)
 
 ```
-.claude/session/messages/
-├── pm/                 # PM's inbox
-├── developer/          # Developer's inbox
-├── qa/                 # QA's inbox
-├── gamedesigner/       # Game Designer's inbox
-├── techartist/         # Tech Artist's inbox
-└── watchdog/           # Watchdog's inbox
+.claude/session/
+├── eventlog.jsonl       # Append-only event log (source of truth)
+├── agent-status.json    # Materialized view from event log
+├── undelivered.jsonl    # Failed delivery queue
+└── pipes/               # Named pipe endpoints
+    ├── ralph-pm-main
+    ├── ralph-developer-main
+    ├── ralph-qa-main
+    └── ralph-gamedesigner-main
 ```
 
-**Sending messages:** Use Write tool to create `.claude/session/messages/{recipient}/{message-id}.json`
+**Sending messages (V2):** Use `Send-Message` function from agent-runtime.ps1
 
-**Receiving messages:** Watchdog restarts you when messages exist in your inbox
+**Receiving messages (V2):** Enter-AgentLoop automatically receives messages from named pipe
 
-## Message Format
+## Message Format (V2)
 
 ```json
 {
-  "id": "msg-developer-20240120-120000-001",
+  "id": "msg-20250125-120000-001",
+  "seq": 42,
+  "type": "WorkAssign",
   "from": "pm",
   "to": "developer",
-  "type": "task_assign",
-  "priority": "normal",
-  "payload": { "taskId": "feat-001" },
-  "timestamp": "2024-01-20T12:00:00.000Z",
-  "status": "pending"
+  "timestamp": "2025-01-25T12:00:00Z",
+  "payload": {
+    "taskId": "feat-001",
+    "workType": "implementation"
+  },
+  "inReplyTo": "msg-20250125-115500-042"
 }
 ```
 
@@ -79,39 +85,52 @@ Message-based communication protocol for event-driven multi-agent orchestration.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | `msg-{recipient_agent}-{timestamp}-{seq}` |
+| `id` | string | `msg-{yyyyMMdd-HHmmss}-{seq}` |
+| `seq` | number | Sequence number for ordering |
+| `type` | string | V2 message type (12 core types) |
 | `from` | string | Sender agent |
 | `to` | string | Recipient agent |
-| `type` | string | Message type |
-| `priority` | string | `low`, `normal`, `high`, `urgent` |
-| `payload` | object | Type-specific data |
 | `timestamp` | string | ISO 8601 UTC |
-| `status` | string | `pending`, `processing`, `completed` |
+| `payload` | object | Type-specific data |
+| `inReplyTo` | string | Optional: Message ID being replied to |
 
-## Message Types
+## Message Types (V2 - 12 Core Types)
 
 ### PM Sends
-| Type | To | Purpose |
-|------|-----|---------|
-| `task_assign` | developer | Assign task |
-| `priority_response` | any | Answer question |
-| `prd_reorganized` | all | Notify of PRD changes |
+| V2 Type | To | Purpose |
+|---------|-----|---------|
+| `WorkAssign` | developer, qa, gamedesigner | Assign work |
+| `Query` | any | Answer question |
+| `Response` | any | Answer response |
+| `PlanUpdate` | all | Notify of PRD changes |
 
-### Developer Sends
-| Type | To | Purpose |
-|------|-----|---------|
-| `task_complete` | pm | Implementation done |
-| `question` | pm | Ask for clarification |
-| `validation_request` | qa | Request QA validation |
-| `status_update` | watchdog | Report status |
+### Developer/TechArtist Sends
+| V2 Type | To | Purpose |
+|---------|-----|---------|
+| `WorkComplete` | pm | Work done |
+| `Query` | pm, gamedesigner | Ask for clarification |
+| `WorkBlocked` | pm | Blocked on issue |
 
 ### QA Sends
-| Type | To | Purpose |
-|------|-----|---------|
-| `task_complete` | pm | Validation passed |
-| `bug_report` | pm | Validation failed, bugs found |
+| V2 Type | To | Purpose |
+|---------|-----|---------|
+| `ValidationResult` | pm | Validation results |
+| `ProblemReport` | pm | Bugs found |
 
-## Priority Levels
+### Game Designer Sends
+| V2 Type | To | Purpose |
+|---------|-----|---------|
+| `Playtest` | pm | Playtest results |
+| `DesignUpdate` | pm | Design updates |
+| `ResearchUpdate` | pm | Research findings |
+
+### System
+| V2 Type | To | Purpose |
+|---------|-----|---------|
+| `System` | all | Shutdown, errors |
+| `AgentStatus` | watchdog | Agent lifecycle |
+
+## Priority Levels (V2)
 
 | Priority | Description | Use Case |
 |----------|-------------|----------|
@@ -120,17 +139,18 @@ Message-based communication protocol for event-driven multi-agent orchestration.
 | `high` | Needs attention | Questions, bug reports |
 | `urgent` | Immediate | Critical bugs, shutdown commands |
 
-## Processing Rules
+## Processing Rules (V2)
 
-1. **Priority First**: Process urgent messages before normal
-2. **FIFO within Priority**: Older messages before newer
-3. **Delete After Processing**: Remove pending messages file immediately
-4. **PM Decides Priorities**: Bug reports go to PM, not directly to developer
+1. **Message received via pipe**: Enter-AgentLoop delivers messages
+2. **Process by type**: Switch on message type to handle
+3. **Idempotent handlers**: Safe to receive same message twice
+4. **Event log persistence**: All events logged before acknowledgment
+5. **Undelivered queue**: Messages queued if pipe delivery fails
 
-## Best Practices
+## Best Practices (V2)
 
-1. **Small, Focused Messages**: One concern per message
-2. **Include Context**: TaskId, references in payload
-3. **Exit When Done**: Don't stay running idle
-4. **Status Updates**: Send to watchdog so it knows you're alive
-5. **Use ReplyTo**: Link responses to questions
+1. **Use agent-runtime.ps1**: Standard connection library
+2. **Exit when done**: Don't stay running idle
+3. **Event log is source of truth**: State derived from replay
+4. **Let-it-crash**: Supervisor will restart you
+5. **V2 message types only**: Use 12 core types

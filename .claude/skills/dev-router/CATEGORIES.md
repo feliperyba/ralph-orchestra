@@ -1,6 +1,6 @@
 # Developer Skills by Category
 
-Complete index of all 31 developer skills organized by category.
+Complete index of all 41 developer skills organized by category.
 
 ## R3F (3 skills)
 
@@ -43,6 +43,148 @@ Complete index of all 31 developer skills organized by category.
 **Dependencies:** dev-r3f-r3f-fundamentals
 
 **Path:** `.claude/skills/dev-r3f-r3f-physics/SKILL.md`
+
+---
+
+## Phaser (10 skills)
+
+### dev-phaser-fundamentals
+
+**Description:** Phaser game configuration, scenes, and lifecycle management
+
+**Keywords:** phaser, scene, preload, create, update, config, game
+
+**Use when:** Setting up Phaser game, creating scenes, game config
+
+**Dependencies:** None (base for all Phaser skills)
+
+**Path:** `.claude/skills/dev-phaser-fundamentals/SKILL.md`
+
+---
+
+### dev-phaser-sprite-management
+
+**Description:** Sprites, sprite sheets, texture atlases, and object pooling for Phaser
+
+**Keywords:** phaser, sprite, sheet, atlas, texture, pool, optimization
+
+**Use when:** Managing sprites, sprite sheets, object pooling, sprite optimization
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-sprite-management/SKILL.md`
+
+---
+
+### dev-phaser-physics-arcade
+
+**Description:** Arcade physics: velocity, acceleration, collision, and bounds
+
+**Keywords:** phaser, arcade, physics, collision, velocity, gravity, body
+
+**Use when:** Implementing Arcade physics, platformers, collision detection
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-physics-arcade/SKILL.md`
+
+---
+
+### dev-phaser-physics-matter
+
+**Description:** Matter.js physics: realistic bodies, constraints, and simulation
+
+**Keywords:** phaser, matter, physics, simulation, constraint, body, realistic
+
+**Use when:** Implementing realistic physics, puzzles, complex interactions
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-physics-matter/SKILL.md`
+
+---
+
+### dev-phaser-input-handlers
+
+**Description:** Keyboard, mouse, touch, and gamepad input management for Phaser
+
+**Keywords:** phaser, input, keyboard, mouse, touch, gamepad, virtual-joystick
+
+**Use when:** Handling player input, keyboard, mouse, touch, gamepad
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-input-handlers/SKILL.md`
+
+---
+
+### dev-phaser-scene-management
+
+**Description:** Scene transitions, data passing, and scene lifecycle management
+
+**Keywords:** phaser, scene, transition, launch, sleep, data-passing, manager
+
+**Use when:** Managing multiple scenes, scene transitions, passing data between scenes
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-scene-management/SKILL.md`
+
+---
+
+### dev-phaser-tilemaps
+
+**Description:** Tilemap loading, parsing, layers, and collision detection
+
+**Keywords:** phaser, tilemap, tiled, layer, collision, tileset
+
+**Use when:** Working with tilemaps, Tiled integration, level design
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-tilemaps/SKILL.md`
+
+---
+
+### dev-phaser-animations
+
+**Description:** Sprite animations, tweens, animation chains, and timeline sequences
+
+**Keywords:** phaser, animation, tween, timeline, sprite-sheet, sequence
+
+**Use when:** Creating sprite animations, tweens, animation sequences
+
+**Dependencies:** dev-phaser-fundamentals, dev-phaser-sprite-management
+
+**Path:** `.claude/skills/dev-phaser-animations/SKILL.md`
+
+---
+
+### dev-phaser-particles
+
+**Description:** Particle emitters for visual effects like fire, smoke, explosions, and magic
+
+**Keywords:** phaser, particles, emitter, vfx, explosion, fire, smoke
+
+**Use when:** Creating particle effects, fire, smoke, explosions, magic
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-particles/SKILL.md`
+
+---
+
+### dev-phaser-ui-creation
+
+**Description:** UI containers, text objects, buttons, and DOM element integration
+
+**Keywords:** phaser, ui, interface, text, button, container, dom
+
+**Use when:** Creating game UI, HUD, buttons, DOM integration
+
+**Dependencies:** dev-phaser-fundamentals
+
+**Path:** `.claude/skills/dev-phaser-ui-creation/SKILL.md`
 
 ---
 

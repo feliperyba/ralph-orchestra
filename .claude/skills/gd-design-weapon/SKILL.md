@@ -1,6 +1,9 @@
 ---
 name: gd-design-weapon
 description: Weapon and item design documentation. Use when designing weapons, creating item systems, balancing equipment, or designing consumables.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Weapon Design

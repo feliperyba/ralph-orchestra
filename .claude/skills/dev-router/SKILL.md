@@ -1,6 +1,6 @@
 ---
 name: dev-router
-description: Developer agent skill router - routes to 31 dev skills by category and signal keywords, manages 5 sub-agents. Developer-agent scoped only.
+description: Developer agent skill router - routes to 41 dev skills by category and signal keywords, manages 5 sub-agents. Developer-agent scoped only.
 ---
 
 # Developer Skill Router
@@ -20,6 +20,7 @@ Use when:
 | Category | Skills | Signal Keywords |
 |----------|--------|-----------------|
 | **R3F** (3) | r3f-fundamentals, r3f-materials, r3f-physics | scene, canvas, mesh, material, shader, physics, collision |
+| **Phaser** (10) | phaser-fundamentals, phaser-sprite-management, phaser-physics-arcade, phaser-physics-matter, phaser-input-handlers, phaser-scene-management, phaser-tilemaps, phaser-animations, phaser-particles, phaser-ui-creation | phaser, scene, preload, sprite, arcade, matter, input, tilemap, animation, particle, ui |
 | **Multiplayer** (8) | server-authoritative, colyseus-server, colyseus-state, colyseus-client, prediction-basics, prediction-movement, prediction-shooting, anti-cheat-validation | multiplayer, server, colyseus, network, sync, prediction, lag |
 | **Assets** (4) | audio-loading, model-loading, texture-loading, vite-asset-loading | asset, load, fbx, gltf, audio, sound, texture, image |
 | **Performance** (4) | performance-basics, instancing, lod-systems, mobile-optimization | fps, slow, optimize, performance, mobile, instance, lod |
@@ -38,6 +39,21 @@ Use when:
 | physics, collision, rigid body, rapier | `dev-r3f-r3f-physics` |
 | material, shader, texture, pbr | `dev-r3f-r3f-materials` |
 | scene, canvas, useFrame, component | `dev-r3f-r3f-fundamentals` |
+
+### Phaser Signals
+
+| Signal | Load Skill |
+|--------|------------|
+| phaser game, game config, scene lifecycle | `dev-phaser-fundamentals` |
+| sprite, sprite sheet, atlas, texture atlas | `dev-phaser-sprite-management` |
+| arcade physics, platformer, collision 2d | `dev-phaser-physics-arcade` |
+| matter physics, realistic physics, puzzle | `dev-phaser-physics-matter` |
+| keyboard, mouse, touch, gamepad input | `dev-phaser-input-handlers` |
+| scene transition, launch, sleep, data passing | `dev-phaser-scene-management` |
+| tilemap, tiled, level design | `dev-phaser-tilemaps` |
+| sprite animation, tween, animation chain | `dev-phaser-animations` |
+| particle, emitter, fire, smoke, explosion | `dev-phaser-particles` |
+| ui, hud, button, dom element | `dev-phaser-ui-creation` |
 
 ### Multiplayer Signals
 

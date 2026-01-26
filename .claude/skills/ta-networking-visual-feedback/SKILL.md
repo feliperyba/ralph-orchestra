@@ -1,6 +1,7 @@
 ---
-name: techartist-networked-visual-feedback
-description: Visual feedback patterns for server-authoritative multiplayer with client-side prediction
+name: ta-networking-visual-feedback
+description: Implements client-side prediction feedback for multiplayer. Use proactively when adding optimistic feedback, ping indicators, or validation UI.
+category: techartist
 ---
 
 # Networked Visual Feedback Skill

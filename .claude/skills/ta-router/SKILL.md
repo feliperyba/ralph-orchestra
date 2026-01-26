@@ -1,6 +1,7 @@
 ---
 name: ta-router
-description: Routes Tech Artist to appropriate skills and sub-agents based on task category, signals, and domain. Use when starting Tech Artist tasks or determining which skills to load.
+description: Routes Tech Artist to appropriate skills and sub-agents based on task category. Use proactively when starting Tech Artist tasks or determining which skills to load.
+category: techartist
 ---
 
 # Tech Artist Skill Router
@@ -13,14 +14,16 @@ description: Routes Tech Artist to appropriate skills and sub-agents based on ta
 
 | Category | Skills |
 |----------|--------|
-| `architectural` | `ta-r3f-fundamentals`, `ta-validation-typescript` |
-| `visual` | `ta-r3f-materials`, `ta-shader-sdf`, `ta-vfx-postfx` |
+| `architectural` | `ta-r3f-fundamentals`, `ta-phaser-fundamentals`, `ta-validation-typescript` |
+| `visual` (R3F) | `ta-r3f-materials`, `ta-shader-sdf`, `ta-vfx-postfx` |
+| `visual` (Phaser) | `ta-phaser-visual-fx`, `ta-phaser-particle-design` |
 | `shader` | `ta-shader-development`, `ta-shader-sdf` |
-| `vfx` | `ta-vfx-particles`, `ta-vfx-postfx` |
+| `vfx` | `ta-vfx-particles`, `ta-vfx-postfx`, `ta-phaser-particle-design` |
 | `asset` | `ta-assets-workflow`, `ta-assets-pipeline-optimization` |
-| `performance` | `ta-r3f-performance`, `ta-r3f-physics` |
+| `performance` | `ta-r3f-performance`, `ta-r3f-physics`, `ta-phaser-sprite-optimization` |
 | `ui` | `ta-ui-polish`, `ta-ui-debug-helpers` |
-| `camera` | `ta-camera-tps` |
+| `camera` (R3F) | `ta-camera-tps` |
+| `camera` (Phaser) | `ta-phaser-camera-work` |
 | `networking` | `ta-networking-visual-feedback` |
 
 ### By Signal Keywords
@@ -28,11 +31,14 @@ description: Routes Tech Artist to appropriate skills and sub-agents based on ta
 | Signal in Task | Route To |
 |----------------|----------|
 | "shader", "glsl", "tsl" | `ta-shader-development`, `ta-shader-sdf` |
-| "particle", "gpu", "instanced" | `ta-vfx-particles` |
+| "particle", "gpu", "instanced" (R3F) | `ta-vfx-particles` |
+| "particle", "emitter", "vfx" (Phaser) | `ta-phaser-particle-design`, `ta-phaser-visual-fx` |
 | "postfx", "bloom", "effect" | `ta-vfx-postfx` |
+| "camera", "screen shake", "zoom" (Phaser) | `ta-phaser-camera-work`, `ta-phaser-visual-fx` |
+| "sprite atlas", "texture optimize" (Phaser) | `ta-phaser-sprite-optimization` |
 | "material", "pbr", "texture" | `ta-r3f-materials` |
 | "physics", "collision", "rapier" | `ta-r3f-physics` |
-| "performance", "fps", "optimize" | `ta-r3f-performance` |
+| "performance", "fps", "optimize" | `ta-r3f-performance`, `ta-phaser-sprite-optimization` |
 | "camera", "tps", "third-person" | `ta-camera-tps` |
 | "asset", "model", "fbx", "gltf" | `ta-assets-workflow`, `ta-assets-pipeline-optimization` |
 | "vite 6", "?import" | `ta-assets-workflow-vite-6` |
@@ -42,11 +48,14 @@ description: Routes Tech Artist to appropriate skills and sub-agents based on ta
 | Task Type | Skill Combination |
 |-----------|-------------------|
 | Shader Development | `ta-r3f-fundamentals` + `ta-shader-development` + `ta-shader-sdf` |
-| VFX Creation | `ta-r3f-fundamentals` + `ta-vfx-particles` + `ta-vfx-postfx` + `ta-r3f-performance` |
+| VFX Creation (R3F) | `ta-r3f-fundamentals` + `ta-vfx-particles` + `ta-vfx-postfx` + `ta-r3f-performance` |
+| VFX Creation (Phaser) | `ta-phaser-fundamentals` + `ta-phaser-particle-design` + `ta-phaser-visual-fx` |
 | Asset Pipeline | `ta-r3f-fundamentals` + `ta-assets-workflow` + `ta-assets-pipeline-optimization` |
 | Performance Optimization | `ta-r3f-fundamentals` + `ta-r3f-performance` + `ta-r3f-materials` |
+| Sprite Optimization (Phaser) | `ta-phaser-fundamentals` + `ta-phaser-sprite-optimization` |
 | UI Polish | `ta-r3f-fundamentals` + `ta-ui-polish` + `ta-ui-debug-helpers` |
 | Material Creation | `ta-r3f-fundamentals` + `ta-r3f-materials` + `ta-shader-sdf` |
+| Camera Work (Phaser) | `ta-phaser-fundamentals` + `ta-phaser-camera-work` + `ta-phaser-visual-fx` |
 
 ## Skills Inventory
 
@@ -59,6 +68,16 @@ description: Routes Tech Artist to appropriate skills and sub-agents based on ta
 | `ta-r3f-performance` | Performance optimization techniques for R3F and Three.js |
 | `ta-r3f-physics` | Physics integration with Rapier for R3F game development |
 | `ta-validation-typescript` | TypeScript best practices for game development |
+
+### Phaser Development (4 skills)
+
+| Skill | Purpose |
+|-------|---------|
+| `ta-phaser-fundamentals` | Phaser game configuration, scenes, and lifecycle management |
+| `ta-phaser-visual-fx` | Post-processing, camera effects, and visual polish for Phaser games |
+| `ta-phaser-particle-design` | Advanced particle system design for visual effects and polish |
+| `ta-phaser-sprite-optimization` | Sprite atlases, texture optimization, and memory management |
+| `ta-phaser-camera-work` | Camera controls, bounds, follow behavior, and cinematic camera work |
 
 ### Visual Effects (6 skills)
 
@@ -124,17 +143,30 @@ function getSkillSequence(task) {
     skills.push('ta-r3f-fundamentals');
   }
 
+  // Phaser fundamentals
+  if (/phaser|2d|tilemap|arcade|matter/.test(text)) {
+    skills.push('ta-phaser-fundamentals');
+  }
+
   // Shader signals
   if (/shader|glsl|tsl|sdf/.test(text)) {
     skills.push('ta-shader-development', 'ta-shader-sdf');
   }
 
-  // VFX signals
-  if (/particle|gpu|instanced|vfx/.test(text)) {
+  // VFX signals (R3F)
+  if (/particle|gpu|instanced|vfx/.test(text) && !/phaser/.test(text)) {
     skills.push('ta-vfx-particles');
   }
   if (/postfx|bloom|effect|blur/.test(text)) {
     skills.push('ta-vfx-postfx');
+  }
+
+  // VFX signals (Phaser)
+  if (/phaser.*particle|phaser.*emitter|phaser.*vfx/.test(text)) {
+    skills.push('ta-phaser-particle-design');
+  }
+  if (/phaser.*fx|phaser.*shake|phaser.*flash/.test(text)) {
+    skills.push('ta-phaser-visual-fx');
   }
 
   // Material signals
@@ -150,6 +182,9 @@ function getSkillSequence(task) {
   // Performance signals
   if (/performance|fps|optimize|mobile/.test(text)) {
     skills.push('ta-r3f-performance');
+  }
+  if (/phaser.*optimize|phaser.*atlas|phaser.*memory/.test(text)) {
+    skills.push('ta-phaser-sprite-optimization');
   }
 
   // Asset signals
@@ -168,6 +203,9 @@ function getSkillSequence(task) {
   // Camera signals
   if (/camera|tps|third[ -]?person/.test(text)) {
     skills.push('ta-camera-tps');
+  }
+  if (/phaser.*camera|phaser.*zoom|phaser.*pan/.test(text)) {
+    skills.push('ta-phaser-camera-work');
   }
 
   // Networking signals
@@ -224,18 +262,30 @@ Example for shader task:
                     │   ta-r3f-fundamentals (BASE)    │
                     └─────────────────────────────────┘
                                       │
-        ┌─────────────────────────────┼─────────────────────────────┐
-        │                             │                             │
-        ▼                             ▼                             ▼
-┌───────────────┐           ┌───────────────┐           ┌───────────────┐
-│ ta-r3f-materials│           │ ta-r3f-physics │           │ ta-r3f-performance│
-└───────────────┘           └───────────────┘           └───────────────┘
-        │                             │                             │
-        ▼                             ▼                             ▼
-┌───────────────┐           ┌───────────────┐           ┌───────────────┐
-│ ta-shader-*   │           │ ta-camera-tps │           │ ta-vfx-*      │
-│ ta-ui-*       │           │               │           │               │
-└───────────────┘           └───────────────┘           └───────────────┘
+                    ┌───────────────┴───────────────┐
+                    ▼                             ▼
+        ┌───────────────────┐           ┌───────────────┐
+        │ ta-phaser-fundamentals (BASE)   │               │
+        └───────────────────┘           └───────────────┘
+                    │                             │
+        ┌───────────────┴───────────────┐           │
+        ▼                             ▼           ▼
+┌───────────────┐           ┌───────────────┐   ┌───────────────┐
+│ ta-r3f-materials│           │ ta-r3f-physics │   │ ta-r3f-performance│
+└───────────────┘           └───────────────┘   └───────────────┘
+        │                             │           │
+        ▼                             ▼           ▼
+┌───────────────┐           ┌───────────────┐   ┌───────────────┐
+│ ta-shader-*   │           │ ta-camera-tps │   │ ta-vfx-*      │
+│ ta-ui-*       │           │               │   │               │
+└───────────────┘           └───────────────┘   └───────────────┘
+                                                    │
+        ┌───────────────────────────────────────────┘
+        ▼
+┌───────────────┐           ┌───────────────┐
+│ ta-phaser-visual-fx      │  ta-phaser-particle-design │
+│ ta-phaser-sprite-opt      │  ta-phaser-camera-work     │
+└───────────────┘           └───────────────┘
 
 ┌───────────────┐           ┌───────────────┐
 │ ta-assets-*   │───────────▶│ ta-r3f-fundamentals │
@@ -247,7 +297,7 @@ Example for shader task:
 └─────────────────────────────────────────────────────┘
 ```
 
-**Rule:** Always load `ta-r3f-fundamentals` before any other TA domain skill.
+**Rule:** Always load `ta-r3f-fundamentals` before R3F domain skills, or `ta-phaser-fundamentals` before Phaser domain skills.
 
 ## References
 

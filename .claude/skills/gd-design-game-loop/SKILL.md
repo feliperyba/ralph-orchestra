@@ -1,6 +1,9 @@
 ---
 name: gd-design-game-loop
 description: Core gameplay loop design documentation. Use when defining the core gameplay loop, mapping the player experience over time, designing session structures, or identifying pacing issues.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Game Loop Design

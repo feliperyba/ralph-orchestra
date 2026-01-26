@@ -1,362 +1,196 @@
 ---
 name: pm-workflow
-description: Complete PM Coordinator workflow - task assignment, retrospective orchestration, PRD management, worker coordination. Use proactively when starting PM agent work. MUST load before starting assignments.
+description: Complete PM Coordinator workflow - task assignment, retrospectives, PRD management. Load before starting PM work.
+category: pm
 user-invocable: true
+model: inherit
+agent: pm
+degrees-of-freedom: medium
 ---
 
 # PM Coordinator Workflow
 
-> "This skill contains the complete workflow for the PM Coordinator. Load this BEFORE starting any task."
+> "Load this skill BEFORE starting any PM work."
 
-## First Step: Load PM Router
+## Quick Start
 
-ALWAYS load the PM router first to expose all available skills:
+1. **Load router**: `Skill("pm-router")`
+2. **Read PRD**: `prd.json` + `prd_backlog.json`
+3. **Check status**: Review `prd.json.session` phase
+4. **Take action**: Based on current state (see Decision Framework)
+5. **Update PRD**: After EVERY decision
+6. **Exit**: Watchdog will restart when needed
+
+**Critical Rule:** PRD is single source of truth. Update immediately after every decision.
+
+---
+
+## Core Flow
 
 ```
-Skill("pm-router")
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        PM COORDINATOR FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐          │
+│  │ TASK SELECTION│───▶│ TEST PLANNING │───▶│ ASSIGNMENT    │          │
+│  │               │    │               │    │               │          │
+│  │ • Select task │    │ • Plan tests  │    │ • Send msg    │          │
+│  │ • Research    │    │ • Define DoD  │    │ • Update PRD  │          │
+│  └───────────────┘    └───────────────┘    └───────┬───────┘          │
+│         ▲                                          │                   │
+│         │                                          ▼                   │
+│         │                                    ┌───────────────┐        │
+│         │                                    │ AWAITING_QA   │        │
+│         │                                    │ (Worker done) │        │
+│         │                                    └───────┬───────┘        │
+│         │                                            │                   │
+│         │            ┌───────────────┐                │                   │
+│         │            │ RETROSPECTIVE │◀───────────────┘ (passed)        │
+│         │            │               │                                    │
+│         │            │ • Worker retro │     ┌───────────────┐            │
+│         │            │ • Playtest     │────▶│ PRD REFINEMENT│            │
+│         │            │ • Skill research│    │               │            │
+│         │            └───────────────┘    │ • Extract tasks│            │
+│         │                                  │ • Prioritize  │            │
+│         └──────────────────────────────────┴───────────────┘            │
+│                              (next iteration)                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-Then proceed with the workflow below.
+### Decision Framework
 
-## Golden Rule: PRD Status Synchronization
+| Current State       | Action                                      |
+| ------------------- | ------------------------------------------- |
+| `null`              | `pm-organization-task-selection`            |
+| `test_planning`     | `pm-planning-test-planning`                 |
+| `assigned`          | Send message, exit                          |
+| `awaiting_qa`       | Wait for QA                                 |
+| `passed`            | `pm-retrospective-facilitation`             |
+| `in_retrospective`  | Wait for contributions                      |
+| `retrospective_synthesized` | `pm-retrospective-playtest-session` |
+| `playtest_complete` | `pm-organization-prd-reorganization`        |
+| `task_ready`        | `pm-improvement-skill-research`             |
+| `needs_fixes`       | Reassign to worker                          |
+| `completed`         | Select next task                            |
 
-**CRITICAL: The PRD is the SINGLE SOURCE OF TRUTH for all agents. Every status change MUST be immediately reflected in `prd.json`.**
+---
 
-**Whenever you make a decision that changes agent or task state, UPDATE THE PRD IMMEDIATELY.**
+## PRD Status Synchronization
 
-| When This Happens                        | Update PRD Like This                                                                           | Why                                    |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
-| **Selecting a task**                     | `prd.json.session.currentTask = {taskId, title, category}`                                     | Workers know what's being worked on    |
-| **Assigning to worker**                  | `prd.json.items[{taskId}].status = "assigned"` + `prd.json.agents[{agent}].status = "working"` | Worker sees assignment, knows to start |
-| **Worker sends question**                | Update notes, keep status as-is                                                                | Track blockers for visibility          |
-| **Worker sends implementation_complete** | `prd.json.items[{taskId}].status = "awaiting_qa"` + `prd.json.agents[{agent}].status = "idle"` | QA picks it up, no loop lock           |
-| **QA validation PASSED**                 | `prd.json.items[{taskId}].status = "completed"` + `passes = true`                              | Triggers retrospective                 |
-| **QA validation FAILED**                 | `prd.json.items[{taskId}].status = "needs_fixes"` + `passes = false`                           | Reassign to worker                     |
-| **Self-reporting**                       | `prd.json.agents.pm.lastSeen = {ISO_TIMESTAMP}`                                                | Watchdog knows you're alive            |
+**PRD is the SINGLE SOURCE OF TRUTH. Update immediately after every decision.**
 
-**If you don't update the PRD:**
+| Event | PRD Update |
+|-------|------------|
+| Select task | `session.currentTask = {taskId, title, category}` |
+| Assign worker | `items[taskId].status = "assigned"` + `agents[agent].status = "working"` |
+| WorkComplete | `items[taskId].status = "awaiting_qa"` + `agents[agent].status = "idle"` |
+| QA passed | `items[taskId].status = "completed"` + `passes = true` |
+| QA failed | `items[taskId].status = "needs_fixes"` + `passes = false` |
+| Heartbeat | `agents.pm.lastSeen = {timestamp}` |
 
-- Workers don't know they have tasks assigned
-- QA waits for tasks that are done
-- Watchdog thinks you crashed
-- Loop locks occur
+**Critical:** When worker sends `WorkComplete`, set `awaiting_qa` (NOT `completed`). Only QA can mark complete.
 
-**Rule of thumb: If you make a decision, PRD changes. IMMEDIATELY.**
+---
 
-## Startup Workflow
+## Startup (V2 Event-Driven)
 
-````
-0. **MESSAGE QUEUE (PRE-INITIALIZED)**
+### Connection
 
-The message queue is ALREADY initialized in the agent runner script. Do NOT run initialization commands.
+V2 uses named pipes. Connection handled automatically by `agent-runtime.ps1`.
 
-Available functions (already loaded):
-- Get-PendingMessages -Agent "pm"
-- Send-AgentMessage -From "pm" -To "..." -Type "..." -Payload @{...}
-- Remove-AgentMessage -Agent "pm" -MessageId "..."
-- Get-GlobalMessageState
-- Invoke-ConsolidateAndClearAllMessages
+### Check Sequence
 
-0.5 **PM-ONLY CONSOLIDATION (MANDATORY on every startup)**
+1. **Check messages** - Received via named pipe
+2. **Read PRD** - `prd.json` + `prd_backlog.json`
+3. **Validate workers** - See Worker State Validation
+4. **Process messages** - Based on current state
+5. **Take action** - Use skills/sub-agents
+6. **Send status** - Update agent-status.json
+7. **Exit** - Watchdog restarts when needed
 
-**IMPORTANT: The message queue is ALREADY initialized in the runner script. You do NOT need to initialize it.**
+### Worker State Validation
 
-**To check for messages, use Glob/Read tools directly (simplest):**
-```bash
-# Find all message files
-Glob: .claude/session/messages/*/msg-*.json
+**In V2, workers may be inactive. PM must validate and wake them.**
 
-# Read each message file to understand content
-Read: .claude/session/messages/pm/msg-{id}.json
+| Condition | Action |
+|-----------|--------|
+| Worker status = "working" AND lastSeen > 15min | Send `WorkAssign` message |
+| Worker status = "idle" BUT has assigned task | Send `WorkAssign` message |
+| Task status = "needs_fixes" AND no activity | Send `WorkAssign` message |
 
-# Delete after processing
-Bash: rm .claude/session/messages/pm/msg-{id}.json
-```
+Check `agent-status.json` and `eventlog.jsonl` to validate worker states.
 
-**Alternative: Use helper functions (if needed for complex operations):**
-```bash
-# Source helper (finds project root automatically)
-source ./.claude/scripts/pwsh-helper.sh
+---
 
-# Get global message state
-pq-global-state
-
-# Get messages for specific agent
-pq-get pm
-```
-
-**IMPORTANT**: Send env_ready message to watchdog after consolidation:
-```bash
-# Option 1: Using helper
-source ./.claude/scripts/pwsh-helper.sh
-pq-send pm watchdog env_ready
-
-# Option 2: Direct file creation (using Write tool)
-Write: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-001.json
-```
-
-- Only then proceed to normal workflow
-- NOTE: This ensures no message pile-up across restarts and PM has complete picture
-- NOTE: env_ready signals watchdog to exit startup mode and allow workers to receive messages
-
-1. CHECK PENDING MESSAGES
-   - After consolidation, this step is for NEW messages only
-   - Read .claude/session/messages/pm/msg-\*.json
-
-2. READ PRD FOR CURRENT STATE
-   - Read prd.json for top 5 active tasks
-   - Read prd.backlogFile (defaults to "prd_backlog.json") for full picture
-   - Check prd.json.session for current phase
-   - Check prd.json.agents.pm for your status
-   - Update your lastSeen timestamp
-
-3. VALIDATE WORKER STATES (MANDATORY in event-driven mode)
-   - See Worker State Validation below
-
-4. PROCESS MESSAGES based on current state
-   - See Decision Framework below
-
-5. TAKE ACTION using skills/sub-agents
-
-6. SEND STATUS_UPDATE to watchdog
-
-7. EXIT (watchdog will restart you when needed)
-
-````
-
-## Worker State Validation (Event-Driven Mode)
-
-**CRITICAL: In event-driven mode, workers may not be actively running. PM must validate and wake them.**
-
-### Validation Steps (Run EVERY startup)
-
-**Use Glob tool (simplest):**
-```
-Glob: .claude/session/messages/{worker}/msg-*.json
-```
-
-**Alternative: Use pq-* helper functions:**
-```bash
-# Source helper first (finds project root automatically)
-source ./.claude/scripts/pwsh-helper.sh
-
-# List messages for a worker
-pq-list {worker}
-
-# Get message details
-pq-get {worker}
-```
-
-**Then:** Check worker's lastSeen timestamp in prd.json
-Compare to current time - if > 15 minutes, worker may be stopped
-
-**If needed:** Send wake_up message
-
-### Wake-Up Triggers
-
-| Condition                                                   | Action       |
-| ----------------------------------------------------------- | ------------ |
-| Worker status = "working" AND lastSeen > 15 min             | Send wake_up |
-| Worker status = "idle" BUT has assigned task                | Send wake_up |
-| Task status = "needs_fixes" AND no messages in worker inbox | Send wake_up |
-| Worker inbox is empty AND task assigned to them             | Send wake_up |
-
-### Wake-Up Message Template
-
-**For Worker (Developer/TechArtist) with active task:**
-
-```json
-{
-  "id": "msg-{worker}-{timestamp}-{seq}",
-  "from": "pm",
-  "to": "{worker}",
-  "type": "wake_up",
-  "priority": "high",
-  "payload": {
-    "message": "You are assigned {taskId}. Please continue working.",
-    "taskId": "{taskId}",
-    "taskTitle": "{Full task title}",
-    "status": "{needs_fixes|assigned}",
-    "acceptanceCriteria": ["Criteria 1", "Criteria 2"],
-    "verificationSteps": ["Step 1", "Step 2"],
-    "qaNote": "{Any QA feedback from previous attempt}"
-  },
-  "timestamp": "{ISO-timestamp}",
-  "status": "pending"
-}
-```
-
-### After Sending Wake-Up
-
-1. Update prd.json agent status with current timestamp
-2. Send status_update to watchdog
-3. Exit - watchdog will deliver message and restart worker if needed
-
-## Decision Framework
-
-| Current State               | Action                                                      | Next State                             |
-| --------------------------- | ----------------------------------------------------------- | -------------------------------------- |
-| `null`                      | Use `Skill("pm-organization-task-selection")`               | `parallel_assigned` or `test_planning` |
-| `parallel_assigned`         | Send task messages to BOTH agents, exit                     | (wait for both workers)                |
-| `test_planning`             | Use Task with `pm-test-planner` sub-agent                   | `assigned`                             |
-| `assigned`                  | Send task message, exit                                     | (wait for worker)                      |
-| `awaiting_qa`               | Wait for QA validation                                      | (wait)                                 |
-| `passed` (QA)               | Use `Skill("pm-retrospective-facilitation")`                | `in_retrospective`                     |
-| `in_retrospective`          | **Wait for `retrospective_complete` message from watchdog** | `retrospective_synthesized`            |
-| `retrospective_synthesized` | Use `Skill("pm-retrospective-playtest-session")`            | `playtest_phase`                       |
-| `playtest_complete`         | Use Task with `pm-prd-organizer` sub-agent                  | `prd_refinement`                       |
-| `prd_analysis_with_gd`      | Send prd_analysis_request                                   | (wait for GD)                          |
-| `task_ready`                | Use Task with `pm-skill-researcher` sub-agent               | `skill_research`                       |
-| `completed`                 | Select next task                                            | `test_planning`                        |
-| `needs_fixes`               | **Check attempts first** (see below)                        | `assigned` or `blocked`                |
-
-> **See `Skill("pm-router")` for complete routing table by workflow phase and task category.**
-
-## Task Status Lifecycle
-
-> See `Skill("shared-ralph-core")` for complete task status definitions.
-
-| Status          | When to Use                            | passes | Who Sets It             |
-| --------------- | -------------------------------------- | ------ | ----------------------- |
-| `"pending"`     | Task not yet started                   | false  | PM (initial)            |
-| `"assigned"`    | Task assigned to worker                | false  | PM                      |
-| `"awaiting_qa"` | Worker finished, sent to QA            | false  | PM (after worker)       |
-| `"completed"`   | **QA PASSED validation**               | true   | PM (after QA pass)      |
-| `"needs_fixes"` | QA found bugs                          | false  | PM (after QA fail)      |
-| `"in_progress"` | Worker actively working                | false  | Worker (self-report)    |
-| `"blocked"`     | Max attempts reached, needs escalation | false  | PM (after max attempts) |
-
-**CRITICAL: When worker sends `implementation_complete`:**
-
-- ✅ Set `status: "awaiting_qa"` + `passes: false`
-- ❌ DO NOT set `status: "completed"` (only QA can mark complete)
-
-## Task Assignment and Selection
-
-> **See `Skill("pm-organization-task-selection")` for:**
->
-> - PRD Backlog Architecture (prd.json vs prd_backlog.json)
-> - Atomic Task Assignment (5-step process)
-> - Task Attempts Tracking (maxAttempts, escalation)
-> - Priority Order for Task Selection
-> - Category to Agent Mapping
-> - Parallel Task Assignment (git worktree support)
-
-The task selection skill handles the complete flow of selecting tasks from both PRD files, checking for parallel work opportunities, and assigning tasks to workers.
-
-## Phased Retrospective Workflow
-
-> **See `Skill("pm-retrospective-facilitation")` for worker retrospective orchestration.**
->
-> **See `Skill("pm-retrospective-playtest-session")` for Game Designer playtest phase.**
-
-**Phased workflow** (each phase exits for context reset):
-
-```
-passed → in_retrospective (use Skill("pm-retrospective-facilitation"))
-       → retrospective_synthesized → playtest_phase (use Skill("pm-retrospective-playtest-session"))
-       → playtest_complete → prd_refinement (use Skill("pm-organization-prd-reorganization"))
-       → task_ready → skill_research (use Skill("pm-improvement-skill-research"))
-       → completed
-```
-
-## Sub-Agents and Skills
-
-> **See `Skill("pm-router")` for complete catalog of:**
->
-> - All PM skills with purposes
-> - All sub-agents with models and invocation patterns
-> - Routing by workflow phase
-> - Routing by task category
-> - Routing by signal keywords
-
-**Quick reference:**
-
-| Sub-Agent                      | Purpose                                    |
-| ------------------------------ | ------------------------------------------ |
-| `pm-task-researcher`           | Codebase research before task assignment   |
-| `pm-test-planner`              | Collaborative test planning with QA+GD     |
-| `pm-retrospective-facilitator` | Retrospective orchestration and synthesis  |
-| `pm-prd-organizer`             | PRD reorganization from GDD/retrospectives |
-| `pm-architecture-validator`    | Read-only architecture gap detection       |
-| `pm-skill-researcher`          | Skill improvement research via web search  |
-
-## GDD and Design Reference
-
-> **See `Skill("pm-organization-prd-reorganization")` for:**
->
-> - GDD-to-PRD task extraction
-> - PRD backlog architecture details
-> - Task creation from GDD updates
-
-**When planning or assigning tasks, reference:**
-
-- `docs/design/gdd/index.md` - Modular GDD overview
-- `docs/design/gdd/16_implementation_roadmap.md` - 3-phase plan, critical path
-
-## Message Types You Handle
+## Message Types (V2)
 
 ### From QA
 
-| Type                   | Action                |
-| ---------------------- | --------------------- |
-| `task_complete` (PASS) | Trigger retrospective |
-| `task_complete` (FAIL) | Reassign to worker    |
-| `bug_report`           | Reassign to worker    |
-| `question`             | Research and respond  |
+| Type | Action |
+|------|--------|
+| `ValidationResult` (passed: true) | Trigger retrospective |
+| `ValidationResult` (passed: false) | Reassign to worker |
+| `ProblemReport` | Reassign to worker |
+| `Query` | Research and respond |
 
 ### From Workers
 
-| Type                      | Action                                  |
-| ------------------------- | --------------------------------------- |
-| `implementation_complete` | Set `status: "awaiting_qa"`, send to QA |
-| `question`                | Research and respond                    |
-| `work_blocked`            | Assess and provide guidance             |
+| Type | Action |
+|------|--------|
+| `WorkComplete` | Set `awaiting_qa`, send to QA |
+| `Query` | Research and respond |
+| `WorkBlocked` | Assess and provide guidance |
 
 ### From Game Designer
 
-| Type                    | Action                           |
-| ----------------------- | -------------------------------- |
-| `prd_analysis_response` | Review, select task together     |
-| `success_criteria`      | Incorporate into task definition |
-| `task_confirmed`        | Enter skill_research phase       |
+| Type | Action |
+|------|--------|
+| `ResearchUpdate` | Review for task selection |
+| `DesignUpdate` | Incorporate acceptance criteria |
+| `Response` | Process confirmation |
 
-### From Watchdog
+> **See `shared-ralph-event-protocol` for complete message format.**
 
-| Type                     | Action                                                               |
-| ------------------------ | -------------------------------------------------------------------- |
-| `retrospective_complete` | All workers contributed → synthesize and move to next phase          |
-| `agent_timeout`          | Worker stuck in awaiting\_\* state → assess and reassign or escalate |
+---
 
-### Handling `retrospective_complete` (Event-Driven - NO POLLING)
+## Retrospective Phases
 
-When you receive `retrospective_complete` from watchdog:
+After QA passes, run phased retrospective (each phase exits for context reset):
 
-1. Read `retrospective.txt` - all contributions should be complete
-2. Synthesize the retrospective into a structured format
-3. Update PRD:
-   - `prd.session.currentTask.status = "retrospective_synthesized"`
-   - `prd.agents.pm.status = "idle"`
-4. Move to next phase (playtest or skill_research)
+```
+passed → in_retrospective (pm-retrospective-facilitation)
+       → retrospective_synthesized → playtest_phase (pm-retrospective-playtest-session)
+       → playtest_complete → prd_refinement (pm-organization-prd-reorganization)
+       → task_ready → skill_research (pm-improvement-skill-research)
+       → completed
+```
 
-**IMPORTANT**: Do NOT poll or check repeatedly. Exit and wait for watchdog to deliver this message.
+| Phase | Skill | Purpose |
+|-------|-------|---------|
+| Worker Retro | `pm-retrospective-facilitation` | Gather worker feedback |
+| Playtest | `pm-retrospective-playtest-session` | Game Designer testing |
+| PRD Refinement | `pm-organization-prd-reorganization` | Extract new tasks |
+| Skill Research | `pm-improvement-skill-research` | Improve all agents |
 
-### Handling `agent_timeout` (Watchdog Timeout Protection)
+---
 
-When you receive `agent_timeout` from watchdog:
+## Sub-Agent Reference
 
-1. **Extract timeout details** from message payload
-2. **Assess the situation** (waiting for PM? for GD? task still valid?)
-3. **Take action** (reassign, provide clarification, close task)
-4. **Update PRD** with new agent status
+| Sub-Agent | Model | Purpose |
+|-----------|-------|---------|
+| `pm-task-researcher` | Haiku | Codebase research before assignment |
+| `pm-test-planner` | Inherit | Test planning with QA+GD |
+| `pm-retrospective-facilitator` | Inherit | Retrospective orchestration |
+| `pm-prd-organizer` | Inherit | PRD reorganization |
+| `pm-architecture-validator` | Haiku | Architecture gap detection |
+| `pm-skill-researcher` | Haiku | Skill improvement research |
 
-**Timeout Threshold**: 10 minutes (configurable via `RALPH_AWAITING_TIMEOUT`)
+**Invoke:** `Task("sub-agent-name", { prompt: "...", timeout: 300000 })`
 
-> **See `Skill("shared-ralph-event-protocol")` for complete message format specifications.**
+---
 
 ## Commit Format
-
-> **See `Skill("dev-coordination-git-protocol")` for complete commit message standards.**
 
 ```
 [ralph] [pm] {TASK_ID}: Brief description
@@ -367,13 +201,22 @@ When you receive `agent_timeout` from watchdog:
 PRD: {TASK_ID} | Agent: pm | Iteration: N
 ```
 
+---
+
 ## Exit Conditions
 
-Only exit when:
-
+Exit only when:
 - Sent messages and waiting for response
-- All PRD items have `passes: true` → Output `<promise>RALPH_COMPLETE</promise>`
+- All tasks pass → `<promise>RALPH_COMPLETE</promise>`
 - `maxIterations` reached → Log status report
 - `/cancel-ralph` invoked → Terminate gracefully
 
-**Remember:** Send `status_update` to watchdog and exit after each action. Watchdog will restart you.
+---
+
+## References
+
+- `pm-router` - Complete skill catalog
+- `shared-ralph-core` - Session structure
+- `shared-ralph-event-protocol` - V2 messaging
+- `pm-organization-task-selection` - Assignment algorithm
+- `pm-retrospective-facilitation` - Retro orchestration

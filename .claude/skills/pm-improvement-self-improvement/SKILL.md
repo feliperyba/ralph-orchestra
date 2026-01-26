@@ -1,238 +1,146 @@
 ---
-name: pm-self-improvement
-description: Systematic improvement of PM agent's own coordination skills during retrospectives
+name: pm-improvement-self-improvement
+description: PM self-improvement during retrospectives - enhance coordination capabilities
+category: pm
+user-invocable: false
+model: inherit
+agent: pm
+degrees-of-freedom: medium
 ---
 
 # PM Self-Improvement
 
-The PM agent must continuously improve its own coordination capabilities, not just worker agent skills. This skill defines the PM's self-improvement process during the `skill_research` phase.
+> "PM must improve alongside workers - enhance coordination capabilities each retrospective."
+
+**Agile Retrospective:** Continuous improvement applies to coordination processes too.
 
 ## When to Use
 
-Use this skill during the `skill_research` phase of each retrospective cycle. The PM must improve at least ONE of its own skills in addition to improving worker agent skills.
+During `skill_research` phase - PM MUST improve at least ONE of its own skills.
 
-## PM Skill Improvement Areas
+## PM Improvement Areas
 
-### 1. Task Selection Algorithms
+| Area | Focus | Research Sources |
+|------|-------|------------------|
+| **Task Selection** | Dependency analysis, risk prioritization, parallelization | BMAD-METHOD, project management algorithms |
+| **Risk Assessment** | Debt detection, scope creep, bottleneck prediction | Risk management frameworks |
+| **Communication** | Message clarity, status reporting, handoff protocols | Agent coordination protocols |
+| **Design Integration** | GDD-to-PRD translation, task decomposition | Requirements engineering |
+| **Facilitation** | Insight extraction, action prioritization | Agile retrospective formats |
 
-**Goal**: Improve how the PM selects and assigns tasks from the PRD.
-
-**Areas to Research**:
-- Dependency graph analysis for optimal task ordering
-- Risk-based task prioritization
-- Agent capability matching
-- Parallelization opportunities
-
-**Research Sources**:
-- BMAD-METHOD orchestration patterns
-- Project management algorithms (CPM, PERT)
-- Agile task refinement techniques
-
-### 2. Risk Assessment
-
-**Goal**: Better identify and mitigate project risks before they become blockers.
-
-**Areas to Research**:
-- Technical debt detection patterns
-- Scope creep identification
-- Integration risk analysis
-- Bottleneck prediction
-
-**Research Sources**:
-- Software project risk management frameworks
-- Technical debt metrics and quantification
-- Dependency analysis tools and techniques
-
-### 3. Stakeholder Communication
-
-**Goal**: More effective coordination patterns between agents and with the human user.
-
-**Areas to Research**:
-- Message clarity and precision
-- Status reporting granularity
-- Expectation management
-- Handoff protocols
-
-**Research Sources**:
-- Agent coordination protocols (agents.md, agent-skills.md)
-- Distributed systems communication patterns
-- Agile ceremony facilitation
-
-### 4. Design Integration (GDD-to-PRD)
-
-**Goal**: Better translate Game Design Documents into actionable PRD tasks.
-
-**Areas to Research**:
-- Design document parsing and comprehension
-- Requirement extraction techniques
-- Task decomposition patterns
-- Design validation criteria
-
-**Research Sources**:
-- GDD creation best practices (Game Designer agent skills)
-- Requirements engineering methodology
-- User story decomposition techniques
-
-### 5. Retrospective Facilitation
-
-**Goal**: Run more effective retrospectives that generate actionable insights.
-
-**Areas to Research**:
-- Facilitation techniques for distributed agents
-- Insight extraction patterns
-- Action item prioritization
-- Continuous improvement frameworks
-
-**Research Sources**:
-- Agile retrospective formats
-- Kaizen and continuous improvement
-- Team dynamics in distributed systems
-
-## PM Self-Improvement Process
-
-During `skill_research` phase:
+## Process
 
 ### Step 1: Analyze PM Performance
 
-Review the retrospective for PM-specific issues:
-
-```powershell
-# PM Performance Questions
-1. Was task assignment optimal? (task-selection.md)
-2. Did I anticipate risks that materialized? (risk assessment)
-3. Were messages clear and timely? (communication)
-4. Did I extract tasks from GDD properly? (design integration)
-5. Was the retrospective synthesis comprehensive? (facilitation)
+```
+1. Was task assignment optimal?
+2. Did I anticipate risks that materialized?
+3. Were messages clear and timely?
+4. Did I extract tasks from GDD properly?
+5. Was retrospective synthesis comprehensive?
 ```
 
 ### Step 2: Identify Priority Improvement
 
-Select ONE PM skill area with the highest impact:
-
-```markdown
-| Impact | Skill Area               | Trigger Questions                          |
-|--------|--------------------------|--------------------------------------------|
-| HIGH   | Task Selection           | Tasks blocked, wrong agent assigned?       |
-| HIGH   | Design Integration       | PRD gaps vs GDD?                           |
-| MEDIUM | Risk Assessment          | Surprises/blockers occurred?               |
-| MEDIUM | Retrospective Facilitation | Insights missed or shallow?              |
-| LOW    | Communication           | Messages misunderstood or delayed?         |
-```
+| Impact | Skill Area | Trigger Questions |
+|--------|------------|-------------------|
+| HIGH | Task Selection | Tasks blocked? Wrong agent? |
+| HIGH | Design Integration | PRD gaps vs GDD? |
+| MEDIUM | Risk Assessment | Surprises/blockers? |
+| MEDIUM | Facilitation | Insights missed? |
+| LOW | Communication | Messages misunderstood? |
 
 ### Step 3: Research PM Knowledge
 
-Use MCP tools to research:
-
 ```powershell
-# Research via MCP GitHub
+# MCP GitHub
 - bmad-code-org/BMAD-METHOD: orchestration patterns
 
-# Research via MCP Web Search
+# MCP Web Search
 - "AI agent orchestration best practices"
 - "multi-agent PM coordination"
-- "requirements extraction from design docs"
 
 # Internal Analysis
-- Review past retrospectives in .claude/session/retrospective-history/
-- Identify patterns in PM decisions that could be improved
+- Review past retrospectives
+- Identify PM decision patterns
 ```
 
 ### Step 4: Update PM Skill File
 
-Apply findings to the relevant PM skill:
-
 ```powershell
 # Files to Update (PICK ONE)
-- agents/pm/skills/task-selection.md
-- agents/pm/skills/prd-reorganization.md
-- agents/pm/skills/retrospective.md
-- agents/pm/skills/scale-adaptive.md
+- .claude/skills/pm-organization-task-selection/
+- .claude/skills/pm-organization-prd-reorganization/
+- .claude/skills/pm-retrospective-facilitation/
+- .claude/skills/pm-organization-scale-adaptive/
 - agents/pm/AGENT.md
 
-# Commit Pattern
-git add agents/pm/skills/[updated-file].md
+git add [updated-file]
 git commit -m "Retrospective [N]: Improved PM [skill-area] skill"
 ```
 
-### Step 5: Update PM Behavior (if needed)
+## Examples
 
-If the improvement requires AGENT.md changes:
+### Example 1: Task Selection
 
-```powershell
-# Update AGENT.md with new:
-- State flow changes
-- Message type handling
-- Coordination patterns
-- Decision criteria
-```
+**Issue**: Developer blocked by design approval.
 
-## PM Skill Quality Checklist
-
-After each self-improvement, verify:
-
-- [ ] The updated skill has measurable improvement criteria
-- [ ] The skill includes concrete examples or patterns
-- [ ] The improvement is integrated into AGENT.md if needed
-- [ ] The change is committed with descriptive message
-- [ ] Next retrospective will validate the improvement
-
-## PM Skill Improvement Examples
-
-### Example 1: Task Selection Improvement
-
-**Issue Found**: Developer got stuck because task required design approval first.
-
-**Improvement**: Add prerequisite check to task-selection.md
+**Fix**: Add prerequisite check to task-selection.
 
 ```markdown
 ## Dependency Verification
-
-Before assigning a task:
-1. Check all dependencies are in `passed` or `completed` status
-2. Verify no tasks with `priority: high` are blocking
-3. Confirm Game Designer has approved design-dependent tasks
+Before assigning:
+1. Check all dependencies in `passed` or `completed`
+2. Verify no `priority: high` tasks blocking
+3. Confirm GD approval for design-dependent tasks
 ```
 
-### Example 2: Design Integration Improvement
+### Example 2: Design Integration
 
-**Issue Found**: PRD missing tasks for GDD section on multiplayer sync.
+**Issue**: PRD missing multiplayer sync tasks.
 
-**Improvement**: Add GDD scanning pattern to prd-reorganization.md
+**Fix**: Add GDD scanning pattern.
 
 ```markdown
-## GDD-to-PRD Extraction Pattern
-
+## GDD-to-PRD Extraction
 For each GDD section:
 1. Identify "must have" features
-2. Create at least one PRD task per feature
-3. Set priority: high for core gameplay, medium for polish
-4. Add gddReference field linking back to source
+2. Create one PRD task per feature
+3. Set priority: high (core), medium (polish)
+4. Add gddReference field
 ```
 
-### Example 3: Risk Assessment Improvement
+### Example 3: Risk Assessment
 
-**Issue Found**: Physics integration delayed due to Rapier version conflict.
+**Issue**: Physics delayed by version conflict.
 
-**Improvement**: Add dependency risk check to scale-adaptive.md
+**Fix**: Add dependency risk check.
 
 ```markdown
 ## Risk Indicators
-
-Red flags before task assignment:
+Red flags before assignment:
 - Package version conflicts
-- Missing MCP tools for required research
-- Agent skill gaps for task complexity
+- Missing MCP tools
+- Agent skill gaps
 ```
 
-## Minimum Self-Improvement Per Retrospective
+## Minimum Requirement
 
-**REQUIRED**: At least ONE PM skill file updated per retrospective cycle.
+**REQUIRED**: At least ONE PM skill file updated per retrospective.
 
-This ensures the PM agent improves at the same rate as worker agents.
+## Checklist
 
-## Related Skills
+- [ ] PM performance analyzed
+- [ ] Priority improvement identified
+- [ ] Research completed
+- [ ] At least ONE PM skill updated
+- [ ] Change committed
+- [ ] Next retrospective will validate
 
-- [skill-improvement.md](./skill-improvement.md) - Overall skill improvement coordination
-- [retrospective.md](./retrospective.md) - When self-improvement occurs
-- [task-selection.md](./task-selection.md) - Core PM capability
-- [prd-reorganization.md](./prd-reorganization.md) - Design integration
+---
+
+## References
+
+- [pm-improvement-skill-research](../pm-improvement-skill-research/SKILL.md) - Overall skill improvement
+- [pm-organization-task-selection](../pm-organization-task-selection/SKILL.md) - Task selection
+- [pm-organization-prd-reorganization](../pm-organization-prd-reorganization/SKILL.md) - Design integration

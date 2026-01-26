@@ -1,8 +1,6 @@
 ---
 name: r3f-router
 description: Routes to specialized R3F skills based on task requirements
-category: development
-keywords: [router, r3f, react-three-fiber, threejs, routing, skills, development]
 ---
 
 # R3F Skill Router
@@ -61,31 +59,33 @@ function routeR3FSkills(task) {
   const skills = new Set();
 
   // Always start with fundamentals
-  skills.add('r3f-fundamentals');
+  skills.add("r3f-fundamentals");
 
   // Check for physics
   if (
     /physics|collision|collider|rigid|rapier|cannon|force|impulse|gravity|sensor|trigger/i.test(
-      text
+      text,
     )
   ) {
-    skills.add('r3f-physics');
+    skills.add("r3f-physics");
   }
 
   // Check for materials/shaders
   if (
     /material|shader|texture|pbr|matcap|glsl|uniform|fragment|vertex|transparent|metalness|roughness/i.test(
-      text
+      text,
     )
   ) {
-    skills.add('r3f-materials');
+    skills.add("r3f-materials");
   }
 
   // Check for performance
   if (
-    /performance|fps|optimize|mobile|instance|lod|memory|dispose|lag|stutter|draw.?call/i.test(text)
+    /performance|fps|optimize|mobile|instance|lod|memory|dispose|lag|stutter|draw.?call/i.test(
+      text,
+    )
   ) {
-    skills.add('r3f-performance');
+    skills.add("r3f-performance");
   }
 
   return Array.from(skills);

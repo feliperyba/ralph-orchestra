@@ -1,6 +1,7 @@
 ---
-name: techartist-postfx-effects
-description: Post-processing effects with React Three Fiber
+name: ta-vfx-postfx
+description: Implements post-processing effects (bloom, DOF, color grading). Use proactively when adding screen-space visual effects or cinematic looks.
+category: techartist
 ---
 
 # Post-Processing Effects Skill

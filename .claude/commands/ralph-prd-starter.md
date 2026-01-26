@@ -15,7 +15,9 @@ The `ralph-prd-starter` command launches an interactive setup wizard that guides
 - **Any project type** - Web, game, mobile, backend, data, DevOps, or custom
 - **Custom agents** - Define N agents with any roles, skills, and permissions
 - **Cross-platform** - Works on Windows, macOS, and Linux
-- **Research-backed** - Researches best practices between phases
+- **Deep research phase** - Researches similar projects and best practices
+- **GDD creation for games** - Thermite design sessions for game projects
+- **PM-generated PRD** - Final PRD created by PM agent with full expertise
 - **State persistence** - Resume from any phase if interrupted
 
 ## Usage
@@ -36,18 +38,40 @@ Invoke the skill from the command palette or inline.
 
 ## Workflow
 
-The wizard guides you through 8 phases:
+The wizard guides you through 11 phases:
 
 | Phase | Description | Output |
 |-------|-------------|--------|
-| 1 | Project Identification | Project type, name, description |
-| 2 | Agent Configuration | N agents with roles, skills, permissions |
-| 3 | Workflow Pattern | Waterfall, Collaborative, or Autonomous |
-| 4 | Orchestration Mode | Event-driven, Sequential, or HITL |
-| 5 | Technology Stack | Frontend, backend, database, tools |
-| 6 | Quality Standards | TypeScript, testing, linting, CI/CD |
-| 7 | Initial Features | Feature list with acceptance criteria |
-| 8 | Review & Confirm | Summary and file generation |
+| 1 | Entry Point | Quick Start, Standard, or Expert mode |
+| 2 | Preset Selection (Quick only) | Pre-configured agent templates |
+| 3 | Project Identity | Name, description, category, tech stack |
+| 4-7 | Configuration | Agents, orchestration, quality standards |
+| 8 | Initial Features | Natural language feature descriptions |
+| 8b | Deep Research (NEW) | Research findings + clarifying questions |
+| 8c | GDD Creation (Games only) | Thermite session + design documents |
+| 8d | PRD Creation (NEW) | PM-generated prd.json with review |
+| 9 | Review & Confirm | Final summary before generation |
+| 10-11 | Project Init + Workflows | Initialization scripts and docs |
+
+### New Phases in v4.0
+
+**Phase 8b - Deep Research:**
+- Launches `pm-research-specialist` sub-agent
+- Researches similar projects and best practices
+- Generates 5-10 targeted clarifying questions
+- User answers questions to refine project scope
+
+**Phase 8c - GDD Creation (Games only):**
+- Launches `gamedesigner-thermite-facilitator`
+- Runs Boardroom Retreat with expert personas
+- Creates design decisions (DEC-NNN) and open questions (OQ-NNN)
+- Generates GDD documents in `docs/design/`
+
+**Phase 8d - PRD Creation:**
+- Launches `pm-prd-creator` agent
+- Uses PM expertise for proper PRD structure
+- Incorporates research, GDD, and user answers
+- Presents PRD for user review before final approval
 
 ## Generated Files
 
@@ -59,7 +83,12 @@ After confirmation, the following files are generated:
 - `.claude/settings.{name}.json` - MCP configuration
 
 ### Project Files
-- `prd.json` - Initial PRD with features
+- `prd.json` - Initial PRD with features (created by PM agent in Phase 8d)
+- `docs/research-summary.md` - Research findings (created in Phase 8b)
+- `docs/design/` - GDD documents for game projects (created in Phase 8c)
+  - `decision_log.md` - Design decisions
+  - `open_questions.md` - Unresolved questions
+  - `gdd.md` - GDD summary
 
 ### Updated Scripts
 - `watchdog-event.ps1` - Adds agents to ValidateSet
@@ -74,11 +103,13 @@ Progress is saved in `.claude/session/prd-starter-state.json`:
 
 ```json
 {
-  "version": "1.0.0",
-  "startedAt": "2026-01-23T10:00:00Z",
+  "version": "4.0.0",
+  "startedAt": "2026-01-26T10:00:00Z",
   "completedAt": null,
-  "currentPhase": "agent_configuration",
-  "phases": { ... }
+  "currentPhase": "deep_research",
+  "researchData": { ... },
+  "gddData": { ... },
+  "prdSpecification": { ... }
 }
 ```
 

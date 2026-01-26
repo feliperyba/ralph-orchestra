@@ -89,18 +89,6 @@ You customize which agents are enabled and what skills they have during wizard s
 
 ---
 
-## Documentation
-
-**Complete documentation:** [docs/README.md](docs/README.md)
-
-| Quick Start                                | Core                                                 | Wizard Reference                              |
-| ------------------------------------------ | ---------------------------------------------------- | --------------------------------------------- |
-| [Getting Started](docs/getting-started.md) | [Framework Architecture](docs/architecture.md)       | [Wizard Presets](docs/wizard-presets.md)      |
-| [Framework Guide](docs/framework.md)       | [PowerShell Scripts Guide](docs/powershell-guide.md) | [Skill Catalog](docs/wizard-skill-catalog.md) |
-|                                            | [Orchestration Modes](docs/orchestration-modes.md)   |                                               |
-
----
-
 ## Commands Reference
 
 | Command                               | Purpose                                     |
@@ -139,12 +127,24 @@ You customize which agents are enabled and what skills they have during wizard s
 
 - **Multi-Agent Coordination** - 5+ agents with 100+ modular skills
 - **Sub-agent Delegation** - 28+ specialized sub-agents for focused tasks
-- **Four Orchestration Modes** - Event-driven, Sequential, Polling, HITL
+- **Three Orchestration Modes** - Event-driven, Sequential, HITL
 - **Watchdog Process** - Never-exit orchestrator for long-running sessions
 - **Named Pipe Messaging** - Ultra-fast inter-agent communication (< 10ms)
 - **Scale-Adaptive Planning** - PM adjusts approach based on task count
 - **Git Worktrees** - Parallel workers without merge conflicts
 - **Quality Hooks** - Blocks @ts-ignore, enforces standards
+
+---
+
+## Documentation
+
+**Complete documentation:** [docs/README.md](docs/README.md)
+
+| Quick Start                                                | Core                                                    | Wizard Reference                                               |
+| ---------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------- |
+| [Getting Started](docs/quick-start/getting-started.md)     | [Framework Architecture](docs/core/architecture.md)     | [Wizard Presets](docs/wizard/wizard-presets.md)                |
+| [Framework Guide](docs/quick-start/framework.md)           | [PowerShell Scripts Guide](docs/powershell/README.md)   | [Skill Catalog](docs/wizard/wizard-skill-catalog.md)           |
+| [PRD Starter Walkthrough](docs/quick-start/prd-starter.md) | [Orchestration Modes](docs/core/orchestration-modes.md) | [PRD Starter Deep Dive](docs/wizard/prd-starter-deep-dive.md) |
 
 ---
 

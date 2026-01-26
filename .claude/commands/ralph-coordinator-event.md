@@ -36,36 +36,18 @@ The watchdog delivers messages by restarting you with a context file.
 
 ## Sending Messages
 
-To send a message, use the **Write tool** to create a JSON file at:
-`.claude/session/messages/{recipient}/{message-id}.json`
+Messages are sent via the **Send-Message** function from agent-runtime.ps1.
 
-**Message ID format**: `msg-{recipient_agent}-{timestamp}-{seq}`
+**Message ID format**: `msg-{yyyyMMdd-HHmmss}-{seq}`
 
-- `recipient_agent`: The agent receiving the message (pm, developer, qa, etc.)
-- `timestamp`: Compact format `yyyyMMdd-HHmmss` (e.g., `20250123-120000`)
-- `seq`: 3-digit sequence number (001, 002, etc.) prevents collisions
+**Example: Send task to developer**
 
-**Timestamp format**: Use UTC ISO 8601 in JSON: `2026-01-21T12:00:00Z`
-
-### Example: Send task to developer
-
-```
-File: .claude/session/messages/developer/msg-developer-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-developer-{timestamp}-{seq}",
-  "from": "pm",
-  "to": "developer",
-  "type": "task_assign",
-  "priority": "normal",
-  "payload": {
-    "taskId": "feat-001",
-    "title": "Implement user authentication",
-    "description": "See PRD for details",
-    "acceptanceCriteria": ["Login works", "Logout works"]
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
+```powershell
+Send-Message -To "developer" -Type "WorkAssign" -Payload @{
+    taskId = "feat-001"
+    title = "Implement user authentication"
+    description = "See PRD for details"
+    acceptanceCriteria = @("Login works", "Logout works")
 }
 ```
 
@@ -73,52 +55,30 @@ Content:
 
 ### Handling Research Requests
 
-When a worker sends a `research_request`, research and respond:
+When a worker sends a `Query`, research and respond:
 
-```
-File: .claude/session/messages/{agent}/msg-{agent}-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-{agent}-{timestamp}-{seq}",
-  "from": "pm",
-  "to": "{agent}",
-  "type": "research_response",
-  "priority": "high",
-  "payload": {
-    "topic": "OAuth2 with Vite",
-    "summary": "Here's what I found...",
-    "links": [
-      "https://vitejs.dev/guide/env-and-mode.html",
-      "https://oauth.net/2/"
-    ],
-    "codeExamples": "...",
-    "recommendations": "Use @auth0/auth0-spa-js for simplest integration"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending",
-  "replyTo": "{original-message-id}"
+```powershell
+Send-Message -To "{agent}" -Type "Response" -Payload @{
+    topic = "OAuth2 with Vite"
+    summary = "Here's what I found..."
+    links = @(
+        "https://vitejs.dev/guide/env-and-mode.html"
+        "https://oauth.net/2/"
+    )
+    codeExamples = "..."
+    recommendations = "Use @auth0/auth0-spa-js for simplest integration"
+    inReplyTo = $Message.id
 }
 ```
 
 ### Answering Questions
 
-When you receive a `question`, respond with `answer`:
+When you receive a `Query`, respond with `Response`:
 
-```
-File: .claude/session/messages/{agent}/msg-{agent}-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-{agent}-{timestamp}-{seq}",
-  "from": "pm",
-  "to": "{agent}",
-  "type": "answer",
-  "priority": "high",
-  "payload": {
-    "answer": "Your answer here"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending",
-  "replyTo": "{original-message-id}"
+```powershell
+Send-Message -To "{agent}" -Type "Response" -Payload @{
+    answer = "Your answer here"
+    inReplyTo = $Message.id
 }
 ```
 
@@ -166,6 +126,6 @@ Content:
 
 ## Remember
 
-- **Watchdog delivers messages** - You receive them on restart via individual message files in `.claude/session/messages/pm/`
-- **Write messages to inbox folders** - Watchdog will detect and deliver them
-- **ALWAYS delete message files after processing** - Delete each `msg-pm-{timestamp}-{seq}.json` file after processing
+- **Named pipe messaging** - Messages are delivered via `Send-Message` function to agent pipes
+- **Agent runtime handles delivery** - The agent-runtime.ps1 manages pipe connections
+- **Event log tracks all messages** - Event log provides delivery confirmation

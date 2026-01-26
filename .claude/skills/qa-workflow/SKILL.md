@@ -1,100 +1,137 @@
 ---
 name: qa-workflow
-description: Complete QA Validator workflow - orchestration of validation steps, PRD management, merge protocol. References specialized skills for detailed procedures.
+description: Complete QA Validator workflow - orchestration of validation steps, PRD management, merge protocol with Agile phase integration.
 ---
 
 # QA Validator Workflow
 
 > "Complete QA validation workflow - orchestration layer that references specialized skills for each validation step."
 
-## Quick Reference: Validation Steps
+## Quick Reference
 
-| Step                             | Use This Skill / Sub-Agent                  |
-| -------------------------------- | ------------------------------------------- |
-| **1. Message Processing**        | `Skill("shared-message-handling")`          |
-| **2. Worktree Navigation**       | `Skill("shared-worker-worktree")`           |
-| **3. Task Memory**               | `Skill("shared-worker-task-memory")`        |
-| **4. Test Coverage Check**       | `Skill("qa-test-creation")`                 |
-| **5. Code Review**               | `Skill("qa-code-review")`                   |
-| **6. Feedback Loops**            | `Skill("shared-validation-feedback-loops")` |
-| **7. Browser Testing**           | `Skill("qa-browser-testing")`               |
-| **8. Bug Reporting**             | `Skill("qa-bug-reporting")`                 |
-| **9. Context Reset** (big tasks) | `Skill("shared-context-management")`        |
-| **10. Retrospective**            | `Skill("shared-worker-retrospective")`      |
+| Step                       | Skill / Sub-Agent                           |
+| -------------------------- | ------------------------------------------- |
+| **1. Message Processing**  | `Skill("shared-message-handling")`          |
+| **2. Worktree Navigation** | `Skill("shared-worker-worktree")`           |
+| **3. Task Memory**         | `Skill("shared-worker-task-memory")`        |
+| **4. Test Coverage Check** | `Skill("qa-test-creation")`                 |
+| **5. Code Review**         | `Skill("qa-code-review")`                   |
+| **6. Feedback Loops**      | `Skill("shared-validation-feedback-loops")` |
+| **7. Browser Testing**     | `Skill("qa-browser-testing")`               |
+| **8. Bug Reporting**       | `Skill("qa-reporting-bug-reporting")`       |
+| **9. Context Reset**       | `Skill("shared-context-management")`        |
 
 ---
+
+## Agile Phase Integration
+
+| Agile Phase            | QA Workflow Step  | Action                                         |
+| ---------------------- | ----------------- | ---------------------------------------------- |
+| **Sprint Planning**    | Task Research     | Read GDD, check acceptance criteria            |
+| **Daily Standup**      | PRD Status Update | Update `prd.json.agents.qa.status` immediately |
+| **Sprint Review**      | Validation        | Code review → Feedback loops → Browser testing |
+| **Retrospective**      | Bug Reporting     | Document findings with evidence                |
+| **Definition of Done** | Exit              | Merge (PASS) or ProblemReport (FAIL)           |
+
+---
+
+<validation-pipeline>
 
 ## Complete Validation Workflow (In Order)
 
 ```
-1. CHECK PENDING MESSAGES (mandatory on startup)
-   → Use: Skill("shared-message-handling")
-
-2. FIND OR RECEIVE TASK
-   → Check PRD for tasks with status: "awaiting_qa"
-   → Or wait for task_assignment message from PM
-
-3. UPDATE PRD STATUS (golden rule - update immediately!)
-   → See: PRD Status Updates section below
-
-4. CREATE TASK MEMORY
-   → Use: Skill("shared-worker-task-memory")
-
-5. NAVIGATE TO CORRECT WORKTREE
-   → Use: Skill("shared-worker-worktree")
-   → Developer: ../developer-worktree
-   → Tech Artist: ../techartist-worktree
-
-6. TASK RESEARCH (read GDD for acceptance criteria)
-   → Read: docs/design/gdd/index.md
-   → Read: docs/design/gdd/{module}.md
-   → Read: docs/design/decision_log.md
-
-7. TEST COVERAGE CHECK
-   → Use: Skill("qa-test-creation")
-   → Create tests if missing via test-creator sub-agent
-
-8. CODE REVIEW
-   → Use: Skill("qa-code-review")
-
-9. AUTOMATED CHECKS (all must pass)
-   → Use: Skill("shared-validation-feedback-loops")
-   → npm run type-check
-   → npm run lint
-   → npm run test
-   → npm run build
-
-10. BROWSER TESTING (mandatory - every task)
-    → Use: Skill("qa-browser-testing")
-    → Choose sub-agent: browser-validator, gameplay-tester, or multiplayer-validator
-
-11. UPDATE PRD WITH RESULTS
-    → See: PRD Validation Results section below
-
-12. MERGE TO MAIN (if pass only!)
-    → See: Merge Protocol section below
-
-13. COMMIT AND SEND MESSAGE
-    → Use: Skill("git-protocol") for commit format
-    → Send task_complete or bug_report to PM
-
-14. EXIT
-    → Update prd.json.agents.qa.status = "idle"
+1. CHECK PENDING MESSAGES → Skill("shared-message-handling")
+2. FIND OR RECEIVE TASK → Check PRD for status: "awaiting_qa"
+3. UPDATE PRD STATUS → See PRD Updates section below
+4. CREATE TASK MEMORY → Skill("shared-worker-task-memory")
+5. NAVIGATE TO WORKTREE → Skill("shared-worker-worktree")
+6. TASK RESEARCH → Read docs/design/gdd/
+7. TEST COVERAGE CHECK → Skill("qa-test-creation")
+8. CODE REVIEW → Skill("qa-code-review")
+9. AUTOMATED CHECKS → Skill("shared-validation-feedback-loops")
+10. BROWSER TESTING → Skill("qa-browser-testing") + sub-agent
+11. UPDATE PRD RESULTS → See Validation Results section
+12. MERGE TO MAIN → Only if PASS (see Merge Protocol)
+13. COMMIT AND MESSAGE → [ralph] [qa] prefix + send to PM
+14. EXIT → Update prd.json.agents.qa.status = "idle"
 ```
+
+</validation-pipeline>
 
 ---
 
-## PRD Status Updates (QA Agent)
+## PRD Status Updates (Daily Standup Protocol)
 
 **⚠️ GOLDEN RULE: Update PRD IMMEDIATELY when your status changes.**
 
-| When This Happens           | Update PRD Like This                                                            |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| **Starting validation**     | `prd.json.agents.qa.status = "working"` + `currentTask = {taskId}`              |
-| **Validation PASSED**       | `prd.json.items[{taskId}].status = "passed"` + `passes = true`                  |
-| **Validation FAILED**       | `prd.json.items[{taskId}].status = "needs_fixes"` + `passes = false` + `bugs[]` |
-| **Need clarification**      | `prd.json.agents.qa.status = "awaiting_pm"` + send `question`                   |
-| **Self-reporting progress** | `prd.json.agents.qa.lastSeen = {ISO_TIMESTAMP}`                                 |
+<examples>
+<example>
+<input>Starting validation on task feat-123</input>
+<action>Update PRD</action>
+<expected>
+```json
+{
+  "prd.json.agents.qa": {
+    "status": "working",
+    "currentTask": "feat-123",
+    "lastSeen": "2025-01-26T10:30:00Z"
+  }
+}
+```
+</expected>
+</example>
+
+<example>
+<input>Validation passed - all criteria met</input>
+<action>Update PRD</action>
+<expected>
+```json
+{
+  "prd.json.items['feat-123']": {
+    "status": "passed",
+    "passes": true,
+    "qaValidatedAt": "2025-01-26T11:45:00Z"
+  }
+}
+```
+</expected>
+</example>
+
+<example>
+<input>Validation failed - console errors found</input>
+<action>Update PRD</action>
+<expected>
+```json
+{
+  "prd.json.items['feat-123']": {
+    "status": "needs_fixes",
+    "passes": false,
+    "validatedAt": "2025-01-26T11:30:00Z",
+    "validationResults": {
+      "result": "FAILED",
+      "bugs": [...]
+    }
+  }
+}
+```
+</expected>
+</example>
+
+<example>
+<input>Need clarification on acceptance criteria</input>
+<action>Update PRD + send Query</action>
+<expected>
+```json
+{
+  "prd.json.agents.qa": {
+    "status": "awaiting_pm"
+  }
+}
+```
+Send `Query` message to PM with specific question.
+</expected>
+</example>
+</examples>
 
 **If you don't update the PRD:**
 
@@ -105,7 +142,7 @@ description: Complete QA Validator workflow - orchestration of validation steps,
 
 ---
 
-## Merge Protocol (QA Agent Only)
+## Merge Protocol (Definition of Done)
 
 **⚠️ CRITICAL: QA is the ONLY agent that merges worktree branches to main.**
 
@@ -113,18 +150,10 @@ description: Complete QA Validator workflow - orchestration of validation steps,
 
 ```bash
 # After completing validation in agent's worktree:
-
-# 1. Return to main directory
 cd ..
-
-# 2. Switch to main branch
 git checkout main
-
-# 3. Fetch and merge agent worktree branch
 git fetch origin {agent}-worktree
 git merge origin/{agent}-worktree
-
-# 4. Push merged changes to origin
 git push origin main
 ```
 
@@ -132,21 +161,15 @@ git push origin main
 
 ```bash
 # DO NOT MERGE - Stay on main
-
-# 1. Return to main directory
 cd ..
-
-# 2. Stay on main branch
 git checkout main
-
-# 3. DO NOT merge the agent worktree branch
-
-# 4. Send bug_report to agent (they will fix in their worktree)
+# DO NOT merge - send ProblemReport to agent instead
 ```
 
 ---
 
-## Sub-Agents (invoke via Task tool)
+<details>
+<summary>Sub-Agents Reference</summary>
 
 | Sub-Agent                     | Model   | Purpose                                      |
 | ----------------------------- | ------- | -------------------------------------------- |
@@ -156,30 +179,28 @@ git checkout main
 | `qa-multiplayer-validator`    | Inherit | Server-authoritative multiplayer testing     |
 | `qa-gameplay-tester`          | Inherit | E2E gameplay loops and combos                |
 
+</details>
+
 ---
 
-## Pre-Commit Checklist (QA-Specific)
+## Pre-Commit Checklist (Definition of Done)
 
-Before committing validation results:
-
-- [ ] Correct worktree checked out (cd to {agent}-worktree for testing)
+- [ ] Correct worktree checked out
 - [ ] Validation completed in agent's worktree, NOT in main
 - [ ] Code review passed (no @ts-ignore, any, etc.)
-- [ ] Unit and E2E test created in case not exist
+- [ ] Tests exist for feature (created if missing)
 - [ ] `npm run type-check` — 0 errors
 - [ ] `npm run lint` — 0 warnings (NO exceptions)
 - [ ] `npm run test` — all pass
 - [ ] `npm run build` — succeeds
-- [ ] `npm test:e2e` — succeeds
-- [ ] Console checked for errors AND warnings during E2E
-- [ ] Screenshot taken as evidence (for visual tasks)
+- [ ] Console checked for errors AND warnings during browser testing
 - [ ] All acceptance criteria verified
 - [ ] If PASS: Merged to main, pushed to origin main
-- [ ] If FAIL: Bug report sent to agent, NO merge performed
+- [ ] If FAIL: Bug report sent, NO merge performed
 
 ---
 
-## PRD Validation Results
+## PRD Validation Results (Sprint Review Output)
 
 ### When Validation Passes
 
@@ -204,7 +225,7 @@ Before committing validation results:
 
 ### When Validation Fails
 
-→ Use: Skill("qa-bug-reporting") for detailed bug format
+→ Use: `Skill("qa-reporting-bug-reporting")` for detailed bug format
 
 ```json
 {
@@ -232,9 +253,10 @@ Before committing validation results:
 
 ---
 
-## Commit Format
+<details>
+<summary>Commit Format Details</summary>
 
-→ Use: Skill("git-protocol") for full commit protocol
+Use: `Skill("shared-atomic-updates")` for commit protocol
 
 **Pass:**
 
@@ -255,77 +277,60 @@ PRD: feat-XXX | Agent: qa | Iteration: N
 ```
 [ralph] [qa] feat-XXX: Validation FAILED
 
-- Tests: FAIL
-- Browser: FAIL
+- {Failed check}: FAIL
+- Bug: {Description}
 
-Bug: Description
 See prd.json.items[{taskId}].validationResults for full report.
-
 PRD: feat-XXX | Agent: qa | Iteration: N
 ```
 
+</details>
+
 ---
 
-## Exit Conditions
+## Exit Conditions (V2)
 
 **BEFORE exiting, you MUST:**
 
-1. Complete all validation steps (type-check, lint, test, build, browser)
-2. **IF VALIDATION PASSES:**
-   - Return to main: `cd .. && git checkout main`
-   - Merge agent worktree: `git merge origin/{agent}-worktree`
-   - Push to main: `git push origin main`
-3. **IF VALIDATION FAILS:**
-   - Stay on main, do NOT merge
-   - Send bug_report to agent
+1. Complete all validation steps
+2. **IF PASS:** Merge to main, push to origin main
+3. **IF FAIL:** Stay on main, send `ProblemReport` to agent
 4. Update PRD with validation results
-5. Commit validation with `[ralph] [qa]` prefix
-6. Update `prd.json.agents.qa`:
-   ```json
-   {
-     "status": "idle",
-     "currentTaskId": null,
-     "lastSeen": "{ISO_TIMESTAMP}"
-   }
-   ```
-7. Send result message to PM (`task_complete` or `bug_report`)
+5. Commit with `[ralph] [qa]` prefix
+6. Update `prd.json.agents.qa` to idle with currentTaskId: null
+7. Send result message to PM
 8. ONLY THEN exit
 
 ---
 
-## Context Window Monitoring (For Big Tasks)
+<details>
+<summary>Context & Retrospective Details</summary>
 
-→ Use: Skill("shared-context-management")
+### Context Window Monitoring
+
+→ Use: `Skill("shared-context-management")`
 
 **Big task indicators:**
 
-- Task has 5+ acceptance criteria
-- Task requires testing 3+ components/features
-- Task category is `architectural` or `integration`
+- 5+ acceptance criteria
+- 3+ components/features to test
+- Category is `architectural` or `integration`
 
-**Use `/context` command to monitor usage. Create checkpoint if >= 70%.**
+Use `/context` command to monitor. Create checkpoint if >= 70%.
+
+### Retrospective Contribution
+
+→ Use: `Skill("shared-worker-retrospective")`
+
+When `Retrospective` message received:
+
+1. Read all task memory files
+2. Read the retrospective file
+3. Write contribution to retrospective.txt
+4. Delete task memory files
+5. Update status in prd.json
+6. Send `Retrospective` back to PM
+
+</details>
 
 ---
-
-## Retrospective Contribution
-
-→ Use: Skill("shared-worker-retrospective")
-
-When `retrospective_initiate` message is received:
-
-1. READ ALL your task memory files - .claude/session/agents/{agent}/task-{taskId}-memory.md
-2. READ the retrospective file
-3. WRITE your contribution to retrospective.txt
-4. DELETE ALL task memory files
-5. UPDATE status in prd.json
-6. LOG in progress file
-
----
-
-## Always Use npm run dev:all:sh
-
-⚠️ **NEVER use `npm run dev`** - it doesn't include the server
-
-`npm run dev:all:sh` starts both Vite dev server and Colyseus server.
-
-This is CRITICAL for multiplayer and state synchronization testing.

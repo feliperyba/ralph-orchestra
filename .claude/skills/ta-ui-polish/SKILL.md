@@ -1,6 +1,7 @@
 ---
-name: techartist-visual-polish
-description: UI and visual polish checklist for game presentation
+name: ta-ui-polish
+description: Polishes UI components with animations, feedback, and styling. Use proactively when improving game presentation, button states, or visual feedback.
+category: techartist
 ---
 
 # Visual Polish Skill

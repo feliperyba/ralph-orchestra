@@ -1,6 +1,7 @@
 ---
-name: techartist-r3f-physics
-description: Physics integration with Rapier for R3F game development
+name: ta-r3f-physics
+description: Integrates physics with Rapier for R3F game development. Use proactively when adding physics bodies, collisions, or joints to R3F scenes.
+category: techartist
 ---
 # R3F Physics Skill
 

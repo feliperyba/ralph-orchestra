@@ -3,7 +3,7 @@ name: ralph-prd-starter
 description: Project-agnostic agent setup wizard for Ralph Orchestra with Quick Start, Standard, and Expert modes
 category: orchestration
 depends-on: [shared-ralph-core]
-version: 3.0
+version: 4.0
 ---
 
 # Ralph PRD Starter
@@ -498,6 +498,294 @@ deal damage on contact. When health reaches zero, respawn at the start."
 
 ---
 
+## Phase 8b: Deep Research (All Modes)
+
+After collecting initial features, launch the `pm-research-specialist` sub-agent for deep domain research.
+
+### Research Specialist Invocation
+
+Launch the pm-research-specialist sub-agent:
+
+```
+Task("pm-research-specialist", {
+  prompt: """
+  Research this project idea deeply:
+
+  Project: {project.name}
+  Description: {project.description}
+  Category: {project.category}
+  Tech Stack: {project.techStack}
+  Initial Features: {features}
+
+  Research:
+  1. Similar projects and their architectures (use WebSearch, GitHub repo search)
+  2. Best practices for this tech stack
+  3. Common pitfalls and challenges
+  4. Questions we should ask the user (5-10 targeted questions)
+
+  Return structured output with:
+  1. Research summary (3-5 key insights)
+  2. List of clarifying questions with context and impact
+  3. Recommended feature refinements
+  4. References to useful resources
+  """
+})
+```
+
+### User Questions Phase
+
+Present research findings and ask clarifying questions:
+
+```
+═══════════════════════════════════════════════════════════════
+                    RESEARCH FINDINGS
+═══════════════════════════════════════════════════════════════
+
+{research_findings_summary}
+
+Similar Projects Found:
+- [{Project 1}]({url}) - {relevance}
+- [{Project 2}]({url}) - {relevance}
+
+Best Practices:
+- {practice 1} - {reason}
+- {practice 2} - {reason}
+
+═══════════════════════════════════════════════════════════════
+                    CLARIFYING QUESTIONS
+═══════════════════════════════════════════════════════════════
+
+{generated_questions}
+
+Please answer each question to help tailor your project setup.
+[You can also request more research or modify questions]
+```
+
+Store answers in state file under `researchData.questionsAnswered`.
+
+### Research Data Storage
+
+Update state file with research results:
+
+```json
+{
+  "researchData": {
+    "similarProjects": [...],
+    "bestPractices": [...],
+    "commonPitfalls": [...],
+    "techStackInsights": {...},
+    "questionsAsked": [...],
+    "questionsAnswered": [...],
+    "recommendedRefinements": [...],
+    "references": [...]
+  }
+}
+```
+
+### User Review Gate 1: After Research
+
+User reviews:
+- Research findings
+- Generated questions
+- Can request more research or modify questions
+
+Options: [Continue to Next Phase] [Request More Research] [Modify Questions]
+
+---
+
+## Phase 8c: GDD Creation (Game Projects Only)
+
+**Condition:** Only runs if `project.category === "game-development"`
+
+### Thermite Session
+
+Launch thermite facilitator for game design:
+
+```
+Task("gamedesigner-thermite-facilitator", {
+  prompt: """
+  Run a Thermite Design Session for this game:
+
+  Project: {project.name}
+  Description: {project.description}
+  Features: {features}
+  Research Findings: {researchData}
+  User Answers: {researchData.questionsAnswered}
+
+  Session Type: Boardroom Retreat (4 personas)
+
+  Run the session to:
+  1. Establish core design pillars
+  2. Define key mechanics
+  3. Identify design tensions
+  4. Create initial design decisions (DEC-NNN format)
+  5. Document open questions (OQ-NNN format)
+
+  Output structured GDD data including:
+  - Design decisions with rationale
+  - Open questions with priority
+  - Design pillars
+  - Core mechanics
+  """
+})
+```
+
+### GDD Output
+
+Save to `docs/design/`:
+- `decision_log.md` - All design decisions
+- `open_questions.md` - Unresolved design questions
+- `gdd.md` - Game Design Document summary
+
+### GDD Data Storage
+
+Update state file with GDD results:
+
+```json
+{
+  "gddData": {
+    "designDecisions": [
+      {
+        "id": "DEC-001",
+        "title": "Player Movement Model",
+        "decision": "Use player-relative WASD controls...",
+        "rationale": "Accessibility design pillar requires..."
+      }
+    ],
+    "openQuestions": [...],
+    "designPillars": [...],
+    "coreMechanics": [...],
+    "thermiteSessionType": "boardroom-retreat",
+    "participants": [...]
+  }
+}
+```
+
+### User Review Gate 2: After GDD (Games Only)
+
+User reviews:
+- Design decisions
+- Open questions
+- Design pillar compliance
+- Can request additional thermite sessions
+
+Options: [Continue to PRD Creation] [Request Additional Thermite Session] [Modify GDD]
+
+---
+
+## Phase 8d: PRD Creation (All Modes)
+
+### PM Agent Handoff
+
+**CRITICAL:** The final PRD.json must be created by a PM agent, not the generator script.
+
+```
+Task("pm-prd-creator", {
+  prompt: """
+  Create the final prd.json using your PM expertise:
+
+  Project Specification:
+  - Name: {project.name}
+  - Description: {project.description}
+  - Category: {project.category}
+  - Tech Stack: {project.techStack}
+  - Agents: {configured_agents}
+
+  Research Data:
+  {researchData}
+
+  GDD Data (if game project):
+  {gddData}
+
+  User Answers:
+  {researchData.questionsAnswered}
+
+  Initial Features:
+  {features}
+
+  Create prd.json with:
+  1. Properly structured PRD items based on research
+  2. Acceptance criteria derived from user input + research
+  3. Correct agent assignments (considering skills)
+  4. Dependency mapping between items
+  5. Priority assignment based on user goals
+  6. Feedback loops configured for tech stack
+  7. Quality standards from Phase 7
+
+  For game projects, include GDD references in PRD item descriptions.
+
+  Write the file to: prd.json
+  """
+})
+```
+
+### PRD Review
+
+Display generated PRD for user review:
+
+```
+═══════════════════════════════════════════════════════════════
+                    PRD REVIEW
+═══════════════════════════════════════════════════════════════
+
+Project: {project.name}
+
+Summary:
+{brief_project_overview}
+
+Items ({count}):
+───────────────────────────────────────────────────────────────
+| ID    | Title                    | Category | Priority | Agent |
+───────────────────────────────────────────────────────────────
+{prd_items_table}
+───────────────────────────────────────────────────────────────
+
+Agent Assignment:
+- Developer: {n} tasks
+- Tech Artist: {n} tasks
+- QA: {n} tasks
+- Game Designer: {n} tasks
+
+Feedback Loops:
+{feedback_loops}
+
+Quality Standards:
+- TypeScript: {mode}
+- Test Coverage: {target}%
+- Linting: {tools}
+
+═══════════════════════════════════════════════════════════════
+
+Approve this PRD? [Yes/No/Modify]
+```
+
+### User Review Gate 3: After PRD
+
+User reviews:
+- Complete prd.json content
+- All PRD items
+- Agent assignments
+- Can request modifications before final approval
+
+Options: [Approve and Continue] [Modify PRD] [Request New Research]
+
+### PRD Specification Storage
+
+Update state file with PRD specification:
+
+```json
+{
+  "prdSpecification": {
+    "refinedFeatures": [...],
+    "dependencies": [...],
+    "priorities": {...},
+    "technicalRecommendations": [...]
+  }
+}
+```
+
+---
+
 ## Phase 9: Review and Generate (All Modes)
 
 ### Summary Display
@@ -711,13 +999,16 @@ On first invocation, create the state file:
 $statePath = ".claude/session/prd-starter-state.json"
 if (-not (Test-Path $statePath)) {
     $state = @{
-        version = "3.0.0"
+        version = "4.0.0"
         startedAt = (Get-Date).ToUniversalTime().ToString("o")
         completedAt = $null
         wizardMode = $null
         currentPhase = "entry_point_selection"
         currentSubPhase = $null
         phases = @{}
+        researchData = @{}
+        gddData = @{}
+        prdSpecification = @{}
     } | ConvertTo-Json -Depth 20
     $state | Out-File -FilePath $statePath -Encoding utf8
 }
@@ -747,12 +1038,12 @@ After Phase 9 (Review and Confirm), invoke the generator:
 
 **Windows:**
 ```powershell
-.\.claude\scripts\prd-starter-generator.ps1 -Action generate -StateFile .claude\session\prd-starter-state.json
+.\.claude\scripts\prd-starter\prd-starter-generator.ps1 -Action generate -StateFile .claude\session\prd-starter-state.json
 ```
 
 **Mac/Linux:**
 ```bash
-python3 .claude/scripts/prd-starter-generator.py --action generate --state .claude/session/prd-starter-state.json
+python3 .claude/scripts/prd-starter/prd-starter-generator.py --action generate --state .claude/session/prd-starter-state.json
 ```
 
 ### 6. Verify Generation
@@ -786,7 +1077,7 @@ The state file persists across invocations:
 | `.claude/agents/{subagent-name}.agent.md` | Sub-agent configured |
 | `.claude/skills/{skill-name}/SKILL.md` | Custom skill configured (folder-based) |
 | `.claude/settings.{name}.json` | Each agent configured |
-| `prd.json` | Phase 8 complete |
+| `prd.json` | Phase 8d complete (created by PM agent) |
 | Watchdog scripts updated | After generation |
 
 **Architecture Notes:**
@@ -821,5 +1112,5 @@ The generator works on all platforms:
 - [shared-worker-protocol.md](../shared-worker-protocol/SKILL.md) - Agent lifecycle
 - [shared-ralph-event-protocol.md](../shared-ralph-event-protocol/SKILL.md) - Event-driven messaging
 - `.claude/schemas/prd-starter-state.schema.json` - Configuration validation
-- `.claude/scripts/prd-starter-generator.py` - Generator implementation
+- `.claude/scripts/prd-starter/prd-starter-generator.py` - Generator implementation
 - `.claude/presets/` - Preset configuration files

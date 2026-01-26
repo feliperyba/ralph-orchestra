@@ -271,6 +271,175 @@ client.http.get('/profile').then(response => {
 3. **Use reconnection tokens** - For seamless reconnection
 4. **Send inputs, not positions** - Server-authoritative
 5. **Handle state changes** - Use schema callbacks for updates
+6. **Validate server responses** - Don't blindly trust server data
+7. **Secure WebSocket endpoints** - Use WSS in production
+8. **Store tokens securely** - Use httpOnly cookies or secure storage
+
+## Security Considerations
+
+### Secure WebSocket Connection
+
+**CRITICAL**: Always use WSS (WebSocket Secure) in production. Never send sensitive data over plain WS.
+
+```typescript
+// ❌ WRONG - Plain WebSocket (insecure)
+const client = new Client('ws://localhost:2567');
+
+// ✅ RIGHT - Secure WebSocket
+const client = new Client('wss://your-game-server.com');
+
+// Environment-based configuration
+const wsUrl = process.env.NODE_ENV === 'production'
+  ? 'wss://your-game-server.com'
+  : 'ws://localhost:2567';
+
+const client = new Client(wsUrl);
+```
+
+### Token Storage Security
+
+Store authentication tokens securely, never in plain localStorage.
+
+```typescript
+// ❌ WRONG - Stored in plain localStorage (vulnerable to XSS)
+localStorage.setItem('authToken', token);
+
+// ✅ RIGHT - Use httpOnly cookie (set by server)
+// Token automatically sent with requests, not accessible to JS
+
+// ✅ ACCEPTABLE - Use secure sessionStorage for session-only tokens
+sessionStorage.setItem('authToken', token);
+// Cleared when browser tab closes
+
+// ✅ BEST - Backend-for-frontend pattern
+// Token never exposed to client at all
+async function joinGame() {
+  // Server validates session server-side
+  const room = await client.joinOrCreate('game_room', {
+    sessionId: await getServerSessionId()
+  });
+}
+```
+
+### Input Sanitization Before Sending
+
+While server validation is critical, client-side sanitization prevents accidental issues.
+
+```typescript
+function sendMessage(room: Room, type: string, data: any) {
+  // Sanitize data before sending
+  const sanitized = {
+    type,
+    // Ensure strings are length-limited
+    message: sanitizeString(data.message, 200),
+    // Ensure numbers are within valid ranges
+    x: sanitizeNumber(data.x, -1000, 1000, 0),
+    y: sanitizeNumber(data.y, -1000, 1000, 0),
+    // Ensure booleans
+    flag: Boolean(data.flag),
+  };
+
+  room.send(type, sanitized);
+}
+
+function sanitizeString(input: any, maxLength: number): string {
+  if (typeof input !== 'string') return '';
+  return input.slice(0, maxLength).trim();
+}
+
+function sanitizeNumber(input: any, min: number, max: number, defaultVal: number): number {
+  const num = Number(input);
+  if (isNaN(num)) return defaultVal;
+  return Math.max(min, Math.min(max, num));
+}
+```
+
+### Handling Server Errors
+
+Always handle server errors gracefully - they may indicate security issues.
+
+```typescript
+room.onError((code, message) => {
+  // Security-related error codes
+  if (code === 4001) {
+    // Unauthorized - token invalid or expired
+    console.error('Authentication failed');
+    redirectToLogin();
+  } else if (code === 4003) {
+    // Kicked by server
+    showMessage('You were removed from the game');
+  } else if (code >= 4000 && code < 5000) {
+    // Custom server errors - may indicate cheating detected
+    console.warn(`Server error ${code}: ${message}`);
+  }
+
+  // Always clear local state on error
+  clearLocalGameState();
+});
+```
+
+### Message Rate Limiting (Client-Side)
+
+Prevent accidental spam from buggy client code.
+
+```typescript
+class RateLimitedSender {
+  private lastSend = 0;
+  private sendCount = 0;
+  private readonly maxPerSecond = 30;
+  private readonly minInterval = 33; // ~30fps max
+
+  send(room: Room, type: string, data: any) {
+    const now = Date.now();
+
+    // Rate limiting
+    if (now - this.lastSend < this.minInterval) {
+      console.warn('Message dropped - rate limit exceeded');
+      return false;
+    }
+
+    // Reset counter each second
+    if (now - this.lastSend > 1000) {
+      this.sendCount = 0;
+    }
+
+    if (++this.sendCount > this.maxPerSecond) {
+      console.warn('Message dropped - too many messages');
+      return false;
+    }
+
+    this.lastSend = now;
+    room.send(type, data);
+    return true;
+  }
+}
+```
+
+### Validate Server Responses
+
+Even server data should be validated before use.
+
+```typescript
+room.onStateChange((state) => {
+  // Validate state structure
+  if (!state || typeof state !== 'object') {
+    console.error('Invalid state from server');
+    return;
+  }
+
+  // Validate nested data
+  if (state.players) {
+    for (const [id, player] of state.players) {
+      // Ensure player data is valid
+      if (player.x < -1000 || player.x > 1000) {
+        console.warn(`Invalid player position from server: ${player.x}`);
+        // Use fallback or ignore
+        continue;
+      }
+    }
+  }
+});
+```
 
 ## Common Mistakes
 

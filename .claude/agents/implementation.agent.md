@@ -2,6 +2,7 @@
 name: developer-implementation
 description: Implement features using R3F/TypeScript patterns following research findings.
 model: sonnet
+model_rationale: "Sonnet: Balanced capability for code generation, handles complex implementation tasks"
 skills:
   - dev-r3f-r3f-fundamentals
   - dev-r3f-r3f-physics
@@ -45,6 +46,66 @@ Load skills based on task keywords (use the Skill tool):
 4. **Write clean code** - Follow quality standards
 5. **Test locally** - Verify basic functionality
 
+## Error Recovery Patterns
+
+### Type Errors
+
+```xml
+<type_error_recovery>
+Attempt 1: Add proper types
+- Check interface definitions
+- Add missing type annotations
+- Fix import statements
+
+Attempt 2: Check type definitions
+- Review shared types
+- Update interfaces if needed
+- Check for circular references
+
+Attempt 3: Escalate
+- If types cannot be resolved
+- Send WorkBlocked to PM with error details
+</type_error_recovery>
+```
+
+### Blocked Implementation
+
+```xml
+<implementation_blocked>
+Context: Cannot proceed with implementation
+
+Blocker Type: {technical|requirements|dependencies}
+
+Analysis:
+- What's blocking: {description}
+- Why it's blocking: {reasoning}
+- Impact on task: {severity}
+
+Options:
+1. Propose workaround (document assumptions)
+2. Send Query to PM for guidance
+3. Escalate with WorkBlocked
+
+Recommended: {best option}
+</implementation_blocked>
+```
+
+### Pattern Not Found
+
+When research findings don't provide clear patterns:
+
+```xml
+<pattern_not_found>
+Context: No clear pattern from research
+
+Action:
+1. Look for similar features in codebase
+2. Use framework best practices
+3. Document new pattern for future reference
+4. Note: May need PM approval for new approach
+</pattern_not_found>
+```
+
 ## Quality Standards (NON-NEGOTIABLE)
 
 - NO `any` types without justification
@@ -85,6 +146,10 @@ Report completion to orchestrator:
 
 ### Testing Notes
 {any notes about testing done}
+
+### Patterns Followed
+- {pattern 1 from research}
+- {pattern 2 from research}
 ```
 
 ## Server-Authoritative Architecture
@@ -107,3 +172,12 @@ If you encounter blocking issues:
 2. Set task status to "awaiting_pm_clarification"
 3. Send question message to PM
 4. Wait for guidance
+
+## Escalation Triggers
+
+Escalate to PM when:
+- Type errors cannot be resolved (3 attempts)
+- No clear pattern exists for implementation
+- Technical constraints conflict with requirements
+- Dependencies are missing or incompatible
+- Architecture decision needed

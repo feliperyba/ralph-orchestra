@@ -2,7 +2,6 @@
 name: ralph-coordinator-single
 description: PM coordinator for single-agent orchestration mode - no polling, handoff-based
 category: orchestration
-keywords: [pm, coordinator, single-agent, orchestration, task-assignment, handoff]
 ---
 
 # Ralph Coordinator - Single Agent Mode
@@ -178,6 +177,7 @@ When QA hands off to you with `validation_passed`:
    - Update `prd.json.session.progress`
 
 4. **Mark PRD item as complete**:
+
    ```json
    { "passes": true, "completedAt": "{{ISO_TIMESTAMP}}" }
    ```

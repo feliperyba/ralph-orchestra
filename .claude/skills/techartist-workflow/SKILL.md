@@ -36,15 +36,15 @@ For detailed worktree setup, PRD updates, and message patterns:
 - Access master PRD from worktree via relative path
 - If state changes, PRD changes IMMEDIATELY
 
-## Startup Workflow
+## Startup Workflow (V2)
 
 ```
 0. Worktree Setup
    → Use Skill("shared-worker-worktree")
 
-1. Check Messages
-   → Use Glob: .claude/session/messages/techartist/msg-*.json
-   → Delete messages after processing (prevents watchdog restart loop)
+1. Check Messages (V2)
+   → Named pipe connection via agent-runtime.ps1 (automatic)
+   → Messages received via Enter-AgentLoop
 
 2. Read PRD
    → Check prd.json.session.currentTask
@@ -68,7 +68,7 @@ For detailed worktree setup, PRD updates, and message patterns:
 
 7. Commit
    → Push to techartist-worktree branch
-   → Send validation_request to QA
+   → Send WorkComplete to PM (which forwards to QA)
 ```
 
 ## Task Research (MANDATORY)
@@ -140,47 +140,37 @@ Task("techartist-visual-tester", {
 })
 ```
 
-## QA Testing Protocol
+## QA Testing Protocol (V2)
 
 ### When to Send to QA
 
-Send `validation_request` to QA when:
+Send `WorkComplete` to PM when:
 - ✅ All acceptance criteria implemented
 - ✅ Screenshot verification passed
 - ✅ Feedback loops passed (type-check, lint, build)
 - ✅ Console clean (no errors)
 - ✅ Committed with `[ralph] [techartist]` prefix
 
-### QA Validation Message Format
+### V2 Message Format
 
-```json
-File: .claude/session/messages/qa/msg-qa-{timestamp}-{seq}.json
-{
-  "id": "msg-qa-{timestamp}-{seq}",
-  "from": "techartist",
-  "to": "qa",
-  "type": "validation_request",
-  "priority": "normal",
-  "payload": {
-    "taskId": "{taskId}",
-    "title": "{Task Title}",
-    "category": "shader|visual|asset",
-    "files": ["src/path/to/file1.ts"],
-    "acceptanceCriteria": ["Criterion 1", "Criterion 2"],
-    "screenshot": ".claude/session/playwright-test/{taskId}-asset.png",
-    "gddReference": "docs/design/gdd/{section}.md"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
+```powershell
+Send-Message -To "pm" -Type "WorkComplete" -Payload @{
+    taskId = "{taskId}"
+    title = "{Task Title}"
+    category = "shader|visual|asset"
+    files = @("src/path/to/file1.ts")
+    acceptanceCriteria = @("Criterion 1", "Criterion 2")
+    screenshot = ".claude/session/playwright-test/{taskId}-asset.png"
+    gddReference = "docs/design/gdd/{section}.md"
 }
 ```
 
-### QA Response Types
+### QA Response Types (V2)
 
-| Response | Action |
-|----------|--------|
-| `task_complete` | ✅ Passed - no action |
-| `bug_report` | ❌ Failed - fix and resubmit |
+| V2 Type | Action |
+|---------|--------|
+| `ValidationResult` (passed: true) | ✅ Passed - no action |
+| `ProblemReport` | ❌ Failed - fix and resubmit |
 
 ### If QA Finds Bugs
 
@@ -189,7 +179,7 @@ File: .claude/session/messages/qa/msg-qa-{timestamp}-{seq}.json
 3. Re-run feedback loops → Use Skill("shared-validation-feedback-loops")
 4. Take new screenshot
 5. Commit: `[ralph] [techartist] {taskId}: Fix for QA bugs`
-6. Send new `validation_request`
+6. Send new `WorkComplete` to PM
 
 ### Common QA Failures
 
@@ -263,7 +253,7 @@ File: .claude/session/messages/qa/msg-qa-{timestamp}-{seq}.json
 PRD: vis-XXX | Agent: techartist | Iteration: N
 ```
 
-## Exit Conditions
+## Exit Conditions (V2)
 
 **⚠️ BEFORE exiting, you MUST:**
 
@@ -279,7 +269,7 @@ PRD: vis-XXX | Agent: techartist | Iteration: N
      "lastSeen": "{ISO_TIMESTAMP}"
    }
    ```
-6. Send `validation_request` to QA
+6. Send `WorkComplete` to PM (which forwards to QA)
 7. ONLY THEN exit
 
 **⚠️ DO NOT merge to main yourself - QA will merge after validation.**
@@ -318,14 +308,13 @@ File: .claude/session/context-checkpoint-techartist-{taskId}.json
 }
 ```
 
-**4. Send context_checkpoint message to watchdog:**
-```json
-File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}.json
-{
-  "from": "techartist",
-  "to": "watchdog",
-  "type": "context_checkpoint",
-  "payload": { "taskId": "{taskId}", "step": "{step}", "nextAction": "{action}" }
+**4. Send context_checkpoint message (V2):**
+```powershell
+Send-Message -To "watchdog" -Type "System" -Payload @{
+    systemEvent = "context_checkpoint"
+    taskId = "{taskId}"
+    step = "{step}"
+    nextAction = "{action}"
 }
 ```
 
@@ -340,7 +329,7 @@ File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}.json
 
 ## Retrospective Contribution
 
-When `retrospective_initiate` message received:
+When `Retrospective` message received from PM:
 
 → Use Skill("shared-worker-task-memory") for complete protocol
 
@@ -349,3 +338,4 @@ When `retrospective_initiate` message received:
 2. WRITE contribution to `retrospective.txt`
 3. DELETE all task memory files
 4. UPDATE status in prd.json
+5. SEND `Retrospective` message back to PM with your contribution

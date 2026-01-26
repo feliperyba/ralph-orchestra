@@ -10,10 +10,9 @@ description: Grid-based surface coverage tracking for territorial game mechanics
 ## When to Use This Skill
 
 Use when:
-- Implementing territorial control mechanics (Splatoon-style)
+
+- Implementing territorial control mechanics
 - Tracking surface coverage percentage
-- Calculating team scores based on painted area
-- Detecting "painted over" scenarios (team B painting over team A)
 - Performance matters (cannot track every individual decal)
 
 ## Quick Start
@@ -39,7 +38,7 @@ function recordPaint(
   x: number,
   z: number,
   radius: number,
-  teamId: string
+  teamId: string,
 ) {
   const key = getGridKey(x, z);
   const existing = data.grid.get(key);
@@ -62,12 +61,12 @@ function recordPaint(
 
 ## Decision Framework
 
-| Approach                    | Accuracy | Performance | Best For                     |
-| --------------------------- | -------- | ----------- | ---------------------------- |
-| Per-pixel render target     | 100%     | Slow        | Small maps, offline render   |
-| Grid-based (coarse)         | ~80%     | Fast        | Large maps, real-time        |
-| Grid-based (fine)           | ~95%     | Medium      | Medium maps, real-time       |
-| Per-triangle                | ~90%     | Very Slow   | Low-poly meshes only         |
+| Approach                | Accuracy | Performance | Best For                   |
+| ----------------------- | -------- | ----------- | -------------------------- |
+| Per-pixel render target | 100%     | Slow        | Small maps, offline render |
+| Grid-based (coarse)     | ~80%     | Fast        | Large maps, real-time      |
+| Grid-based (fine)       | ~95%     | Medium      | Medium maps, real-time     |
+| Per-triangle            | ~90%     | Very Slow   | Low-poly meshes only       |
 
 **Recommendation:** Grid-based with grid size ~1-5 units depending on map scale.
 
@@ -79,15 +78,15 @@ type GridKey = string;
 
 // Grid cell value
 interface GridCell {
-  teamId: string;  // 'orange' | 'blue'
-  area: number;    // Painted area in this cell
+  teamId: string; // 'orange' | 'blue'
+  area: number; // Painted area in this cell
 }
 
 // Surface data
 interface SurfacePaintData {
   grid: Map<GridKey, GridCell>;
   paintedArea: Record<string, number>; // { [teamId]: totalArea }
-  totalArea: number;  // Total surface area (for percentage calc)
+  totalArea: number; // Total surface area (for percentage calc)
   lastUpdate: number; // Timestamp
 }
 ```
@@ -95,6 +94,7 @@ interface SurfacePaintData {
 ## Overlap Correction
 
 When paint is applied to an already-painted area, we must:
+
 1. Subtract the old team's contribution
 2. Add the new team's contribution
 
@@ -135,13 +135,11 @@ interface CoverageResult {
   timestamp: number;
 }
 
-function calculateCoverage(
-  surfaces: SurfacePaintData[]
-): CoverageResult {
+function calculateCoverage(surfaces: SurfacePaintData[]): CoverageResult {
   const totals: Record<string, number> = {};
   let totalPainted = 0;
 
-  surfaces.forEach(surface => {
+  surfaces.forEach((surface) => {
     Object.entries(surface.paintedArea).forEach(([teamId, area]) => {
       totals[teamId] = (totals[teamId] || 0) + area;
       totalPainted += area;
@@ -168,11 +166,11 @@ function calculateCoverage(
 
 ## Grid Size Selection
 
-| Map Scale      | Grid Size | Cell Count (16x16 map) | Memory     |
-| -------------- | --------- | ---------------------- | ---------- |
-| Small (64x64)  | 2 units   | ~1,000                 | ~100 KB    |
-| Medium (128x128) | 4 units | ~1,000                 | ~100 KB    |
-| Large (256x256) | 8 units  | ~1,000                 | ~100 KB    |
+| Map Scale        | Grid Size | Cell Count (16x16 map) | Memory  |
+| ---------------- | --------- | ---------------------- | ------- |
+| Small (64x64)    | 2 units   | ~1,000                 | ~100 KB |
+| Medium (128x128) | 4 units   | ~1,000                 | ~100 KB |
+| Large (256x256)  | 8 units   | ~1,000                 | ~100 KB |
 
 **Formula:** `gridSize = mapSize / 16` (target ~1000 cells)
 
@@ -184,18 +182,18 @@ const surfaces = new Map<string, SurfacePaintData>();
 
 function getSurfaceKey(normal: THREE.Vector3): string {
   // Categorize by normal direction
-  if (normal.y > 0.5) return 'floor';
-  if (normal.y < -0.5) return 'ceiling';
-  if (Math.abs(normal.x) > 0.5) return 'wall_x';
-  if (Math.abs(normal.z) > 0.5) return 'wall_z';
-  return 'other';
+  if (normal.y > 0.5) return "floor";
+  if (normal.y < -0.5) return "ceiling";
+  if (Math.abs(normal.x) > 0.5) return "wall_x";
+  if (Math.abs(normal.z) > 0.5) return "wall_z";
+  return "other";
 }
 
 function recordPaint(
   position: THREE.Vector3,
   normal: THREE.Vector3,
   radius: number,
-  teamId: string
+  teamId: string,
 ) {
   const surfaceKey = getSurfaceKey(normal);
 
@@ -222,22 +220,11 @@ function recordPaint(
 
 ## Common Pitfalls
 
-| Pitfall                      | Symptom                  | Fix                              |
-| ---------------------------- | ------------------------ | -------------------------------- |
-| No overlap correction        | Score > 100%             | Subtract old team before adding  |
-| Grid size too small          | Too much memory          | Increase grid size               |
-| Grid size too large          | Inaccurate percentages   | Decrease grid size               |
-| Forgetting totalArea         | Percentages wrong        | Set from actual map geometry     |
-| Polling too fast             | Unnecessary re-renders   | Use 1-5 second interval          |
-| Not clamping percentages     | Values > 100% or < 0     | Clamp result to [0, 100]         |
-
-## Reference Implementation
-
-See: `src/components/game/effects/PaintDecalManager.tsx`
-
-Key sections:
-- SurfacePaintData interface: lines 29-35
-- Grid key generation: lines 237-243
-- Apply paint with overlap: lines 267-298
-- Coverage calculation: lines 326-367
-- Coverage hook: lines 373-407
+| Pitfall                  | Symptom                | Fix                             |
+| ------------------------ | ---------------------- | ------------------------------- |
+| No overlap correction    | Score > 100%           | Subtract old team before adding |
+| Grid size too small      | Too much memory        | Increase grid size              |
+| Grid size too large      | Inaccurate percentages | Decrease grid size              |
+| Forgetting totalArea     | Percentages wrong      | Set from actual map geometry    |
+| Polling too fast         | Unnecessary re-renders | Use 1-5 second interval         |
+| Not clamping percentages | Values > 100% or < 0   | Clamp result to [0, 100]        |

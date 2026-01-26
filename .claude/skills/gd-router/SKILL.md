@@ -1,6 +1,9 @@
 ---
 name: gd-router
-description: Routes to appropriate Game Designer skills and sub-agents based on task keywords and design categories.
+description: Routes to appropriate Game Designer skills and sub-agents based on task keywords and design categories. Use when determining which skill or sub-agent to invoke for a design task.
+category: gamedesign
+model: inherit
+user-invocable: true
 ---
 
 # Game Designer Skill Router
@@ -28,7 +31,7 @@ description: Routes to appropriate Game Designer skills and sub-agents based on 
 | "check assets", "what assets exist" | `asset-analyst` sub-agent |
 | **References** | | |
 | "visual ref", "art reference", "style reference", "mood image" | `visual-reference-researcher` sub-agent |
-| "Splatoon", "Arc Raiders", "reference game" | `reference-game-researcher` sub-agent |
+| "reference game analysis", "game mechanics research" | `reference-game-researcher` sub-agent |
 | **Design Sessions** | | |
 | "design session", "Boardroom Retreat", "multi-persona discussion" | `gd-thermite-integration` skill |
 
@@ -72,7 +75,7 @@ description: Routes to appropriate Game Designer skills and sub-agents based on 
 | `skill-gap-analyst` | Haiku | Analyze pain points, identify gaps |
 | `asset-analyst` | Haiku | Read-only asset inventory |
 | `visual-reference-researcher` | Haiku | Web search + image analysis |
-| `reference-game-researcher` | Haiku | Splatoon/Arc Raiders analysis |
+| `reference-game-researcher` | Haiku | Reference game deep-dive analysis |
 
 ## Skill Dependencies
 

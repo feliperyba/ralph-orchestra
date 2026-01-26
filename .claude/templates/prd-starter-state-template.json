@@ -1,0 +1,245 @@
+{
+  "_comment": "PRD Starter State File Template v4.0 - File location: .claude/session/prd-starter-state.json",
+  "_version": "4.0.0",
+  "_template": "prd-starter-state",
+
+  "startedAt": "YYYY-MM-DDTHH:mm:ss.sssZ",
+  "completedAt": null,
+  "lastModified": "YYYY-MM-DDTHH:mm:ss.sssZ",
+
+  "wizardMode": "quick-start | standard | expert",
+  "selectedPreset": "preset-name or null",
+
+  "currentPhase": "entry | presets | project | agents | orchestration | mcp_config | quality | features | deep_research | user_questions | gdd_creation | prd_creation | final_review | completed",
+  "currentSubPhase": null,
+  "phaseHistory": ["entry", "project", "features", ...],
+
+  "project": {
+    "name": "Project Name",
+    "description": "One-line project description",
+    "category": "game-development | web-application | api-server | data-ml-pipeline | mobile-app | other",
+    "techStack": "React Three Fiber | Next.js | Node.js | Python | etc.",
+    "teamSize": "solo | small (2-5) | medium (6-20) | enterprise (20+)",
+    "projectScale": "prototype-mvp | startup-product | production-system",
+    "successFactors": [
+      "speed-to-market",
+      "code-quality",
+      "visual-excellence",
+      "multiplayer-reliability",
+      "mobile-performance",
+      "accessibility",
+      "seo",
+      "real-time-features",
+      "data-processing"
+    ]
+  },
+
+  "agents": {
+    "pm": {
+      "enabled": true,
+      "skills": ["pm-organization-*", "pm-planning-*", "pm-improvement-*", "pm-retrospective-*", "pm-validation-*", "pm-router"],
+      "subAgents": [],
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search"]
+    },
+    "developer": {
+      "enabled": true,
+      "skills": ["dev-r3f-*", "dev-typescript-*", "dev-phaser-*", "dev-multiplayer-*", "dev-performance-*", "dev-research-*", "dev-validation-*", "developer-workflow", "dev-router"],
+      "subAgents": ["developer-code-research", "developer-implementation", "developer-validation", "developer-commit", "qa-code-review"],
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search"]
+    },
+    "techartist": {
+      "enabled": false,
+      "skills": ["ta-r3f-*", "ta-shader-*", "ta-phaser-*", "ta-assets-*", "ta-vfx-*", "ta-ui-*", "ta-validation-*", "ta-router"],
+      "subAgents": ["techartist-asset-researcher", "techartist-asset-creator", "techartist-visual-tester"],
+      "mcpServers": ["playwright", "vision", "blender", "shadertoy", "image-process", "filesystem", "github"]
+    },
+    "qa": {
+      "enabled": true,
+      "skills": ["qa-browser-testing", "qa-gameplay-testing", "qa-multiplayer-testing", "qa-unit-test-creation", "qa-visual-testing", "qa-validation-*", "qa-reporting-*", "qa-router"],
+      "subAgents": ["qa-code-review", "qa-browser-validator", "qa-visual-regression-tester", "qa-multiplayer-validator", "qa-gameplay-tester"],
+      "mcpServers": ["playwright", "vision", "filesystem", "github"]
+    },
+    "gamedesigner": {
+      "enabled": false,
+      "skills": ["gd-design-*", "gd-assets-*", "gd-gdd-*", "gd-thermite-integration", "gd-validation-*", "gd-playtest-*", "gd-router"],
+      "subAgents": ["gamedesigner-thermite-facilitator", "gamedesigner-gdd-documenter", "gamedesigner-playtest-evidence-collector"],
+      "mcpServers": ["playwright", "vision", "filesystem", "github", "web-search"]
+    }
+  },
+
+  "orchestration": {
+    "mode": "event-driven | sequential | polling | hitl",
+    "maxIterations": 200,
+    "contextResetThreshold": 70,
+    "heartbeatInterval": 30
+  },
+
+  "qualityStandards": {
+    "typescriptStrictness": "strict | standard | loose",
+    "testCoverageTarget": 95,
+    "noAnyTypes": true,
+    "noTsIgnore": true,
+    "lintRules": "eslint-recommended | custom | none",
+    "commitConvention": "[ralph] | conventional | custom",
+    "ciCdIntegration": "github-actions | gitlab-ci | none",
+    "additionalGates": []
+  },
+
+  "features": [
+    {
+      "id": "feat-001",
+      "description": "Natural language feature description",
+      "category": "auto-categorized",
+      "priority": "auto-assigned"
+    }
+  ],
+
+  "researchData": {
+    "similarProjects": [
+      {
+        "name": "Project Name",
+        "url": "https://example.com",
+        "relevance": "Why relevant",
+        "techStack": ["tech1"],
+        "lessons": ["Lesson 1"]
+      }
+    ],
+    "bestPractices": [
+      {
+        "practice": "Practice name",
+        "reason": "Why it's a best practice",
+        "source": "Reference",
+        "applicability": "How it applies"
+      }
+    ],
+    "commonPitfalls": [
+      {
+        "pitfall": "Mistake description",
+        "consequence": "What goes wrong",
+        "avoidance": "How to avoid",
+        "severity": "high"
+      }
+    ],
+    "techStackInsights": {
+      "strengths": ["Strength 1"],
+      "weaknesses": ["Weakness 1"],
+      "recommendedLibraries": []
+    },
+    "questionsAsked": [
+      {
+        "id": "Q-001",
+        "question": "Question text",
+        "context": "Why we ask",
+        "impact": "How answer affects setup",
+        "category": "technical"
+      }
+    ],
+    "questionsAnswered": [
+      {
+        "questionId": "Q-001",
+        "question": "Question that was asked",
+        "answer": "User's response",
+        "answeredAt": "YYYY-MM-DDTHH:mm:ss.sssZ"
+      }
+    ],
+    "recommendedRefinements": [],
+    "references": [],
+    "discoveredCommands": {
+      "runtime": null,
+      "runtimeSource": null,
+      "discoveredAt": null,
+      "confidence": null,
+      "commands": {
+        "packageManager": null,
+        "init": null,
+        "install": null,
+        "dev": null,
+        "build": null,
+        "test": null,
+        "typeCheck": null
+      },
+      "feedbackLoops": [],
+      "discoverySources": []
+    }
+  },
+
+  "gddData": {
+    "designDecisions": [
+      {
+        "id": "DEC-001",
+        "title": "Decision title",
+        "status": "Decided",
+        "pillars": ["Meaningful Risk"],
+        "context": "Why this came up",
+        "decision": "What was chosen",
+        "rationale": "Why chosen",
+        "validationNeeded": []
+      }
+    ],
+    "openQuestions": [
+      {
+        "id": "OQ-001",
+        "question": "Unresolved question",
+        "priority": "high",
+        "raisedInSession": 1,
+        "owner": "Persona name",
+        "blockerFor": [],
+        "tags": []
+      }
+    ],
+    "designPillars": [
+      "Meaningful Risk",
+      "Readable Chaos",
+      "Compressed Tension",
+      "Earned Mastery",
+      "Sustainable Economy"
+    ],
+    "coreMechanics": [
+      {
+        "name": "Mechanic name",
+        "description": "How it works",
+        "pillars": []
+      }
+    ],
+    "thermiteSessionType": "boardroom-retreat",
+    "participants": ["Shinji Tanaka", "Viktor Volkov"]
+  },
+
+  "prdSpecification": {
+    "refinedFeatures": [],
+    "acceptanceCriteria": [],
+    "dependencies": [],
+    "priorities": {},
+    "technicalRecommendations": [],
+    "agentAssignments": {}
+  },
+
+  "generationResults": {
+    "filesCreated": [],
+    "filesModified": [],
+    "errors": [],
+    "warnings": []
+  },
+
+  "_notes": {
+    "phaseOrder": [
+      "1. entry - Entry point selection",
+      "2. presets - Preset selection (Quick Start only)",
+      "3. project - Project deep dive",
+      "4. agents - Agent configuration",
+      "5. orchestration - Orchestration mode",
+      "6. mcp_config - MCP server config (Expert only)",
+      "7. quality - Quality standards",
+      "8. features - Initial features collection",
+      "8b. deep_research - pm-research-specialist execution",
+      "8b-user. user_questions - User answers clarifying questions",
+      "8c. gdd_creation - Thermite session (games only)",
+      "8d. prd_creation - pm-prd-creator execution",
+      "9. final_review - Review and approve",
+      "10. completed - Generate agents and configs"
+    ],
+    "statePersistence": "State is saved after each phase to enable resuming",
+    "fileLocation": ".claude/session/prd-starter-state.json",
+    "resumeCommand": "/ralph-prd-starter"
+  }
+}

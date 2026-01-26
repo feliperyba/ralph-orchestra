@@ -1,6 +1,7 @@
 ---
-name: techartist-r3f-fundamentals
-description: React Three Fiber core patterns for scene composition and game loop
+name: ta-r3f-fundamentals
+description: Implements R3F scenes, components, and game loops. Use proactively when setting up R3F scenes, creating 3D components, or implementing useFrame animations.
+category: techartist
 ---
 
 # R3F Fundamentals Skill

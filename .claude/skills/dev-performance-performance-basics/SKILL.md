@@ -123,6 +123,235 @@ function PerformanceMonitor() {
 }
 ```
 
+## Performance Measurement Examples
+
+### FPS Counter with Stats
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
+import Stats from 'three/examples/jsm/libs/stats.module';
+
+export function PerformanceStats() {
+  const statsRef = useRef<Stats>();
+
+  useThree(({ gl }) => {
+    if (!statsRef.current) {
+      const stats = new Stats();
+      stats.showPanel(0); // 0: fps, 1: ms, 2: mb
+      document.body.appendChild(stats.dom);
+      statsRef.current = stats;
+    }
+
+    const stats = statsRef.current;
+    if (stats) {
+      stats.begin();
+      gl.render(stats.dom);
+      stats.end();
+    }
+  });
+
+  return null;
+}
+```
+
+### Frame Time Measurement
+
+```tsx
+// Measure individual frame times
+function FrameTimeProfiler() {
+  const frameTimes = useRef<number[]>([]);
+  const maxSamples = 60;
+
+  useFrame((_, delta) => {
+    frameTimes.current.push(delta);
+
+    if (frameTimes.current.length > maxSamples) {
+      frameTimes.current.shift();
+    }
+
+    // Calculate statistics
+    if (frameTimes.current.length === maxSamples) {
+      const avg = frameTimes.current.reduce((a, b) => a + b) / maxSamples;
+      const max = Math.max(...frameTimes.current);
+      const p99 = frameTimes.current.sort((a, b) => a - b)[54]; // 99th percentile
+
+      console.log(`Frame time - Avg: ${avg.toFixed(2)}ms, Max: ${max.toFixed(2)}ms, P99: ${p99.toFixed(2)}ms`);
+      console.log(`Estimated FPS: ${Math.round(1000 / avg)}`);
+    }
+  });
+
+  return null;
+}
+```
+
+### Draw Call Counter
+
+```tsx
+// Measure draw calls (Three.js info)
+function DrawCallMonitor() {
+  const { gl } = useThree();
+
+  useFrame(() => {
+    const info = gl.info;
+    console.log(`Draw calls: ${info.render.calls}`);
+    console.log(`Triangles: ${info.render.triangles}`);
+    console.log(`Textures: ${info.memory.textures}`);
+    console.log(`Geometries: ${info.memory.geometries}`);
+  });
+
+  return null;
+}
+```
+
+### Memory Profiling
+
+```tsx
+// Track memory usage over time
+function MemoryMonitor() {
+  const measurements = useRef<number[]>([]);
+  const interval = 1000; // Check every second
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if ('memory' in performance) {
+        const mem = (performance as any).memory;
+        const usedMB = mem.usedJSHeapSize / 1048576;
+        measurements.current.push(usedMB);
+
+        if (measurements.current.length > 60) {
+          measurements.current.shift();
+        }
+
+        // Detect memory leak (growing trend)
+        if (measurements.current.length > 10) {
+          const first = measurements.current[0];
+          const last = measurements.current[measurements.current.length - 1];
+          const growth = last - first;
+
+          if (growth > 10) {
+            console.warn(`Memory grew by ${growth.toFixed(2)}MB over ${measurements.current.length} seconds`);
+          }
+        }
+      }
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return null;
+}
+```
+
+### Component Render Time Profiler
+
+```tsx
+// Measure how long a component takes to render
+function withRenderTimeProfiler<P extends object>(
+  Component: React.ComponentType<P>,
+  name: string
+) {
+  return function ProfiledComponent(props: P) {
+    const startTime = useRef(performance.now());
+    const renderCount = useRef(0);
+
+    useEffect(() => {
+      const endTime = performance.now();
+      const renderTime = endTime - startTime.current;
+
+      renderCount.current++;
+
+      if (renderCount.current % 60 === 0) { // Log every 60 renders
+        console.log(`${name} render time: ${renderTime.toFixed(2)}ms (avg over 60: ${(renderTime / 60).toFixed(3)}ms)`);
+      }
+
+      startTime.current = performance.now();
+    });
+
+    return <Component {...props} />;
+  };
+}
+
+// Usage
+export const ProfiledScene = withRenderTimeProfiler(Scene, "Scene");
+```
+
+### Batch Measurement for Optimization
+
+```tsx
+// Measure before/after an optimization
+function measureOptimization<T>(
+  name: string,
+  fn: () => T,
+  iterations: number = 100
+): T {
+  // Warm up
+  for (let i = 0; i < 10; i++) {
+    fn();
+  }
+
+  const measurements: number[] = [];
+  const startTime = performance.now();
+
+  for (let i = 0; i < iterations; i++) {
+    const start = performance.now();
+    fn();
+    measurements.push(performance.now() - start);
+  }
+
+  const totalTime = performance.now() - startTime;
+  const avgTime = measurements.reduce((a, b) => a + b) / measurements.length;
+  const minTime = Math.min(...measurements);
+  const maxTime = Math.max(...measurements);
+
+  console.log(`=== ${name} (${iterations} iterations) ===`);
+  console.log(`Total time: ${totalTime.toFixed(2)}ms`);
+  console.log(`Average: ${avgTime.toFixed(3)}ms`);
+  console.log(`Min: ${minTime.toFixed(3)}ms, Max: ${maxTime.toFixed(3)}ms`);
+
+  return fn();
+}
+
+// Example usage
+measureOptimization("Scene Render", () => {
+  gl.render(scene, camera);
+}, 1000);
+```
+
+### GPU Time Measurement
+
+```tsx
+// Use EXT_disjoint_timer_query for GPU timing (WebGL2)
+function GPUProfiler() {
+  const { gl } = useThree();
+
+  useEffect(() => {
+    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+    if (!ext) {
+      console.warn("GPU timing not supported");
+      return;
+    }
+
+    const query = gl.createQuery(ext.TIMESTAMP_EXT);
+    gl.queryCounter(query, ext.QUERY_COUNTER_BITS_EXT);
+
+    const checkResult = () => {
+      const available = gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE);
+      if (available) {
+        const gpuTime = gl.getQueryParameter(query, gl.QUERY_RESULT);
+        console.log(`GPU time (ns): ${gpuTime}`);
+      } else {
+        requestAnimationFrame(checkResult);
+      }
+    };
+
+    requestAnimationFrame(checkResult);
+  }, [gl]);
+
+  return null;
+}
+```
+
 ## Anti-Patterns
 
 ❌ **DON'T:**
