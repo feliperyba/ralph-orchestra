@@ -96,7 +96,7 @@ You customize which agents are enabled and what skills they have during wizard s
 
 **Ralph Orchestra** is the orchestration infrastructure:
 
-- **V2 Architecture** - Event Sourcing, Actor Model, CQRS (PowerShell 5.1 compatible)
+- **Event-Driven Architecture** - Event Sourcing, Actor Model, CQRS (PowerShell 5.1 compatible)
 - Communication protocols (named pipes, message queues)
 - Agent lifecycle management (supervision trees, health monitoring)
 - Quality enforcement (feedback loops, code gates)
@@ -111,9 +111,9 @@ You customize which agents are enabled and what skills they have during wizard s
 
 ---
 
-## V2 Architecture
+## Architecture
 
-The V2 architecture provides enterprise-grade orchestration infrastructure:
+The architecture provides enterprise-grade orchestration infrastructure:
 
 - **Event Sourcing** - Append-only event log with crash recovery
 - **Actor Model** - Erlang/OTP-style supervision trees
@@ -126,7 +126,7 @@ The V2 architecture provides enterprise-grade orchestration infrastructure:
 - ✅ Performance Tests: 14/14 passing (100%)
 - ⚠️ Reliability Tests: Requires PS 7+
 
-See [V2 Architecture Documentation](docs/powershell/v2-architecture.md) for details.
+See [Architecture Documentation](docs/powershell/v2-architecture.md) for details.
 
 ---
 
@@ -148,15 +148,11 @@ See [V2 Architecture Documentation](docs/powershell/v2-architecture.md) for deta
 
 **Complete documentation:** [docs/README.md](docs/README.md)
 
-| Quick Start                                                | Core                                                          | V2 Architecture (New)                                       |
-| ---------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
-| [Getting Started](docs/quick-start/getting-started.md)     | [Framework Architecture](docs/core/architecture.md)         | [V2 Architecture](docs/powershell/v2-architecture.md)       |
-| [Framework Guide](docs/quick-start/framework.md)           | [PowerShell Scripts Guide](.claude/scripts/README.md)        | [Event Sourcing & Actor Model](docs/powershell/v2-architecture.md) |
-| [PRD Starter Walkthrough](docs/quick-start/prd-starter.md) | [Orchestration Modes](docs/core/orchestration-modes.md)      |                                                             |
-|                                                            |                                                               | Wizard Reference                                             |
-|                                                            |                                                               | ------------------------------------------------------------- |
-|                                                            |                                                               | [Wizard Presets](docs/wizard/wizard-presets.md)               |
-|                                                            |                                                               | [Skill Catalog](docs/wizard/wizard-skill-catalog.md)          |
+| Quick Start | Wizard Reference | Core | Architecture |
+| ----------- | ---------------- | ---- | ------------ |
+| [Getting Started](docs/quick-start/getting-started.md) | [Wizard Presets](docs/wizard/wizard-presets.md) | [Framework Architecture](docs/core/architecture.md) | [Event-Driven Architecture](docs/powershell/v2-architecture.md) |
+| [Framework Guide](docs/quick-start/framework.md) | [Skill Catalog](docs/wizard/wizard-skill-catalog.md) | [Orchestration Modes](docs/core/orchestration-modes.md) | [Event Sourcing & Actor Model](docs/powershell/v2-architecture.md) |
+| [PRD Starter Walkthrough](docs/quick-start/prd-starter.md) | [PRD Starter Deep Dive](docs/wizard/prd-starter-deep-dive.md) | [PowerShell Scripts Guide](.claude/scripts/README.md) | |
 
 ---
 
