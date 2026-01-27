@@ -43,26 +43,6 @@ After setup, agents work autonomously until your PRD is complete.
 
 ---
 
-## How It Works
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         Ralph Orchestra                              │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│   1. Run /ralph-prd-starter → Configure agents for your project      │
-│                                                                      │
-│   2. Define PRD → List features, requirements, acceptance criteria   │
-│                                                                      │
-│   3. Start agents → PM assigns tasks, workers implement, QA validates│
-│                                                                      │
-│   4. Iterate → Agents work until all PRD items are complete          │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## Supported Project Types
 
 The PRD Starter includes presets for:
@@ -113,18 +93,13 @@ You customize which agents are enabled and what skills they have during wizard s
 
 ## Architecture
 
-The architecture provides enterprise-grade orchestration infrastructure:
+The architecture provides a comprehensive orchestration infrastructure:
 
 - **Event Sourcing** - Append-only event log with crash recovery
 - **Actor Model** - Erlang/OTP-style supervision trees
 - **CQRS** - Separate read/write models for optimal performance
 - **Named Pipes** - Sub-10ms message delivery
 - **PowerShell 5.1 Compatible** - Runs on default Windows PowerShell
-
-**Test Coverage:**
-- ✅ Concurrency Tests: 15/15 passing (100%)
-- ✅ Performance Tests: 14/14 passing (100%)
-- ⚠️ Reliability Tests: Requires PS 7+
 
 See [Architecture Documentation](docs/powershell/v2-architecture.md) for details.
 
