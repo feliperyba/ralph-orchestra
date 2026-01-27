@@ -2,7 +2,6 @@
 name: ralph-router
 description: Routes to appropriate Ralph skills based on agent role and task signals
 category: orchestration
-keywords: [router, routing, skill-selection, agent-role, task-category, domain, skills]
 ---
 
 # Ralph Skill Router
@@ -21,26 +20,26 @@ Use at:
 
 ### By Agent Role
 
-| Agent        | Core Skills                                                              | Checklists                       |
-| ----------- | ------------------------------------------------------------------------ | -------------------------------- |
-| PM           | `task-selection`, `retrospective`, `skill-improvement`, `scale-adaptive` | `prd-validation`, `task-handoff` |
-| Developer    | `r3f-fundamentals`, `feedback-loops`, `typescript-patterns`              | `pre-commit`, `code-quality`     |
-| QA           | `validation-workflow`, `browser-testing`, `bug-reporting`                | `validation-checks`              |
-| GameDesigner | `gdd-creation`, `thermite-integration`, `mechanic-design`, `level-design`, `character-design`, `weapon-design`, `game-loop-design`, `playtest-validation` | `gdd-review`, `design-validation` |
-| TechArtist   | `r3f-fundamentals`, `r3f-materials`, `r3f-geometry`, `shader-sdf`, `postfx-effects`, `particles-gpu`, `feedback-loops`, `typescript-patterns` | `asset-quality`, `shader-review`, `visual-consistency` |
+| Agent        | Core Skills                                                                                                                                               | Checklists                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| PM           | `task-selection`, `retrospective`, `skill-improvement`, `scale-adaptive`                                                                                  | `prd-validation`, `task-handoff`                       |
+| Developer    | `r3f-fundamentals`, `feedback-loops`, `typescript-patterns`                                                                                               | `pre-commit`, `code-quality`                           |
+| QA           | `validation-workflow`, `browser-testing`, `bug-reporting`                                                                                                 | `validation-checks`                                    |
+| GameDesigner | `gdd-creation`, `thermite-integration`, `mechanic-design`, `level-design`, `character-design`, `weapon-design`, `game-loop-design`, `playtest-validation` | `gdd-review`, `design-validation`                      |
+| TechArtist   | `r3f-fundamentals`, `r3f-materials`, `r3f-geometry`, `shader-sdf`, `postfx-effects`, `particles-gpu`, `feedback-loops`, `typescript-patterns`             | `asset-quality`, `shader-review`, `visual-consistency` |
 
 ### By Task Category
 
-| Category        | Developer Skills                          | QA Focus              | TechArtist Skills                          |
-| --------------- | ----------------------------------------- | --------------------- | ------------------------------------------- |
-| `architectural` | `typescript-patterns`, `r3f-fundamentals` | Full validation suite | `typescript-patterns`, `r3f-fundamentals` |
-| `integration`   | Domain-specific (physics, materials)      | Cross-browser testing | `r3f-materials`, shader integration |
-| `functional`    | `r3f-fundamentals`, `feedback-loops`      | Acceptance criteria   | - |
-| `visual`        | -                                        | Visual QA              | `r3f-materials`, `shader-sdf`, `postfx-effects` |
-| `shader`        | -                                        | Shader testing         | `shader-sdf`, `glsl`, `gpu-cost-optimizer` |
-| `effects`       | -                                        | Effects testing        | `particles-gpu`, `postfx-effects` |
-| `ui-polish`     | -                                        | UI testing             | `r3f-materials`, `visual-polish` |
-| `polish`        | `r3f-materials`, `r3f-performance`        | Visual + performance  | `r3f-materials`, `postfx-effects` |
+| Category        | Developer Skills                          | QA Focus              | TechArtist Skills                               |
+| --------------- | ----------------------------------------- | --------------------- | ----------------------------------------------- |
+| `architectural` | `typescript-patterns`, `r3f-fundamentals` | Full validation suite | `typescript-patterns`, `r3f-fundamentals`       |
+| `integration`   | Domain-specific (physics, materials)      | Cross-browser testing | `r3f-materials`, shader integration             |
+| `functional`    | `r3f-fundamentals`, `feedback-loops`      | Acceptance criteria   | -                                               |
+| `visual`        | -                                         | Visual QA             | `r3f-materials`, `shader-sdf`, `postfx-effects` |
+| `shader`        | -                                         | Shader testing        | `shader-sdf`, `glsl`, `gpu-cost-optimizer`      |
+| `effects`       | -                                         | Effects testing       | `particles-gpu`, `postfx-effects`               |
+| `ui-polish`     | -                                         | UI testing            | `r3f-materials`, `visual-polish`                |
+| `polish`        | `r3f-materials`, `r3f-performance`        | Visual + performance  | `r3f-materials`, `postfx-effects`               |
 
 ### By Signal Keywords
 

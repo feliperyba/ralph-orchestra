@@ -12,40 +12,43 @@ category: routing
 
 ### By Task Category
 
-| Category | Skills |
-|----------|--------|
-| `architectural` | `ta-r3f-fundamentals`, `ta-validation-typescript` |
-| `visual` | `ta-r3f-materials`, `ta-shader-sdf`, `ta-vfx-postfx` |
-| `shader` | `ta-shader-development`, `ta-shader-sdf` |
-| `vfx` | `ta-vfx-particles`, `ta-vfx-postfx` |
-| `asset` | `ta-assets-workflow`, `ta-assets-pipeline-optimization` |
-| `performance` | `ta-r3f-performance`, `ta-r3f-physics` |
-| `ui` | `ta-ui-polish`, `ta-ui-debug-helpers` |
-| `camera` | `ta-camera-tps` |
-| `networking` | `ta-networking-visual-feedback` |
+| Category        | Skills                                                  |
+| --------------- | ------------------------------------------------------- |
+| `architectural` | `ta-r3f-fundamentals`, `ta-validation-typescript`       |
+| `visual`        | `ta-r3f-materials`, `ta-shader-sdf`, `ta-vfx-postfx`    |
+| `shader`        | `ta-shader-development`, `ta-shader-sdf`                |
+| `vfx`           | `ta-vfx-particles`, `ta-vfx-postfx`                     |
+| `asset`         | `ta-assets-workflow`, `ta-assets-pipeline-optimization` |
+| `performance`   | `ta-r3f-performance`, `ta-r3f-physics`                  |
+| `ui`            | `ta-ui-polish`, `ta-ui-debug-helpers`                   |
+| `camera`        | `ta-camera-tps`                                         |
+| `networking`    | `ta-networking-visual-feedback`                         |
 
 ### By Signal Keywords
 
-| Signal | Route To |
-|--------|----------|
-| "shader", "glsl", "tsl" | `ta-shader-development`, `ta-shader-sdf` |
-| "particle", "gpu", "instanced" | `ta-vfx-particles`, `ta-foliage-instancing` |
-| "postfx", "bloom", "effect" | `ta-vfx-postfx` |
-| "material", "pbr", "texture" | `ta-r3f-materials` |
-| "physics", "collision", "rapier" | `ta-r3f-physics` |
-| "water", "ocean", "gerstner" | `ta-water-shader` |
-| "foliage", "grass", "vegetation" | `ta-foliage-instancing` |
-| "paint", "territory", "splat" | `ta-paint-territory` |
+| Signal                               | Route To                                        |
+| ------------------------------------ | ----------------------------------------------- |
+| "shader", "glsl", "tsl"              | `ta-shader-development`, `ta-shader-sdf`        |
+| "particle", "gpu", "instanced"       | `ta-vfx-particles`, `ta-foliage-instancing`     |
+| "postfx", "bloom", "effect"          | `ta-vfx-postfx`                                |
+| "material", "pbr", "texture"         | `ta-r3f-materials`                             |
+| "physics", "collision", "rapier"     | `ta-r3f-physics`                               |
+| "water", "ocean", "gerstner"         | `ta-water-shader`                              |
+| "foliage", "grass", "vegetation"     | `ta-foliage-instancing`                       |
+| "paint", "territory", "splat"        | `ta-paint-territory`                           |
+| **"terrain mesh", "heightmap"**      | `ta-terrain-mesh` (NEW - multiplayer terrain)  |
+| **"territory grid", "cpu territory"** | `ta-territory-grid-cpu` (NEW - server grid)    |
+| **"terrain testing", "e2e terrain"**  | `ta-terrain-testing` (NEW - E2E patterns)      |
 
 ### Common Combinations
 
-| Task Type | Skills |
-|-----------|--------|
-| Shader Development | `ta-r3f-fundamentals` + `ta-shader-development` |
-| VFX Creation | `ta-r3f-fundamentals` + `ta-vfx-particles` + `ta-vfx-postfx` |
-| Asset Pipeline | `ta-r3f-fundamentals` + `ta-assets-workflow` |
-| Material Creation | `ta-r3f-fundamentals` + `ta-r3f-materials` |
-| Terrain System | `ta-r3f-fundamentals` + `ta-shader-sdf` + `ta-water-shader` |
+| Task Type          | Skills                                                       |
+| ------------------ | ------------------------------------------------------------ |
+| Shader Development | `ta-r3f-fundamentals` + `ta-shader-development`              |
+| VFX Creation       | `ta-r3f-fundamentals` + `ta-vfx-particles` + `ta-vfx-postfx` |
+| Asset Pipeline     | `ta-r3f-fundamentals` + `ta-assets-workflow`                 |
+| Material Creation  | `ta-r3f-fundamentals` + `ta-r3f-materials`                   |
+| Terrain System (NEW) | `ta-r3f-fundamentals` + `ta-terrain-mesh` + `ta-water-shader` |
 
 ## Routing Protocol
 
@@ -69,12 +72,16 @@ category: routing
 
 **Before creating assets, check:**
 
-| Topic | Guide | When to Use |
-|-------|-------|-------------|
-| Terrain shaders | `docs/research/terrain-shader-research.md` | SDF terrain, heightmaps |
-| Paint effects | `docs/research/paint-shader-research.md` | Wet paint, splat decals |
-| Weapons | `docs/research/weapons-loading-research.md` | Weapon models, accessories |
-| Characters | `docs/research/character-models-research.md` | Character skins, animations |
+| Topic           | Guide                                        | When to Use                         |
+| --------------- | -------------------------------------------- | ----------------------------------- |
+| **Terrain (NEW)** | `docs/implementation/terrain-refactor-plan.md` | **Mesh-based multiplayer terrain** |
+| **Terrain (NEW)** | `docs/research/terrain-rethink.md`            | **Why we switched from raymarching** |
+| **Terrain (NEW)** | `docs/references/terrain/README.md`           | **Visual reference images**         |
+| **Terrain (NEW)** | `docs/references/terrain/color-palette.ts`   | **Color palette reference**          |
+| Terrain shaders | `docs/research/terrain-shader-research.md`   | Legacy SDF terrain (deprecated)      |
+| Paint effects   | `docs/research/paint-shader-research.md`     | Wet paint, splat decals             |
+| Weapons         | `docs/research/weapons-loading-research.md`  | Weapon models, accessories          |
+| Characters      | `docs/research/character-models-research.md` | Character skins, animations         |
 
 ## GDD Research
 
@@ -107,8 +114,3 @@ For sub-agent catalog, see: [subagents.md](subagents.md)
 ## Domain Skills
 
 For complete skill catalog, see: [domain-skills.md](domain-skills.md)
-
-## See Also
-
-- [ta-orchestration](../ta-orchestration/SKILL.md) - Workflow execution
-- [AGENT.md](../../agents/techartist/AGENT.md) - Agent role and permissions

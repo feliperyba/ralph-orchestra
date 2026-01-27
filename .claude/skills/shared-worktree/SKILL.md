@@ -2,8 +2,6 @@
 name: worker-worktree
 description: Git worktree setup and management for parallel agent development. Use when working in isolated git worktrees to avoid merge conflicts between Developer and Tech Artist agents.
 category: workflow
-version: 1.0
-keywords: [worktree, git, parallel, isolation, merge, branch, coordinator]
 ---
 
 # Worker Worktree Skill
@@ -29,7 +27,7 @@ Git worktrees allow multiple working directories to be linked to a single reposi
 | ----------- | --------------------- | ------------------------ | --------------------- |
 | Developer   | `developer-worktree`  | `../developer-worktree`  | `developer-worktree`  |
 | Tech Artist | `techartist-worktree` | `../techartist-worktree` | `techartist-worktree` |
-| QA          | Uses main worktree    | . (current directory)  | main                |
+| QA          | Uses main worktree    | . (current directory)    | main                  |
 
 ## Initial Setup (One-Time Per Agent)
 
@@ -98,6 +96,16 @@ All work happens in the worktree directory:
 git push origin {agent}-worktree
 ```
 
+## Unit, E2E, and Playwright MCP Testing Protocol
+
+Remember to always run the tests in the target worktree branches for validation
+
+- Move to the target worktree
+- Load the correct skills for this scope
+- Run validation process
+- During validation process, always double check in which port the client is running for proper URL check
+- Investigate in case of issues and iterate until fixed
+
 ## QA Merge Protocol
 
 **QA Agent ONLY:**
@@ -152,14 +160,14 @@ git push origin main
 
 ### What Goes Where
 
-| Operation | Location | Why |
-|-----------|----------|-----|
-| **PRD updates** | Master branch | PM needs to see status immediately |
-| **Sending messages** | Master branch | Watchdog only watches master session |
-| **Reading messages** | Master branch | All coordination messages live here |
-| **Heartbeat updates** | Master branch | Watchdog monitors master PRD |
-| **Code commits** | Worktree branch | Isolated development, QA validates |
-| **Asset creation** | Worktree branch | Isolated development, QA validates |
+| Operation             | Location        | Why                                  |
+| --------------------- | --------------- | ------------------------------------ |
+| **PRD updates**       | Master branch   | PM needs to see status immediately   |
+| **Sending messages**  | Master branch   | Watchdog only watches master session |
+| **Reading messages**  | Master branch   | All coordination messages live here  |
+| **Heartbeat updates** | Master branch   | Watchdog monitors master PRD         |
+| **Code commits**      | Worktree branch | Isolated development, QA validates   |
+| **Asset creation**    | Worktree branch | Isolated development, QA validates   |
 
 ### The Workflow
 
@@ -305,7 +313,3 @@ Before starting work:
 | Merge main           | `git fetch origin main && git merge origin/main`           |
 | Push worktree        | `git push origin {agent}-worktree`                         |
 | Check current branch | `git branch --show-current`                                |
-
-## Additional Resources
-
-- For detailed examples, see [examples.md](examples.md)

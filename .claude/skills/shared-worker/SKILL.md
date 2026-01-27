@@ -52,22 +52,21 @@ category: orchestration
 **On EVERY startup, check coordinator status FIRST:**
 
 ```bash
-# Read prd.json.session
-{
-  "session": {
-    "status": "running|completed|terminated|max_iterations_reached"
-  }
-}
+# Read YOUR state file (NOT prd.json)
+Read: .claude/session/current-task-{your-agent}.json
+
+# Check session.state.status in the JSON:
+# session.state.status: "running" | "completed" | "terminated" | "max_iterations_reached"
 ```
 
-**If status is `completed`, `terminated`, or `max_iterations_reached`:**
+**If session.state.status is `completed`, `terminated`, or `max_iterations_reached`:**
 
 1. Update your status to `"exiting"`
 2. Log exit to handoff-log.json
 3. Output: `<promise>WORKER_EXIT</promise>`
 4. Stop
 
-**If status is `running`:** Continue normal workflow.
+**If session.state.status is `running`:** Continue normal workflow.
 
 ---
 
@@ -103,20 +102,27 @@ After reading ANY message, send acknowledgment to watchdog:
 }
 ```
 
-### 3. Update Heartbeat
+### 3. Update Heartbeat (v2.0 - State File Pattern)
 
-Read prd.json, update your `agents.{your-agent}` entry:
+**DO NOT read prd.json** - Update your state file instead:
 
-```json
+```bash
+# Read your state file
+Read: .claude/session/current-task-{your-agent}.json
+
+# Update the "state" object in the JSON:
 {
-  "agents": {
-    "{your-agent}": {
-      "status": "working",
-      "currentTaskId": "feat-001",
-      "lastSeen": "{ISO-8601-UTC}"
-    }
-  }
+  "state": {
+    "status": "working",
+    "lastSeen": "{ISO-8601-UTC}",
+    "currentTaskId": "{taskId or null}",
+    "pid": 0
+  },
+  // ... rest of the file remains unchanged
 }
+
+# Write back
+Write: .claude/session/current-task-{your-agent}.json
 ```
 
 ### 4. Process Messages
@@ -129,7 +135,6 @@ Read prd.json, update your `agents.{your-agent}` entry:
 | `validation_request`     | Run validation              |
 | `wake_up`                | Resume if idle              |
 | `retrospective_initiate` | Contribute to retrospective |
-| `shutdown`               | Exit gracefully             |
 
 ---
 
@@ -137,13 +142,16 @@ Read prd.json, update your `agents.{your-agent}` entry:
 
 ### When You Start Working
 
-Update prd.json.agents.{your-agent}:
+**Update YOUR state file** (not prd.json):
 
 ```json
 {
-  "status": "working",
-  "currentTaskId": "{taskId}",
-  "lastSeen": "{NOW}"
+  "state": {
+    "status": "working",
+    "lastSeen": "{NOW}",
+    "currentTaskId": "{taskId}",
+    "pid": 0
+  }
 }
 ```
 
@@ -153,19 +161,19 @@ Update prd.json.agents.{your-agent}:
 
 ```json
 {
-  "agents": {
-    "{your-agent}": {
-      "status": "working",
-      "lastSeen": "{NOW}"
-    }
+  "state": {
+    "status": "working",
+    "lastSeen": "{NOW}",
+    "currentTaskId": "{taskId}",
+    "pid": 0
   }
 }
 ```
 
 **Quick update pattern:**
 
-1. Read prd.json
-2. Update `lastSeen` timestamp
+1. Read: `.claude/session/current-task-{your-agent}.json`
+2. Update `state.lastSeen` timestamp
 3. Write back
 
 **DO NOT skip heartbeat** - PM needs to know you're alive!
@@ -180,18 +188,18 @@ Update prd.json.agents.{your-agent}:
 
 ```json
 {
-  "agents": {
-    "{your-agent}": {
-      "lastSeen": "{NOW}",
-      "status": "idle"
-    }
+  "state": {
+    "status": "idle",
+    "lastSeen": "{NOW}",
+    "currentTaskId": null,
+    "pid": 0
   }
 }
 ```
 
 ### 2. Poll for Coordinator Status
 
-Read `prd.json.session.status`:
+Read `sessionStatus` from your state file:
 
 - If `running` → Continue waiting
 - If `completed/terminated/max_iterations_reached` → Exit
@@ -229,16 +237,15 @@ Repeat until:
 }
 ```
 
-**Step 2:** Update status to idle
+**Step 2:** Update YOUR state file status to idle
 
 ```json
 {
-  "agents": {
-    "{your-agent}": {
-      "status": "idle",
-      "currentTaskId": null,
-      "lastSeen": "{NOW}"
-    }
+  "state": {
+    "status": "idle",
+    "lastSeen": "{NOW}",
+    "currentTaskId": null,
+    "pid": 0
   }
 }
 ```
@@ -246,6 +253,21 @@ Repeat until:
 **Step 3:** Exit
 
 Watchdog will respawn you when new messages arrive.
+
+**What happens next (PM handles this):**
+
+- **PM will HANDOFF your task to the next agent in workflow:**
+  - Developer → QA: Your task JSON copied to current-task-qa.json
+  - Tech Artist → QA: Your task JSON copied to current-task-qa.json
+  - QA → Archive: Task added to prd_completed.txt
+
+- **PM will update your state file:**
+  - Task moved to your "Completed Tasks" array
+  - Task cleared from "Active Task" section (null/unassigned)
+
+- **After full completion and archival:**
+  - Task removed from your "Completed Tasks" array
+  - Task permanently archived in prd_completed.txt
 
 ---
 
@@ -271,15 +293,15 @@ Watchdog will respawn you when new messages arrive.
 }
 ```
 
-### 2. Update Status to Awaiting
+### 2. Update Status to Awaiting (in YOUR state file)
 
 ```json
 {
-  "agents": {
-    "{your-agent}": {
-      "status": "awaiting_pm",
-      "lastSeen": "{NOW}"
-    }
+  "state": {
+    "status": "awaiting_pm",
+    "lastSeen": "{NOW}",
+    "currentTaskId": "{taskId}",
+    "pid": 0
   }
 }
 ```
@@ -290,13 +312,16 @@ Watchdog has 10-minute timeout (configurable via `RALPH_AWAITING_TIMEOUT`) befor
 
 ---
 
-## Single Source of Truth (prd.json)
+## Single Source of Truth (v2.0 - Per-Agent State Files)
 
-**prd.json is the single source of truth.**
+**IMPORTANT: Architecture changed in v2.0**
+
+**OLD (v1.x):** All agents read prd.json
+**NEW (v2.0):** Workers read ONLY their state file
 
 ### What You Update
 
-Update `prd.json.agents.{your-agent}`:
+Update `.claude/session/current-task-{your-agent}.json`:
 
 | Field           | Description                                     |
 | --------------- | ----------------------------------------------- |
@@ -304,8 +329,12 @@ Update `prd.json.agents.{your-agent}`:
 | `lastSeen`      | ISO timestamp of last update                    |
 | `currentTaskId` | Task you're working on (null if idle)           |
 
+**DO NOT read or write prd.json** - PM handles that.
+
 ### What PM Controls
 
+- PM reads all agent state files to monitor worker status
+- PM syncs changes to prd.json for session tracking
 - `items[{taskId}].status` — PM updates based on your messages
 - `items[{taskId}].passes` — PM updates based on QA validation
 
@@ -339,16 +368,17 @@ Quick reference:
 
 ## Exit Conditions
 
-**Workers MUST check coordinator status and exit when:**
+**Workers MUST check coordinator status in THEIR state file and exit when:**
 
 | Condition                                              | Action          |
 | ------------------------------------------------------ | --------------- |
-| `prd.json.session.status === "completed"`              | Exit gracefully |
-| `prd.json.session.status === "terminated"`             | Exit gracefully |
-| `prd.json.session.status === "max_iterations_reached"` | Exit gracefully |
-| Watchdog sends `shutdown` message                      | Exit gracefully |
+| `current-task-{agent}.json` shows `session.state.status: "completed"` | Exit gracefully |
+| `current-task-{agent}.json` shows `session.state.status: "terminated"` | Exit gracefully |
+| `current-task-{agent}.json` shows `session.state.status: "max_iterations_reached"` | Exit gracefully |
 
 **Output:** `<promise>WORKER_EXIT</promise>`
+
+**Do NOT read prd.json** - Check your state file instead.
 
 ---
 
@@ -360,15 +390,17 @@ Quick reference:
 
 **Reset Procedure (Automatic):**
 
-1. Read and save current prd.json state
+1. Read and save your state file content
 2. Note your current task
 3. Stop-hook will detect reset and continue with fresh context
 
 **After Reset:**
 
-- Re-read prd.json
+- Re-read `.claude/session/current-task-{your-agent}.json`
 - Continue from where you left off
 - Do NOT repeat completed work
+
+**Do NOT read prd.json** - It's 110KB and will bloat your context.
 
 ---
 
@@ -381,12 +413,6 @@ Quick reference:
 | Skip heartbeat update       | Update every 30-60 seconds |
 | Forget acknowledgment       | Always send to watchdog    |
 | Use PowerShell for file ops | Use Glob/Read/Write tools  |
+| **Read prd.json**          | **Read your state file only** |
 
 ---
-
-## References
-
-- `shared-core` — Status values, heartbeat details, session structure
-- `shared-messaging` — Message formats, acknowledgment protocol
-- `shared-state` — File ownership, atomic updates (Edit tool)
-- `shared-context` — Context window auto-reset procedures

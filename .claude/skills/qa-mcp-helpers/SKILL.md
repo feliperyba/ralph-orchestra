@@ -12,24 +12,87 @@ This skill provides common patterns for using Playwright MCP tools in validation
 
 ## Quick Reference
 
-| E2E Test Pattern | MCP Equivalent |
-| ----------------- | -------------- |
-| `new GamePage(page)` | Use same selectors via `page.getByRole()` |
-| `await gamePage.goto()` | `await page.goto('http://localhost:3000')` |
-| `await expect(element).toBeVisible()` | Check visibility, take screenshot |
+| E2E Test Pattern                      | MCP Equivalent                                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `new GamePage(page)`                  | Use same selectors via `page.getByRole()`                                                   |
+| `await gamePage.goto()`               | `await page.goto('http://localhost:{detected_port}')` // ALWAYS detect port first            |
+| `await expect(element).toBeVisible()` | Check visibility, take screenshot                                                           |
+
+## MANDATORY: Port Detection (BEFORE Navigation)
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, etc.)**
+
+**Before using Playwright MCP tools, ALWAYS detect the correct port:**
+
+```bash
+# Check which port is serving the Vite app
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Alternative: Try curl to detect
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**Store detected port in variable for subsequent MCP calls:**
+
+```typescript
+// After detecting port, use it in navigation
+const detectedPort = 3001; // From bash detection above
+await page.goto(`http://localhost:${detectedPort}`);
+```
+
+## Multi-Agent Playwright MCP Considerations
+
+**⚠️ IMPORTANT: Standard Playwright MCP does NOT support parallel execution**
+
+When multiple agents (Developer, QA, Tech Artist) may use Playwright MCP simultaneously:
+
+1. **Issue:** Standard `@playwright/mcp` shares a single browser instance - agents interfere with each other
+2. **Solution:** Use `playwright-parallel-mcp` for isolated browser sessions per agent
+
+**To enable parallel Playwright instances, update MCP settings:**
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["playwright-parallel-mcp"],
+      "env": {
+        "MAX_SESSIONS": "5"
+      }
+    }
+  }
+}
+```
+
+**Usage with sessions:**
+```javascript
+// Create isolated session for this agent
+[create_session] -> sessionId: "qa-session-{timestamp}"
+
+// Use session ID in all subsequent calls
+[navigate sessionId="qa-session-{timestamp}" url="http://localhost:3001"]
+```
+
+**Reference:** [playwright-parallel-mcp on LobeHub](https://lobehub.com/mcp/sumyapp-playwright-parallel-mcp)
 
 ## Common MCP Patterns
 
 ### Navigation
 
 ```typescript
-// Navigate to the application
-await page.goto('http://localhost:3000');
+// 1. FIRST: Detect port (see above)
+const detectedPort = 3001; // From bash detection
 
-// Wait for page to fully load
+// 2. Navigate to the application
+await page.goto(`http://localhost:${detectedPort}`);
+
+// 3. Wait for page to fully load
 await page.waitForLoadState('networkidle');
 
-// Wait for canvas to be ready
+// 4. Wait for canvas to be ready
 await page.waitForSelector('canvas');
 ```
 
@@ -56,7 +119,7 @@ expect(errors).toHaveLength(0);
 // Capture screenshot for validation evidence
 await page.screenshot({
   path: '.claude/session/qa-validation/screenshot.png',
-  fullPage: true
+  fullPage: true,
 });
 ```
 
@@ -87,15 +150,14 @@ When the E2E test uses specific selectors, use the same approach in MCP validati
 ### Character Selection Flow
 
 ```typescript
-// Navigate to game
-await page.goto('http://localhost:3000');
+// Navigate to game (detectedPort from port detection step above)
+await page.goto(`http://localhost:${detectedPort}`);
 await page.waitForLoadState('networkidle');
 
 // Check if at Character Selection screen
 const atCharacterSelection = await page.evaluate(() => {
   const bodyText = document.body.textContent || '';
-  return bodyText.includes('Choose Your Character') ||
-         bodyText.includes('Character Selection');
+  return bodyText.includes('Choose Your Character') || bodyText.includes('Character Selection');
 });
 
 if (atCharacterSelection) {
@@ -113,8 +175,7 @@ if (atCharacterSelection) {
   await page.waitForFunction(
     () => {
       const bodyText = document.body.textContent || '';
-      return bodyText.includes('LOBBY') ||
-             bodyText.includes('Connecting to server');
+      return bodyText.includes('LOBBY') || bodyText.includes('Connecting to server');
     },
     { timeout: 10000 }
   );
@@ -129,8 +190,7 @@ await page.waitForFunction(
   () => {
     const bodyText = document.body.textContent || '';
     // Must show "Connected" but not "Connecting to server"
-    return bodyText.includes('Connected') &&
-           !bodyText.includes('Connecting to server');
+    return bodyText.includes('Connected') && !bodyText.includes('Connecting to server');
   },
   { timeout: 25000 }
 );
@@ -138,9 +198,11 @@ await page.waitForFunction(
 // Verify connection state
 const isConnected = await page.evaluate(() => {
   const bodyText = document.body.textContent || '';
-  return bodyText.includes('Connected') &&
-         bodyText.includes('Players in Lobby') &&
-         !bodyText.includes('Connecting to server');
+  return (
+    bodyText.includes('Connected') &&
+    bodyText.includes('Players in Lobby') &&
+    !bodyText.includes('Connecting to server')
+  );
 });
 ```
 
@@ -196,44 +258,49 @@ When writing MCP validation scripts, follow these selector priorities:
 ### Priority Order
 
 1. **Role-based selectors** (Preferred - accessible)
+
    ```typescript
-   page.getByRole('button', { name: 'Submit' })
-   page.getByRole('textbox', { name: 'Username' })
+   page.getByRole('button', { name: 'Submit' });
+   page.getByRole('textbox', { name: 'Username' });
    ```
 
 2. **Label-based selectors** (Good - accessible)
+
    ```typescript
-   page.getByLabel('Character Name')
-   page.getByLabel('Email address')
+   page.getByLabel('Character Name');
+   page.getByLabel('Email address');
    ```
 
 3. **Test ID selectors** (When no accessible name)
+
    ```typescript
-   page.getByTestId('submit-button')
-   page.getByTestId('character-name-input')
+   page.getByTestId('submit-button');
+   page.getByTestId('character-name-input');
    ```
 
 4. **Text content** (For existing patterns)
+
    ```typescript
-   page.getByText('LOBBY')
-   page.locator('button:has-text("Select Character")')
+   page.getByText('LOBBY');
+   page.locator('button:has-text("Select Character")');
    ```
 
 5. **ID selectors** (For legacy/existing code)
    ```typescript
-   page.locator('#characterName')
+   page.locator('#characterName');
    ```
 
 ### Avoid
 
 ❌ **Brittle CSS selectors:**
+
 ```typescript
 // Bad - breaks with CSS changes
-page.locator('.btn-primary:first-child')
-page.locator('div.container > div:nth-child(2)')
+page.locator('.btn-primary:first-child');
+page.locator('div.container > div:nth-child(2)');
 
 // Bad - fragile to DOM structure changes
-page.locator('body > div > div > button')
+page.locator('body > div > div > button');
 ```
 
 ## Anti-Patterns

@@ -242,3 +242,47 @@ Before implementing R3F component:
 - [R3F documentation](https://docs.pmnd.rs/react-three-fiber) — Official docs
 - [dev-r3f-r3f-physics](../dev-r3f-r3f-physics/SKILL.md) — Physics integration
 - [dev-r3f-r3f-materials](../dev-r3f-r3f-materials/SKILL.md) — Materials and shaders
+
+## TPS Camera Reference Values
+
+**Validated working camera distances from feat-tps-003 (2026-01-27):**
+
+| Mode         | Distance Value | Character Framing | Notes                          |
+| ------------ | -------------- | ----------------- | ------------------------------ |
+| Hipfire      | 3.5 units       | 30-40% of screen   | Character waist up visible    |
+| Aim (ADS)    | 1.5 units       | Closer view       | For precision shooting         |
+
+These values provide proper TPS (Third-Person Shooter) framing where the character is clearly visible on the left side of the screen with enough surrounding context.
+
+## TPS Camera Shoulder Offset (feat-tps-004, 2026-01-27)
+
+**⚠️ CRITICAL: Over-the-shoulder view requires BOTH position offset AND look-at offset.**
+
+| Parameter          | Value (left shoulder view) | Notes                              |
+| ------------------ | ------------------------- | ---------------------------------- |
+| shoulderOffsetRight | 0.75 units                 | Camera position offset (right)     |
+| shoulderOffsetLeft  | -0.75 units                | Camera position offset (left)      |
+| look-at offset      | Same as position offset    | Often missed - REQUIRED for proper composition |
+
+**Common anti-pattern from feat-tps-004:**
+- ❌ Camera position offset but look-at at center (0, 0, 0)
+- ✅ Look-at point must ALSO be offset by same shoulder amount
+
+**Example implementation:**
+```tsx
+// Position offset (standard)
+const _vec3_position = new Vector3(0, 1.6, 3.5)
+  .add(_vec3_right.clone().multiplyScalar(shoulderOffset));
+
+// Look-at offset (CRITICAL - often missed)
+const _vec3_lookAt = targetPosition.clone()
+  .add(_vec3_right.clone().multiplyScalar(shoulderOffset));
+
+camera.position.copy(_vec3_position);
+camera.lookAt(_vec3_lookAt);
+```
+
+**Acceptance criteria validation:**
+- Exact numerical values must match acceptance criteria (0.75, not 0.85)
+- Add code comments referencing acceptance criteria values
+- E2E tests required for camera validation (20+ tests covering offset, distance, swap)

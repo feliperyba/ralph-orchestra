@@ -44,6 +44,7 @@ You are a WORKER managed by the WATCHDOG orchestrator.
    Use the **Glob + Read tools** to read from `.claude/session/messages/qa/msg-*.json`
 
    **Complete message processing pattern:**
+
    ```
    1. Use Glob: .claude/session/messages/qa/msg-*.json
    2. For each file: Read the file content
@@ -75,49 +76,102 @@ You are a WORKER managed by the WATCHDOG orchestrator.
    - With acknowledgment, watchdog knows you successfully processed the message
 
 4. Begin validation workflow
+
+---
+
+## MANDATORY: Port Detection Before Browser Testing
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, etc.)**
+
+Before ANY browser interaction or E2E test:
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
 ```
+
+**E2E tests** in `playwright.config.ts` should automatically detect the port.
+
+**Manual MCP validation** requires you to use the detected port in navigation.
+
+## Multi-Agent Playwright Considerations
+
+**⚠️ IMPORTANT: When multiple agents use Playwright MCP simultaneously**
+
+Standard `@playwright/mcp` shares a single browser instance. In Ralph Orchestra with parallel agents:
+
+1. **Use `playwright-parallel-mcp`** for isolated browser sessions per agent
+2. **Configuration:**
+   ```json
+   {
+     "mcpServers": {
+       "playwright": {
+         "command": "npx",
+         "args": ["playwright-parallel-mcp"],
+         "env": { "MAX_SESSIONS": "5" }
+       }
+     }
+   }
+   ```
+3. **Usage:** Create session per agent with `create_session`, use sessionId in all calls
+
+**If Playwright MCP is already in use by another agent:**
+- Use `npx playwright test` directly instead of MCP tools
+- Wait for the other agent to complete validation
+- Coordinate via PM to schedule sequential validation
+
+See `qa-mcp-helpers` skill for full details on parallel Playwright setup.
+
+---
 
 ---
 
 ## Validation Workflow (In Order)
 
 ```
+
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     VALIDATION WORKFLOW                                     │
+│ VALIDATION WORKFLOW │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│ ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                         │
-│ │ MESSAGE │───►│ TEST     │───►│ CODE     │───►│ VALID    │                     │
-│ │ QUEUE   │   │ COVERAGE │   │ REVIEW   │   │ CHECKS   │                     │
-│ └─────────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘                     │
-│                    │              │              │                            │
-│                    ▼              ▼              ▼                            │
-│              ┌─────────┐    ┌──────────┐   ┌──────────────┐                  │
-│              │ Tests   │    │ ALL      │   │ BROWSER      │                  │
-│              │ exist?  │    │ PASS     │   │ TEST         │                  │
-│              └────┬────┘    └────┬─────┘   └──────────────┘                  │
-│                   │              │              │                            │
-│              ┌────┴─────┐         │              │                            │
-│              ▼          ▼         ▼              ▼                            │
-│         ┌─────────┐ ┌──────────┐ ┌──────────────┐                          │
-│         │ CREATE  │ │ FIX      │ │ PLAYWRIGHT    │                          │
-│         │ TESTS   │ │ TESTS    │ │ MCP           │                          │
-│         └─────────┘ └──────────┘ └──────────────┘                          │
-│                    │              │              │                            │
-│                    └──────────────┴──────────────┴────────────────────┘       │
-│                                                        │                    │
-│                                                        ▼                    │
-│                                              ┌──────────────────┐             │
-│                                              │ SERVER CLEANUP   │◄── MANDATORY│
-│                                              │ (always run)      │             │
-│                                              └──────────────────┘             │
-│                                                        │                    │
-│                                                        ▼                    │
-│                                              ┌──────────────────┐             │
-│                                              │ REPORT RESULT    │             │
-│                                              └──────────────────┘             │
-│                                                                             │
+│ │
+│ ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│ │ MESSAGE │───►│ TEST │───►│ CODE │───►│ VALID │ │
+│ │ QUEUE │ │ COVERAGE │ │ REVIEW │ │ CHECKS │ │
+│ └─────────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ │
+│ │ │ │ │
+│ ▼ ▼ ▼ │
+│ ┌─────────┐ ┌──────────┐ ┌──────────────┐ │
+│ │ Tests │ │ ALL │ │ BROWSER │ │
+│ │ exist? │ │ PASS │ │ TEST │ │
+│ └────┬────┘ └────┬─────┘ └──────────────┘ │
+│ │ │ │ │
+│ ┌────┴─────┐ │ │ │
+│ ▼ ▼ ▼ ▼ │
+│ ┌─────────┐ ┌──────────┐ ┌──────────────┐ │
+│ │ CREATE │ │ FIX │ │ PLAYWRIGHT │ │
+│ │ TESTS │ │ TESTS │ │ MCP │ │
+│ └─────────┘ └──────────┘ └──────────────┘ │
+│ │ │ │ │
+│ └──────────────┴──────────────┴────────────────────┘ │
+│ │ │
+│ ▼ │
+│ ┌──────────────────┐ │
+│ │ SERVER CLEANUP │◄── MANDATORY│
+│ │ (always run) │ │
+│ └──────────────────┘ │
+│ │ │
+│ ▼ │
+│ ┌──────────────────┐ │
+│ │ REPORT RESULT │ │
+│ └──────────────────┘ │
+│ │
 └─────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 **⚠️ MANDATORY GATE: E2E Tests Must Complete**
@@ -139,10 +193,10 @@ Use `shared-lifecycle` skill for proper server management.
 
 | Step | Skill / Sub-Agent | Purpose |
 |------| ----------------- | ------- |
-| **1. Task Assignment** | `shared-messaging` | Process messages, auto-assign from PRD |
+| **1. Task Assignment** | `shared-messaging` | Process messages, auto-assign from current-task-qa.json |
 | **2. Worktree Setup** | `shared-worktree` | Navigate to agent worktree |
 | **3. Task Memory** | `shared-retrospective` | Create task memory file |
-| **4. Test Coverage** | `qa-test-creation` | Check/create unit & E2E tests |
+| **4. Test Coverage** | `qa-test-creation` | **MANDATORY:** Check/create E2E tests - CANNOT PASS without them |
 | **5. Test Execution** | `qa-validation-workflow` | Run tests, analyze failures |
 | **6. Code Review** | `qa-code-review` | Check code quality before checks |
 | **7. Browser Testing** | `qa-browser-testing` + sub-agent | Playwright MCP validation |
@@ -165,6 +219,7 @@ Use `shared-lifecycle` skill for proper server management.
 ## Quick Decision Tree
 
 ```
+
 START VALIDATION
 │
 ├─→ Tests missing? ──► Skill("qa-test-creation")
@@ -179,6 +234,7 @@ START VALIDATION
 │ └─► Choose sub-agent based on task type
 │
 └─→ Report result ─────► Skill("qa-reporting-bug-reporting")
+
 ```
 
 ---
@@ -186,6 +242,7 @@ START VALIDATION
 ## Test Failure Decision Tree
 
 ```
+
                     TESTS FAIL
                         │
         ┌───────────────┴───────────────┐
@@ -193,9 +250,11 @@ START VALIDATION
     Test Code Issue?              Game Code Issue?
         │ YES                          │ YES
         ▼                               ▼
-   Fix and Re-run                    Create Bug Report
-   (QA can edit)                     (Return to Developer)
-```
+
+Fix and Re-run Create Bug Report
+(QA can edit) (Return to Developer)
+
+````
 
 ### How to Distinguish Test vs Game Code Issues
 
@@ -226,30 +285,35 @@ START VALIDATION
 
 ---
 
-## PRD Status Updates
+## State File Status Updates (v2.0)
 
-Update `prd.json` immediately when status changes:
+Update `current-task-qa.json` immediately when status changes:
 
-| Event | Update |
+| Event | Update State File |
 | ------- | ------ |
-| Starting validation | `agents.qa.status = "working"` + `currentTask = {taskId}` |
-| Validation PASSED | `items[{taskId}].status = "passed"` + `passes = true` |
-| Validation FAILED | `items[{taskId}].status = "needs_fixes"` + `passes = false` + `bugs[]` |
-| Finishing | `agents.qa.status = "idle"` |
+| Starting validation | `state.status = "working"` + `state.currentTaskId = "{taskId}"` |
+| Validation PASSED | Include in bug_report message (PM sets passed in prd.json) |
+| Validation FAILED | Include bugs in bug_report message (PM updates prd.json) |
+| Finishing | `state.status = "idle"` |
+
+**⚠️ V2.0:** QA does NOT update prd.json directly. Send status via message to PM, who syncs to prd.json.
 
 ---
 
 ## Merge Protocol
 
+Check which agent task you are validating
+
 **When PASSED:**
 ```bash
 cd ..
 git checkout main
-git merge origin/qa-worktree
+git merge origin/{agent}-worktree
 git push origin main
-```
+````
 
 **When FAILED:**
+
 ```bash
 # Stay on main, do NOT merge
 # Send bug_report to agent
@@ -284,7 +348,7 @@ PRD: {taskId} | Agent: qa | Iteration: N
 - {failed_check}: FAIL
 
 Bug: {brief description}
-See prd.json.items[{taskId}].bugs for full report.
+See bug_report message payload for full report.
 
 PRD: {taskId} | Agent: qa | Iteration: N
 ```
@@ -308,13 +372,18 @@ For big tasks (5+ acceptance criteria, 3+ components):
 Before running E2E tests, always check/start the dev server:
 
 ```bash
-# Check if server already running
-lsof -ti:3000 || npm run dev:all:sh &
+# MANDATORY: First detect which port Vite is using
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+# OR: curl -s http://localhost:3000 | grep -q "vite" && echo "3000" || curl -s http://localhost:3001 | grep -q "vite" && echo "3001"
+
+# Check if server already running on detected port
+lsof -ti:3000 2>/dev/null || lsof -ti:3001 2>/dev/null || npm run dev:all:sh &
 ```
 
 **MANDATORY CLEANUP after all tests complete (pass OR fail):**
 
 Use the cleanup pattern from `shared-lifecycle` skill to ensure:
+
 - Dev server is stopped
 - Ports are released
 - No orphaned processes remain
@@ -328,23 +397,10 @@ Use the cleanup pattern from `shared-lifecycle` skill to ensure:
 1. Complete all validation steps (type-check, lint, test, build, e2e, browser)
 2. **IF VALIDATION PASSES:** Merge to main and push
 3. **IF VALIDATION FAILS:** Send bug_report to PM (no merge)
-4. Update PRD with validation results
+4. Update state file with validation results
 5. Commit with `[ralph] [qa]` prefix
 6. Send result message to PM
-7. Update `prd.json.agents.qa.status = "idle"`
+7. Update `current-task-qa.json`: `state.status = "idle"`
 8. **MANDATORY:** Run server cleanup (shared-lifecycle)
 
 ---
-
-## References
-
-| File | Purpose |
-| ---- | ------- |
-| `qa-router` | Full skills/sub-agents catalog |
-| `qa-test-creation` | Test coverage workflow |
-| `qa-validation-workflow` | Automated checks pipeline |
-| `qa-code-review` | Code quality checks (fail criteria) |
-| `qa-browser-testing` | E2E test execution |
-| `qa-mcp-helpers` | MCP patterns + Page Object Model |
-| `qa-reporting-bug-reporting` | Bug report format |
-| `shared-lifecycle` | Process lifecycle management |

@@ -2,7 +2,6 @@
 name: shared-lifecycle
 description: Process lifecycle management and auxiliary script rules for Ralph agents
 category: orchestration
-keywords: [process, cleanup, registry, scripts, lifecycle, background]
 ---
 
 # Shared Lifecycle
@@ -56,11 +55,13 @@ The registry tracks all running processes across all agents.
 ### Using Read/Write Tools
 
 **Check registry:**
+
 ```
 Read: .claude/session/process-registry.json
 ```
 
 **Update registry:**
+
 ```
 Edit: .claude/session/process-registry.json
 ```
@@ -110,6 +111,75 @@ TaskStop(task_id="abc123")
 
 ---
 
+## E2E Test Server Handling
+
+**⚠️ CRITICAL: E2E tests manage their own servers via Playwright config**
+
+### Rule 1: E2E Tests Manage Their Own Servers
+
+When running `npm run test:e2e`, Playwright automatically starts servers via `webServer` configuration in `playwright.config.ts`:
+
+- `npm run dev` (port 3000) with `reuseExistingServer: !process.env.CI`
+- `npm run server` (port 2567) with `reuseExistingServer: false`
+
+**DO NOT manually start servers when running E2E tests.** Playwright handles startup and cleanup automatically.
+
+### Rule 2: Manual MCP Validation Requires Server Check
+
+Before starting a server for manual MCP validation:
+
+1. Check if port is in use: `netstat -an | grep :3000` (or `lsof -i :3000`)
+2. If running, use existing server
+3. If not running, start with background process and track with registry
+
+### Server Detection Pattern
+
+```bash
+# Check if dev server is running (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+### Decision Tree
+
+```
+                    Running E2E tests?
+                            |
+            ┌───────────────┴───────────────┐
+            │                               │
+       YES (npm run test:e2e)        NO (Manual MCP validation)
+            │                               │
+            ▼                               ▼
+   DO NOT start servers         Check if servers running
+   Playwright manages them       If YES: use existing
+   Cleanup is automatic          If NO: start and track
+```
+
+### E2E Test Path
+
+```bash
+# Playwright handles server lifecycle via webServer config
+npm run test:e2e
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Manual MCP Validation Path
+
+```bash
+# Only if doing manual MCP validation (NOT E2E tests)
+if ! netstat -an | grep :3000; then
+  # Start server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup
+fi
+```
+
+---
+
 ## Cleanup Pattern (Even on Failure)
 
 **Always cleanup in a finally pattern:**
@@ -133,20 +203,20 @@ TaskStop(task_id="abc123")
 
 ### QA Agent
 
-| Process | Reuse? | Cleanup Timing |
-|---------|--------|----------------|
-| dev-server (3000) | Yes | After ALL validation complete |
-| test-server (varies) | No | After tests |
-| test-watcher | Yes | After test loop |
+| Process              | Reuse? | Cleanup Timing                |
+| -------------------- | ------ | ----------------------------- |
+| dev-server (3000)    | Yes    | After ALL validation complete |
+| test-server (varies) | No     | After tests                   |
+| test-watcher         | Yes    | After test loop               |
 
 **Cleanup:** AFTER all tests complete, BEFORE reporting results (pass OR fail)
 
 ### Developer Agent
 
-| Process | Reuse? | Cleanup Timing |
-|---------|--------|----------------|
-| build-watcher | Yes | After commit |
-| dev-server | No | Immediately after testing |
+| Process       | Reuse? | Cleanup Timing            |
+| ------------- | ------ | ------------------------- |
+| build-watcher | Yes    | After commit              |
+| dev-server    | No     | Immediately after testing |
 
 **Cleanup:** BEFORE marking task complete or sending to PM
 
@@ -159,12 +229,12 @@ TaskStop(task_id="abc123")
 
 ## Common Process Types
 
-| Type | Port | Reuse? | Cleanup |
-|------|------|--------|---------|
-| dev-server | 3000 | Yes | After validation |
-| test-server | varies | No | After tests |
-| build-watcher | N/A | Yes | After commit |
-| storybook | 6006 | Yes | After review |
+| Type          | Port   | Reuse? | Cleanup          |
+| ------------- | ------ | ------ | ---------------- |
+| dev-server    | 3000   | Yes    | After validation |
+| test-server   | varies | No     | After tests      |
+| build-watcher | N/A    | Yes    | After commit     |
+| storybook     | 6006   | Yes    | After review     |
 
 ---
 
@@ -174,15 +244,16 @@ Scripts in `.claude/session/` help with automation and cleanup.
 
 ### Script Classification
 
-| Classification | Pattern | Retention |
-|---------------|--------|-----------|
-| **Temporary** | `*-runner.ps1`, `msg-*.json`, `*.exit`, `*.tmp` | Auto-delete after 1 hour |
-| **Reusable** | Documented below | Persist across sessions |
-| **Unknown** | Everything else | Manual cleanup |
+| Classification | Pattern                                         | Retention                |
+| -------------- | ----------------------------------------------- | ------------------------ |
+| **Temporary**  | `*-runner.ps1`, `msg-*.json`, `*.exit`, `*.tmp` | Auto-delete after 1 hour |
+| **Reusable**   | Documented below                                | Persist across sessions  |
+| **Unknown**    | Everything else                                 | Manual cleanup           |
 
 ### Temporary Scripts
 
 **Auto-cleaned after 1 hour:**
+
 - `*-runner.ps1` — Agent runner scripts
 - `msg-*.json` — Message files
 - `*.exit` — Exit status files
@@ -216,9 +287,9 @@ param([string]$SomeParameter)
 
 Maintain a "Reusable Scripts" section:
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| *(none yet)* | | |
+| Script       | Purpose | Usage |
+| ------------ | ------- | ----- |
+| _(none yet)_ |         |       |
 
 ---
 
@@ -260,14 +331,14 @@ Get-Process node    # Windows PowerShell
 
 ## Anti-Patterns
 
-| Don't | Do Instead |
-|-------|------------|
-| Start background processes without tracking | Capture shell_id, use for cleanup |
-| Leave processes running after exit | Always cleanup before status update |
-| Start same process multiple times | Check registry first |
-| Assume someone else will cleanup | Cleanup your own processes |
-| Use PowerShell Get-Content/Set-Content | Use Read/Write tools |
-| Use manual temp file pattern | Use Edit tool |
+| Don't                                       | Do Instead                          |
+| ------------------------------------------- | ----------------------------------- |
+| Start background processes without tracking | Capture shell_id, use for cleanup   |
+| Leave processes running after exit          | Always cleanup before status update |
+| Start same process multiple times           | Check registry first                |
+| Assume someone else will cleanup            | Cleanup your own processes          |
+| Use PowerShell Get-Content/Set-Content      | Use Read/Write tools                |
+| Use manual temp file pattern                | Use Edit tool                       |
 
 ---
 
@@ -297,7 +368,7 @@ Get-Process node    # Windows PowerShell
    Remove: dev-server-3000 from processes
 
 6. Only THEN: Update task status
-   Edit: prd.json.agents.qa.status = "idle"
+   Edit: current-task-qa.json: state.status = "idle"
 ```
 
 ---

@@ -2,7 +2,6 @@
 name: shared-validation-feedback-loops
 description: Type-check, lint, test, build validation sequence. Use proactively before every commit across all agents.
 category: validation
-keywords: [validation, feedback, type-check, lint, test, build]
 ---
 
 # Feedback Loops
@@ -198,6 +197,7 @@ useEffect(() => {
 ## Never Suppress Errors
 
 To maintain code quality:
+
 - NO `@ts-ignore` without PM approval
 - NO `eslint-disable` without PM approval
 - NO skipping tests without PM approval
@@ -235,13 +235,34 @@ Before committing:
 
 ## E2E Testing Best Practices (Learned 2026-01-26)
 
+### MANDATORY: Port Detection Before Browser Testing
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**E2E tests in `playwright.config.ts` should automatically detect the port.**
+
+**For manual MCP validation, use the detected port in navigation.**
+
 ### Load State Selection
 
 When writing E2E tests with Playwright, the choice of load state affects test reliability:
 
 ```typescript
-// Default: domcontentloaded (most reliable)
-await page.goto('http://localhost:3000');
+// Detect port first, then use in navigation
+const detectedPort = 3000; // From detection above
+await page.goto(`http://localhost:${detectedPort}`);
 await page.waitForLoadState('domcontentloaded');
 
 // Why: Faster, doesn't timeout on background activity
@@ -249,6 +270,7 @@ await page.waitForLoadState('domcontentloaded');
 ```
 
 **Load State Decision Tree:**
+
 - `domcontentloaded` - Use by default. Fastest, most reliable.
 - `load` - Use when testing images, fonts, or media loading.
 - `networkidle` - Rare. Only for SPAs with continuous polling.
@@ -264,7 +286,7 @@ const TEST_PORT = 2577; // Unique from default
 
 test.beforeAll(async () => {
   serverProcess = spawn('npm', ['run', 'server'], {
-    env: { ...process.env, PORT: String(TEST_PORT) }
+    env: { ...process.env, PORT: String(TEST_PORT) },
   });
 });
 

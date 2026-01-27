@@ -246,7 +246,6 @@ Read: .claude/session/messages/pm/msg-pm-20260126-120000-001.json
 | `question`           | Any → PM          | Ask for clarification |
 | `answer`             | PM → Worker       | Respond to question   |
 | `wake_up`            | PM → Worker       | Wake idle worker      |
-| `shutdown`           | Watchdog → Worker | Shutdown signal       |
 
 ### PM Receives
 
@@ -289,14 +288,14 @@ Read: .claude/session/messages/pm/msg-pm-20260126-120000-001.json
 
 | Priority | Use Case                             |
 | -------- | ------------------------------------ |
-| `urgent` | Shutdown commands, critical failures |
+| `urgent` | Critical failures, agent timeouts    |
 | `high`   | Questions, bug reports               |
 | `normal` | Task assignments, completions        |
 | `low`    | Status updates, heartbeats           |
 
 ### Processing Order
 
-1. **URGENT** - Handle immediately (e.g., `shutdown`)
+1. **URGENT** - Handle immediately (e.g., `agent_timeout`)
 2. **HIGH** - Respond promptly (e.g., `question`, `bug_report`)
 3. **NORMAL** - Process in order (e.g., `task_assign`, `task_complete`)
 4. **LOW** - Log and continue (e.g., `wake_up`, status updates)

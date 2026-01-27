@@ -2,7 +2,6 @@
 name: shared-worker-techartist
 description: Tech Artist worker behavior - extends shared-worker with visual asset workflows
 category: orchestration
-keywords: [techartist, worker, visual, assets, shaders, materials, effects]
 ---
 
 # Shared Worker - Tech Artist
@@ -24,8 +23,8 @@ Skill("shared-worker")
 # 2. Check for pending messages
 Glob(".claude/session/messages/techartist/msg-*.json")
 
-# 3. Read prd.json for assigned task
-Read("prd.json")
+# 3. Read state file for assigned task (v2.0: DO NOT read prd.json)
+Read("current-task-techartist.json")
 
 # 4. Read GDD for artistic references
 Read("docs/design/gdd.md")
@@ -35,7 +34,7 @@ Read("docs/design/gdd.md")
 
 ## ⚠️ MANDATORY: Skill Check Before Work
 
-**After reading the task from `prd.json.items[{taskId}]` and BEFORE creating visual assets:**
+**After reading the task from `current-task-techartist.json` and BEFORE creating visual assets:**
 
 1. Read task requirements (category, description, files)
 2. Check if task category matches a known skill:
@@ -52,18 +51,21 @@ Read("docs/design/gdd.md")
 
 ## Main Workflow
 
-When you find work (`currentTask.assignedAgent == "techartist"`):
+When you find work (state.currentTaskId is not null):
 
-1. **Update status** in `prd.json.agents.techartist`:
+1. **Update state file** (`current-task-techartist.json`):
+
    ```json
    {
-     "status": "creating_assets",
-     "currentTaskId": "{taskId}",
-     "lastSeen": "{ISO_TIMESTAMP}"
+     "state": {
+       "status": "creating_assets",
+       "currentTaskId": "{taskId}",
+       "lastSeen": "{ISO_TIMESTAMP}"
+     }
    }
    ```
 
-2. **Read task specs** from `prd.json.items[{taskId}]`
+2. **Read task specs** from your state file
 
 3. **Read GDD** for artistic references (`docs/design/gdd.md`)
 
@@ -74,13 +76,15 @@ When you find work (`currentTask.assignedAgent == "techartist"`):
    - Use R3F patterns for React components
 
 5. **⚠️ Screenshot Verification (MANDATORY - EVERY TASK):**
-   - Navigate to `http://localhost:3000`
+   - Detect port: `netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"`
+   - Navigate to `http://localhost:{detectedPort}`
    - Take screenshot using Playwright MCP
    - Analyze with Vision MCP
    - Verify visual quality matches requirements
    - **No task is complete without screenshot verification**
 
 6. **Run feedback loops:**
+
    ```bash
    npm run type-check  # Must pass
    npm run lint         # Must pass
@@ -88,6 +92,7 @@ When you find work (`currentTask.assignedAgent == "techartist"`):
    ```
 
 7. **Commit work**:
+
    ```
    [ralph] [techartist] vis-XXX: Brief description
 
@@ -97,16 +102,19 @@ When you find work (`currentTask.assignedAgent == "techartist"`):
    PRD: vis-XXX | Agent: techartist | Iteration: N
    ```
 
-8. **Update task status** in `prd.json.items[{taskId}]`:
+8. **Update state file** (`current-task-techartist.json`):
+
    ```json
    {
-     "status": "awaiting_qa",
-     "completedAt": "{ISO_TIMESTAMP}",
-     "commit": "{git-commit-hash}"
+     "state": {
+       "status": "idle",
+       "currentTaskId": null,
+       "lastSeen": "{ISO_TIMESTAMP}"
+     }
    }
    ```
 
-9. **Send `validation_request` to QA**
+9. **Send `implementation_complete` to PM** (PM will set task status to awaiting_qa)
 
 10. **Log handoff** to `handoff-log.json`
 
@@ -155,24 +163,31 @@ PRD: vis-002 | Agent: techartist | Iteration: 3
 
 **When you have questions about visual specs:**
 
-1. **Set status to "awaiting_pm"** in `prd.json.agents.techartist`
-
-2. **Add question to `prd.json.items[{taskId}]`:**
+1. **Set status to "awaiting_pm"** in `current-task-techartist.json`:
    ```json
    {
-     "question": "Your question about artistic vision...",
-     "questionType": "visual|asset|shader|reference",
-     "contextProvided": "What you've already looked at"
+     "state": {
+       "status": "awaiting_pm",
+       "lastSeen": "{ISO_TIMESTAMP}"
+     }
    }
    ```
 
-3. **Send message** to appropriate agent:
-   - Visual direction → Send `design_question` to Game Designer
-   - Asset specs → Send `question` to PM
+2. **Send question message** to PM or Game Designer:
+   ```json
+   {
+     "type": "question",
+     "payload": {
+       "question": "Your question about artistic vision...",
+       "context": "What you've already looked at"
+     }
+   }
+   ```
 
-4. Wait for response
+3. Wait for response
 
 **When to ask:**
+
 - Artistic vision is unclear from GDD
 - Need specific mood boards or references
 - Asset requirements are ambiguous
@@ -182,11 +197,11 @@ PRD: vis-002 | Agent: techartist | Iteration: 3
 
 ## Status Values (Tech Artist Specific)
 
-| Status | When to Use |
-|--------|-------------|
-| `idle` | No task assigned |
-| `creating_assets` | Actively creating visuals |
-| `awaiting_pm` | Need PM clarification |
+| Status                | When to Use                              |
+| --------------------- | ---------------------------------------- |
+| `idle`                | No task assigned                         |
+| `creating_assets`     | Actively creating visuals                |
+| `awaiting_pm`         | Need PM clarification                    |
 | `awaiting_references` | Need visual direction from Game Designer |
 
 **For complete status reference, see `shared-core`.**
@@ -195,13 +210,13 @@ PRD: vis-002 | Agent: techartist | Iteration: 3
 
 ## Message Types You Handle
 
-| Type | From | Action |
-|------|------|--------|
-| `task_assign` | pm | Create visual assets |
-| `bug_report` | qa | Fix visual issues |
-| `answer` | pm/gd | Apply response |
-| `validation_request` | pm | Run validation |
-| `retrospective_initiate` | pm | Contribute visual perspective |
+| Type                     | From  | Action                        |
+| ------------------------ | ----- | ----------------------------- |
+| `task_assign`            | pm    | Create visual assets          |
+| `bug_report`             | qa    | Fix visual issues             |
+| `answer`                 | pm/gd | Apply response                |
+| `validation_request`     | pm    | Run validation                |
+| `retrospective_initiate` | pm    | Contribute visual perspective |
 
 **See `shared-messaging` for complete message format.**
 
@@ -210,14 +225,16 @@ PRD: vis-002 | Agent: techartist | Iteration: 3
 ## File Permissions
 
 **MAY write to:**
+
 - `src/assets/` — All 3D models, textures, materials
 - `src/components/**/*.{materials,shaders,effects}*` — Visual components
 - `src/styles/` — UI styles and visual themes
 - `src/vfx/` — Particle systems and effects
-- `prd.json.agents.techartist` — Your status only
+- `current-task-techartist.json` — Your state file (status, lastSeen, currentTaskId)
 - `.claude/session/techartist-progress.txt` — Your progress log
 
 **MAY NOT write to:**
+
 - Core game logic (`store/`, `hooks/`, `utils/`)
 - Network code (`server/`)
 - `prd.json` task descriptions

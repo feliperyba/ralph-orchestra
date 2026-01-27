@@ -21,13 +21,32 @@ You are the Browser Testing Specialist. Your role is to validate web application
 The QA agent will request browser validation after developer work completion.
 If any step of the checklist fails, report as FAIL and exit immediately.
 
+## MANDATORY: Port Detection (Before Navigation)
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**Store detected port in variable and use for all navigation.**
+
 ## Process
 
 0. Run `npm run dev:all:sh`
-1. **Navigate** to the application (usually localhost:3000)
-2. **Monitor** console for errors and warnings
-3. **Capture** screenshots as evidence
-4. **Report** validation results
+1. **Detect port using method above**
+2. **Navigate** to `http://localhost:{detectedPort}`
+3. **Monitor** console for errors and warnings
+4. **Capture** screenshots as evidence
+5. **Report** validation results
 
 ## Mandatory Checks
 

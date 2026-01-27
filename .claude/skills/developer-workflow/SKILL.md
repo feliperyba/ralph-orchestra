@@ -12,16 +12,16 @@ category: workflow
 
 | Phase              | Invoke With                                                                                                                |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Worktree Setup     | `Skill("shared-worktree")`                                                                                          |
+| Worktree Setup     | `Skill("shared-worktree")`                                                                                                 |
 | Task Research      | `Skill("dev-research-gdd-reading")`, `Skill("dev-research-codebase-exploration")`, `Skill("dev-research-pattern-finding")` |
 | Skill Selection    | `Skill("dev-router")`                                                                                                      |
 | E2E Testing        | `Skill("dev-validation-browser-testing")`                                                                                  |
 | Quality Gates      | `Skill("dev-validation-quality-gates")`                                                                                    |
 | Feedback Loops     | `Skill("dev-validation-feedback-loops")`                                                                                   |
 | Git/Commits        | `Skill("dev-coordination-git-protocol")`                                                                                   |
-| Task Memory        | `Skill("shared-retrospective")`                                                                                       |
-| Retrospective      | `Skill("shared-retrospective")`                                                                                     |
-| Context Management | `Skill("shared-context")`                                                                                       |
+| Task Memory        | `Skill("shared-retrospective")`                                                                                            |
+| Retrospective      | `Skill("shared-retrospective")`                                                                                            |
+| Context Management | `Skill("shared-context")`                                                                                                  |
 
 ---
 
@@ -33,7 +33,7 @@ On agent startup or task assignment:
 
 1. **Worktree check** - `Skill("shared-worktree")`
 2. **Process pending messages** (MANDATORY) - Use Glob + Read tools from `.claude/session/messages/developer/msg-*.json`, acknowledge to watchdog
-3. **Read prd.json** - Get current task assignment
+3. **Read current-task-developer.json** - Get current task assignment (v2.0: DO NOT read prd.json)
 4. **Load skill router** - `Skill("dev-router")`
 5. **Task research** (MANDATORY) - See below
 6. **Implement feature** - Following researched patterns
@@ -46,19 +46,21 @@ On agent startup or task assignment:
 
 ## Dashboard Status Update (Before Every Action)
 
-**CRITICAL: Before starting ANY work action, update your status in prd.json.agents.developer:**
+**CRITICAL: Before starting ANY work action, update your status in current-task-developer.json:**
 
-| Action                      | Update PRD Like This                                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Starting work on task**   | `status = "working"` + `currentTask = "{taskId}"` + `lastSeen = "{ISO_TIMESTAMP}"`                             |
-| **Blocked by question**     | `status = "awaiting_pm"` + `lastSeen = "{ISO_TIMESTAMP}"`                                                    |
-| **Sending to QA**           | `status = "idle"` + `currentTask = null` + `lastSeen = "{ISO_TIMESTAMP}"`                                     |
-| **Self-reporting progress** | `lastSeen = "{ISO_TIMESTAMP}"`                                                                               |
+| Action                      | Update State File Like This                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| **Starting work on task**   | `state.status = "working"` + `id = "{taskId}"` + `state.lastSeen = "{ISO_TIMESTAMP}"` |
+| **Blocked by question**     | `state.status = "awaiting_pm"` + `state.lastSeen = "{ISO_TIMESTAMP}"`               |
+| **Sending to QA**           | `state.status = "idle"` + `id = null` + `state.lastSeen = "{ISO_TIMESTAMP}"`         |
+| **Self-reporting progress** | `state.lastSeen = "{ISO_TIMESTAMP}"`                                                |
+
+**⚠️ V2.0 IMPORTANT:** Workers do NOT update prd.json directly. The PM reads your state file and syncs to prd.json.
 
 **If you don't update:**
-- Supervisor thinks you crashed and restarts you
+
+- PM thinks you crashed and may reassign your task
 - Dashboard shows stale status
-- PM may reassign your task
 
 ---
 
@@ -117,22 +119,25 @@ Skill("dev-router")
 ```
 
 The router provides:
+
 - 31 developer skills in 9 categories (R3F, Multiplayer, Assets, Performance, Patterns, TypeScript, Validation, Research, Coordination)
 - Signal-based keyword routing
 - 5 sub-agents: orchestrator, code-research, implementation, validation, commit
+
+Always load the correct skill or use the correct sub-agent before working with the tasks. You are working with game mechanics, physics, colyseus.js, r3f and typescript often. Those are primary skills for your work
 
 ---
 
 ## Implementation Workflow
 
-1. **UPDATE DASHBOARD STATUS** (MANDATORY - First step)
-   - `prd.json.agents.developer.status = "working"`
-   - `prd.json.agents.developer.currentTask = "{taskId}"`
-   - `prd.json.agents.developer.lastSeen = "{ISO_TIMESTAMP}"`
+1. **UPDATE STATE FILE** (MANDATORY - First step)
+   - Edit `current-task-developer.json`:
+     - `state.status = "working"`
+     - `state.currentTaskId = "{taskId}"`
+     - `state.lastSeen = "{ISO_TIMESTAMP}"`
 
 2. **CREATE TASK MEMORY** - `Skill("shared-retrospective")`
    - File: `.claude/session/agents/developer/task-{taskId}-memory.md`
-   - PRD update: `prd.json.items[{taskId}].status = "in_progress"`
 
 3. **TASK RESEARCH** - See previous section
 
@@ -150,7 +155,7 @@ The router provides:
    - Skip only for: bug fixes, refactorings, non-visual changes
 
 7. **IF BLOCKED**
-   - PRD: `status = "awaiting_pm_clarification"`
+   - Update state: `state.status = "awaiting_pm"`
    - Send question to PM using the **Write tool**:
 
    ```
@@ -191,7 +196,7 @@ The router provides:
 
 10. **SEND TO QA**
 
-- PRD: `status = "awaiting_qa"`, `passes = false`
+- Update state: `state.status = "idle"`, `id = null`
 - Send completion using the **Write tool**:
 
   ```
@@ -213,13 +218,7 @@ The router provides:
   }
   ```
 
-- Agent status: `idle` via PRD update:
-  ```
-  prd.json.agents.developer.status = "idle"
-  prd.json.agents.developer.lastSeen = "{ISO-8601-timestamp}"
-  ```
-
-- Exit
+- Exit (PM will set task status to awaiting_qa after reading your state file)
 
 ---
 
@@ -239,32 +238,20 @@ The router provides:
 
 ## Exit Conditions
 
-### PRD Status Reference
+### State File Status Reference (v2.0)
 
-| Scenario         | Task Status                 | Agent Status        | Message / Write Command                                               |
-| ---------------- | --------------------------- | ------------------- | ------------------------------------------------------------------------- |
-| Starting work    | `in_progress`               | `working`           | (none)                                                                   |
-| Blocked/question | `awaiting_pm_clarification` | `awaiting_pm`       | Write to messages/pm/msg-pm-{ts}-001.json with type="question"        |
-| Sending to QA    | `awaiting_qa`               | `idle`              | Write to messages/pm/msg-pm-{ts}-001.json with type="task_complete"  |
-| QA returned bugs | `in_progress`               | `working`           | (none)                                                                   |
-| Fixes complete   | `awaiting_qa`               | `idle`              | Write to messages/pm/msg-pm-{ts}-001.json with type="task_complete"  |
-| Heartbeat        | (unchanged)                 | (update `lastSeen`) | (no message needed - just update PRD)                                    |
+| Scenario         | Your State File (`state.status`) | Message / Write Command                                             |
+| ---------------- | ------------------------------- | ------------------------------------------------------------------- |
+| Starting work    | `working` + `currentTaskId = "{taskId}"` | (none - just update state file)                                   |
+| Blocked/question | `awaiting_pm`                   | Write to messages/pm/msg-pm-{ts}-001.json with type="question"      |
+| Sending to QA    | `idle` + `id = null`            | Write to messages/pm/msg-pm-{ts}-001.json with type="task_complete" |
+| QA returned bugs | `working` + `currentTaskId = "{taskId}"` | (none - just update state file)                                   |
+| Fixes complete   | `idle` + `id = null`            | Write to messages/pm/msg-pm-{ts}-001.json with type="task_complete" |
+| Heartbeat        | (unchanged)                     | (update `state.lastSeen` in state file)                             |
 
-**ALWAYS update BOTH task status AND agent status before exiting!**
+**⚠️ V2.0:** Workers update ONLY their state file. PM syncs state to prd.json.
 
----
-
-## Context Window Monitoring
-
-For big tasks (5+ acceptance criteria, 3+ files, architectural):
-
-```
-Skill("shared-context")
-```
-
-- Context checking with `/context` command
-- Checkpoint creation when >= 70%
-- Worker resumption procedure
+**ALWAYS update your state file before exiting!**
 
 ---
 
@@ -283,7 +270,7 @@ When `retrospective_initiate` message received:
 
 4. **Delete ALL task memory files**
 
-5. **Update PRD status** to `idle`
+5. **Update state file** - Set `state.status = "idle"`
 
 ---
 

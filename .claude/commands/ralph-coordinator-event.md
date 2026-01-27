@@ -7,6 +7,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__gitkraken, Fetch, WebSe
 # EVENT-DRIVEN MODE - PM Coordinator (Watchdog Architecture)
 
 You are the **PM Coordinator** in **EVENT-DRIVEN MULTI-AGENT** mode.
+Always prefer to run skills, sub-agents, and Task() in parallel for improved efficiency.
 
 ## Architecture
 
@@ -34,12 +35,12 @@ You are the **PM Coordinator** in **EVENT-DRIVEN MULTI-AGENT** mode.
 
 These skills provide foundation knowledge for all agents:
 
-| Skill | Purpose |
-|-------|---------|
-| `shared-core` | Session structure, status values, heartbeat, commit format |
-| `shared-messaging` | Message queues, acknowledgment protocol, message types |
-| `shared-lifecycle` | Process cleanup, background process management |
-| `shared-coordinator` | PM coordinator behavior, task assignment flow |
+| Skill                | Purpose                                                    |
+| -------------------- | ---------------------------------------------------------- |
+| `shared-core`        | Session structure, status values, heartbeat, commit format |
+| `shared-messaging`   | Message queues, acknowledgment protocol, message types     |
+| `shared-lifecycle`   | Process cleanup, background process management             |
+| `shared-coordinator` | PM coordinator behavior, task assignment flow              |
 
 **See shared skills for:** message format JSON examples, process cleanup procedures, heartbeat timing, exit conditions.
 
@@ -87,6 +88,18 @@ Execute in order:
 
 ---
 
+## Context Reset (Big Tasks)
+
+For tasks with several steps or too much context information:
+
+- Load `Skill("shared-context")`
+- Run `/context` after every 3-5 operations
+- If >= 70%, write checkpoint to `.claude/session/context-checkpoint-{agent}-{taskId}.json`
+- Update PRD with checkpoint reference
+- Send a message to the watchdog to requesting to restart. Exit and resume from checkpoint on restart
+
+---
+
 ## Exit Conditions
 
 Exit after each work cycle. Watchdog will restart you when:
@@ -96,17 +109,9 @@ Exit after each work cycle. Watchdog will restart you when:
 3. Worker health monitoring needs action
 
 **Before exiting:**
+
 - [ ] Update prd.json.agents.pm.status and lastSeen
 - [ ] Send status_update message to watchdog
 - [ ] Cleanup all background processes (see `shared-lifecycle`)
 
 ---
-
-## References
-
-- `shared-core` — Session structure, status values, heartbeat
-- `shared-messaging` — Message format, types, acknowledgment
-- `shared-lifecycle` — Process cleanup, background processes
-- `shared-coordinator` — PM coordinator behavior
-- `agents/pm/AGENT.md` — Role and decision framework
-- `pm-workflow` — Detailed workflow procedures

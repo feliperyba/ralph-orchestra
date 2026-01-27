@@ -297,6 +297,9 @@ For water-based paint mechanics: `Skill("ta-paint-territory")`
 
 ## External References
 
+- Implementation plan: `docs/implementation/terrain-refactor-plan.md` (Phase 2)
 - Research guide: `docs/research/terrain-shader-research.md`
+- Color palette: `docs/references/terrain/color-palette.ts`
+- Visual reference: `docs/references/terrain/README.md`
 - ShaderToy Seascape: https://www.shadertoy.com/view/Ms2SD1
 - Three.js Journey Raging Sea

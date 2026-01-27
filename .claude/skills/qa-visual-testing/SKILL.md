@@ -17,9 +17,30 @@ Use for **every game feature validation** to create E2E tests that:
 - Validate UI elements (HUD, health bars, buttons) programmatically
 - Verify visual appearance matches design specifications (GDD) using Vision MCP helpers
 
+## MANDATORY: Port Detection Before Browser Testing
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**NOTE:** E2E tests configured in `playwright.config.ts` use `baseURL: 'http://localhost:3000'` and the `webServer` configuration automatically starts the dev server on the correct port.
+
+**For manual testing or MCP validation, detect the port first and use `http://localhost:{detectedPort}`.**
+
 ## Core Principle: Write E2E Tests, Use Vision MCP Helpers
 
 **✅ CORRECT APPROACH:**
+
 ```typescript
 // Write E2E test with screenshot comparison - YES!
 test('visual regression check', async ({ page }) => {
@@ -34,6 +55,7 @@ test('visual regression check', async ({ page }) => {
 ```
 
 **✅ FOR QUALITATIVE ANALYSIS:**
+
 ```typescript
 // Use Vision MCP helper for GDD compliance - YES!
 test('shader quality meets GDD standards', async ({ page }) => {
@@ -44,12 +66,16 @@ test('shader quality meets GDD standards', async ({ page }) => {
   const screenshot = await page.screenshot();
 
   // Use helper function for Vision MCP analysis
-  const analysis = await analyzeVisualQuality(screenshot, 'Shader material quality, GDD compliance');
+  const analysis = await analyzeVisualQuality(
+    screenshot,
+    'Shader material quality, GDD compliance'
+  );
   expect(analysis.passes).toBe(true);
 });
 ```
 
 **❌ DO NOT USE:**
+
 ```typescript
 // Interactive MCP - NO!
 mcp__playwright__browser_navigate('http://localhost:3000');
@@ -104,7 +130,7 @@ export async function analyzeVisualQuality(
   // In production, this would save the screenshot and trigger Vision MCP analysis
   return {
     passes: true,
-    notes: ['Analysis pending - run Vision MCP separately']
+    notes: ['Analysis pending - run Vision MCP separately'],
   };
 }
 
@@ -118,7 +144,7 @@ export async function checkGDDCompliance(
   // Vision MCP analysis for GDD compliance
   return {
     compliant: true,
-    deviations: []
+    deviations: [],
   };
 }
 
@@ -132,7 +158,7 @@ export async function detectGameState(
   return {
     state: 'playing',
     uiElements: ['hud', 'healthBar'],
-    playerVisible: true
+    playerVisible: true,
   };
 }
 ```
@@ -251,7 +277,10 @@ test('HUD elements are visible', async ({ page }) => {
 
   // Vision MCP for qualitative assessment
   const screenshot = await page.screenshot();
-  const analysis = await analyzeVisualQuality(screenshot, 'HUD elements properly styled and positioned');
+  const analysis = await analyzeVisualQuality(
+    screenshot,
+    'HUD elements properly styled and positioned'
+  );
   expect(analysis.passes).toBe(true);
 });
 ```
@@ -332,7 +361,10 @@ test('paint projectile visual validation', async ({ page }) => {
 
   // Vision MCP for qualitative check
   const screenshot = await page.screenshot();
-  const analysis = await analyzeVisualQuality(screenshot, 'Paint projectile has team color, glow, and trail effect');
+  const analysis = await analyzeVisualQuality(
+    screenshot,
+    'Paint projectile has team color, glow, and trail effect'
+  );
   expect(analysis.passes).toBe(true);
 });
 ```
@@ -393,7 +425,10 @@ test('terrain paint overlay visibility', async ({ page }) => {
 
   // Verify paint visible with Vision MCP helper
   const screenshot = await page.screenshot();
-  const analysis = await analyzeVisualQuality(screenshot, 'Paint splat visible on terrain with correct team color');
+  const analysis = await analyzeVisualQuality(
+    screenshot,
+    'Paint splat visible on terrain with correct team color'
+  );
   expect(analysis.passes).toBe(true);
 });
 ```
@@ -461,15 +496,18 @@ test('character model matches GDD', async ({ page }) => {
 const colorModes = ['default', 'protanopia', 'deuteranopia', 'tritanopia', 'high_contrast'];
 
 test.describe('Color Mode Visual Regression', () => {
-  colorModes.forEach(mode => {
+  colorModes.forEach((mode) => {
     test(`renders ${mode} color mode correctly`, async ({ page }) => {
       // Set color mode
       await page.goto('http://localhost:3000');
       await page.evaluate((m) => {
-        localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-          hasCompletedFirstLaunch: true,
-          colorMode: m
-        }));
+        localStorage.setItem(
+          'project-chroma-accessibility',
+          JSON.stringify({
+            hasCompletedFirstLaunch: true,
+            colorMode: m,
+          })
+        );
       }, mode);
       await page.reload();
 
@@ -539,7 +577,7 @@ test.describe('Visual Validation - feat-001', () => {
     );
 
     expect(analysis.passes).toBe(true);
-    expect(analysis.notes.filter(n => n.includes('FAIL'))).toHaveLength(0);
+    expect(analysis.notes.filter((n) => n.includes('FAIL'))).toHaveLength(0);
   });
 });
 ```
@@ -576,6 +614,58 @@ For each visual validation:
 - [ ] Vision MCP analysis passes for qualitative criteria
 - [ ] No visual glitches detected
 - [ ] Deviations documented with severity
+
+---
+
+## Server Management
+
+**⚠️ CRITICAL: Use `shared-lifecycle` skill for server management.**
+
+### Server Detection (Before Visual Tests)
+
+**⚠️ IMPORTANT: Playwright's `webServer` config manages servers for E2E tests automatically.**
+
+When running `npm run test:e2e`, Playwright automatically starts:
+- `npm run dev` (port 3000) with `reuseExistingServer: !process.env.CI`
+
+**DO NOT manually start servers for E2E tests.**
+
+### Server Check Pattern
+
+```bash
+# Check if dev server is running (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+### E2E Test Path (Standard Visual Validation)
+
+```bash
+# Playwright handles server lifecycle via webServer config
+npm run test:e2e -- tests/e2e/visual-suite.spec.ts
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Manual MCP Validation Path (Only when explicitly needed)
+
+```bash
+# Only for manual MCP validation (NOT E2E tests)
+# Check port 3000 first
+if ! netstat -an | grep :3000; then
+  # Start server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup: { shell_id: "abc123" }
+fi
+
+# After validation completes:
+TaskStop(task_id="abc123")  # MANDATORY cleanup
+```
+
+**See also:** `shared-lifecycle` skill for complete process management patterns.
 
 ---
 

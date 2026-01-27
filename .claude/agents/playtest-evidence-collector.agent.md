@@ -20,11 +20,23 @@ You are the Playtest Evidence Collector. Your role is to systematically playtest
 
 The Game Designer will request playtesting during the retrospective phase.
 
+## MANDATORY: Port Detection Before Navigation
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+```
+
 ## Process
 
 0. Run `npm run dev:all:sh`
-1. **Navigate** to application (localhost:3000)
-2. **Execute** test scenarios based on acceptance criteria
+1. **Detect port** using method above
+2. **Navigate** to `http://localhost:{detectedPort}`
+3. **Execute** test scenarios based on acceptance criteria
 
 - Check the land screen
 - Check character selection

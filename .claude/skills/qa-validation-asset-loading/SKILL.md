@@ -16,6 +16,7 @@ category: validation
 ## Quick Start
 
 ### Asset Loading Performance Test
+
 ```typescript
 // playwright.config.ts
 export default defineConfig({
@@ -79,9 +80,10 @@ test.describe('Asset Loading Validation', () => {
 ```
 
 ### Browser Compatibility Test
+
 ```typescript
 test.describe('Cross-Browser Asset Loading', () => {
-  ['chromium', 'firefox', 'webkit'].forEach(browserName => {
+  ['chromium', 'firefox', 'webkit'].forEach((browserName) => {
     test(`Asset loading in ${browserName}`, async ({ page }) => {
       await page.goto('/');
 
@@ -89,7 +91,7 @@ test.describe('Cross-Browser Asset Loading', () => {
       await page.waitForLoadState('networkidle');
 
       // Test asset loading in different browsers
-      const assetResponses = await page.waitForResponse(response =>
+      const assetResponses = await page.waitForResponse((response) =>
         response.url().includes('/assets/')
       );
 
@@ -107,22 +109,22 @@ test.describe('Cross-Browser Asset Loading', () => {
 ## Anti-Patterns
 
 ❌ **DON'T:** Only test assets in development environment
+
 ```typescript
 // Bad - Only tests local development
 test('Asset loading', async ({ page }) => {
-  await page.goto('http://localhost:3000'); // Local only
+  await page.goto('http://localhost:3000'); // E2E tests use baseURL from playwright.config.ts
   // ... tests
 });
 ```
 
 ✅ **DO:** Test in multiple environments with different configurations
+
 ```typescript
 // Good - Tests multiple environments
-[process.env.TEST_ENV].forEach(env => {
+[process.env.TEST_ENV].forEach((env) => {
   test(`Asset loading in ${env}`, async ({ page }) => {
-    const baseUrl = env === 'production'
-      ? 'https://your-game.com'
-      : 'http://localhost:3000';
+    const baseUrl = env === 'production' ? 'https://your-game.com' : 'http://localhost:3000';
 
     await page.goto(`${baseUrl}/characters`);
     // ... environment-specific tests
@@ -131,6 +133,7 @@ test('Asset loading', async ({ page }) => {
 ```
 
 ❌ **DON'T:** Ignore memory usage during asset loading
+
 ```typescript
 // Bad - No memory monitoring
 test('Load models', async ({ page }) => {
@@ -141,6 +144,7 @@ test('Load models', async ({ page }) => {
 ```
 
 ✅ **DO:** Monitor memory and performance metrics
+
 ```typescript
 test('Memory-safe asset loading', async ({ page }) => {
   const initialMemory = await page.evaluate(() => {
@@ -170,6 +174,7 @@ test('Memory-safe asset loading', async ({ page }) => {
 ## Performance Validation Patterns
 
 ### Load Time Measurement
+
 ```typescript
 test.describe('Asset Loading Performance', () => {
   test('Sequential loading load time', async ({ page }) => {
@@ -195,6 +200,7 @@ test.describe('Asset Loading Performance', () => {
 ```
 
 ### Resource Usage Monitoring
+
 ```typescript
 test('GPU memory usage during loading', async ({ page }) => {
   // Note: This requires browser extensions or specific APIs
@@ -210,11 +216,12 @@ test('GPU memory usage during loading', async ({ page }) => {
 ## Error Handling Validation
 
 ### Error Recovery Test
+
 ```typescript
 test.describe('Asset Loading Error Handling', () => {
   test('Graceful handling of missing assets', async ({ page }) => {
     // Mock a failed asset load
-    await page.route('**/assets/missing.fbx', route => {
+    await page.route('**/assets/missing.fbx', (route) => {
       route.abort('failed');
     });
 
@@ -239,7 +246,7 @@ test.describe('Asset Loading Error Handling', () => {
     let attemptCount = 0;
 
     // Mock 2 failures then success
-    await page.route('**/assets/retry-test.fbx', route => {
+    await page.route('**/assets/retry-test.fbx', (route) => {
       attemptCount++;
       if (attemptCount < 3) {
         route.abort('failed');
@@ -247,7 +254,7 @@ test.describe('Asset Loading Error Handling', () => {
         route.fulfill({
           status: 200,
           contentType: 'application/octet-stream',
-          body: new ArrayBuffer(1024) // Mock FBX data
+          body: new ArrayBuffer(1024), // Mock FBX data
         });
       }
     });
@@ -262,11 +269,12 @@ test.describe('Asset Loading Error Handling', () => {
 ```
 
 ### Network Conditions Testing
+
 ```typescript
 test.describe('Network Condition Testing', () => {
-  ['slow-3g', 'offline'].forEach(condition => {
+  ['slow-3g', 'offline'].forEach((condition) => {
     test(`Asset loading under ${condition}`, async ({ page }) => {
-      await page.route('**/*', route => {
+      await page.route('**/*', (route) => {
         if (route.request().resourceType() === 'document') {
           route.continue();
         } else {
@@ -278,7 +286,7 @@ test.describe('Network Condition Testing', () => {
       await page.emulateNetworkConditions({
         offline: condition === 'offline',
         downloadThroughput: condition === 'slow-3g' ? 500 * 1024 : 0,
-        uploadThroughput: condition === 'slow-3g' ? 500 * 1024 : 0
+        uploadThroughput: condition === 'slow-3g' ? 500 * 1024 : 0,
       });
 
       await page.goto('/characters');
@@ -296,6 +304,7 @@ test.describe('Network Condition Testing', () => {
 ## Visual Regression Testing
 
 ### Loading States
+
 ```typescript
 test.describe('Visual Regression for Loading States', () => {
   test('Loading state appearance', async ({ page }) => {
@@ -315,10 +324,11 @@ test.describe('Visual Regression for Loading States', () => {
 ```
 
 ### Error State Visuals
+
 ```typescript
 test('Error state visual consistency', async ({ page }) => {
   // Mock asset loading failure
-  await page.route('**/assets/error-test.fbx', route => {
+  await page.route('**/assets/error-test.fbx', (route) => {
     route.abort('failed');
   });
 
@@ -333,6 +343,7 @@ test('Error state visual consistency', async ({ page }) => {
 ## Automated Performance Metrics
 
 ### Performance Budget Checker
+
 ```typescript
 function createPerformanceBudget() {
   return {
@@ -344,12 +355,13 @@ function createPerformanceBudget() {
     async checkBudget(page: Page, testId: string) {
       const metrics = await page.evaluate(() => {
         return {
-          loadTime: window.performance.timing.loadEventEnd - window.performance.timing.navigationStart,
+          loadTime:
+            window.performance.timing.loadEventEnd - window.performance.timing.navigationStart,
           memory: {
             used: performance.memory?.usedJSHeapSize || 0,
-            total: performance.memory?.jsHeapSizeLimit || 0
+            total: performance.memory?.jsHeapSizeLimit || 0,
           },
-          errors: (window as any).__consoleErrors?.length || 0
+          errors: (window as any).__consoleErrors?.length || 0,
         };
       });
 
@@ -372,7 +384,7 @@ function createPerformanceBudget() {
       }
 
       return metrics;
-    }
+    },
   };
 }
 

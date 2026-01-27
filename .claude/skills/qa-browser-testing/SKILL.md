@@ -11,6 +11,7 @@ category: validation
 ## When to Use This Skill
 
 Use for **every validation** after automated checks pass:
+
 - Validating Developer implementation
 - Verifying Tech Artist visual assets
 - Testing gameplay mechanics
@@ -20,21 +21,71 @@ Use for **every validation** after automated checks pass:
 ## Quick Start
 
 ```bash
-# 1. Check if E2E test exists for the feature
+# 1. MANDATORY: Detect dev server port (Vite may use 3000, 3001, 5173, etc.)
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+# OR try: curl -s http://localhost:3000 | grep -q "vite" && echo "3000" || curl -s http://localhost:3001 | grep -q "vite" && echo "3001"
+
+# 2. Check if E2E test exists for the feature
 ls tests/e2e/{feature}-suite.spec.ts
 
-# 2. If missing, create using qa-e2e-test-creation patterns
+# 3. If missing, create using qa-e2e-test-creation patterns
 # Use Skill("qa-e2e-test-creation")
 
-# 3. Run E2E tests to validate implementation
+# 4. Run E2E tests to validate implementation
 npm run test:e2e
 
-# 4. Review test output for acceptance criteria verification
+# 5. Review test output for acceptance criteria verification
 ```
+
+## MANDATORY: Port Detection
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+
+# Method 3: Check Vite output when running `npm run dev`
+# Look for "Local: http://localhost:XXXX" in the output
+```
+
+**E2E tests automatically detect the port from `playwright.config.ts`.**
+**Manual MCP validation requires you to use the detected port.**
+
+## Multi-Agent Playwright Considerations
+
+**⚠️ IMPORTANT: When multiple agents use Playwright MCP simultaneously**
+
+Standard `@playwright/mcp` shares a single browser instance. For parallel agent execution:
+
+1. **Use `playwright-parallel-mcp`** - Isolated browser sessions per agent
+2. **Configuration in MCP settings:**
+   ```json
+   {
+     "mcpServers": {
+       "playwright": {
+         "command": "npx",
+         "args": ["playwright-parallel-mcp"],
+         "env": { "MAX_SESSIONS": "5" }
+       }
+     }
+   }
+   ```
+3. **Usage:** Create session per agent, use sessionId in all calls
+
+**Reference:** See `qa-mcp-helpers` skill for full details on parallel Playwright setup.
 
 ## Core Principle: Run Tests, Don't Use MCP
 
 **❌ OLD APPROACH (Do NOT do this):**
+
 ```typescript
 // Interactive MCP validation - NO!
 mcp__playwright__browser_navigate('http://localhost:3000');
@@ -42,6 +93,7 @@ mcp__playwright__browser_take_screenshot({ filename: 'validation.png' });
 ```
 
 **✅ NEW APPROACH (Do this):**
+
 ```typescript
 // Write or run E2E test - YES!
 npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
@@ -54,6 +106,7 @@ npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
 **⚠️ CRITICAL: Ensure tests exist before validation**
 
 1. **Check if E2E test exists** for the validated feature:
+
    ```bash
    # Look for test file
    ls tests/e2e/{feature}-suite.spec.ts
@@ -88,7 +141,7 @@ npm run test:e2e -- --debug
 
 ### Level 2: Verify Acceptance Criteria
 
-For each acceptance criterion in `prd.json.items[{taskId}]`:
+For each acceptance criterion in `current-task-qa.json` (acceptanceCriteria array):
 
 ```markdown
 ## Acceptance Criteria Verification
@@ -103,6 +156,7 @@ For each acceptance criterion in `prd.json.items[{taskId}]`:
 ### Level 3: Report Results
 
 **If ALL tests pass:**
+
 ```json
 {
   "id": "{taskId}",
@@ -117,6 +171,7 @@ For each acceptance criterion in `prd.json.items[{taskId}]`:
 ```
 
 **If ANY test fails:**
+
 ```json
 {
   "id": "{taskId}",
@@ -132,14 +187,14 @@ For each acceptance criterion in `prd.json.items[{taskId}]`:
 
 ## Test Categories
 
-| Category | What to Check | Test Pattern |
-|----------|---------------|--------------|
-| **Load** | Page loads, canvas renders | `test('page loads', ...)` |
-| **Console** | No errors or warnings | Console listener test |
-| **Functional** | Features work as specified | Acceptance criteria tests |
-| **Visual** | UI appears correctly | Screenshot comparison |
-| **Performance** | 60 FPS, no stuttering | FPS monitoring test |
-| **Input** | Controls respond correctly | WASD/mouse tests |
+| Category        | What to Check              | Test Pattern              |
+| --------------- | -------------------------- | ------------------------- |
+| **Load**        | Page loads, canvas renders | `test('page loads', ...)` |
+| **Console**     | No errors or warnings      | Console listener test     |
+| **Functional**  | Features work as specified | Acceptance criteria tests |
+| **Visual**      | UI appears correctly       | Screenshot comparison     |
+| **Performance** | 60 FPS, no stuttering      | FPS monitoring test       |
+| **Input**       | Controls respond correctly | WASD/mouse tests          |
 
 ## Creating Tests for Missing Coverage
 
@@ -165,6 +220,7 @@ test.describe('Feature Name - {taskId}', () => {
 ```
 
 **Then verify:**
+
 ```bash
 npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
 ```
@@ -317,24 +373,28 @@ Based on retrospective findings (bugfix-e2e-001, 2026-01-26), `domcontentloaded`
 **Default Choice**: `domcontentloaded`
 
 **Why `domcontentloaded` is preferred:**
+
 - Fires when HTML is parsed and DOM is ready
 - Much faster than waiting for all network requests
 - Sufficient for most UI interactions (after waiting for specific elements)
 - `networkidle` can timeout on pages with continuous background activity
 
 **When to use `load`:**
+
 - Testing image loading
 - Need fonts fully applied
 - Media elements (video/audio)
 - Critical styles depend on external resources
 
 **When to use `networkidle`:**
+
 - SPA with continuous background polling
 - Analytics/tracking scripts running
 - WebSocket connections active
 - Rare - only when explicitly justified
 
 **Learned from bugfix-e2e-001 (2026-01-26):**
+
 - Changed `waitForLoadState('networkidle')` to `waitForLoadState('domcontentloaded')`
 - 23/23 accessibility tests now passing (was timing out before)
 - Tests complete within 60 seconds (was timing out)
@@ -373,7 +433,7 @@ test.beforeAll(async () => {
   // Start server for E2E tests
   serverProcess = spawn('npm', ['run', 'server'], {
     env: { ...process.env, PORT: String(TEST_PORT) },
-    stdio: 'pipe'
+    stdio: 'pipe',
   });
 
   // Wait for server to be ready
@@ -393,6 +453,7 @@ test.afterAll(async () => {
 ```
 
 **Port Management Checklist:**
+
 - [ ] Use unique port for E2E tests (different from development)
 - [ ] Set port via environment variable
 - [ ] Explicitly kill server process in afterAll
@@ -400,6 +461,7 @@ test.afterAll(async () => {
 - [ ] Handle cleanup even if test fails (try/finally)
 
 **Learned from bugfix-e2e-002 (2026-01-26):**
+
 - Fixed EADDRINUSE errors with proper port cleanup
 - 65/65 E2E tests passing (100% success rate)
 - Server availability detection added
@@ -429,7 +491,7 @@ test.describe('Shader Error Detection', () => {
         /assign.*null/i,
       ];
 
-      if (shaderErrorPatterns.some(pattern => pattern.test(text))) {
+      if (shaderErrorPatterns.some((pattern) => pattern.test(text))) {
         shaderErrors.push(text);
       }
     });
@@ -464,19 +526,20 @@ test.describe('Shader Task Validation Checklist', () => {
     for (const mode of colorModes) {
       // Set mode via localStorage or UI
       await page.evaluate((m) => {
-        localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-          hasCompletedFirstLaunch: true,
-          colorMode: m
-        }));
+        localStorage.setItem(
+          'project-chroma-accessibility',
+          JSON.stringify({
+            hasCompletedFirstLaunch: true,
+            colorMode: m,
+          })
+        );
       }, mode);
       await page.reload();
       await page.waitForTimeout(1000);
     }
 
     // Verify no shader errors across all modes
-    const shaderErrors = allErrors.filter(e =>
-      /shader|THREE|TSL|WebGL/i.test(e)
-    );
+    const shaderErrors = allErrors.filter((e) => /shader|THREE|TSL|WebGL/i.test(e));
     expect(shaderErrors).toHaveLength(0);
   });
 });
@@ -526,7 +589,7 @@ test.describe('Runtime Error Detection', () => {
     await page.waitForTimeout(5000); // Wait for initial load
 
     // Check for specific runtime error patterns
-    const blockingErrors = runtimeErrors.filter(error => {
+    const blockingErrors = runtimeErrors.filter((error) => {
       const blockingPatterns = [
         /Cannot read properties.*undefined/,
         /Cannot read.*property.*undefined/,
@@ -535,15 +598,15 @@ test.describe('Runtime Error Detection', () => {
         /is not a function/,
         /Unexpected token/,
       ];
-      return blockingPatterns.some(pattern => pattern.test(error.message));
+      return blockingPatterns.some((pattern) => pattern.test(error.message));
     });
 
     if (blockingErrors.length > 0) {
       console.error('BLOCKING RUNTIME ERRORS FOUND:', blockingErrors);
       throw new Error(
         `Found ${blockingErrors.length} blocking runtime error(s):\n` +
-        blockingErrors.map(e => `  - ${e.message}`).join('\n') +
-        `\n\nThese errors must be fixed before validation can proceed.`
+          blockingErrors.map((e) => `  - ${e.message}`).join('\n') +
+          `\n\nThese errors must be fixed before validation can proceed.`
       );
     }
 
@@ -629,15 +692,16 @@ test.beforeEach(async ({ page }) => {
 
 ### Validation Blocking Rules
 
-| Error Type | Is Blocking? | Action |
-|------------|--------------|--------|
-| TypeError in changed files | YES | Return to Developer |
-| TypeError in unchanged files | YES | Create blocker task |
-| ReferenceError | YES | Return to Developer |
-| Console warnings | NO | Note in report |
-| Asset load errors (404) | MAYBE | Check if task-related |
+| Error Type                   | Is Blocking? | Action                |
+| ---------------------------- | ------------ | --------------------- |
+| TypeError in changed files   | YES          | Return to Developer   |
+| TypeError in unchanged files | YES          | Create blocker task   |
+| ReferenceError               | YES          | Return to Developer   |
+| Console warnings             | NO           | Note in report        |
+| Asset load errors (404)      | MAYBE        | Check if task-related |
 
 **Learned from bugfix-tps-001 retrospective (2026-01-25)**:
+
 - "Cannot read properties of undefined" runtime error blocked browser validation for feat-tps-005
 - Pre-existing errors need separate bugfix tasks, not to block current task indefinitely
 - QA must distinguish between task-caused errors and pre-existing issues
@@ -676,12 +740,12 @@ test('multiplayer state sync', async ({ browser }) => {
 
 ## Cross-Browser Testing
 
-| Browser | Priority | Notes |
-|---------|----------|-------|
-| Chrome/Chromium | Required | Primary target |
-| Firefox | Recommended | WebGL differences |
-| Safari/WebKit | If targeting iOS | Significant differences |
-| Edge | Optional | Uses Chromium |
+| Browser         | Priority         | Notes                   |
+| --------------- | ---------------- | ----------------------- |
+| Chrome/Chromium | Required         | Primary target          |
+| Firefox         | Recommended      | WebGL differences       |
+| Safari/WebKit   | If targeting iOS | Significant differences |
+| Edge            | Optional         | Uses Chromium           |
 
 ```bash
 # Run on different browsers
@@ -708,12 +772,12 @@ Developer/Tech Artist writes E2E test
 
 ## Decision Framework
 
-| Test Result | Action |
-|-------------|--------|
-| All E2E tests pass | Mark as PASSED |
-| Some tests fail | Mark as NEEDS_FIXES with bug notes |
-| Console errors | Mark as NEEDS_FIXES |
-| No test exists | Create test first, then validate |
+| Test Result        | Action                             |
+| ------------------ | ---------------------------------- |
+| All E2E tests pass | Mark as PASSED                     |
+| Some tests fail    | Mark as NEEDS_FIXES with bug notes |
+| Console errors     | Mark as NEEDS_FIXES                |
+| No test exists     | Create test first, then validate   |
 
 ## Anti-Patterns
 
@@ -755,6 +819,7 @@ When tests fail, include in bug notes:
 **Error Message**: {error from test output}
 
 **Steps to Reproduce**:
+
 1. npm run test:e2e -- -g "{test-name}"
 2. Observe failure
 
@@ -766,11 +831,70 @@ When tests fail, include in bug notes:
 
 **⚠️ CRITICAL: Use `shared-lifecycle` skill for server management.**
 
-Before running E2E tests, always check/start the dev server using the patterns from `shared-lifecycle` skill.
+### Server Detection (Before Any Browser Interaction)
+
+**⚠️ IMPORTANT: Playwright's `webServer` config manages servers for E2E tests automatically.**
+
+When running `npm run test:e2e`, Playwright automatically starts:
+- `npm run dev` (port 3000) with `reuseExistingServer: !process.env.CI`
+- `npm run server` (port 2567) with `reuseExistingServer: false` (for multiplayer)
+
+**DO NOT manually start servers for E2E tests.**
+
+### Decision Tree
+
+```
+                    Running E2E tests?
+                            |
+            ┌───────────────┴───────────────┐
+            │                               │
+       YES (npm run test:e2e)        NO (Manual MCP validation)
+            │                               │
+            ▼                               ▼
+   DO NOT start servers         Check if servers running
+   Playwright manages them       If YES: use existing
+   Cleanup is automatic          If NO: start and track
+```
+
+### Server Check Pattern
+
+```bash
+# Check if dev server is running (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+### E2E Test Path (Standard Validation)
+
+```bash
+# Playwright handles server lifecycle via webServer config
+npm run test:e2e
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Manual MCP Validation Path (Only when explicitly needed)
+
+```bash
+# Only for manual MCP validation (NOT E2E tests)
+# Check port 3000 first
+if ! netstat -an | grep :3000; then
+  # Start server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup: { shell_id: "abc123" }
+fi
+
+# After validation completes:
+TaskStop(task_id="abc123")  # MANDATORY cleanup
+```
 
 **MANDATORY CLEANUP after all tests complete (pass OR fail):**
 
 Use the cleanup patterns from `shared-lifecycle` skill to ensure:
+
 - Dev server is stopped
 - Ports are released
 - No orphaned processes remain
@@ -782,3 +906,88 @@ Use the cleanup patterns from `shared-lifecycle` skill to ensure:
 - **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E test patterns
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 - [tests/pages/](tests/pages/) - Page Object Model classes
+
+## Camera Validation Pattern (feat-tps-004, 2026-01-27)
+
+**⚠️ CRITICAL: Camera validation requires E2E tests with exact value verification.**
+
+When validating camera features (TPS, orbital, etc.), use systematic E2E test coverage:
+
+```typescript
+// tests/e2e/camera-suite.spec.ts
+test.describe('TPS Camera Validation - feat-tps-004', () => {
+  test('should validate shoulder offset values match acceptance criteria', async ({ page }) => {
+    await page.goto('http://localhost:3000/?scene=controls');
+    await page.waitForSelector('canvas');
+
+    // Access camera test state (exposed by test scene)
+    const cameraState = await page.evaluate(() => {
+      return (window as any).__cameraTestState;
+    });
+
+    // Verify EXACT values from acceptance criteria
+    expect(cameraState.shoulderOffsetRight).toBe(0.75);
+    expect(cameraState.shoulderOffsetLeft).toBe(-0.75);
+
+    // Common bug: wrong values (0.85 instead of 0.75)
+    if (cameraState.shoulderOffsetRight !== 0.75) {
+      throw new Error(
+        `shoulderOffsetRight mismatch: expected 0.75, got ${cameraState.shoulderOffsetRight}`
+      );
+    }
+  });
+
+  test('should validate look-at offset is applied', async ({ page }) => {
+    await page.goto('http://localhost:3000/?scene=controls');
+    await page.waitForSelector('canvas');
+
+    // Screenshot validation for visual composition
+    await page.screenshot({
+      path: 'test-results/camera/shoulder-offset.png',
+    });
+
+    // Verify look-at direction
+    const lookAtOffset = await page.evaluate(() => {
+      const camera = (window as any).__testCamera;
+      return camera ? camera.userData.lookAtOffset : null;
+    });
+
+    expect(lookAtOffset).toBeDefined();
+    expect(Math.abs(lookAtOffset)).toBe(0.75);
+  });
+});
+```
+
+**Learned from feat-tps-004 retrospective:**
+
+1. **Value mismatch detection**: Implementation had 0.85, acceptance criteria specified 0.75
+   - Solution: E2E tests verify EXACT numerical values from acceptance criteria
+
+2. **Missing look-at offset**: Camera position was offset but looked at center
+   - Solution: E2E tests verify BOTH position and look-at are offset
+
+3. **Scene routing test**: URL-based scene loading must be tested
+   - Solution: Test `?scene=controls` actually loads correct scene
+
+**Camera E2E test checklist:**
+- [ ] Position offset values match acceptance criteria exactly
+- [ ] Look-at offset is applied (same as position offset)
+- [ ] Shoulder swap functionality tested (X key)
+- [ ] Screenshot validation for visual composition
+- [ ] Scene routing tested (URL parameters work)
+
+**URL Scene Routing Pattern:**
+```typescript
+// main.tsx - useState/useEffect sync for URL-based routing
+const [sceneParam, setSceneParam] = useState<string | null>(null);
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const scene = params.get('scene');
+  if (scene) {
+    setSceneParam(scene);
+    // Sync to gameStore
+    gameStore.setPhase(scene as any);
+  }
+}, []);
+```

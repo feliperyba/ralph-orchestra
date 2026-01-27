@@ -153,6 +153,92 @@ const hasOverlap = (bugfixA, bugfixB) => {
 - Parallel assignment would have saved ~1 iteration
 - PM must evaluate independence before sequential assignment
 
+### 8. Playtest Phase Decision Framework (NEW - 2026-01-27)
+
+**Goal**: Avoid wasting Game Designer time on non-gameplay features that don't need playtest validation.
+
+**Playtest SKIP Criteria** (feat-tps-003 precedent):
+- ❌ Camera distance adjustments
+- ❌ Visual-only changes (shader tweaks, material updates)
+- ❌ Bug fixes (non-gameplay related)
+- ❌ Test infrastructure (CI/CD, tooling)
+- ❌ Backend-only changes without visual impact
+- ❌ Documentation-only changes
+
+**Playtest REQUIRED for:**
+- ✅ Gameplay mechanics (movement, shooting, physics, friction)
+- ✅ Visual features affecting gameplay (shaders, materials, VFX)
+- ✅ UI/UX changes (HUD, menus, interaction design)
+- ✅ Character/weapon behavior changes
+- ✅ Multiplayer features
+
+**Decision Framework:**
+```javascript
+function shouldPlaytest(task) {
+  // SKIPPED categories
+  const skipCategories = ['bugfix', 'test_scene', 'documentation'];
+  if (skipCategories.includes(task.category)) return false;
+
+  // Camera-only tasks
+  if (task.title.includes('Camera') && !task.title.includes('Controller')) return false;
+  if (task.title.includes('Shader') && !task.title.includes('Gameplay')) return false;
+
+  // Required categories
+  const playtestCategories = ['functional', 'gameplay', 'ui', 'visual'];
+  if (playtestCategories.includes(task.category)) {
+    // Further filter: is it gameplay-affecting?
+    const gameplayKeywords = ['friction', 'movement', 'shooting', 'weapon', 'input'];
+    if (gameplayKeywords.some(k => task.title.includes(k) || task.description.includes(k))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+```
+
+**Rationale:** Playtesting is time-consuming and should be focused on features that directly impact player experience. Technical fixes can be validated through code review and automated tests.
+
+### 9. Tech Artist Retrospective Excusal Criteria (NEW - 2026-01-27)
+
+**Goal**: Avoid blocking Tech Artist from TIER_0_BLOCKER work for non-visual retrospectives.
+
+**Excusal Decision Framework:**
+```javascript
+function shouldExcuseTechArtist(task, techArtistStatus) {
+  // Check if Tech Artist working on TIER_0_BLOCKER
+  if (techArtistStatus.currentTaskId?.tier !== 'TIER_0_BLOCKER') return false;
+
+  // Check if current retrospective is visual/non-visual
+  const visualKeywords = ['shader', 'material', 'model', 'vfx', 'particle', 'texture'];
+  const isVisualTask = visualKeywords.some(k =>
+    task.title.includes(k) || task.description.includes(k)
+  );
+
+  // Excuse if: Tech Artist on blocker AND task is non-visual
+  return !isVisualTask;
+}
+```
+
+**Example from feat-tps-004:**
+- Tech Artist working on: `bugfix-shader-001` (TIER_0_BLOCKER)
+- Retrospective task: `feat-tps-004` (Camera Shoulder Offset Fix)
+- Task type: Camera value adjustment (non-visual)
+- Decision: EXCUSE Tech Artist from retrospective
+
+**When NOT to excuse:**
+- Task involves shaders, materials, 3D models, VFX
+- Tech Artist contributed to implementation
+- Tech Artist has no blocking tasks
+
+**Retrospective template with excusal:**
+```markdown
+### Tech Artist Perspective
+
+**EXCUSED** - Tech Artist is working on {blocker-task} (TIER_0_BLOCKER)
+This task has no visual/shader component requiring Tech Artist input.
+```
+
 ## PM Self-Improvement Process
 
 During `skill_research` phase:

@@ -1,13 +1,7 @@
 ---
 role: developer
 name: Developer Agent
-icon: |
-    ___
-   / _ \
-  | (_) |
-   \ ___/
 orchestration: event-driven
-version: 3.0
 ---
 
 # Developer Agent
@@ -32,18 +26,6 @@ version: 3.0
 - State management - Zustand stores, data flow architecture
 - Physics integration - Rapier physics, collision systems
 - Quality standards - No `any`, no `@ts-ignore`, proper TypeScript
-
-## Startup Sequence
-
-```
-1. ⚠️ MANDATORY: Load workflow skill - Skill("developer-workflow")
-2. Read prd.json for current task and update your status
-3. ⚠️ SKILL ROUTING - Skill("dev-router") for skill catalog
-4. ⚠️ TASK RESEARCH (MANDATORY) - Invoke code-research sub-agent BEFORE coding
-5. Implement feature following research findings
-6. Run feedback loops before committing
-7. Commit with Ralph format, update PRD, send to QA, exit
-```
 
 ## Skill Routing
 
@@ -93,9 +75,14 @@ MUST be server-authoritative for: player movement, shooting, score, game state, 
 Skill("shared-state")
 ```
 
-**MAY write to:** `src/`, test files, `prd.json.agents.developer.*`, `.claude/session/developer-progress.txt`
+**MAY write to:** `src/`, test files, `.claude/session/current-task-developer.json`, `.claude/session/developer-progress.txt`
 
-**MAY NOT write to:** `prd.json.session`, `prd.json.items[{taskId}].description`, QA progress files
+**MAY NOT write to:** `prd.json` (PM only - 110KB file), `prd.json.session`, other agent state files, QA progress files
+
+**⚠️ IMPORTANT (v2.0):**
+- DO NOT read prd.json (it's 110KB and bloats your context)
+- Read `.claude/session/current-task-developer.json` for your current task and status
+- Update only your own state file with status changes
 
 ## Communication Protocol
 
@@ -115,6 +102,24 @@ Skill("shared-state")
 - `working` - Actively working
 - `awaiting_pm` - Need clarification
 - `awaiting_gd` - Need design guidance
+
+## Server Lifecycle
+
+**⚠️ CRITICAL: Check for existing servers before starting new ones.**
+
+Before starting any dev server, check if one is already running:
+
+```bash
+# Quick check
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+**For E2E tests (`npm run test:e2e`):** Playwright manages servers automatically via `webServer` configuration. DO NOT start manually.
+
+**For manual testing:** If server not running, start with background process and cleanup after testing using `shared-lifecycle` skill patterns.
 
 ## Git Workflow
 

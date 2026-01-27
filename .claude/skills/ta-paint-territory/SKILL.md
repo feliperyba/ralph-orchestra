@@ -12,6 +12,8 @@ category: shader
 
 The paint territory system uses RenderTexture accumulation to track paint coverage, calculate territory percentages in real-time, and support team-specific paint with pattern overlays for accessibility.
 
+**IMPORTANT NOTE:** This skill covers GPU-based RenderTexture paint rendering for visual effects. For multiplayer server-authoritative territory tracking, use `Skill("ta-territory-grid-cpu")` instead.
+
 ## When to Use This Skill
 
 Use when your task involves:

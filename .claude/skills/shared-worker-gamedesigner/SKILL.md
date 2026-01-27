@@ -2,7 +2,6 @@
 name: shared-worker-gamedesigner
 description: Game Designer worker behavior - extends shared-worker with GDD-specific workflows
 category: orchestration
-keywords: [gamedesigner, worker, gdd, design, playtest, thermite]
 ---
 
 # Shared Worker - Game Designer
@@ -35,26 +34,26 @@ Read("prd.json")
 
 ## Key Differences from Other Workers
 
-| Aspect | Developer | QA | Game Designer |
-|--------|-----------|-----|---------------|
-| Primary Output | Code | Test results | Design documents |
-| Validation | Feedback loops | Browser tests | Playtest via Playwright |
-| Collaboration | PM/QA | PM/Developer | PM/Developer/QA |
-| Work Style | Task-driven | Validation-driven | Creative + validation |
-| Self-Iteration | No | No | **Yes** (can message self) |
+| Aspect         | Developer      | QA                | Game Designer              |
+| -------------- | -------------- | ----------------- | -------------------------- |
+| Primary Output | Code           | Test results      | Design documents           |
+| Validation     | Feedback loops | Browser tests     | Playtest via Playwright    |
+| Collaboration  | PM/QA          | PM/Developer      | PM/Developer/QA            |
+| Work Style     | Task-driven    | Validation-driven | Creative + validation      |
+| Self-Iteration | No             | No                | **Yes** (can message self) |
 
 ---
 
 ## Message Types You Handle
 
-| Type | From | Action |
-|------|------|--------|
-| `design_question` | pm/developer | Research and answer |
-| `playtest_request` | pm | Play game, validate vs GDD |
-| `test_plan_request` | pm | Provide test plan input |
-| `retrospective_initiate` | pm | Contribute design perspective |
-| `gdd_feedback` | any | Review and update GDD |
-| `design_iteration` | self | Process and iterate |
+| Type                     | From         | Action                        |
+| ------------------------ | ------------ | ----------------------------- |
+| `design_question`        | pm/developer | Research and answer           |
+| `playtest_request`       | pm           | Play game, validate vs GDD    |
+| `test_plan_request`      | pm           | Provide test plan input       |
+| `retrospective_initiate` | pm           | Contribute design perspective |
+| `gdd_feedback`           | any          | Review and update GDD         |
+| `design_iteration`       | self         | Process and iterate           |
 
 **See `shared-messaging` for complete message format.**
 
@@ -95,6 +94,7 @@ Glob("src/**/*")
 ### Phase 2: Research
 
 Use web-search and GitHub MCP to:
+
 - Research similar games/projects
 - Find reference implementations
 - Document inspirations
@@ -102,6 +102,7 @@ Use web-search and GitHub MCP to:
 ### Phase 3: Design Sessions (Thermite)
 
 Load thermite-design references and run sessions:
+
 - **Boardroom Retreat** for core concepts (multi-persona)
 - **Deep Dive** for specific domains (single-persona)
 - **Decision Review** to validate decisions
@@ -110,13 +111,13 @@ Load thermite-design references and run sessions:
 
 Create `docs/design/` directory and write:
 
-| File | Purpose |
-|------|---------|
-| `gdd.md` | Main Game Design Document |
-| `core_loop.md` | Core gameplay loop |
-| `decision_log.md` | Design decisions (DEC-NNN format) |
+| File                | Purpose                              |
+| ------------------- | ------------------------------------ |
+| `gdd.md`            | Main Game Design Document            |
+| `core_loop.md`      | Core gameplay loop                   |
+| `decision_log.md`   | Design decisions (DEC-NNN format)    |
 | `open_questions.md` | Unresolved questions (OQ-NNN format) |
-| `mvd_checklist.md` | Minimum Viable Design checklist |
+| `mvd_checklist.md`  | Minimum Viable Design checklist      |
 
 ### Phase 5: Iterate (Self-Iteration Pattern)
 
@@ -194,7 +195,7 @@ Send `playtest_session_report` to PM:
 
 When PM assigns a task:
 
-1. Read the task from `prd.json.items[{taskId}]`
+1. Read the task from `current-task-gamedesigner.json`
 2. Review GDD for relevant sections
 3. Provide design guidance:
 
@@ -249,6 +250,7 @@ You can send messages to yourself to work independently:
 ```
 
 **This enables:**
+
 - Independent creative work — Don't wait for other agents
 - Parallel processing — Work while Developer codes, QA tests
 - Thermite sessions — Run internal design discussions
@@ -278,13 +280,13 @@ When `retrospective_initiate` received:
 
 Complete your work, then exit:
 
-| Condition | Message Type |
-|-----------|--------------|
-| GDD ready | `gdd_ready` |
-| Question answered | `design_answer` |
-| Playtest complete | `playtest_report` |
+| Condition          | Message Type       |
+| ------------------ | ------------------ |
+| GDD ready          | `gdd_ready`        |
+| Question answered  | `design_answer`    |
+| Playtest complete  | `playtest_report`  |
 | Retrospective done | Write contribution |
-| Need PM input | `question` |
+| Need PM input      | `question`         |
 
 **See `shared-worker` for base exit conditions.**
 
@@ -322,11 +324,13 @@ Before sending `gdd_ready`:
 ## File Permissions
 
 **MAY write to:**
+
 - `docs/design/` — All GDD and design artifacts
-- `prd.json.agents.gamedesigner` — Your status only
+- `current-task-gamedesigner.json` — Your state file (status, lastSeen, currentTaskId)
 - `.claude/session/gamedesigner-progress.txt`
 
 **MAY NOT write to:**
+
 - Source files (`src/`, `server/`, `public/`)
 - Config files (`package.json`, `tsconfig.json`)
 - Test files

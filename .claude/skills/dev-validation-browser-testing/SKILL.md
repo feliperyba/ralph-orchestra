@@ -11,6 +11,7 @@ category: validation
 ## When to Use This Skill
 
 Use when:
+
 - Implementing new features with user-facing behavior
 - Modifying existing gameplay mechanics
 - Adding or changing UI components
@@ -32,9 +33,30 @@ npm run test:e2e -- -g "test-name"
 git add tests/e2e/{feature}-suite.spec.ts
 ```
 
+## MANDATORY: Port Detection Before Browser Testing
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**NOTE:** E2E tests configured in `playwright.config.ts` use `baseURL: 'http://localhost:3000'` and the `webServer` configuration automatically starts the dev server on the correct port.
+
+**For manual testing or MCP validation, detect the port first and use `http://localhost:{detectedPort}`.**
+
 ## Core Principle: Write Tests, Don't Run MCP
 
 **❌ OLD APPROACH (Do NOT do this):**
+
 ```typescript
 // Interactive MCP testing - NO!
 mcp__playwright__browser_navigate('http://localhost:3000');
@@ -42,6 +64,7 @@ mcp__playwright__browser_take_screenshot({ filename: 'test.png' });
 ```
 
 **✅ NEW APPROACH (Do this):**
+
 ```typescript
 // Write E2E test file - YES!
 test('new feature works', async ({ page }) => {
@@ -67,12 +90,13 @@ ls tests/e2e/{feature}-suite.spec.ts
 **File location:** `tests/e2e/{feature}-suite.spec.ts`
 
 **Basic structure:**
+
 ```typescript
 import { test, expect } from '@playwright/test';
 
 test.describe('Feature Name', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:3000'); // E2E tests use baseURL from playwright.config.ts
   });
 
   test('should meet acceptance criterion 1', async ({ page }) => {
@@ -89,16 +113,16 @@ test.describe('Feature Name', () => {
 
 ```typescript
 // ✅ Good - Role-based
-page.getByRole('button', { name: 'Submit' })
+page.getByRole('button', { name: 'Submit' });
 
 // ✅ Good - By label
-page.getByLabel('Email address')
+page.getByLabel('Email address');
 
 // ✅ Good - Test ID (when no accessible name)
-page.getByTestId('submit-button')
+page.getByTestId('submit-button');
 
 // ❌ Bad - Brittle CSS selector
-page.locator('.btn-primary:first-child')
+page.locator('.btn-primary:first-child');
 ```
 
 ### Step 4: Run Test to Verify
@@ -219,15 +243,15 @@ test('complete user flow', async ({ page }) => {
 
 Create E2E tests for:
 
-| Scenario | Test Required? |
-|----------|----------------|
-| New user-facing feature | ✅ Yes |
-| Gameplay mechanic changes | ✅ Yes |
-| UI component changes | ✅ Yes |
-| Bug fixes with user impact | ✅ Yes |
-| Internal refactor only | ❌ No |
-| Type definition changes | ❌ No |
-| Build/config changes | ❌ No |
+| Scenario                   | Test Required? |
+| -------------------------- | -------------- |
+| New user-facing feature    | ✅ Yes         |
+| Gameplay mechanic changes  | ✅ Yes         |
+| UI component changes       | ✅ Yes         |
+| Bug fixes with user impact | ✅ Yes         |
+| Internal refactor only     | ❌ No          |
+| Type definition changes    | ❌ No          |
+| Build/config changes       | ❌ No          |
 
 ## Running Tests Before Commit
 
@@ -242,15 +266,16 @@ npm run build       # Build succeeds
 
 ## Test Location Reference
 
-| Test Type | Location |
-|-----------|----------|
-| E2E Tests | `tests/e2e/{feature}-suite.spec.ts` |
-| Page Objects | `tests/pages/{name}.page.ts` |
-| Unit Tests | `src/**/{name}.test.ts` |
+| Test Type    | Location                            |
+| ------------ | ----------------------------------- |
+| E2E Tests    | `tests/e2e/{feature}-suite.spec.ts` |
+| Page Objects | `tests/pages/{name}.page.ts`        |
+| Unit Tests   | `src/**/{name}.test.ts`             |
 
 ## Reference Patterns
 
 For comprehensive E2E test patterns, see:
+
 - **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E test reference
 - [Playwright Documentation](https://playwright.dev/docs/intro)
 
@@ -278,9 +303,7 @@ test('player can move with WASD', async ({ page }) => {
   await page.goto('http://localhost:3000');
 
   // Get initial position
-  const initialPos = await page.evaluate(() =>
-    (window as any).gameState?.player?.position
-  );
+  const initialPos = await page.evaluate(() => (window as any).gameState?.player?.position);
 
   // Press W to move forward
   await page.click('canvas');
@@ -289,9 +312,7 @@ test('player can move with WASD', async ({ page }) => {
   await page.keyboard.up('KeyW');
 
   // Check position changed
-  const finalPos = await page.evaluate(() =>
-    (window as any).gameState?.player?.position
-  );
+  const finalPos = await page.evaluate(() => (window as any).gameState?.player?.position);
 
   expect(finalPos?.z).not.toBe(initialPos?.z);
 });
@@ -317,6 +338,56 @@ test('form validation works', async ({ page }) => {
   await expect(page).toHaveURL(/\/success/);
 });
 ```
+
+## Server Management
+
+**⚠️ CRITICAL: Use `shared-lifecycle` skill for server management.**
+
+### Server Detection (Before Running E2E Tests)
+
+**⚠️ IMPORTANT: Playwright's `webServer` config manages servers for E2E tests automatically.**
+
+When running `npm run test:e2e`, Playwright automatically starts:
+- `npm run dev` (port 3000) with `reuseExistingServer: !process.env.CI`
+
+**DO NOT manually start servers for E2E tests.**
+
+### Server Check Pattern
+
+```bash
+# Check if dev server is running (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+### E2E Test Path (Standard)
+
+```bash
+# Playwright handles server lifecycle via webServer config
+npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Manual Testing Path (Only when explicitly needed)
+
+```bash
+# Only for manual browser testing (NOT E2E tests)
+# Check port 3000 first
+if ! netstat -an | grep :3000; then
+  # Start server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup: { shell_id: "abc123" }
+fi
+
+# After testing completes:
+TaskStop(task_id="abc123")  # MANDATORY cleanup
+```
+
+**See also:** `shared-lifecycle` skill for complete process management patterns.
 
 ## Anti-Patterns
 

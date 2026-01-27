@@ -33,6 +33,57 @@ npm run build       # Build succeeds
    Type errors     Code style      Test failures   Bundle issues
 ```
 
+## Server Management
+
+**⚠️ CRITICAL: Use `shared-lifecycle` skill for server management.**
+
+### Server Detection (Before Running E2E Tests)
+
+**⚠️ IMPORTANT: Playwright's `webServer` config manages servers for E2E tests automatically.**
+
+When running `npm run test:e2e`, Playwright automatically starts:
+- `npm run dev` (port 3000) with `reuseExistingServer: !process.env.CI`
+- `npm run server` (port 2567) with `reuseExistingServer: false` (for multiplayer)
+
+**DO NOT manually start servers for E2E tests.**
+
+### Server Check Pattern
+
+```bash
+# Check if dev server is running (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+### E2E Test Path (Standard)
+
+```bash
+# Playwright handles server lifecycle via webServer config
+npm run test:e2e
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Manual Testing Path (Only when explicitly needed)
+
+```bash
+# Only for manual browser testing (NOT E2E tests)
+# Check port 3000 first
+if ! netstat -an | grep :3000; then
+  # Start server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup: { shell_id: "abc123" }
+fi
+
+# After testing completes:
+TaskStop(task_id="abc123")  # MANDATORY cleanup
+```
+
+**See also:** `shared-lifecycle` skill for complete process management patterns.
+
 ## Developer-Specific Validation
 
 ### R3F Component Validation

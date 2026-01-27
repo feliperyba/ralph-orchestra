@@ -250,8 +250,12 @@ Use existing sprites from `src/assets/Foliage Pack/`:
 
 ## Integration with Terrain
 
-### Heightmap Sampling
+**For the NEW mesh-based terrain approach (multiplayer):**
+- Use `Skill("ta-terrain-mesh")` for terrain mesh with heightmap
+- TerrainMesh provides `getHeightAt(x, z)` for grass placement
+- Grid-aligned sampling: `const height = terrain.getHeightAt(worldX, worldZ);`
 
+**For legacy SDF/heightmap texture sampling:**
 ```glsl
 // Sample heightmap for grass placement
 vec2 heightUV = vec2(
@@ -331,6 +335,8 @@ For general performance tips: `Skill("ta-r3f-performance")`
 
 ## External References
 
+- Implementation plan: `docs/implementation/terrain-refactor-plan.md` (Phase 3)
 - Research guide: `docs/research/terrain-shader-research.md`
+- Visual reference: `docs/references/terrain/README.md`
 - Antaeus AR Ghibli Grass: https://medium.com/antaeus-ar/making-grass-with-triangles-in-glsl-using-three-js-e106771a71ff
 - Codrops Fluffiest Grass: https://tympanus.net/codrops/2025/02/04/how-to-make-the-fluffiest-grass-with-three-js/

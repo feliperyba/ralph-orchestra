@@ -16,16 +16,41 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 
 ---
 
-## File Ownership Matrix
+## File Ownership Matrix (v2.0 - Per-Agent State Files)
+
+### State Files
+
+| File                          | Primary Owner   | Other Agents          | Size  | Purpose                       |
+| ----------------------------- | --------------- | --------------------- | ----- | ------------------------------ |
+| `current-task-developer.json`   | Developer       | PM (read-only)        | ~1KB  | Developer's task state        |
+| `current-task-qa.json`          | QA              | PM (read-only)        | ~1KB  | QA's task state               |
+| `current-task-techartist.json`  | Tech Artist     | PM (read-only)        | ~1KB  | Tech Artist's task state      |
+| `current-task-gamedesigner.json | Game Designer   | PM (read-only)        | ~1KB  | Game Designer's task state    |
+| `current-task-pm.json`          | PM              | Workers (read-only)   | ~2KB  | PM coordinator state          |
+| `prd.json`                    | PM (full access) | **Workers DO NOT read** | 110KB | Full PRD (PM-ONLY in v2.0)     |
+
+### Session Files
 
 | File                       | Primary Owner    | Other Agents                                                                    |
 | -------------------------- | ---------------- | ------------------------------------------------------------------------------- |
-| `prd.json.session`         | PM               | Workers may update own `agents.{role}.*` fields only                            |
-| `prd.json.items[{taskId}]` | PM (creates)     | Workers may update: `status`, `completedAt`, `commit`, `retryCount`, `bugNotes` |
-| `prd.json`                 | PM (fields)      | QA may update: `passes`, `validationResults`, `bugs`                            |
+| `prd.json.session`         | PM               | Workers check their state file for sessionStatus (NOT prd.json directly)        |
+| `prd.json.items[{taskId}]` | PM (creates)     | Workers do NOT update directly - PM updates based on messages                    |
+| `prd.json`                 | PM (fields)      | Workers DO NOT read in v2.0 - PM handles all PRD updates                         |
 | `session.log`              | All agents       | All append-only                                                                 |
 | `coordinator-progress.txt` | PM               | All append-only                                                                 |
 | `{agent}-progress.txt`     | Respective agent | PM may append notes                                                             |
+
+### Key Changes in v2.0
+
+**OLD (v1.x):**
+- Workers read prd.json (110KB) for status
+- Workers updated prd.json.agents.{role} directly
+
+**NEW (v2.0):**
+- Workers read ONLY their ~1KB state file
+- Workers update ONLY their state file
+- PM reads all state files and syncs to prd.json
+- Workers NEVER read prd.json (saves 109KB per worker read)
 
 ---
 
@@ -36,9 +61,11 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 | Can Write                  | Notes                                                                             |
 | -------------------------- | --------------------------------------------------------------------------------- |
 | `.claude/session/*`        | All session files                                                                 |
-| `prd.json`                 | Task status fields: `passes`, `status`, `assignedAt`, `assignedTo`, `completedAt` |
+| `prd.json`                 | **FULL ACCESS** - Task status fields: `passes`, `status`, `assignedAt`, `assignedTo`, `completedAt` |
 | `prd.json.session`         | Full ownership of session state                                                   |
 | `prd.json.agents.*`        | Full ownership of agent status tracking                                           |
+| `current-task-pm.json`       | Full ownership of coordinator state                                               |
+| `current-task-*.md`        | **Reads all** worker state files, **WRITES** to update worker task assignments     |
 | `coordinator-progress.txt` | Full ownership                                                                    |
 | `developer-progress.txt`   | May append notes                                                                  |
 | `qa-progress.txt`          | May append notes                                                                  |
@@ -52,10 +79,9 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 | ---------------------------------------- | ------------------------------------------------------------- |
 | `.claude/session/session.log`            | Append log entries                                            |
 | `.claude/session/developer-progress.txt` | Full ownership                                                |
-| `prd.json.agents.developer`              | Own status: `lastSeen`, `status`, `currentTask`               |
-| `prd.json.items[{taskId}]`               | Assigned tasks: `status`, `completedAt`, `commit`, `question` |
+| `current-task-developer.json`              | **PRIMARY STATE FILE** - Update: `status`, `lastSeen`, `currentTaskId` |
+| ❌ `prd.json`                            | **DO NOT READ** (110KB - PM only)                             |
 | Source files (`src/`, etc.)              | Full ownership                                                |
-| ❌ `prd.json` (general)                  | Read-only (except assigned tasks)                             |
 | ❌ `coordinator-progress.txt`            | Read-only                                                     |
 | ❌ `qa-progress.txt`                     | Read-only                                                     |
 
@@ -65,9 +91,9 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 | --------------------------------- | ---------------------------------------------------- |
 | `.claude/session/session.log`     | Append log entries                                   |
 | `.claude/session/qa-progress.txt` | Full ownership                                       |
-| `prd.json.agents.qa`              | Own status: `lastSeen`, `status`, `currentTask`      |
-| `prd.json.items[{taskId}]`        | `status`, `validatedAt`, `validationResults`, `bugs` |
-| `prd.json`                        | `passes`, `validationResults`, `bugs`                |
+| `current-task-qa.json`              | **PRIMARY STATE FILE** - Update: `status`, `lastSeen`, `currentTaskId`, `passes` |
+| ❌ `prd.json`                      | **DO NOT READ** (110KB - PM only)                    |
+| Test files (`src/tests/`, `tests/e2e/`) | Full ownership                                    |
 | ❌ Source code                    | Read-only (validates only)                           |
 | ❌ `coordinator-progress.txt`     | Read-only                                            |
 | ❌ `developer-progress.txt`       | Read-only                                            |
@@ -78,8 +104,9 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 | ------------------------------------------- | ----------------------------------------------- |
 | `.claude/session/session.log`               | Append log entries                              |
 | `.claude/session/gamedesigner-progress.txt` | Full ownership                                  |
-| `prd.json.agents.gamedesigner`              | Own status: `lastSeen`, `status`, `currentTask` |
+| `current-task-gamedesigner.json`              | **PRIMARY STATE FILE** - Update: `status`, `lastSeen`, `currentTaskId` |
 | `docs/design/`                              | Full ownership of design artifacts              |
+| ❌ `prd.json`                                | **DO NOT READ** (110KB - PM only)               |
 | ❌ Source code                              | Read-only                                       |
 | ❌ `prd.json` task descriptions             | Read-only (PM only)                             |
 
@@ -89,14 +116,14 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 | -------------------------------------------------- | ----------------------------------------------- |
 | `.claude/session/session.log`                      | Append log entries                              |
 | `.claude/session/techartist-progress.txt`          | Full ownership                                  |
-| `prd.json.agents.techartist`                       | Own status: `lastSeen`, `status`, `currentTask` |
+| `current-task-techartist.json`                       | **PRIMARY STATE FILE** - Update: `status`, `lastSeen`, `currentTaskId` |
 | `src/assets/`                                      | All 3D models, textures, materials              |
 | `src/components/**/*.{materials,shaders,effects}*` | Visual components                               |
 | `src/styles/`                                      | UI styles                                       |
 | `src/vfx/`                                         | Particle systems                                |
+| ❌ `prd.json`                                      | **DO NOT READ** (110KB - PM only)               |
 | ❌ Core game logic                                 | Read-only (store/, hooks/, utils/)              |
 | ❌ Network code                                    | Read-only (server/)                             |
-| ❌ `prd.json` task descriptions                    | Read-only (PM only)                             |
 
 ---
 
@@ -104,13 +131,13 @@ Each file has a **primary owner** to avoid conflicts. Only the owner may write t
 
 **ALL agents MUST commit their file changes.**
 
-| Agent             | Must Commit | Commit Scope                                                                        |
-| ----------------- | ----------- | ----------------------------------------------------------------------------------- |
-| **PM**            | ✅ Yes      | `prd.json`, `.claude/session/coordinator-progress.txt`, skill files, retrospectives |
-| **Developer**     | ✅ Yes      | Source files, tests, `prd.json.items[{taskId}]`, own progress files                 |
-| **Tech Artist**   | ✅ Yes      | Assets, shaders, visual components, own progress files                              |
-| **QA**            | ✅ Yes      | `prd.json` (validation fields), bug reports, own progress files                     |
-| **Game Designer** | ✅ Yes      | `docs/design/`, GDD, design artifacts, own progress files                           |
+| Agent             | Must Commit | Commit Scope                                                                                |
+| ----------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| **PM**            | ✅ Yes      | `prd.json`, `current-task-*.md` (all), `.claude/session/coordinator-progress.txt`, skill files, retrospectives |
+| **Developer**     | ✅ Yes      | Source files, tests, `current-task-developer.json`, own progress files                       |
+| **Tech Artist**   | ✅ Yes      | Assets, shaders, visual components, `current-task-techartist.json`, own progress files      |
+| **QA**            | ✅ Yes      | `current-task-qa.json`, bug reports, own progress files, test files                         |
+| **Game Designer** | ✅ Yes      | `docs/design/`, GDD, `current-task-gamedesigner.json`, own progress files                   |
 
 **Commit Format** (from `shared-core`):
 

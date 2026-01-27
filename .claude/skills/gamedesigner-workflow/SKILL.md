@@ -17,30 +17,32 @@ description: Complete Game Designer workflow - skill invocation protocol, GDD cr
 **Use AGENT.md** for: Task routing table, communication protocol, status values, file permissions
 **Use this skill** for: Playtest checklist, GDD creation flow, task research, design sessions, retrospective
 
-## 🚨 GOLDEN RULE: PRD Status Synchronization
+## 🚨 GOLDEN RULE: State File Synchronization (v2.0)
 
-**⚠️ CRITICAL: The PRD is the SINGLE SOURCE OF TRUTH for all agents. Every status change MUST be immediately reflected in `prd.json`.**
+**⚠️ CRITICAL: Update your state file immediately when status changes. PM syncs to prd.json.**
 
-**Whenever your status changes, UPDATE THE PRD IMMEDIATELY.**
+**Whenever your status changes, UPDATE YOUR STATE FILE IMMEDIATELY.**
 
-| When This Happens                          | Update PRD Like This                                                            | Why                             |
-| ------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------- |
-| **Starting design work**                   | `prd.json.agents.gamedesigner.status = "working"`                               | PM knows you're designing       |
-| **GDD created/updated**                    | `prd.json.agents.gamedesigner.gddPath = "docs/design/gdd.md"`                   | PM knows GDD is ready           |
-| **Playtest requested**                     | `prd.json.agents.gamedesigner.status = "playtesting"`                           | PM knows you're testing         |
-| **Playtest complete, starting GDD review** | `prd.json.agents.gamedesigner.status = "reviewing"`                             | PM knows you're reviewing       |
-| **GDD review complete**                    | Send `playtest_session_report` + `prd.json.agents.gamedesigner.status = "idle"` | PM receives findings + GDD gaps |
-| **Providing acceptance criteria**          | Send `acceptance_criteria` with task details                                    | PM uses for task definition     |
-| **Self-reporting progress**                | `prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}`                       | Supervisor knows you're alive   |
+| When This Happens                          | Update State File Like This                                    | Why                             |
+| ------------------------------------------ | -------------------------------------------------------------- | ------------------------------- |
+| **Starting design work**                   | `current-task-gamedesigner.json: state.status = "working"`     | PM knows you're designing       |
+| **GDD created/updated**                    | Include in message to PM                                       | PM knows GDD is ready           |
+| **Playtest requested**                     | `state.status = "playtesting"`                                 | PM knows you're testing         |
+| **Playtest complete, starting GDD review** | `state.status = "reviewing"`                                   | PM knows you're reviewing       |
+| **GDD review complete**                    | Send `playtest_session_report` + `state.status = "idle"`        | PM receives findings + GDD gaps |
+| **Providing acceptance criteria**          | Send `acceptance_criteria` with task details                    | PM uses for task definition     |
+| **Self-reporting progress**                | `state.lastSeen = {ISO_TIMESTAMP}`                             | PM knows you're alive            |
 
-**⚠️ If you don't update the PRD, the system desyncs:**
+**⚠️ V2.0:** Game Designer does NOT update prd.json directly. PM reads your state file and syncs.
+
+**⚠️ If you don't update your state file, the system desyncs:**
 
 - PM assigns design work already in progress
 - PM waits for GDD that's complete
-- Supervisor thinks you crashed
+- PM thinks you crashed
 - Loop locks occur
 
-**Rule of thumb: If your state changes, PRD changes. IMMEDIATELY.**
+**Rule of thumb: If your state changes, update your state file. IMMEDIATELY.**
 
 ## Startup Workflow
 
@@ -76,6 +78,7 @@ You are a WORKER managed by the WATCHDOG orchestrator.
    - After reading, **delete the file** to mark it as processed
 
    **Message reading pattern:**
+
    ```
    1. Use Glob: .claude/session/messages/gamedesigner/msg-*.json
    2. For each file: Read the file content
@@ -86,15 +89,15 @@ You are a WORKER managed by the WATCHDOG orchestrator.
 
 3. ⚠️ PROACTIVE PLAYTEST CHECK (MANDATORY - EVERY STARTUP)
    - Read .claude/session/retrospective.txt → Check Action Items for "[ ] Request playtest"
-   - Read prd.json → Check session.currentTask.status for "playtest_phase"
+   - Read current-task-gamedesigner.json → Check if playtest needed
    - IF playtest needed → JUMP TO PLAYTEST FLOW immediately (skip to step 9)
 
 4. Check if GDD exists in docs/design/
 
-5. Read prd.json for current task
-   - Check prd.json.session.currentTask for your assignment
-   - Check prd.json.agents.gamedesigner for your status
-   - Update your status and lastSeen timestamp
+5. Read current-task-gamedesigner.json for current task
+   - Check state.currentTaskId for your assignment
+   - Check state.status for your current status
+   - Update state.status and state.lastSeen
 
 6. **SKILL CHECK** - Match task to skill/sub-agent using gd-router
 
@@ -134,17 +137,18 @@ Always check:
 → `Skill("gd-gdd-creation")`
 
 ```
+
 1. CREATE TASK MEMORY (MANDATORY - on task start)
    - Load `shared-retrospective` skill
    - Extract taskId from message (e.g., P1-004)
    - Create directory: .claude/session/agents/gamedesigner/
    - Create file: .claude/session/agents/gamedesigner/task-{taskId}-memory.md
    - Initialize with taskId, title, timestamp, empty sections
-     → PRD UPDATE: prd.json.agents.gamedesigner.status = "working"
+     → STATE UPDATE: current-task-gamedesigner.json: state.status = "working"
 
 2. TASK RESEARCH (MANDATORY)
    - Check if GDD exists
-   - Read README.md, prd.json
+   - Read README.md
    - Research similar games
      → WRITE TO MEMORY: Document research findings, references found
 
@@ -163,13 +167,14 @@ Always check:
 
 6. COMMIT AND NOTIFY PM
    - Write message to PM inbox: .claude/session/messages/pm/msg-{timestamp}.json
+
 ```
 
 ## Playtest Flow
 
 **TRIGGER CONDITIONS** (Check on EVERY startup):
 - `.claude/session/retrospective.txt` contains "[ ] Request playtest"
-- `prd.json.session.currentTask.status = "playtest_phase"`
+- `current-task-gamedesigner.json` has playtest task
 - PM sends `playtest_session_request` message
 
 **When ANY trigger is true, initiate playtest flow:**
@@ -180,19 +185,23 @@ Always check:
 **HIGH-LEVEL CHECKLIST:**
 
 ```
+
 STEP 1: DETECT playtest needed (proactive check - EVERY STARTUP)
+
 - Read .claude/session/retrospective.txt → Look for "[ ] Request playtest session from Game Designer"
-- Read prd.json → Look for session.currentTask.status = "playtest_phase"
+- Read current-task-gamedesigner.json → Check for playtest task
 - IF true → IMMEDIATELY INITIATE PLAYTESTING
 
 STEP 2: START DEV SERVERS
+
 - Bash("npm run dev:all:sh")
 - Wait for "Vite ready" and "Colyseus server listening" in output
-- Verify: http://localhost:3000 accessible
+- Detect port: netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+- Verify: http://localhost:{detectedPort} accessible
 
-STEP 3: UPDATE PRD status
-→ prd.json.agents.gamedesigner.status = "playtesting"
-→ prd.json.agents.gamedesigner.currentTaskId = "{taskId}"
+STEP 3: UPDATE STATE FILE
+→ current-task-gamedesigner.json: state.status = "playtesting"
+→ state.currentTaskId = "{taskId}"
 
 STEP 4: CREATE task memory file
 → .claude/session/agents/gamedesigner/task-{taskId}-playtest-memory.md
@@ -201,20 +210,22 @@ STEP 5-9: GAMEPLAY TESTING
 → Use gd-validation-playtest for detailed Playwright MCP patterns
 
 STEP 10: GDD REVIEW PHASE (MANDATORY BEFORE SENDING REPORT)
-→ prd.json.agents.gamedesigner.status = "reviewing"
+→ current-task-gamedesigner.json: state.status = "reviewing"
+
 - Retrospective analysis (read pain points from workers)
 - Game state review (compare vs GDD specs)
 - Gap analysis (identify missing specs/skills)
-→ Skill("gd-playtest-gdd-review") for detailed process
-→ Skill("gd-skill-gap-analysis") for skill identification
+  → Skill("gd-playtest-gdd-review") for detailed process
+  → Skill("gd-skill-gap-analysis") for skill identification
 
 STEP 11: SEND playtest_session_report
 → Write message to PM inbox with: result, criteriaTested, screenshots, gddReview, skillGaps, priorityRecommendations
 
-STEP 12: UPDATE PRD status
-→ prd.json.agents.gamedesigner.status = "idle"
-→ prd.json.agents.gamedesigner.currentTaskId = null
-→ prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}
+STEP 12: UPDATE STATE FILE
+→ current-task-gamedesigner.json: state.status = "idle"
+→ state.currentTaskId = null
+→ state.lastSeen = {ISO_TIMESTAMP}
+
 ```
 
 **⚠️ CRITICAL:**
@@ -229,6 +240,7 @@ STEP 12: UPDATE PRD status
 ## Design Session Flow
 
 ```
+
 1. TASK RESEARCH
    - Review existing design docs
    - Identify discussion topics
@@ -237,6 +249,7 @@ STEP 12: UPDATE PRD status
    Task({ subagent_type: "gamedesigner-thermite-facilitator", prompt: "Facilitate Boardroom Retreat about [problem]" })
 
 3. EXTRACT DECISIONS AND UPDATE GDD
+
 ```
 
 ## Reference Games
@@ -270,13 +283,15 @@ For thermite design sessions, use `gd-thermite-integration` skill which contains
 ## Commit Format
 
 ```
+
 [ralph] [gamedesigner] {task-id}: Brief description
 
 - Change 1
 - Change 2
 
 PRD: {task-id} | Agent: gamedesigner | Iteration: N
-```
+
+````
 
 ## Exit Conditions
 
@@ -285,14 +300,17 @@ PRD: {task-id} | Agent: gamedesigner | Iteration: N
 1. Complete all design work using appropriate skills/sub-agents
 2. Check `src/assets/` if making asset requests
 3. Commit work with `[ralph] [gamedesigner]` prefix
-4. Update `prd.json.agents.gamedesigner`:
+4. Update `current-task-gamedesigner.json`:
    ```json
    {
-     "status": "idle",
-     "currentTaskId": null,
-     "lastSeen": "{ISO_TIMESTAMP}"
+     "state": {
+       "status": "idle",
+       "currentTaskId": null,
+       "lastSeen": "{ISO_TIMESTAMP}"
+     }
    }
-   ```
+````
+
 5. Send result message to PM
 6. ONLY THEN exit
 
@@ -327,9 +345,9 @@ PRD: {task-id} | Agent: gamedesigner | Iteration: N
    - Delete: .claude/session/agents/gamedesigner/task-*.md
    - Verify files are removed
 
-6. UPDATE status in prd.json
-   - prd.json.agents.gamedesigner.status = "idle"
-   - prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}
+6. UPDATE status in state file
+   - current-task-gamedesigner.json: state.status = "idle"
+   - state.lastSeen = {ISO_TIMESTAMP}
 
 7. LOG in progress file
 ```

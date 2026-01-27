@@ -46,7 +46,7 @@ src/
 ### 1. Receive Task
 
 ```json
-// From PM via prd.json.items[{taskId}]
+// From PM via current-task-techartist.json (state file)
 {
   "id": "vis-002",
   "category": "visual",
@@ -156,30 +156,38 @@ PRD: vis-002 | Agent: techartist | Iteration: 1"
 ### 8. Send to QA
 
 ```json
-// Update prd.json.session and prd.json.agents.techartist
+// Update current-task-techartist.json state file
 {
-  "session": {
-    "currentTaskId": "vis-002",
-    "status": "ready_for_qa"
-  },
-  "agents": {
-    "techartist": {
-      "status": "completed",
-      "lastTaskId": "vis-002"
-    }
+  "state": {
+    "status": "idle",
+    "currentTaskId": null,
+    "lastSeen": "{ISO_TIMESTAMP}"
+  }
+}
+
+// Send implementation_complete message to PM
+{
+  "id": "msg-pm-{timestamp}-001",
+  "from": "techartist",
+  "to": "pm",
+  "type": "implementation_complete",
+  "payload": {
+    "taskId": "vis-002",
+    "success": true,
+    "summary": "Asset created and validated"
   }
 }
 ```
 
 ## Asset Naming Conventions
 
-| Asset Type     | Format                        | Example                     |
-| -------------- | ----------------------------- | --------------------------- |
-| Models         | `{Name}_lod{0-3}.glb`         | `sportsCar_lod0.glb`        |
-| Textures       | `{name}_{type}.{ext}`         | `vehicle_color.png`         |
-| Materials      | `{Name}Material.tsx`          | `CarPaintMaterial.tsx`      |
-| Shaders        | `{name}.{vert|frag}`          | `water.vert`                |
-| Components     | `{Name}.tsx`                  | `VehicleMesh.tsx`           |
+| Asset Type | Format                | Example                |
+| ---------- | --------------------- | ---------------------- | ------------ |
+| Models     | `{Name}_lod{0-3}.glb` | `sportsCar_lod0.glb`   |
+| Textures   | `{name}_{type}.{ext}` | `vehicle_color.png`    |
+| Materials  | `{Name}Material.tsx`  | `CarPaintMaterial.tsx` |
+| Shaders    | `{name}.{vert         | frag}`                 | `water.vert` |
+| Components | `{Name}.tsx`          | `VehicleMesh.tsx`      |
 
 ## Import Guidelines
 
@@ -284,12 +292,13 @@ function usePreloadGLTF(urls: string[]) {
   useEffect(() => {
     let mounted = true;
 
-    Promise.all(urls.map(url => useGLTF.preload(url)))
-      .then(() => {
-        if (mounted) setLoaded(true);
-      });
+    Promise.all(urls.map((url) => useGLTF.preload(url))).then(() => {
+      if (mounted) setLoaded(true);
+    });
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, urls);
 
   return loaded;
@@ -297,10 +306,7 @@ function usePreloadGLTF(urls: string[]) {
 
 // Usage: preload assets before showing scene
 function Game() {
-  const assetsReady = usePreloadGLTF([
-    '/assets/models/player.glb',
-    '/assets/models/weapon.glb',
-  ]);
+  const assetsReady = usePreloadGLTF(['/assets/models/player.glb', '/assets/models/weapon.glb']);
 
   if (!assetsReady) {
     return <LoadingScreen progress="Loading assets..." />;
@@ -397,6 +403,7 @@ function ErrorMesh() {
 ```
 
 **Learned from bugfix-005 retrospective (2026-01-22)**:
+
 - Large weapon models may have load delays
 - Always use Suspense boundaries for async asset loading
 - Consider loading states for better UX during asset fetch
@@ -436,7 +443,7 @@ Export Settings:
 
 ## Asset Component Template
 
-```tsx
+````tsx
 /**
  * {Asset Name}
  *
@@ -461,9 +468,10 @@ export const MyAsset = forwardRef<THREE.Group, MyAssetProps>(
   ({ variant = 'a', intensity = 1.0 }, ref) => {
     // Create or load asset here
     const material = useMemo(
-      () => new THREE.MeshStandardMaterial({
-        color: variant === 'a' ? 0xff0000 : 0x0000ff,
-      }),
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: variant === 'a' ? 0xff0000 : 0x0000ff,
+        }),
       [variant]
     );
 
@@ -479,7 +487,7 @@ export const MyAsset = forwardRef<THREE.Group, MyAssetProps>(
 );
 
 MyAsset.displayName = 'MyAsset';
-```
+````
 
 ## Checklist
 
@@ -523,24 +531,33 @@ grep -r "if.*debug" src/
 
 ```tsx
 // ❌ WRONG - Feature hidden behind debug flag
-{debug && projectiles.map(proj => (
-  <mesh key={proj.id}>
-    <sphereGeometry args={[0.1]} />
-    <meshStandardMaterial color={proj.color} />
-  </mesh>
-))}
+{
+  debug &&
+    projectiles.map((proj) => (
+      <mesh key={proj.id}>
+        <sphereGeometry args={[0.1]} />
+        <meshStandardMaterial color={proj.color} />
+      </mesh>
+    ));
+}
 
 // ✅ CORRECT - Feature always visible in production
-{projectiles.map(proj => (
-  <mesh key={proj.id}>
-    <sphereGeometry args={[0.1]} />
-    <meshStandardMaterial color={proj.color} />
-  </mesh>
-))}
+{
+  projectiles.map((proj) => (
+    <mesh key={proj.id}>
+      <sphereGeometry args={[0.1]} />
+      <meshStandardMaterial color={proj.color} />
+    </mesh>
+  ));
+}
 
 // ✅ CORRECT - Debug-only helpers use debug flag
-{debug && <gridHelper args={[20, 20]} />}
-{debug && <axesHelper args={[2]} />}
+{
+  debug && <gridHelper args={[20, 20]} />;
+}
+{
+  debug && <axesHelper args={[2]} />;
+}
 ```
 
 **Learned from polish-001 retrospective (2026-01-22):**
@@ -642,23 +659,23 @@ function CharacterWithWeapon() {
 
 ### Bone Attachment Pattern
 
-| Step | Action | Purpose |
-| ---- | ------ | ------- |
-| 1 | Load GLTF with skeleton | Character model with bone hierarchy |
-| 2 | Traverse to SkinnedMesh | Find mesh containing skeleton |
-| 3 | Find bone by name | Locate attachment point (hand, head, etc.) |
-| 4 | Parent object to bone | `bone.add(childObject)` |
-| 5 | Position/rotate relative to bone | Fine-tune attachment |
-| 6 | Animation moves attachment | Bone animation moves attached object |
+| Step | Action                           | Purpose                                    |
+| ---- | -------------------------------- | ------------------------------------------ |
+| 1    | Load GLTF with skeleton          | Character model with bone hierarchy        |
+| 2    | Traverse to SkinnedMesh          | Find mesh containing skeleton              |
+| 3    | Find bone by name                | Locate attachment point (hand, head, etc.) |
+| 4    | Parent object to bone            | `bone.add(childObject)`                    |
+| 5    | Position/rotate relative to bone | Fine-tune attachment                       |
+| 6    | Animation moves attachment       | Bone animation moves attached object       |
 
 ### Common Bone Names by Rig Format
 
-| Rig Format | Hand Bone | Head Bone | Spine Bone |
-| ---------- | --------- | --------- | ---------- |
-| Mixamo | `mixamorigRightHand` | `mixamorigHead` | `mixamorigSpine` |
-| Blender | `RightHand`, `Hand.R` | `Head`, `HeadTop` | `Spine`, `Hips` |
-| VRM | `rightHand` | `head` | `spine` |
-| Custom | Check in Three.js Inspector | Check in Three.js Inspector | Check in Three.js Inspector |
+| Rig Format | Hand Bone                   | Head Bone                   | Spine Bone                  |
+| ---------- | --------------------------- | --------------------------- | --------------------------- |
+| Mixamo     | `mixamorigRightHand`        | `mixamorigHead`             | `mixamorigSpine`            |
+| Blender    | `RightHand`, `Hand.R`       | `Head`, `HeadTop`           | `Spine`, `Hips`             |
+| VRM        | `rightHand`                 | `head`                      | `spine`                     |
+| Custom     | Check in Three.js Inspector | Check in Three.js Inspector | Check in Three.js Inspector |
 
 ### Debugging Bone Attachments
 
@@ -695,7 +712,7 @@ export interface WeaponConfig {
   name: string;
   modelPath: string;
   // Scale normalization
-  scale: number;           // Overall scale multiplier
+  scale: number; // Overall scale multiplier
   // Pivot correction (asset origin offset)
   position: [number, number, number];
   rotation: [number, number, number];
@@ -718,14 +735,14 @@ export const weaponConfigs: Record<string, WeaponConfig> = {
     modelPath: '/assets/models/weapon-pack/plasma.glb',
     scale: 1.0,
     position: [0, 0, 0],
-    rotation: [0, Math.PI, 0],  // May need rotation flip
+    rotation: [0, Math.PI, 0], // May need rotation flip
   },
   // Accessories pack (tiny scale, ~0.01)
   scope_attachment: {
     name: 'Scope',
     modelPath: '/assets/models/accessories/scope.glb',
     scale: 0.01,
-    position: [0, 0.5, 0],  // Offset to attach point
+    position: [0, 0.5, 0], // Offset to attach point
     rotation: [0, 0, 0],
   },
 };
@@ -739,7 +756,7 @@ import type { WeaponConfig } from './weapon-config';
 
 interface NormalizedAssetProps {
   config: WeaponConfig;
-  attachTo?: THREE.Object3D;  // Optional parent attachment
+  attachTo?: THREE.Object3D; // Optional parent attachment
 }
 
 export function NormalizedAsset({ config, attachTo }: NormalizedAssetProps) {
@@ -852,13 +869,13 @@ function PivotCorrectedAsset({ modelPath, gripOffset, scale }: PivotCorrectedPro
 
 ### Common Scale Conversions
 
-| Source System | Three.js Units | Scale Factor |
-| ------------- | -------------- | ------------ |
-| Blender (default) | 1 unit = 1 meter | 1.0 |
-| Unreal Engine | 1 unit = 1 cm | 0.01 |
-| Unity | 1 unit = 1 meter | 1.0 |
-| Maya (cm) | 1 unit = 1 cm | 0.01 |
-| 3ds Max (inches) | 1 unit = 1 inch | 0.0254 |
+| Source System     | Three.js Units   | Scale Factor |
+| ----------------- | ---------------- | ------------ |
+| Blender (default) | 1 unit = 1 meter | 1.0          |
+| Unreal Engine     | 1 unit = 1 cm    | 0.01         |
+| Unity             | 1 unit = 1 meter | 1.0          |
+| Maya (cm)         | 1 unit = 1 cm    | 0.01         |
+| 3ds Max (inches)  | 1 unit = 1 inch  | 0.0254       |
 
 ### Asset Integration Checklist for Multi-Source Projects
 
@@ -871,6 +888,7 @@ function PivotCorrectedAsset({ modelPath, gripOffset, scale }: PivotCorrectedPro
 - [ ] Verify alignment with animation (weapon doesn't float or clip)
 
 **Learned from bugfix-005 retrospective (2026-01-22)**:
+
 - Asset packs have wildly different scales (0.01 to 1.0+)
 - Per-weapon configuration is essential for consistent attachment
 - Grip offset varies by model - cannot use universal values
@@ -893,7 +911,7 @@ import * as THREE from 'three';
 
 function AssetScaleValidator({
   assetUrl,
-  targetSize = 0.5
+  targetSize = 0.5,
 }: {
   assetUrl: string;
   targetSize?: number; // Desired size in Three.js units
@@ -973,7 +991,7 @@ describe('Asset Scale Validation', () => {
       if (config.source === 'Blaster Kit' && config.scale > 0.02) {
         throw new Error(
           `${name}: Blaster Kit scale ${config.scale} is too large! ` +
-          `Expected ~0.015. Check asset pack requirements.`
+            `Expected ~0.015. Check asset pack requirements.`
         );
       }
     });
@@ -983,13 +1001,13 @@ describe('Asset Scale Validation', () => {
 
 ### Asset Scale Reference
 
-| Asset Pack | Typical Scale | Unit System | Notes |
-|------------|---------------|-------------|-------|
-| Blaster Kit | 0.015 | Unknown | CRITICAL: 0.15 is 10x too large |
-| Mixamo | 1.0 | Meters | Export at unit scale |
-| Unreal Marketplace | 0.01 | Centimeters | Multiply by 0.01 |
-| Unity Asset Store | 1.0 | Meters | Usually unit scale |
-| Custom Blender | 1.0 | Meters | Depends on export settings |
+| Asset Pack         | Typical Scale | Unit System | Notes                           |
+| ------------------ | ------------- | ----------- | ------------------------------- |
+| Blaster Kit        | 0.015         | Unknown     | CRITICAL: 0.15 is 10x too large |
+| Mixamo             | 1.0           | Meters      | Export at unit scale            |
+| Unreal Marketplace | 0.01          | Centimeters | Multiply by 0.01                |
+| Unity Asset Store  | 1.0           | Meters      | Usually unit scale              |
+| Custom Blender     | 1.0           | Meters      | Depends on export settings      |
 
 ### Scale Validation Checklist
 
@@ -1003,6 +1021,7 @@ Before marking asset integration complete:
 - [ ] Any special notes added (e.g., scale sensitivity warnings)
 
 **Learned from feat-tps-005 and bugfix-tps-001 retrospectives (2026-01-25)**:
+
 - Blaster Kit FBX requires 0.015 scale (not 0.15) - 10x difference
 - Missing scale documentation causes repeated confusion
 - Scale validation tests catch regressions before browser testing
@@ -1023,7 +1042,7 @@ Before sending to QA:
 ## Related Skills
 
 For material setup: `Skill("ta-r3f-materials")`
-For general workflow: `Skill("ta-orchestration")`
+For general workflow: `Skill("techartist-worflow")`
 
 ## External References
 

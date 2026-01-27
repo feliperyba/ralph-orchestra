@@ -15,6 +15,7 @@ Use for **EVERY task** marked with `serverAuthoritative: true` or `multiplayerTe
 ## Core Principle: Write Multi-Client E2E Tests
 
 **✅ CORRECT APPROACH:**
+
 ```typescript
 // Write E2E test with multiple browser contexts - YES!
 test('server-authoritative movement sync', async ({ browser }) => {
@@ -24,7 +25,7 @@ test('server-authoritative movement sync', async ({ browser }) => {
   const page2 = await context2.newPage();
 
   // Test multi-client behavior
-  await page1.goto('http://localhost:3000');
+  await page1.goto('http://localhost:3000'); // E2E tests use baseURL from playwright.config.ts
   await page2.goto('http://localhost:3000');
 
   // Verify state sync...
@@ -32,6 +33,7 @@ test('server-authoritative movement sync', async ({ browser }) => {
 ```
 
 **❌ DO NOT USE:**
+
 ```typescript
 // Interactive MCP - NO!
 mcp__playwright__browser_navigate('http://localhost:3000');
@@ -110,13 +112,72 @@ test('server-authoritative movement sync', async ({ browser }) => {
 
 **⚠️ CRITICAL: Use `shared-lifecycle` skill for server management.**
 
+### Server Detection (Before Multiplayer E2E Tests)
+
+**⚠️ IMPORTANT: Playwright's `webServer` config manages servers for E2E tests automatically.**
+
 Multiplayer tests require both frontend (port 3000) and backend (Colyseus port 2567) servers.
+
+When running `npm run test:e2e`, Playwright automatically starts:
+- `npm run dev` (port 3000) with `reuseExistingServer: !process.env.CI`
+- `npm run server` (port 2567) with `reuseExistingServer: false`
+
+**DO NOT manually start servers for E2E tests.**
+
+### Server Check Pattern
+
+```bash
+# Check if dev server is running (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Check if Colyseus server is running (port 2567)
+netstat -an | grep :2567 || lsof -i :2567
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "DEV_RUNNING" || echo "DEV_NOT_RUNNING"
+
+# Check Colyseus WebSocket server
+curl -s http://localhost:2567 || echo "COLYSEUS_NOT_RUNNING"
+```
+
+### E2E Test Path (Standard Multiplayer Validation)
+
+```bash
+# Playwright handles both servers via webServer config
+npm run test:e2e -- tests/e2e/multiplayer-suite.spec.ts
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Manual MCP Validation Path (Only when explicitly needed)
+
+```bash
+# Only for manual MCP validation (NOT E2E tests)
+# Check ports first
+if ! netstat -an | grep :3000; then
+  # Start dev server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup
+fi
+
+if ! netstat -an | grep :2567; then
+  # Start Colyseus server in background
+  Bash(command="npm run server", run_in_background=true)
+  # Capture shell_id for cleanup
+fi
+
+# After validation completes:
+TaskStop(task_id="dev_server_shell_id")  # MANDATORY cleanup
+TaskStop(task_id="server_shell_id")      # MANDATORY cleanup
+```
 
 Before running multiplayer E2E tests, always check/start the dev server using the patterns from `shared-lifecycle` skill.
 
 **MANDATORY CLEANUP after all tests complete (pass OR fail):**
 
 Use the cleanup patterns from `shared-lifecycle` skill to ensure:
+
 - Dev server is stopped
 - Backend server is stopped
 - Ports 3000 and 2567 are released
@@ -280,8 +341,12 @@ test('shooting syncs between clients', async ({ browser }) => {
     await page1.waitForTimeout(100);
 
     // Both clients should see the paint splat
-    const paintCount1 = await page1.evaluate(() => (window as any).gameState?.paintSplats?.size || 0);
-    const paintCount2 = await page2.evaluate(() => (window as any).gameState?.paintSplats?.size || 0);
+    const paintCount1 = await page1.evaluate(
+      () => (window as any).gameState?.paintSplats?.size || 0
+    );
+    const paintCount2 = await page2.evaluate(
+      () => (window as any).gameState?.paintSplats?.size || 0
+    );
 
     expect(paintCount1).toBeGreaterThan(0);
     expect(paintCount1).toBe(paintCount2); // Same count on both clients
@@ -462,7 +527,7 @@ For each multiplayer validation:
 | Assume state syncs          | Assert state values match across clients   |
 | Test local state only       | Test REMOTE player state from other client |
 | Ignore server validation    | Test that invalid inputs are rejected      |
-| Don't cleanup contexts      | Always close contexts in finally block      |
+| Don't cleanup contexts      | Always close contexts in finally block     |
 
 ## Anti-Patterns
 

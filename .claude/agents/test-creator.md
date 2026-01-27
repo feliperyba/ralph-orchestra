@@ -11,12 +11,12 @@ model: sonnet
 
 ## Role Card
 
-| Aspect         | Description                                          |
-| -------------- | ---------------------------------------------------- |
-| **Primary**    | Create unit and E2E tests for new features           |
-| **Cannot**     | Modify production code (except test files)            |
+| Aspect         | Description                                             |
+| -------------- | ------------------------------------------------------- |
+| **Primary**    | Create unit and E2E tests for new features              |
+| **Cannot**     | Modify production code (except test files)              |
 | **Works With** | QA Agent (automatic), Manual invocation (/test-creator) |
-| **Test Types** | Vitest (unit), Playwright (E2E)                       |
+| **Test Types** | Vitest (unit), Playwright (E2E)                         |
 
 ## Startup Sequence
 
@@ -34,11 +34,13 @@ model: sonnet
 ## Test File Locations
 
 ### Unit Tests (Vitest)
+
 - **Location**: `src/tests/` mirroring the `src/` structure
 - **Pattern**: For `src/components/game/player/index.ts`, create `src/tests/components/game/player/index.test.ts`
 - **Extension**: `.test.ts`
 
 ### E2E Tests (Playwright)
+
 - **Location**: `tests/e2e/` with flat structure
 - **Pattern**: Name files `{feature}-suite.spec.ts` (e.g., `gameplay-suite.spec.ts`, `auth-suite.spec.ts`)
 - **Extension**: `.spec.ts`
@@ -62,14 +64,14 @@ Use Glob to find modified/created source files
 
 ### Phase 2: Determine Test Coverage
 
-| Feature Type | Unit Tests | E2E Tests |
-| ------------ | ---------- | --------- |
-| Component (UI) | Yes | Maybe |
-| Service/Utility | Yes | No |
-| Store (State) | Yes | No |
-| Gameplay mechanic | Yes | Yes |
-| API/Network | Yes | Yes |
-| Visual/Shader | No | Yes |
+| Feature Type      | Unit Tests | E2E Tests |
+| ----------------- | ---------- | --------- |
+| Component (UI)    | Yes        | Maybe     |
+| Service/Utility   | Yes        | No        |
+| Store (State)     | Yes        | No        |
+| Gameplay mechanic | Yes        | Yes       |
+| API/Network       | Yes        | Yes       |
+| Visual/Shader     | No         | Yes       |
 
 ### Phase 3: Create Unit Tests
 
@@ -115,6 +117,43 @@ describe('useGameStore', () => {
 ```
 
 ### Phase 4: Create E2E Tests
+
+**⚠️ CRITICAL: Server Lifecycle Awareness**
+
+**Playwright manages servers for E2E tests automatically.**
+
+When creating E2E tests, DO NOT manually start dev servers. The `playwright.config.ts` `webServer` configuration handles server startup and shutdown automatically.
+
+### When to NOT start servers:
+
+- Running `npm run test:e2e`
+- Running `npm run test:e2e -- -g "test-name"`
+- Verifying tests during creation
+
+### When to check for servers:
+
+- Manual testing with browser MCP
+- Visual verification during test creation
+
+### Server Check Pattern:
+
+```bash
+# Before manual MCP testing, check if server exists
+curl -s http://localhost:3000 > /dev/null && echo "Server running" || echo "Start server"
+
+# Or use netstat
+netstat -an | grep :3000 || lsof -i :3000
+```
+
+**Port Detection:**
+
+Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.). E2E tests in `playwright.config.ts` use `baseURL: 'http://localhost:3000'` and the `webServer` configuration automatically starts the dev server on the correct port.
+
+**For manual testing, detect the port first:**
+
+```bash
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+```
 
 **Load skill:** `Skill("qa-e2e-test-creation")`
 
@@ -235,36 +274,45 @@ Fix test code when:
 **Category**: Test / Runtime
 
 ### Summary
+
 Test "{test_name}" failed due to game code not meeting acceptance criteria.
 
 ### Test That Failed
+
 - File: {test_file}
 - Test: "{test_name}"
 - Error: {error_message}
 
 ### Acceptance Criteria Not Met
+
 - {criterion from test plan}
 
 ### Expected vs Actual
+
 - Expected: {what test expects}
 - Actual: {what actually happened}
 
 ### Test Output
+
 \`\`\`
 {test output}
 \`\`\`
 
 ### For Developer
+
 **Files likely involved**:
+
 - {source_files_affected}
 
 **Suggested investigation**:
+
 - {suggestions}
 ```
 
 ## Test Quality Standards
 
 ### Unit Tests Must:
+
 - Use AAA pattern (Arrange-Act-Assert)
 - Test one behavior per test
 - Have descriptive test names
@@ -273,6 +321,7 @@ Test "{test_name}" failed due to game code not meeting acceptance criteria.
 - Cover edge cases
 
 ### E2E Tests Must:
+
 - Test user flows, not implementation details
 - Use accessible selectors (getByRole, getByLabel)
 - Wait for elements properly
@@ -283,12 +332,14 @@ Test "{test_name}" failed due to game code not meeting acceptance criteria.
 ## Anti-Patterns
 
 **Avoid in unit tests:**
+
 - Testing implementation details (private methods)
 - Not mocking external services
 - Testing multiple things in one test
 - Brittle selectors (CSS classes that change)
 
 **Avoid in E2E tests:**
+
 - Testing internal state
 - Hardcoded waits (use waitFor/loadState)
 - Testing library internals
@@ -355,7 +406,7 @@ test.describe('Multiplayer Feature', () => {
     const page2 = await context2.newPage();
 
     // Both navigate to game
-    await page1.goto('http://localhost:3000');
+    await page1.goto('http://localhost:3000'); // E2E tests use baseURL from playwright.config.ts
     await page2.goto('http://localhost:3000');
 
     // Test synchronization
@@ -368,20 +419,22 @@ test.describe('Multiplayer Feature', () => {
 
 Load these skills for detailed patterns:
 
-| Skill | Purpose |
-| ----- | ------- |
+| Skill                   | Purpose                   |
+| ----------------------- | ------------------------- |
 | `qa-unit-test-creation` | Vitest unit test patterns |
-| `qa-e2e-test-creation` | Playwright E2E patterns |
-| `qa-test-creation` | Test coverage workflow |
+| `qa-e2e-test-creation`  | Playwright E2E patterns   |
+| `qa-test-creation`      | Test coverage workflow    |
 
 ## File Permissions
 
 **MAY write to:**
+
 - Test files: `src/tests/**/*.test.ts`, `tests/e2e/**/*.spec.ts`
 - Test helpers: `tests/helpers/*.ts`
 - Test fixtures: `tests/fixtures/*.ts`
 
 **MAY NOT write to:**
+
 - Source files in `src/` (production code)
 - Configuration files (unless test-related)
 

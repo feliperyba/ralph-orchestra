@@ -8,12 +8,32 @@ category: workflow
 
 **IMPORTANT:** E2E tests and MCP validation agents have different purposes:
 
-| Type | Purpose | When |
-|------|---------|------|
-| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD | Run on every commit/PR |
-| **MCP Agents** | EXPLORATORY validation for NEW features | One-time validation per task |
+| Type                           | Purpose                                 | When                         |
+| ------------------------------ | --------------------------------------- | ---------------------------- |
+| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD            | Run on every commit/PR       |
+| **MCP Agents**                 | EXPLORATORY validation for NEW features | One-time validation per task |
 
 E2E tests ensure existing features don't break. MCP agents verify new feature implementation.
+
+## MANDATORY: Port Detection Before Browser Testing
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**NOTE:** E2E tests configured in `playwright.config.ts` use `baseURL: 'http://localhost:3000'` which works for most cases. The `webServer` configuration in Playwright automatically starts the dev server on the correct port before running tests.
+
+**For manual testing or MCP validation, detect the port first and use `http://localhost:{detectedPort}`.**
 
 # Playwright E2E Test Creation Patterns
 
@@ -22,6 +42,7 @@ E2E tests ensure existing features don't break. MCP agents verify new feature im
 ## When to Use This Skill
 
 Use when creating E2E tests for:
+
 - User authentication flows (character selection, lobby)
 - Gameplay mechanics (movement, shooting, painting)
 - Multiplayer features (state sync, multiple clients)
@@ -32,13 +53,13 @@ Use when creating E2E tests for:
 
 **Pattern:** Flat structure in `tests/e2e/`
 
-| Feature | Test File |
-| ------- | --------- |
-| Authentication | `tests/e2e/auth-suite.spec.ts` |
-| Gameplay | `tests/e2e/gameplay-suite.spec.ts` |
-| Multiplayer | `tests/e2e/multiplayer-suite.spec.ts` (exists) |
-| Accessibility | `tests/e2e/accessibility-suite.spec.ts` (P1-005) |
-| UI Components | `tests/e2e/ui-suite.spec.ts` |
+| Feature        | Test File                                        |
+| -------------- | ------------------------------------------------ |
+| Authentication | `tests/e2e/auth-suite.spec.ts`                   |
+| Gameplay       | `tests/e2e/gameplay-suite.spec.ts`               |
+| Multiplayer    | `tests/e2e/multiplayer-suite.spec.ts` (exists)   |
+| Accessibility  | `tests/e2e/accessibility-suite.spec.ts` (P1-005) |
+| UI Components  | `tests/e2e/ui-suite.spec.ts`                     |
 
 **Naming convention:** `{feature}-suite.spec.ts`
 
@@ -104,7 +125,7 @@ test('should show error message', async ({ page }) => {
   // Take screenshot on failure
   await page.screenshot({
     path: 'tests/screenshots/error-case.png',
-    fullPage: true
+    fullPage: true,
   });
 });
 ```
@@ -314,6 +335,7 @@ test.describe('Error Handling', () => {
 **All E2E tests MUST use Page Objects from `tests/pages/`**
 
 The Page Object Model provides:
+
 - Single source of truth for selectors
 - Reusable code across E2E tests and MCP agents
 - Easier maintenance when UI changes
@@ -391,6 +413,7 @@ test('should connect 2 clients', async ({ browser }) => {
 ```
 
 The `MultiplayerPage` class provides:
+
 - `setupMultiPlayerTest(browser, count)` - Create browser contexts
 - `connectPlayersToGame(players)` - Connect players to lobby
 - `verifyAllConnected(players)` - Check all players connected
@@ -429,6 +452,7 @@ Based on [Playwright Accessibility Testing](https://playwright.dev/docs/accessib
 ### Color Mode / Color Blind Accessibility Testing
 
 For features like P1-005 (Color Blind Modes), test that:
+
 - All color modes are selectable
 - Pattern overlays work as primary differentiator
 - WCAG contrast ratios are displayed
@@ -459,9 +483,12 @@ test.describe('Accessibility - Color Modes (P1-005)', () => {
 
     // Skip accessibility detector for this test
     await page.evaluate(() => {
-      localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-        hasCompletedFirstLaunch: true
-      }));
+      localStorage.setItem(
+        'project-chroma-accessibility',
+        JSON.stringify({
+          hasCompletedFirstLaunch: true,
+        })
+      );
     });
     await page.reload();
 
@@ -490,9 +517,12 @@ test.describe('Accessibility - Color Modes (P1-005)', () => {
 
     // Skip to lobby
     await page.evaluate(() => {
-      localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-        hasCompletedFirstLaunch: true
-      }));
+      localStorage.setItem(
+        'project-chroma-accessibility',
+        JSON.stringify({
+          hasCompletedFirstLaunch: true,
+        })
+      );
     });
     await page.reload();
 
@@ -513,9 +543,12 @@ test.describe('Accessibility - Color Modes (P1-005)', () => {
 
     // Skip to lobby
     await page.evaluate(() => {
-      localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-        hasCompletedFirstLaunch: true
-      }));
+      localStorage.setItem(
+        'project-chroma-accessibility',
+        JSON.stringify({
+          hasCompletedFirstLaunch: true,
+        })
+      );
     });
     await page.reload();
 
@@ -541,9 +574,12 @@ test.describe('Accessibility - Color Modes (P1-005)', () => {
 
     // Skip to lobby
     await page.evaluate(() => {
-      localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-        hasCompletedFirstLaunch: true
-      }));
+      localStorage.setItem(
+        'project-chroma-accessibility',
+        JSON.stringify({
+          hasCompletedFirstLaunch: true,
+        })
+      );
     });
     await page.reload();
 
@@ -564,9 +600,12 @@ test.describe('Accessibility - Color Modes (P1-005)', () => {
 
     // Skip to lobby
     await page.evaluate(() => {
-      localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-        hasCompletedFirstLaunch: true
-      }));
+      localStorage.setItem(
+        'project-chroma-accessibility',
+        JSON.stringify({
+          hasCompletedFirstLaunch: true,
+        })
+      );
     });
     await page.reload();
 
@@ -591,9 +630,12 @@ test.describe('Accessibility - Color Modes (P1-005)', () => {
 
     // Skip to lobby
     await page.evaluate(() => {
-      localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-        hasCompletedFirstLaunch: true
-      }));
+      localStorage.setItem(
+        'project-chroma-accessibility',
+        JSON.stringify({
+          hasCompletedFirstLaunch: true,
+        })
+      );
     });
     await page.reload();
 
@@ -654,7 +696,7 @@ test.describe('Accessibility - WCAG Compliance', () => {
 
     // Filter for color-contrast violations
     const contrastViolations = accessibilityScanResults.violations.filter(
-      v => v.id === 'color-contrast'
+      (v) => v.id === 'color-contrast'
     );
 
     expect(contrastViolations).toEqual([]);
@@ -668,15 +710,18 @@ test.describe('Accessibility - WCAG Compliance', () => {
 test.describe('Visual - Color Modes', () => {
   const colorModes = ['default', 'protanopia', 'deuteranopia', 'tritanopia', 'high_contrast'];
 
-  colorModes.forEach(mode => {
+  colorModes.forEach((mode) => {
     test(`should render ${mode} color mode correctly`, async ({ page }) => {
       // Set color mode in localStorage
       await page.goto('http://localhost:3000');
       await page.evaluate((m) => {
-        localStorage.setItem('project-chroma-accessibility', JSON.stringify({
-          hasCompletedFirstLaunch: true,
-          colorMode: m
-        }));
+        localStorage.setItem(
+          'project-chroma-accessibility',
+          JSON.stringify({
+            hasCompletedFirstLaunch: true,
+            colorMode: m,
+          })
+        );
       }, mode);
       await page.reload();
 
@@ -819,19 +864,19 @@ test('should set characterName state variable', async ({ page }) => {
 
 ```typescript
 // ✅ Good - Role-based
-page.getByRole('button', { name: 'Submit' })
+page.getByRole('button', { name: 'Submit' });
 
 // ✅ Good - By label
-page.getByLabel('Email address')
+page.getByLabel('Email address');
 
 // ✅ Good - Test ID (when no accessible name)
-page.getByTestId('submit-button')
+page.getByTestId('submit-button');
 
 // ⚠️ Acceptable - ID selector (existing code)
-page.locator('#characterName')
+page.locator('#characterName');
 
 // ❌ Bad - Brittle CSS selector
-page.locator('.btn-primary:first-child')
+page.locator('.btn-primary:first-child');
 ```
 
 ### 4. Let Playwright Wait

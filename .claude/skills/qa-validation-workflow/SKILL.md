@@ -23,18 +23,42 @@ Use when:
 # Run full validation suite
 npm run type-check && npm run lint && npm run test && npm run build
 
-# Then MANDATORY browser testing via Playwright MCP
-# 1. Navigate to localhost:3000
-# 2. Take screenshots
-# 3. Verify functionality
+# Then MANDATORY browser testing via E2E tests
+npm run test:e2e
+
+# For manual MCP validation (only when E2E tests fail):
+# 1. Detect port: netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+# 2. Navigate to http://localhost:{detectedPort}
+# 3. Take screenshots
+# 4. Verify functionality
 ```
+
+### MANDATORY: Port Detection Before Browser Testing
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+# Method 1: Check listening ports
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+
+# Method 2: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
+curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
+curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+```
+
+**NOTE:** E2E tests use `playwright.config.ts` which automatically handles port detection via the `webServer` configuration.
+
+**For manual MCP validation, use the detected port in navigation.**
 
 ---
 
 ## Validation Pipeline
 
 ```
-      [GATE: E2E tests MUST be available]
+      [GATE: E2E tests MUST exist - CREATE if missing]
                   │
                   ▼
 ┌─────────────┐    ┌──────────┐    ┌──────────────┐    ┌──────────┐
@@ -47,7 +71,8 @@ npm run type-check && npm run lint && npm run test && npm run build
        │                │                   │                  │
        │                │            ┌──────┴──────┐          │
        │                │            │             │          │
-       │                │         Create Tests   Skip         │
+       │                │         Create Tests   CANNOT PASS  │
+       │                │            │          WITHOUT TEST  │
        │                │            │             │          │
        │                └────────────┴─────────────┘          │
        │                                                      │
@@ -67,6 +92,10 @@ npm run type-check && npm run lint && npm run test && npm run build
                     Update PRD            Report bugs
 ```
 
+**⚠️ MANDATORY RULE: If E2E tests don't exist, CREATE THEM before validation can pass.**
+
+**DO NOT mark validation as PASSED without E2E tests covering acceptance criteria.**
+
 > **Note**: See `qa-workflow` skill for E2E mandatory gate requirements and test failure analysis.
 
 ---
@@ -75,7 +104,9 @@ npm run type-check && npm run lint && npm run test && npm run build
 
 ### Level 0: Test Coverage Check (BEFORE Automated Checks)
 
-**⚠️ CRITICAL: Ensure tests exist before validation**
+**⚠️ CRITICAL: Ensure tests exist BEFORE validation - CREATE if missing**
+
+**VALIDATION CANNOT PASS WITHOUT E2E TESTS.**
 
 1. **Load qa-test-creation skill**
    ```bash
@@ -90,11 +121,15 @@ npm run type-check && npm run lint && npm run test && npm run build
    - Check if `tests/e2e/{feature}-suite.spec.ts` exists
    - Example: `tests/e2e/gameplay-suite.spec.ts`
 
-4. **If tests missing:**
-   - Invoke test-creator sub-agent
-   - Wait for tests to be created
-   - Verify `npm run test` passes
-   - Verify `npm run test:e2e` passes
+4. **If E2E tests missing:**
+   - ✅ **MANDATORY:** Invoke test-creator sub-agent to create E2E tests
+   - ✅ **MANDATORY:** Wait for tests to be created
+   - ✅ **MANDATORY:** Verify `npm run test:e2e` passes
+   - ❌ **CANNOT** mark validation as PASSED without E2E tests
+
+5. **Only AFTER E2E tests exist and pass:**
+   - Proceed with Level 1 (Automated Checks)
+   - Continue with full validation pipeline
 
 ### Level 1: Automated Checks
 
@@ -116,11 +151,86 @@ npm run build
 # Expected: Build succeeds
 ```
 
+## Server Detection (Before E2E Tests)
+
+**⚠️ CRITICAL: Check for existing servers before starting new ones**
+
+### Why This Matters
+
+- Playwright's `webServer` config automatically manages servers for E2E tests
+- Manually starting servers when Playwright already manages them wastes resources
+- Multiple server instances can cause port conflicts (EADDRINUSE errors)
+
+### Step 1: Check if Servers Are Running
+
+```bash
+# Check for dev server (port 3000)
+netstat -an | grep :3000 || lsof -i :3000
+
+# Check for Colyseus server (port 2567) - for multiplayer tasks
+netstat -an | grep :2567 || lsof -i :2567
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "DEV_SERVER_RUNNING" || echo "DEV_SERVER_AVAILABLE"
+```
+
+### Step 2: Decision Tree
+
+```
+                    Running E2E tests?
+                            |
+            ┌───────────────┴───────────────┐
+            │                               │
+       YES (npm run test:e2e)        NO (Manual MCP validation)
+            │                               │
+            ▼                               ▼
+   DO NOT start servers         Check if servers running
+   Playwright manages them       If YES: use existing
+   Cleanup is automatic          If NO: start and track
+```
+
+### Step 3: E2E Test Path (Standard)
+
+```bash
+# Playwright handles server lifecycle via webServer config
+npm run test:e2e
+
+# NO manual server start needed
+# NO manual cleanup needed - Playwright handles it
+```
+
+### Step 4: Manual MCP Validation Path (Only when needed)
+
+```bash
+# Only for manual MCP validation (NOT E2E tests)
+# Check port 3000 first
+if ! netstat -an | grep :3000; then
+  # Start server in background
+  Bash(command="npm run dev", run_in_background=true)
+  # Capture shell_id for cleanup: { shell_id: "abc123" }
+fi
+
+# After validation completes:
+TaskStop(task_id="abc123")  # MANDATORY cleanup
+```
+
+### Server Detection Checklist
+
+Before running any validation:
+
+- [ ] Checked if port 3000 is in use (`netstat -an | grep :3000`)
+- [ ] Checked if port 2567 is in use (for multiplayer tasks)
+- [ ] If running E2E tests: Playwright manages servers
+- [ ] If manual MCP validation: Use existing or start and track
+- [ ] After validation: Cleanup any servers manually started
+
+---
+
 ### Level 2: Test Execution & Failure Analysis (MANDATORY)
 
 **Every validation MUST include test execution:**
 
-1. **MANDATORY**: Manage dev server using `shared-lifecycle` skill patterns
+1. **MANDATORY**: Check server status before running tests (see Server Detection below)
 
 2. Run unit tests: `npm run test`
 
@@ -134,7 +244,7 @@ npm run build
 
 ### Level 3: Acceptance Criteria Verification
 
-For each acceptance criterion in `prd.json.items[{taskId}]`:
+For each acceptance criterion in `current-task-qa.json` (acceptanceCriteria array):
 
 ```markdown
 ## Acceptance Criteria Verification

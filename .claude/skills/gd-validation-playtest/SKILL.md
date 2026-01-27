@@ -8,11 +8,13 @@ description: Playwright-based game playtesting and design validation. Use when v
 ## When Playtest Is NOT Required
 
 **Skip playtest for:**
+
 - Test infrastructure bugfixes (unit tests, E2E tests, build fixes)
 - Non-gameplay tasks (CI/CD, tooling, documentation)
 - Backend-only changes without visual impact
 
 **Playtest IS required for:**
+
 - Gameplay mechanics (movement, shooting, physics)
 - Visual features (shaders, materials, effects)
 - UI/UX changes (HUD, menus, interactions)
@@ -22,6 +24,7 @@ description: Playwright-based game playtesting and design validation. Use when v
 ## Playtest Initiation
 
 **Triggers (any of these):**
+
 - `.claude/session/retrospective.txt` contains "[ ] Request playtest"
 - `prd.json.session.currentTask.status = "playtest_phase"`
 - PM sends `playtest_session_request` message
@@ -62,10 +65,8 @@ Bash("npm run dev:all:sh")
 ### Step 2: Launch Game via Playwright
 
 ```javascript
-// Navigate to game
+// Navigate to game (detect port first: netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)")
 await page.goto('http://localhost:3000');
-
-// Wait for game to load
 await page.waitForLoadState('networkidle');
 
 // Capture initial state
@@ -419,18 +420,21 @@ After completing playtest, use Write tool to send message to PM's inbox:
 
 ```javascript
 // Use Write tool to send message:
-Write(".claude/session/messages/pm/msg-playtest-{timestamp}.json", JSON.stringify({
-  "id": "msg-playtest-{timestamp}",
-  "from": "gamedesigner",
-  "to": "pm",
-  "type": "playtest_report",
-  "priority": "high",
-  "payload": {
-    // Include all findings from playtest
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}))
+Write(
+  '.claude/session/messages/pm/msg-playtest-{timestamp}.json',
+  JSON.stringify({
+    id: 'msg-playtest-{timestamp}',
+    from: 'gamedesigner',
+    to: 'pm',
+    type: 'playtest_report',
+    priority: 'high',
+    payload: {
+      // Include all findings from playtest
+    },
+    timestamp: '{UTC-timestamp}',
+    status: 'pending',
+  })
+);
 ```
 
 ## Retrospective Participation

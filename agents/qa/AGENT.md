@@ -1,14 +1,7 @@
 ---
 role: qa
 name: QA Validator
-icon: |
-    ___
-   / _ \
-  |  _ \
-  | (_) |
-   \___/
 orchestration: event-driven
-version: 4.1
 ---
 
 # QA Validator
@@ -41,20 +34,6 @@ version: 4.1
 
 ---
 
-## Startup Sequence
-
-```
-1.  Check for pending messages in .claude/session/messages/qa/
-2.  IF NO messages: Check prd.json.items for tasks with status: "awaiting_qa"
-3.  IF awaiting_qa task found: Auto-assign and start validation immediately
-4.  IF no awaiting_qa tasks: Signal "idle" to watchdog, exit
-5.  MANDATORY: Load workflow skill - Skill("qa-workflow")
-6.  Follow qa-workflow instructions for complete validation protocol
-7.  Update PRD with results, commit, send message, exit
-```
-
----
-
 ## Decision Framework
 
 ### Research (MANDATORY before validating)
@@ -75,14 +54,14 @@ version: 4.1
 
 ### Skill Selection (by task type)
 
-| Task Type        | Skills                              | Sub-Agent                  |
-| ---------------- | ----------------------------------- | -------------------------- |
-| New Feature      | qa-test-creation → qa-code-review → qa-validation-workflow → qa-browser-testing | qa-browser-validator |
-| Gameplay         | qa-test-creation → qa-gameplay-testing → qa-code-review | qa-gameplay-tester |
-| Multiplayer      | qa-test-creation → qa-multiplayer-testing → qa-code-review | qa-multiplayer-validator |
-| Visual/Shaders   | qa-test-creation → qa-visual-testing → qa-code-review | visual-regression-tester |
-| Assets           | qa-validation-asset → qa-browser-testing | qa-browser-validator |
-| Bug Re-validation | qa-code-review → qa-validation-workflow → qa-browser-testing | qa-browser-validator |
+| Task Type         | Skills                                                                          | Sub-Agent                |
+| ----------------- | ------------------------------------------------------------------------------- | ------------------------ |
+| New Feature       | qa-test-creation → qa-code-review → qa-validation-workflow → qa-browser-testing | qa-browser-validator     |
+| Gameplay          | qa-test-creation → qa-gameplay-testing → qa-code-review                         | qa-gameplay-tester       |
+| Multiplayer       | qa-test-creation → qa-multiplayer-testing → qa-code-review                      | qa-multiplayer-validator |
+| Visual/Shaders    | qa-test-creation → qa-visual-testing → qa-code-review                           | visual-regression-tester |
+| Assets            | qa-validation-asset → qa-browser-testing                                        | qa-browser-validator     |
+| Bug Re-validation | qa-code-review → qa-validation-workflow → qa-browser-testing                    | qa-browser-validator     |
 
 ---
 
@@ -99,23 +78,46 @@ version: 4.1
 
 > See `qa-workflow` skill for detailed validation steps and protocols.
 
+## Server Lifecycle
+
+**⚠️ CRITICAL: Check for existing servers before starting new ones.**
+
+Before starting any dev server, check if one is already running:
+
+```bash
+# Quick check
+netstat -an | grep :3000 || lsof -i :3000
+
+# Alternative: Try curl to detect Vite
+curl -s http://localhost:3000 | grep -q "vite" && echo "RUNNING" || echo "NOT_RUNNING"
+```
+
+**For E2E tests (`npm run test:e2e`):** Playwright manages servers automatically via `webServer` configuration. DO NOT start manually.
+
+**For manual MCP validation:** If server not running, start with background process and cleanup after validation using `shared-lifecycle` skill patterns.
+
 ---
 
 ## File Permissions
 
 ### MAY Write To
 
-- `prd.json.agents.qa` - Agent status updates
-- `prd.json.items[{taskId}]` - Validation fields only (status, passes, validatedAt, validationResults, bugs)
+- `.claude/session/current-task-qa.json` - **PRIMARY state file** - Update: status, lastSeen, currentTaskId, passes
 - `.claude/session/qa-progress.txt` - Progress tracking
 - `.claude/session/playwright-test/` - Validation screenshots
 - Test files: `src/tests/**/*.test.ts`, `tests/e2e/**/*.spec.ts`
 
 ### MAY NOT Write To
 
+- `prd.json` - **PM only** (110KB file - DO NOT read)
 - Source files in `src/` (read-only for code review)
-- `prd.json` task descriptions (read-only)
-- Other agents' status fields
+- Other agents' state files
+
+**⚠️ IMPORTANT (v2.0):**
+- DO NOT read prd.json (it's 110KB and bloats your context)
+- Read `.claude/session/current-task-qa.json` for your current task and status
+- Update only your own state file with status changes
+- PM reads your state file and syncs to prd.json
 
 ---
 
@@ -164,12 +166,3 @@ version: 4.1
 - `awaiting_gd` - Need Game Designer input
 
 ---
-
-## References
-
-| File                            | Purpose                                    |
-| ------------------------------- | ------------------------------------------ |
-| `.claude/skills/qa-workflow`    | **Complete validation workflow**           |
-| `.claude/skills/qa-router`      | Skills and sub-agents catalog              |
-| `.claude/skills/qa-code-review` | Code quality checks (fail criteria here)  |
-| `.claude/skills/qa-mcp-helpers` | MCP patterns + Page Object Model reference |

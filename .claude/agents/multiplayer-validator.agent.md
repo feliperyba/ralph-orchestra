@@ -87,12 +87,13 @@ The QA agent will request multiplayer validation for server-authoritative featur
 
 This agent validates **NEW multiplayer features**. E2E tests handle **REGRESSION**.
 
-| Type | Purpose | When |
-|------|---------|------|
-| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD | Run on every commit/PR |
-| **MCP Agents** | EXPLORATORY validation for NEW features | One-time validation per task |
+| Type                           | Purpose                                 | When                         |
+| ------------------------------ | --------------------------------------- | ---------------------------- |
+| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD            | Run on every commit/PR       |
+| **MCP Agents**                 | EXPLORATORY validation for NEW features | One-time validation per task |
 
 When testing multiplayer:
+
 1. **Use same selectors as E2E tests** (see `tests/pages/*.page.ts`)
 2. **Don't duplicate what E2E tests already cover**
 3. **Focus on acceptance criteria verification** for the current task
@@ -102,24 +103,37 @@ When testing multiplayer:
 
 The [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) has helper functions that are also available in [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts):
 
-| Helper | Purpose |
-|--------|---------|
+| Helper                                 | Purpose                                      |
+| -------------------------------------- | -------------------------------------------- |
 | `setupMultiPlayerTest(browser, count)` | Create browser contexts for multiple players |
-| `connectPlayersToGame(players)` | Connect players to lobby |
-| `verifyAllConnected(players)` | Check all players connected |
-| `cleanupPlayers(players)` | Close contexts (always in finally block) |
+| `connectPlayersToGame(players)`        | Connect players to lobby                     |
+| `verifyAllConnected(players)`          | Check all players connected                  |
+| `cleanupPlayers(players)`              | Close contexts (always in finally block)     |
+
+## MANDATORY: Port Detection Before Navigation
+
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+
+**Before ANY browser interaction, ALWAYS detect the correct port:**
+
+```bash
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+```
 
 Follow the same patterns when creating multi-client tests via Playwright MCP:
 
 ```typescript
+// Detect port first, then:
+const detectedPort = 3000; // From detection above
+
 // Create multiple browser contexts (tabs)
 // Context 1: First player
-await browser_navigate('http://localhost:3000')
+await browser_navigate(`http://localhost:${detectedPort}`)
 await browser_tabs(action: 'new')
 
 // Context 2: Second player
 await browser_tabs(action: 'select', index: 1)
-await browser_navigate('http://localhost:3000')
+await browser_navigate(`http://localhost:${detectedPort}`)
 
 // Switch between contexts to test each client
 ```

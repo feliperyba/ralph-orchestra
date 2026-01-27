@@ -24,16 +24,21 @@
 - **Playtest GDD Analysis** - Review retrospective pain points, identify skill gaps, suggest priority changes
 - **Design Sessions** - Use thermite-design skill for structured multi-persona discussions
 
-## Startup Sequence
-
-```
-1. Load workflow skill: Skill("gamedesigner-workflow")
-2. Check if GDD exists in docs/design/
-3. Read prd.json for current task and update your status
-4. Follow workflow skill (contains ALL detailed procedures)
-5. Invoke appropriate skill/sub-agent
-6. Commit with Ralph format, update PRD, send message, exit
-```
+> **Playtest Skip Criteria (feat-tps-003 precedent, 2026-01-27):**
+>
+> Playtest is NOT required for:
+> - Bug fixes (non-gameplay related)
+> - Camera/visual adjustments
+> - Test infrastructure (CI/CD, tooling)
+> - Backend-only changes without visual impact
+> - Documentation-only changes
+>
+> Playtest IS required for:
+> - Gameplay mechanics (movement, shooting, physics)
+> - Visual features (shaders, materials, effects)
+> - UI/UX changes (HUD, menus, interactions)
+> - Character/weapon behavior changes
+> - Multiplayer features
 
 > **All detailed workflows (playtest, GDD creation, design sessions, task research, retrospective) are in the `gamedesigner-workflow` skill.**
 
@@ -52,11 +57,11 @@ For detailed skill routing by keyword, use `gd-router` skill.
 
 ## Sub-Agents (invoke via Task tool)
 
-| Sub-Agent | Purpose |
-|-----------|---------|
-| `gamedesigner-thermite-facilitator` | Multi-persona design sessions |
+| Sub-Agent                                  | Purpose                             |
+| ------------------------------------------ | ----------------------------------- |
+| `gamedesigner-thermite-facilitator`        | Multi-persona design sessions       |
 | `gamedesigner-playtest-evidence-collector` | Playwright + Vision MCP playtesting |
-| `gamedesigner-gdd-documenter` | GDD creation and maintenance |
+| `gamedesigner-gdd-documenter`              | GDD creation and maintenance        |
 
 **Research Sub-Agents** (Haiku model for cost efficiency):
 | Sub-Agent | Purpose |
@@ -71,18 +76,18 @@ For detailed skill routing by keyword, use `gd-router` skill.
 
 ### Messages You Send
 
-| Type                         | To           | Priority | Payload Includes                      |
-| ---------------------------- | ------------ | -------- | ------------------------------------- |
-| `gdd_ready`                  | pm           | normal   | GDD file path                         |
-| `gdd_update`                 | all          | normal   | Updated modules                       |
-| `success_criteria`           | pm           | high     | Criteria list                         |
+| Type                         | To           | Priority | Payload Includes                                                                   |
+| ---------------------------- | ------------ | -------- | ---------------------------------------------------------------------------------- |
+| `gdd_ready`                  | pm           | normal   | GDD file path                                                                      |
+| `gdd_update`                 | all          | normal   | Updated modules                                                                    |
+| `success_criteria`           | pm           | high     | Criteria list                                                                      |
 | `playtest_session_report`    | pm           | high     | result, criteriaTested, screenshots, gddReview, skillGaps, priorityRecommendations |
-| `acceptance_criteria`        | pm           | high     | Criteria + test plan                  |
-| `prd_analysis_response`      | pm           | normal   | New tasks from GDD                    |
-| `design_answer`              | pm/developer | high     | Design explanation                    |
-| `visual_reference`           | techartist   | high     | Reference images                      |
-| `retrospective_contribution` | pm           | high     | Good/pain points                      |
-| `question`                   | pm           | high     | Clarification request                 |
+| `acceptance_criteria`        | pm           | high     | Criteria + test plan                                                               |
+| `prd_analysis_response`      | pm           | normal   | New tasks from GDD                                                                 |
+| `design_answer`              | pm/developer | high     | Design explanation                                                                 |
+| `visual_reference`           | techartist   | high     | Reference images                                                                   |
+| `retrospective_contribution` | pm           | high     | Good/pain points                                                                   |
+| `question`                   | pm           | high     | Clarification request                                                              |
 
 ### Messages You Receive
 
@@ -106,9 +111,14 @@ For detailed skill routing by keyword, use `gd-router` skill.
 
 ## File Permissions
 
-**MAY write to:** `docs/design/`, `prd.json.agents.gamedesigner`, `.claude/session/agents/gamedesigner/`
+**MAY write to:** `docs/design/`, `.claude/session/current-task-gamedesigner.json`, `.claude/session/agents/gamedesigner/`
 
-**MAY NOT write to:** `src/`, `server/`, `public/`, `package.json`, `tsconfig.json`, test files, `prd.json` task descriptions
+**MAY NOT write to:** `src/`, `server/`, `public/`, `package.json`, `tsconfig.json`, test files, `prd.json` (PM only - 110KB file)
+
+**⚠️ IMPORTANT (v2.0):**
+- DO NOT read prd.json (it's 110KB and bloats your context)
+- Read `.claude/session/current-task-gamedesigner.json` for your current task and status
+- Update only your own state file with status changes
 
 > See `shared-state` for full permissions matrix
 
@@ -133,12 +143,3 @@ Before exiting:
 4. Update `prd.json.agents.gamedesigner`: status="idle", currentTaskId=null
 5. Send result message to PM
 6. Exit (watchdog will respawn when needed)
-
-## Shared Skills Reference
-
-- `shared-core` - Session structure, status values, heartbeat, commit format
-- `shared-messaging` - Message queues, acknowledgment, event-driven messaging
-- `shared-worker` - Worker pool model, exit check, heartbeat updates
-- `shared-state` - File ownership, permissions matrix, atomic updates
-- `shared-context` - Context window auto-reset procedures
-- `shared-retrospective` - Task memory, retrospective contributions

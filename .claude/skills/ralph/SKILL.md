@@ -1,7 +1,6 @@
 ---
 name: ralph
 description: Start autonomous Ralph loop - work through PRD tasks iteratively until complete
-keywords: [ralph, autonomous, loop, prd, iterative, development, orchestration, coordinator]
 ---
 
 # Ralph Autonomous Development Loop
@@ -47,11 +46,13 @@ echo "## Session Log" >> .claude/session/progress.txt
 **CRITICAL**: You MUST automatically reset your context when reaching ~70% capacity to maintain performance.
 
 **Detection Guidelines**:
+
 - After ~10 iterations → context is ~50% → continue monitoring
 - After ~15 iterations → context is ~70% → **RESET IMMEDIATELY**
 - If responses feel sluggish → context may be full → **RESET IMMEDIATELY**
 
 **Reset Procedure (AUTOMATIC - no approval needed)**:
+
 1. Read current `prd.json` to see what's done
 2. Update `progress.txt` with summary of work done
 3. Output exactly: `<promise>CONTEXT_RESET</promise>`
@@ -59,10 +60,12 @@ echo "## Session Log" >> .claude/session/progress.txt
 5. Next iteration will reload state and continue seamlessly
 
 **State to Save Before Reset**:
+
 - Read `prd.json` to note which tasks have `passes: true`
 - Update `progress.txt` with current iteration summary
 
 **After Reset**:
+
 - Re-read `prd.json` to see what's done
 - Continue with next incomplete task
 - Do NOT repeat completed work
@@ -94,15 +97,18 @@ For each iteration:
    - **Quality over speed** - small steps compound into big progress
 
 4. **Validate**: Run ALL feedback loops BEFORE committing
+
    ```bash
    npm run type-check  # Must pass with no errors
    npm run lint         # Must pass with zero warnings
    npm run test         # All tests must pass
    npm run build        # Production build must succeed
    ```
+
    **DO NOT COMMIT if any feedback loop fails.** Fix issues first.
 
 5. **Commit**: When all pass, commit with format:
+
    ```
    [ralph] feat-XXX: Brief description
 
@@ -143,6 +149,7 @@ You are not just writing code. You are shaping the future of this project. The p
 **Fight entropy. Leave the codebase better than you found it.**
 
 Specific standards:
+
 - Production code - maintainable and documented
 - No `any` types without justification
 - Test coverage > 80% for new code

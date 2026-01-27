@@ -303,7 +303,7 @@ function testCrossBrowserCompatibility() {
         const browserContext = await browser.newContext();
         const page = await browserContext.newPage();
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:3000'); // E2E tests use baseURL from playwright.config.ts
 
         // Test model loading
         await page.waitForSelector('[data-testid="model-loaded"]', { timeout: 5000 });

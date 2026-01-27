@@ -645,6 +645,32 @@ vec3 heatmap(float t) {
 
 ## TSL Error Handling
 
+### ⚠️ CRITICAL: TSL hash() Function Type Safety
+
+**Learned from feat-tps-003 (2026-01-27):**
+
+The TSL `hash()` function expects a **float** parameter, but passing `vec2` directly causes cryptic runtime errors:
+
+```
+TypeError: Cannot read properties of undefined (reading 'replace')
+```
+
+**ALWAYS use `dot()` to convert vec2 to float before passing to hash():**
+
+```tsx
+// ❌ WRONG - Causes TypeError at runtime
+const hashValue = hash(position.xy);
+
+// ✅ CORRECT - Use dot() for vec2 → float conversion
+const hashValue = hash(dot(position.xy, vec2(1.0)));
+```
+
+**Why this happens:** TSL's `hash()` function internally calls `.toString()` on its argument for shader code generation. When passed a `vec2` node, the string representation doesn't match what `hash()` expects, causing the replace error.
+
+**Files affected:** TerrainShader.ts, PaintMaterial.ts, PaintPatternShader.ts
+
+---
+
 ### Problem: TypeError on .replace()
 
 When using TSL (Three.js Shading Language) functions that may return undefined:

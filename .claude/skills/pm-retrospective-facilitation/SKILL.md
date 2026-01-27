@@ -43,6 +43,67 @@ Use when:
 
 After retrospective completes, use the `pm-retrospective-playtest-session` skill to request playtest from Game Designer.
 
+### When to SKIP Playtest (feat-tps-003 precedent, 2026-01-27)
+
+**Playtest is NOT required for:**
+
+- Bug fixes (non-gameplay related)
+- Camera/visual adjustments
+- Test infrastructure (CI/CD, tooling)
+- Backend-only changes without visual impact
+- Documentation-only changes
+
+**Playtest IS required for:**
+
+- Gameplay mechanics (movement, shooting, physics)
+- Visual features (shaders, materials, effects)
+- UI/UX changes (HUD, menus, interactions)
+- Character/weapon behavior changes
+- Multiplayer features
+
+**Rationale:** Playtesting is time-consuming for the Game Designer and should be focused on features that directly impact gameplay experience. Technical fixes can be validated through code review and automated tests.
+
+### When to EXCUSE Tech Artist from Retrospective (feat-tps-004 precedent, 2026-01-27)
+
+**Tech Artist excusal criteria:**
+
+- Tech Artist is working on TIER_0_BLOCKER task unrelated to current retrospective
+- Task has no visual/shader component requiring Tech Artist input
+- Task is architectural, backend, or test infrastructure
+
+**When to excuse:**
+
+1. Check `prd.json.agents.techartist.currentTaskId`
+2. If Tech Artist working on TIER_0_BLOCKER (e.g., bugfix-shader-001)
+3. And current retrospective task is non-visual (e.g., camera value fix)
+4. **THEN excusal is appropriate**
+
+**Example from feat-tps-004:**
+
+```
+Task: feat-tps-004 (Camera Shoulder Offset Fix)
+Tech Artist Status: Working on bugfix-shader-001 (TIER_0_BLOCKER)
+Task Type: Camera value fix (non-visual, no shader component)
+Decision: EXCUSE Tech Artist from retrospective
+```
+
+**When NOT to excuse:**
+
+- Task involves shaders, materials, or visual effects
+- Task involves 3D models or animations
+- Tech Artist has no blocking tasks
+- Tech Artist contributed to implementation
+
+**Retrospective file format with excusal:**
+```markdown
+### Tech Artist Perspective
+
+**EXCUSED** - Tech Artist is working on bugfix-shader-001 (TIER_0_BLOCKER)
+This task has no visual/shader component requiring Tech Artist input.
+```
+
+---
+
 ## State Flow
 
 ```

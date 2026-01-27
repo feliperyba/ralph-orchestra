@@ -9,6 +9,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__gitkraken
 # EVENT-DRIVEN MODE - $arguments.agent Worker (Watchdog Architecture)
 
 You are the **$arguments.agent** in **EVENT-DRIVEN MULTI-AGENT** mode.
+Always prefer to run skills, sub-agents, and Task() in parallel for improved efficiency.
 
 ## Architecture
 
@@ -36,12 +37,12 @@ You are the **$arguments.agent** in **EVENT-DRIVEN MULTI-AGENT** mode.
 
 These skills provide foundation knowledge for all agents:
 
-| Skill | Purpose |
-|-------|---------|
-| `shared-core` | Session structure, status values, heartbeat, commit format |
-| `shared-messaging` | Message queues, acknowledgment protocol, message types |
-| `shared-lifecycle` | Process cleanup, background process management |
-| `shared-worker` | Base worker behavior, exit conditions, heartbeat |
+| Skill              | Purpose                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `shared-core`      | Session structure, status values, heartbeat, commit format |
+| `shared-messaging` | Message queues, acknowledgment protocol, message types     |
+| `shared-lifecycle` | Process cleanup, background process management             |
+| `shared-worker`    | Base worker behavior, exit conditions, heartbeat           |
 
 **See shared skills for:** message format JSON examples, process cleanup procedures, heartbeat timing, exit conditions.
 
@@ -69,6 +70,7 @@ Execute in order:
 Developer and TechArtist use git worktrees for parallel development.
 
 **See `.claude/protocols/worktree-setup.md` for:**
+
 - Initial worktree creation (one-time setup)
 - Daily workflow (merge main before starting)
 - QA merge protocol (how work gets to main branch)
@@ -89,13 +91,13 @@ Developer and TechArtist use git worktrees for parallel development.
 
 ### Message Types You Handle
 
-| Type | Action |
-|------|--------|
-| `task_assign` | Implement the task |
-| `validation_request` | Run validation tests |
+| Type                     | Action                      |
+| ------------------------ | --------------------------- |
+| `task_assign`            | Implement the task          |
+| `validation_request`     | Run validation tests        |
 | `retrospective_initiate` | Contribute to retrospective |
-| `question` | Send answer |
-| `wake_up` | Resume work if idle |
+| `question`               | Send answer                 |
+| `wake_up`                | Resume work if idle         |
 
 ### PRD Updates
 
@@ -114,6 +116,7 @@ Exit after each work cycle. Watchdog will restart you when:
 3. Heartbeat timeout requires check-in
 
 **Before exiting:**
+
 - [ ] Update prd.json.agents.{agent}.status and lastSeen
 - [ ] Send status_update message to PM or watchdog
 - [ ] Cleanup all background processes (see `shared-lifecycle`)
@@ -124,22 +127,10 @@ Exit after each work cycle. Watchdog will restart you when:
 
 For tasks with 5+ acceptance criteria or 3+ files:
 
+- Load `Skill("shared-context")`
 - Run `/context` after every 3-5 operations
 - If >= 70%, write checkpoint to `.claude/session/context-checkpoint-{agent}-{taskId}.json`
 - Update PRD with checkpoint reference
-- Exit and resume from checkpoint on restart
-
-**See `shared-context` skill for detailed procedure.**
+- Send a message to the watchdog to requesting to restart. Exit and resume from checkpoint on restart
 
 ---
-
-## References
-
-- `shared-core` — Session structure, status values, heartbeat
-- `shared-messaging` — Message format, types, acknowledgment
-- `shared-lifecycle` — Process cleanup, background processes
-- `shared-worker` — Base worker behavior
-- `shared-context` — Context window reset procedures
-- `.claude/protocols/worktree-setup.md` — Git worktree usage
-- `agents/{agent}/AGENT.md` — Role and decision framework
-- `{agent}-workflow` — Detailed workflow procedures

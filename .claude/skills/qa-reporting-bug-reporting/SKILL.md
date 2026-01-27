@@ -209,19 +209,35 @@ Code Review:
 - Issue: CORS error in browser console - server CORS config missing
 ```
 
-## prd.json Update
+## Bug Report Message (v2.0)
 
-When reporting a bug, update the task item in `prd.json.items[{taskId}]`:
+When reporting a bug, send a `bug_report` message to PM with full bug details:
 
 ````json
 {
-  "status": "needs_fixes",
-  "bugNotes": "## Summary\n\nBuild fails with TypeScript error...\n\n## Steps to Reproduce\n\n1. Run npm run build\n2. Observe error\n\n## Error\n\n```\nTS2322: Type 'string' is not assignable...\n```",
-  "retryCount": 1
+  "id": "msg-pm-{timestamp}-001",
+  "from": "qa",
+  "to": "pm",
+  "type": "bug_report",
+  "priority": "high",
+  "payload": {
+    "taskId": "{taskId}",
+    "bugs": [{
+      "file": "src/file.ts",
+      "line": 42,
+      "issue": "Type error: Type 'string' is not assignable...",
+      "severity": "critical",
+      "summary": "Build fails with TypeScript error",
+      "steps": ["Run npm run build", "Observe error"],
+      "expected": "Build succeeds",
+      "actual": "TS2322 error"
+    }]
+  },
+  "timestamp": "{ISO_TIMESTAMP}"
 }
 ````
 
-Session state is tracked in `prd.json.session` and agent status in `prd.json.agents.{agent}`.
+**⚠️ V2.0:** QA does NOT update prd.json directly. PM syncs bug information from bug_report message.
 
 **Note:** Commit format templates for failed validations are in `qa-workflow` skill.
 
@@ -241,7 +257,7 @@ Before submitting bug report:
 - [ ] Severity assigned
 - [ ] Category assigned
 - [ ] Environment specified
-- [ ] prd.json.items[{taskId}] updated
+- [ ] bug_report message sent to PM
 
 ## Reference
 
