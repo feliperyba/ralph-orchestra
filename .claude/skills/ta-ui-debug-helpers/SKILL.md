@@ -1,7 +1,7 @@
 ---
 name: ta-ui-debug-helpers
-description: Adds debug visualization (helpers, gizmos, stats). Use proactively when debugging 3D scenes, physics colliders, or rendering issues.
-category: techartist
+description: Debug visualization helpers using drei and Three.js. Use when adding debug gizmos, visual helpers, diagnostics.
+category: ui
 ---
 
 # Visual Debug Helpers Skill
@@ -397,7 +397,11 @@ When adding debug visualization:
 - [ ] Performance acceptable (< 1 FPS impact)
 - [ ] Clean up helpers on unmount
 
-## Reference
+## Related Skills
+
+For UI polish: `Skill("ta-ui-polish")`
+
+## External References
 
 - [@react-three/drei Helpers](https://github.com/pmndrs/drei#helpers)
 - [Three.js Helpers](https://threejs.org/docs/#api/en/helpers/)

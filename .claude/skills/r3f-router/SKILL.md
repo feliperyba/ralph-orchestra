@@ -1,6 +1,8 @@
 ---
 name: r3f-router
 description: Routes to specialized R3F skills based on task requirements
+category: development
+keywords: [router, r3f, react-three-fiber, threejs, routing, skills, development]
 ---
 
 # R3F Skill Router
@@ -59,33 +61,31 @@ function routeR3FSkills(task) {
   const skills = new Set();
 
   // Always start with fundamentals
-  skills.add("r3f-fundamentals");
+  skills.add('r3f-fundamentals');
 
   // Check for physics
   if (
     /physics|collision|collider|rigid|rapier|cannon|force|impulse|gravity|sensor|trigger/i.test(
-      text,
+      text
     )
   ) {
-    skills.add("r3f-physics");
+    skills.add('r3f-physics');
   }
 
   // Check for materials/shaders
   if (
     /material|shader|texture|pbr|matcap|glsl|uniform|fragment|vertex|transparent|metalness|roughness/i.test(
-      text,
+      text
     )
   ) {
-    skills.add("r3f-materials");
+    skills.add('r3f-materials');
   }
 
   // Check for performance
   if (
-    /performance|fps|optimize|mobile|instance|lod|memory|dispose|lag|stutter|draw.?call/i.test(
-      text,
-    )
+    /performance|fps|optimize|mobile|instance|lod|memory|dispose|lag|stutter|draw.?call/i.test(text)
   ) {
-    skills.add("r3f-performance");
+    skills.add('r3f-performance');
   }
 
   return Array.from(skills);
@@ -157,6 +157,23 @@ function routeR3FSkills(task) {
 │ physics│ │material│ │performance │
 └────────┘ └────────┘ └────────────┘
 ```
+
+## Research Guides (For Test-Fix Tasks)
+
+**Before implementing R3F test-fix tasks, check research guides for technical specifications:**
+
+| Guide | Topics | When to Use |
+|-------|--------|-------------|
+| `docs/research/terrain-shader-research.md` | Terrain raymarching, SDF functions, FBM noise | Working on terrain/heightmap shaders |
+| `docs/research/paint-shader-research.md` | Wet paint effects, splat decals, fresnel | Working on paint/ink shaders |
+| `docs/research/weapons-loading-research.md` | Weapon models, accessories, team colors | Working on weapon rendering |
+| `docs/research/character-models-research.md` | Character skins, animations, blend states | Working on character models |
+
+**Pattern:**
+1. Check task for keywords (terrain, paint, weapon, character)
+2. Read corresponding research guide
+3. Extract shader code examples and technical specifications
+4. Apply findings to R3F implementation
 
 ## Reference Files
 

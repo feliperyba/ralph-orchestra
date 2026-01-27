@@ -1,6 +1,7 @@
 ---
 name: dev-validation-browser-testing
 description: E2E test creation for Developer - write tests using Playwright API for feature validation
+category: validation
 ---
 
 # Browser Testing for Developer

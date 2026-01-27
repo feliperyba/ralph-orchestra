@@ -1,7 +1,7 @@
 ---
 name: ta-r3f-fundamentals
-description: Implements R3F scenes, components, and game loops. Use proactively when setting up R3F scenes, creating 3D components, or implementing useFrame animations.
-category: techartist
+description: React Three Fiber core patterns for scene composition and game loop. Use when setting up R3F scenes, creating 3D components, implementing game loops.
+category: r3f
 ---
 
 # R3F Fundamentals Skill
@@ -260,9 +260,13 @@ Before implementing R3F component:
 - [ ] Depth testing configured for layered meshes (renderOrder, depthTest, depthWrite)
 - [ ] No z-fighting visible on overlapping surfaces
 
-## Reference
+## Related Skills
+
+For materials: `Skill("ta-r3f-materials")`
+For performance: `Skill("ta-r3f-performance")`
+For physics: `Skill("ta-r3f-physics")`
+
+## External References
 
 - [drei documentation](https://github.com/pmndrs/drei) — Helper components
 - [R3F documentation](https://docs.pmnd.rs/react-three-fiber) — Official docs
-- [skills/r3f-materials.md](r3f-materials.md) — Materials guide
-- [skills/r3f-performance.md](r3f-performance.md) — Optimization

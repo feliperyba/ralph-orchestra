@@ -1,6 +1,7 @@
 ---
-name: git-protocol
+name: dev-coordination-git-protocol
 description: Git commit format and branch management
+category: coordination
 ---
 
 # Git Protocol

@@ -1,6 +1,7 @@
 ---
-name: object-pooling
+name: dev-patterns-object-pooling
 description: Object pooling for high-performance R3F components (decals, particles, projectiles)
+category: patterns
 ---
 
 # Object Pooling Pattern

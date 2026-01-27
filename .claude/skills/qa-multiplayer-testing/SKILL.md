@@ -1,75 +1,92 @@
 ---
 name: qa-multiplayer-testing
 description: E2E multiplayer testing using Playwright API with multi-client browser contexts. Validates server-authoritative patterns, state synchronization, and anti-cheat measures. Use when testing multiplayer features.
+category: validation
 ---
 
 # Multiplayer Testing with E2E Tests
 
 > "Server-authoritative code must be validated with actual server connections using E2E tests."
 
-## When to Use
+## When to Use This Skill
 
 Use for **EVERY task** marked with `serverAuthoritative: true` or `multiplayerTested: true`.
 
----
+## Core Principle: Write Multi-Client E2E Tests
 
-## Test Categories
-
-| Category | What to Validate |
-|-----------|------------------|
-| **Connection** | Multiple clients connect to same room |
-| **State Sync** | All clients see same server state |
-| **Movement** | Client input → Server validate → All clients see result |
-| **Shooting** | Client fires → Server validates → All clients see paint |
-| **Spawning** | Server assigns spawn → All clients see same location |
-| **Tamper Detection** | Server rejects invalid inputs |
-| **Latency** | Client prediction + server reconciliation |
-
----
-
-## Core Principle
-
-**✅ CORRECT: Multi-client E2E tests**
+**✅ CORRECT APPROACH:**
 ```typescript
+// Write E2E test with multiple browser contexts - YES!
 test('server-authoritative movement sync', async ({ browser }) => {
-  const context1 = await browser.newContext();
-  const context2 = await browser.newContext();
-  // Test multi-client behavior...
-});
-```
-
-**❌ WRONG: Playwright MCP**
-```typescript
-mcp__playwright__browser_navigate('http://localhost:3000');
-mcp__playwright__browser_tabs({ action: 'new' });
-```
-
----
-
-<examples>
-
-## Multiplayer Test Scenarios
-
-### Scenario 1: Multi-Client Connection
-
-```typescript
-import { test, expect } from '@playwright/test';
-
-test('two clients connect to same room', async ({ browser }) => {
   const context1 = await browser.newContext();
   const context2 = await browser.newContext();
   const page1 = await context1.newPage();
   const page2 = await context2.newPage();
 
+  // Test multi-client behavior
+  await page1.goto('http://localhost:3000');
+  await page2.goto('http://localhost:3000');
+
+  // Verify state sync...
+});
+```
+
+**❌ DO NOT USE:**
+```typescript
+// Interactive MCP - NO!
+mcp__playwright__browser_navigate('http://localhost:3000');
+mcp__playwright__browser_tabs({ action: 'new' });
+```
+
+## Critical Architecture Principle
+
+**Single-browser testing is INSUFFICIENT for multiplayer validation.**
+
+You must verify in E2E tests:
+
+- Server receives input from clients
+- Server validates and processes input
+- Server broadcasts state to all clients
+- All clients see synchronized state
+
+## Quick Start: Multi-Client Test Pattern
+
+```typescript
+// tests/e2e/multiplayer-suite.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('server-authoritative movement sync', async ({ browser }) => {
+  // Create 2 separate browser contexts (simulate 2 players)
+  const context1 = await browser.newContext();
+  const context2 = await browser.newContext();
+
+  const page1 = await context1.newPage();
+  const page2 = await context2.newPage();
+
   try {
-    await page1.goto('http://localhost:3000');
-    await page2.goto('http://localhost:3000');
+    // Both connect to same server room
+    await page1.goto('http://localhost:3000?room=test_room');
+    await page2.goto('http://localhost:3000?room=test_room');
 
-    const connected1 = await page1.evaluate(() => (window as any).gameState?.connected);
-    const connected2 = await page2.evaluate(() => (window as any).gameState?.connected);
+    // Wait for connection
+    await page1.waitForFunction(() => (window as any).isConnected?.() === true);
+    await page2.waitForFunction(() => (window as any).isConnected?.() === true);
 
-    expect(connected1).toBe(true);
-    expect(connected2).toBe(true);
+    // Player 1 moves (WASD input)
+    await page1.click('canvas');
+    await page1.keyboard.down('KeyW');
+    await page1.waitForTimeout(500);
+    await page1.keyboard.up('KeyW');
+
+    // Wait for server sync
+    await page1.waitForTimeout(200);
+
+    // Player 2 should see Player 1's new position
+    const player1PosOnPage2 = await page2.evaluate(() => {
+      return (window as any).getRemotePlayerPosition?.('player1');
+    });
+
+    expect(player1PosOnPage2.z).toBeLessThan(0); // Moved forward
   } finally {
     await context1.close();
     await context2.close();
@@ -77,7 +94,82 @@ test('two clients connect to same room', async ({ browser }) => {
 });
 ```
 
-### Scenario 2: State Synchronization
+## Test Categories
+
+| Category         | What to Validate                                        |
+| ---------------- | ------------------------------------------------------- |
+| Connection       | Multiple clients connect to same room                   |
+| State Sync       | All clients see same server state                       |
+| Movement         | Client input → Server validate → All clients see result |
+| Shooting         | Client fires → Server validates → All clients see paint |
+| Spawning         | Server assigns spawn → All clients see same location    |
+| Tamper Detection | Server rejects invalid inputs                           |
+| Latency          | Client prediction + server reconciliation               |
+
+## Server Management
+
+**⚠️ CRITICAL: Use `shared-lifecycle` skill for server management.**
+
+Multiplayer tests require both frontend (port 3000) and backend (Colyseus port 2567) servers.
+
+Before running multiplayer E2E tests, always check/start the dev server using the patterns from `shared-lifecycle` skill.
+
+**MANDATORY CLEANUP after all tests complete (pass OR fail):**
+
+Use the cleanup patterns from `shared-lifecycle` skill to ensure:
+- Dev server is stopped
+- Backend server is stopped
+- Ports 3000 and 2567 are released
+- No orphaned processes remain
+
+## Server Validation Checklist
+
+Before running multiplayer E2E tests, verify server is running:
+
+```bash
+# Terminal 1: Start servers
+npm run dev:all:sh
+# Expected output: "listening on ws://localhost:2567"
+# Expected output: "Local: http://localhost:3000"
+```
+
+**If server is NOT running, FAIL the validation immediately.**
+
+## Progressive Guide
+
+### Level 1: Multi-Client Connection
+
+```typescript
+test('two clients connect to same room', async ({ browser }) => {
+  const context1 = await browser.newContext();
+  const context2 = await browser.newContext();
+  const page1 = await context1.newPage();
+  const page2 = await context2.newPage();
+
+  try {
+    // Both connect
+    await page1.goto('http://localhost:3000');
+    await page2.goto('http://localhost:3000');
+
+    // Verify connection on both
+    const connected1 = await page1.evaluate(() => (window as any).gameState?.connected);
+    const connected2 = await page2.evaluate(() => (window as any).gameState?.connected);
+
+    expect(connected1).toBe(true);
+    expect(connected2).toBe(true);
+
+    // Verify same room
+    const room1 = await page1.evaluate(() => (window as any).gameState?.roomId);
+    const room2 = await page2.evaluate(() => (window as any).gameState?.roomId);
+    expect(room1).toBe(room2);
+  } finally {
+    await context1.close();
+    await context2.close();
+  }
+});
+```
+
+### Level 2: State Synchronization
 
 ```typescript
 test('movement syncs between clients', async ({ browser }) => {
@@ -90,9 +182,11 @@ test('movement syncs between clients', async ({ browser }) => {
     await page1.goto('http://localhost:3000');
     await page2.goto('http://localhost:3000');
 
+    // Wait for both players to spawn
     await page1.waitForFunction(() => (window as any).gameState?.players?.size >= 2);
     await page2.waitForFunction(() => (window as any).gameState?.players?.size >= 2);
 
+    // Get initial positions
     const initialPos = await page1.evaluate(() => {
       const localId = (window as any).gameState?.localPlayerId;
       return (window as any).gameState?.players?.get(localId)?.position;
@@ -101,10 +195,17 @@ test('movement syncs between clients', async ({ browser }) => {
     // Player 1 moves forward
     await page1.click('canvas');
     await page1.keyboard.down('KeyW');
-    await page1.waitForTimeout(1000);
+    await page1.waitForTimeout(1000); // Move for 1 second
     await page1.keyboard.up('KeyW');
 
-    await page1.waitForTimeout(200); // Server sync
+    // Wait for server sync
+    await page1.waitForTimeout(200);
+
+    // Verify Player 1 moved locally
+    const localPos = await page1.evaluate(() => {
+      const localId = (window as any).gameState?.localPlayerId;
+      return (window as any).gameState?.players?.get(localId)?.position;
+    });
 
     // Verify Player 2 sees Player 1's new position
     const remotePos = await page2.evaluate(() => {
@@ -116,7 +217,8 @@ test('movement syncs between clients', async ({ browser }) => {
       }
     });
 
-    expect(remotePos.z).toBeLessThan(0); // Moved forward
+    expect(localPos.z).not.toBe(initialPos.z); // Local player moved
+    expect(Math.abs(remotePos.z - localPos.z)).toBeLessThan(1); // Sync within tolerance
   } finally {
     await context1.close();
     await context2.close();
@@ -124,16 +226,18 @@ test('movement syncs between clients', async ({ browser }) => {
 });
 ```
 
-### Scenario 3: Server Authority (Anti-Cheat)
+### Level 3: Server Authority Validation
 
 ```typescript
 test('server validates input (anti-cheat)', async ({ browser }) => {
   const page = await browser.newPage();
   await page.goto('http://localhost:3000');
 
-  const posBefore = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
+  // Expose game internals for testing
+  const networkManager = await page.evaluate(() => (window as any).networkManager);
 
   // Attempt to send impossible input (speed hack)
+  // This should be REJECTED by server
   await page.evaluate(() => {
     (window as any).networkManager?.send({
       type: 'player_input',
@@ -144,8 +248,9 @@ test('server validates input (anti-cheat)', async ({ browser }) => {
     });
   });
 
+  // Verify position didn't teleport
+  const posBefore = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
   await page.waitForTimeout(500);
-
   const posAfter = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
 
   // Position should NOT have changed dramatically
@@ -153,14 +258,7 @@ test('server validates input (anti-cheat)', async ({ browser }) => {
 });
 ```
 
-</examples>
-
----
-
-<details>
-<summary>Additional Test Patterns</summary>
-
-### Shooting Synchronization
+### Level 4: Paint Shooting Validation
 
 ```typescript
 test('shooting syncs between clients', async ({ browser }) => {
@@ -174,10 +272,11 @@ test('shooting syncs between clients', async ({ browser }) => {
     await page2.goto('http://localhost:3000');
 
     await page1.waitForFunction(() => (window as any).gameState?.players?.size >= 2);
+    await page2.waitForFunction(() => (window as any).gameState?.players?.size >= 2);
 
     // Player 1 shoots
     await page1.click('canvas');
-    await page1.mouse.click(400, 300);
+    await page1.mouse.click(400, 300); // Center of screen
     await page1.waitForTimeout(100);
 
     // Both clients should see the paint splat
@@ -185,7 +284,7 @@ test('shooting syncs between clients', async ({ browser }) => {
     const paintCount2 = await page2.evaluate(() => (window as any).gameState?.paintSplats?.size || 0);
 
     expect(paintCount1).toBeGreaterThan(0);
-    expect(paintCount1).toBe(paintCount2);
+    expect(paintCount1).toBe(paintCount2); // Same count on both clients
   } finally {
     await context1.close();
     await context2.close();
@@ -193,39 +292,45 @@ test('shooting syncs between clients', async ({ browser }) => {
 });
 ```
 
-### Tamper Detection (Position Hack)
+### Level 5: Network Latency Simulation
 
 ```typescript
-test('server rejects position hacks', async ({ browser }) => {
+test('client prediction works with latency', async ({ browser, context }) => {
+  // Simulate high latency
+  await context.route('**/*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay
+    route.continue();
+  });
+
   const page = await browser.newPage();
   await page.goto('http://localhost:3000');
 
+  // Client should still feel responsive (prediction)
+  // Even with 200ms latency, input should feel immediate
+  await page.click('canvas');
+
   const posBefore = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(100);
+  await page.keyboard.up('KeyW');
 
-  // Try to directly manipulate local position (client-side hack simulation)
-  await page.evaluate(() => {
-    const localId = (window as any).gameState?.localPlayerId;
-    (window as any).gameState.players.get(localId).position = { x: 9999, y: 0, z: 9999 };
-  });
+  const predictedPos = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
 
-  await page.waitForTimeout(500);
-
-  // Server should have overridden the hacked position
-  const posAfter = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
-
-  expect(posAfter.x).not.toBe(9999);
-  expect(Math.abs(posAfter.x - posBefore.x)).toBeLessThan(10);
+  // Local prediction should have applied
+  expect(predictedPos.z).toBeLessThan(posBefore.z);
 });
 ```
 
-### Page Object for Multiplayer Tests
+## Using Page Objects for Multiplayer Tests
+
+For cleaner tests, use the MultiplayerPage object:
 
 ```typescript
 import { test, expect } from '@playwright/test';
 import { MultiplayerPage } from '@/pages/multiplayer.page';
 
 test('multiplayer state sync with page objects', async ({ browser }) => {
-  const multiplayerPage = new MultiplayerPage(null);
+  const multiplayerPage = new MultiplayerPage(null); // page not needed for setup
   const players = await multiplayerPage.setupMultiPlayerTest(browser, 2);
 
   try {
@@ -247,7 +352,9 @@ test('multiplayer state sync with page objects', async ({ browser }) => {
 });
 ```
 
-### Server-Side Integration Tests
+## Server-Side Integration Tests
+
+Create server tests alongside client tests:
 
 ```typescript
 // server/tests/integration/room.test.ts
@@ -276,7 +383,7 @@ describe('GameRoom Server Authority', () => {
     });
 
     // Position should NOT have changed dramatically
-    expect(player.x).toBeCloseTo(0, 0);
+    expect(player.x).toBeCloseTo(0, 0); // Still near spawn
   });
 
   it('validates shooting cooldown', () => {
@@ -286,7 +393,7 @@ describe('GameRoom Server Authority', () => {
     const player = room.state.players.get('test-player');
     player.lastShotTime = Date.now();
 
-    // Try to shoot again immediately
+    // Try to shoot again immediately (should be rejected)
     room.onMessage(mockClient, {
       type: 'shoot',
       aim: { x: 1, y: 0, z: 0 },
@@ -298,53 +405,41 @@ describe('GameRoom Server Authority', () => {
 });
 ```
 
-### Network Latency Simulation
+## Tamper Detection Tests
+
+Verify server rejects client manipulation attempts:
 
 ```typescript
-test('client prediction works with latency', async ({ browser, context }) => {
-  // Simulate high latency
-  await context.route('**/*', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    route.continue();
-  });
-
+test('server rejects position hacks', async ({ browser }) => {
   const page = await browser.newPage();
   await page.goto('http://localhost:3000');
 
-  await page.click('canvas');
+  const posBefore = await page.evaluate(() => {
+    return (window as any).gameState?.localPlayer?.position;
+  });
 
-  const posBefore = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(100);
-  await page.keyboard.up('KeyW');
+  // Try to directly manipulate local position (client-side hack simulation)
+  await page.evaluate(() => {
+    const localId = (window as any).gameState?.localPlayerId;
+    (window as any).gameState.players.get(localId).position = { x: 9999, y: 0, z: 9999 };
+  });
 
-  const predictedPos = await page.evaluate(() => (window as any).gameState?.localPlayer?.position);
+  // Wait for server correction
+  await page.waitForTimeout(500);
 
-  // Local prediction should have applied
-  expect(predictedPos.z).toBeLessThan(posBefore.z);
+  // Server should have overridden the hacked position
+  const posAfter = await page.evaluate(() => {
+    return (window as any).gameState?.localPlayer?.position;
+  });
+
+  expect(posAfter.x).not.toBe(9999); // Server corrected it
+  expect(Math.abs(posAfter.x - posBefore.x)).toBeLessThan(10); // Still near original
 });
 ```
 
-</details>
-
----
-
-## Server Validation Checklist
-
-Before running multiplayer E2E tests:
-
-```bash
-# Terminal 1: Start servers
-npm run dev:all:sh
-# Expected: "listening on ws://localhost:2567"
-# Expected: "Local: http://localhost:3000"
-```
-
-**If server is NOT running, FAIL validation immediately.**
-
----
-
 ## Testing Checklist
+
+For each multiplayer validation:
 
 - [ ] Server running (`npm run dev:all:sh`)
 - [ ] 2+ browser contexts created in test
@@ -358,24 +453,41 @@ npm run dev:all:sh
 - [ ] No server errors in terminal
 - [ ] Cleanup: contexts closed in finally block
 
----
-
 ## Common Mistakes
 
-| ❌ Wrong | ✅ Right |
-|-----------|------------|
-| Test with 1 browser context | Test with 2+ contexts |
-| Don't check server logs | Verify server receives and processes input |
-| Assume state syncs | Assert state values match across clients |
-| Test local state only | Test REMOTE player state from other client |
-| Ignore server validation | Test that invalid inputs are rejected |
-| Don't cleanup contexts | Always close contexts in finally block |
+| ❌ Wrong                    | ✅ Right                                   |
+| --------------------------- | ------------------------------------------ |
+| Test with 1 browser context | Test with 2+ contexts (multi-client)       |
+| Don't check server logs     | Verify server receives and processes input |
+| Assume state syncs          | Assert state values match across clients   |
+| Test local state only       | Test REMOTE player state from other client |
+| Ignore server validation    | Test that invalid inputs are rejected      |
+| Don't cleanup contexts      | Always close contexts in finally block      |
 
----
+## Anti-Patterns
+
+❌ **DON'T:**
+
+- Test multiplayer features with only 1 browser
+- Skip checking server logs
+- Assume state sync without assertions
+- Test only local player state
+- Skip tamper detection tests
+- Use Playwright MCP for multiplayer testing
+
+✅ **DO:**
+
+- Always test with 2+ browser contexts
+- Monitor server logs for input processing
+- Assert state synchronization explicitly
+- Test remote player state from other client's perspective
+- Include tamper detection tests
+- Write E2E tests as persistent artifacts
+- Always cleanup contexts in finally blocks
 
 ## Validation Failure Criteria
 
-**FAIL validation if:**
+**FAIL the validation if:**
 
 - Server is not running
 - Clients cannot connect to same room
@@ -384,8 +496,6 @@ npm run dev:all:sh
 - Invalid inputs are not rejected
 - Console errors on any client
 - Server crashes or throws errors
-
----
 
 ## Running Multiplayer Tests
 
@@ -396,17 +506,15 @@ npm run test:e2e -- tests/e2e/multiplayer-suite.spec.ts
 # Run specific test
 npm run test:e2e -- -g "server-authoritative movement sync"
 
-# Run in headed mode
+# Run in headed mode to see both browsers
 npm run test:e2e -- --headed
 
 # Run with debug mode
 npm run test:e2e -- --debug
 ```
 
----
-
 ## References
 
-- **[tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts)** - Multiplayer page object
-- **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E patterns
-- [Colyseus Testing Guide](https://docs.colyseus.io/colyseus/server/testing/)
+- **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - Full E2E test patterns
+- [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts) - Multiplayer page object
+- [Colyseus Testing Guide](https://docs.colyseus.io/colyseus/server/testing/) — Server-side testing

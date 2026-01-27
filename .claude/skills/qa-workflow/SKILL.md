@@ -1,348 +1,350 @@
 ---
 name: qa-workflow
-description: Complete QA Validator workflow - orchestration of validation steps, PRD management, merge protocol with Agile phase integration.
+description: Complete QA Validator workflow orchestration. References specialized skills for each validation step. Load at session startup for full protocol.
+category: orchestration
 ---
 
 # QA Validator Workflow
 
-> "Complete QA validation workflow - orchestration layer that references specialized skills for each validation step."
+> "Orchestration layer for QA validation - delegate to specialized skills for each step."
 
-## Quick Reference
-
-| Step                       | Skill / Sub-Agent                           |
-| -------------------------- | ------------------------------------------- |
-| **1. Message Processing**  | `Skill("shared-message-handling")`          |
-| **2. Worktree Navigation** | `Skill("shared-worker-worktree")`           |
-| **3. Task Memory**         | `Skill("shared-worker-task-memory")`        |
-| **4. Test Coverage Check** | `Skill("qa-test-creation")`                 |
-| **5. Code Review**         | `Skill("qa-code-review")`                   |
-| **6. Feedback Loops**      | `Skill("shared-validation-feedback-loops")` |
-| **7. Browser Testing**     | `Skill("qa-browser-testing")`               |
-| **8. Bug Reporting**       | `Skill("qa-reporting-bug-reporting")`       |
-| **9. Context Reset**       | `Skill("shared-context-management")`        |
+**This skill contains orchestration only. Individual skills contain implementation details.**
 
 ---
 
-## Agile Phase Integration
+## Session Startup
 
-| Agile Phase            | QA Workflow Step  | Action                                         |
-| ---------------------- | ----------------- | ---------------------------------------------- |
-| **Sprint Planning**    | Task Research     | Read GDD, check acceptance criteria            |
-| **Daily Standup**      | PRD Status Update | Update `prd.json.agents.qa.status` immediately |
-| **Sprint Review**      | Validation        | Code review → Feedback loops → Browser testing |
-| **Retrospective**      | Bug Reporting     | Document findings with evidence                |
-| **Definition of Done** | Exit              | Merge (PASS) or ProblemReport (FAIL)           |
+```
+0. WATCHDOG ARCHITECTURE (READ THIS FIRST)
+
+You are a WORKER managed by the WATCHDOG orchestrator.
+
+**Watchdog spawns you when messages exist in your queue.**
+**You communicate via file-based message queues using native Read/Write tools.**
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                        WATCHDOG (Orchestrator)                       │
+│  - Spawns workers when messages exist in their queues               │
+│  - Routes messages via file queues                                 │
+│  - Monitors worker health                                           │
+└─────────────────────────────────────────────────────────────────────┘
+        ▲
+        │ (spawns when messages exist)
+        │
+┌───────────────┐
+│ QA Worker     │
+│ (You/Claude)  │
+└───────────────┘
+```
+
+1. Load this skill: Skill("qa-workflow")
+2. Load qa-router: Skill("qa-router") - See available tools
+3. Check for pending messages (P1 FIX - Use acknowledgment pattern):
+
+   Use the **Glob + Read tools** to read from `.claude/session/messages/qa/msg-*.json`
+
+   **Complete message processing pattern:**
+   ```
+   1. Use Glob: .claude/session/messages/qa/msg-*.json
+   2. For each file: Read the file content
+   3. Parse JSON (fields: id, from, to, type, payload, timestamp, status)
+   4. Store messageId for acknowledgment
+   5. Process messages based on type field
+   6. Send acknowledgment to watchdog (P1 FIX - REQUIRED):
+      Write to: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json
+      {
+        "id": "msg-watchdog-{timestamp}-{seq}",
+        "from": "qa",
+        "to": "watchdog",
+        "type": "message_acknowledged",
+        "priority": "normal",
+        "payload": {
+          "originalMessageId": "{original_message_id}",
+          "status": "processed"
+        },
+        "timestamp": "{ISO-8601-timestamp}",
+        "status": "pending"
+      }
+   7. Delete the message file after sending acknowledgment
+   ```
+
+   **Why acknowledgment is required:**
+   - Watchdog marks messages as "delivered" when sending to you
+   - Watchdog waits for acknowledgment before deleting the message
+   - Without acknowledgment, watchdog may re-deliver messages (causing duplicates)
+   - With acknowledgment, watchdog knows you successfully processed the message
+
+4. Begin validation workflow
+```
 
 ---
 
-<validation-pipeline>
-
-## Complete Validation Workflow (In Order)
+## Validation Workflow (In Order)
 
 ```
-1. CHECK PENDING MESSAGES → Skill("shared-message-handling")
-2. FIND OR RECEIVE TASK → Check PRD for status: "awaiting_qa"
-3. UPDATE PRD STATUS → See PRD Updates section below
-4. CREATE TASK MEMORY → Skill("shared-worker-task-memory")
-5. NAVIGATE TO WORKTREE → Skill("shared-worker-worktree")
-6. TASK RESEARCH → Read docs/design/gdd/
-7. TEST COVERAGE CHECK → Skill("qa-test-creation")
-8. CODE REVIEW → Skill("qa-code-review")
-9. AUTOMATED CHECKS → Skill("shared-validation-feedback-loops")
-10. BROWSER TESTING → Skill("qa-browser-testing") + sub-agent
-11. UPDATE PRD RESULTS → See Validation Results section
-12. MERGE TO MAIN → Only if PASS (see Merge Protocol)
-13. COMMIT AND MESSAGE → [ralph] [qa] prefix + send to PM
-14. EXIT → Update prd.json.agents.qa.status = "idle"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     VALIDATION WORKFLOW                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                         │
+│ │ MESSAGE │───►│ TEST     │───►│ CODE     │───►│ VALID    │                     │
+│ │ QUEUE   │   │ COVERAGE │   │ REVIEW   │   │ CHECKS   │                     │
+│ └─────────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘                     │
+│                    │              │              │                            │
+│                    ▼              ▼              ▼                            │
+│              ┌─────────┐    ┌──────────┐   ┌──────────────┐                  │
+│              │ Tests   │    │ ALL      │   │ BROWSER      │                  │
+│              │ exist?  │    │ PASS     │   │ TEST         │                  │
+│              └────┬────┘    └────┬─────┘   └──────────────┘                  │
+│                   │              │              │                            │
+│              ┌────┴─────┐         │              │                            │
+│              ▼          ▼         ▼              ▼                            │
+│         ┌─────────┐ ┌──────────┐ ┌──────────────┐                          │
+│         │ CREATE  │ │ FIX      │ │ PLAYWRIGHT    │                          │
+│         │ TESTS   │ │ TESTS    │ │ MCP           │                          │
+│         └─────────┘ └──────────┘ └──────────────┘                          │
+│                    │              │              │                            │
+│                    └──────────────┴──────────────┴────────────────────┘       │
+│                                                        │                    │
+│                                                        ▼                    │
+│                                              ┌──────────────────┐             │
+│                                              │ SERVER CLEANUP   │◄── MANDATORY│
+│                                              │ (always run)      │             │
+│                                              └──────────────────┘             │
+│                                                        │                    │
+│                                                        ▼                    │
+│                                              ┌──────────────────┐             │
+│                                              │ REPORT RESULT    │             │
+│                                              └──────────────────┘             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-</validation-pipeline>
+**⚠️ MANDATORY GATE: E2E Tests Must Complete**
+
+**Running E2E tests is NON-NEGOTIABLE.**
+
+- E2E tests MUST complete even if automated checks (type-check, lint, test, build) fail
+- If automated checks fail → report bugs AND run E2E tests to document visual state
+- NO exceptions for "blocked by test failure"
+- If E2E tests unavailable → FAIL validation with severity "critical"
+
+**⚠️ MANDATORY CLEANUP: Always run server cleanup before reporting results.**
+
+Use `shared-lifecycle` skill for proper server management.
 
 ---
 
-## PRD Status Updates (Daily Standup Protocol)
+## Step-by-Step Skills Reference
 
-**⚠️ GOLDEN RULE: Update PRD IMMEDIATELY when your status changes.**
-
-<examples>
-<example>
-<input>Starting validation on task feat-123</input>
-<action>Update PRD</action>
-<expected>
-```json
-{
-  "prd.json.agents.qa": {
-    "status": "working",
-    "currentTask": "feat-123",
-    "lastSeen": "2025-01-26T10:30:00Z"
-  }
-}
-```
-</expected>
-</example>
-
-<example>
-<input>Validation passed - all criteria met</input>
-<action>Update PRD</action>
-<expected>
-```json
-{
-  "prd.json.items['feat-123']": {
-    "status": "passed",
-    "passes": true,
-    "qaValidatedAt": "2025-01-26T11:45:00Z"
-  }
-}
-```
-</expected>
-</example>
-
-<example>
-<input>Validation failed - console errors found</input>
-<action>Update PRD</action>
-<expected>
-```json
-{
-  "prd.json.items['feat-123']": {
-    "status": "needs_fixes",
-    "passes": false,
-    "validatedAt": "2025-01-26T11:30:00Z",
-    "validationResults": {
-      "result": "FAILED",
-      "bugs": [...]
-    }
-  }
-}
-```
-</expected>
-</example>
-
-<example>
-<input>Need clarification on acceptance criteria</input>
-<action>Update PRD + send Query</action>
-<expected>
-```json
-{
-  "prd.json.agents.qa": {
-    "status": "awaiting_pm"
-  }
-}
-```
-Send `Query` message to PM with specific question.
-</expected>
-</example>
-</examples>
-
-**If you don't update the PRD:**
-
-- PM assigns validation already in progress
-- Workers wait for validation that's complete
-- Watchdog thinks you crashed
-- Loop locks occur
+| Step | Skill / Sub-Agent | Purpose |
+|------| ----------------- | ------- |
+| **1. Task Assignment** | `shared-messaging` | Process messages, auto-assign from PRD |
+| **2. Worktree Setup** | `shared-worktree` | Navigate to agent worktree |
+| **3. Task Memory** | `shared-retrospective` | Create task memory file |
+| **4. Test Coverage** | `qa-test-creation` | Check/create unit & E2E tests |
+| **5. Test Execution** | `qa-validation-workflow` | Run tests, analyze failures |
+| **6. Code Review** | `qa-code-review` | Check code quality before checks |
+| **7. Browser Testing** | `qa-browser-testing` + sub-agent | Playwright MCP validation |
+| **8. Result Reporting** | `qa-reporting-bug-reporting` | Report pass/fail to PM |
 
 ---
 
-## Merge Protocol (Definition of Done)
+## Sub-Agents (invoke via Task tool)
 
-**⚠️ CRITICAL: QA is the ONLY agent that merges worktree branches to main.**
+| Sub-Agent | Model | Purpose | When to Invoke |
+|-----------|------- |---------| ---------------|
+| `test-creator` | Sonnet | Create unit/E2E tests | Tests missing (from qa-test-creation) |
+| `browser-validator` | Inherit | Basic Playwright MCP | Every validation (MANDATORY) |
+| `gameplay-tester` | Inherit | E2E gameplay loops | Gameplay features |
+| `multiplayer-validator` | Inherit | Server-authoritative tests | Multiplayer features |
+| `visual-regression-tester` | Haiku | Visual regression with Vision MCP | Visual/UI changes |
 
-### When Validation PASSES
+---
 
+## Quick Decision Tree
+
+```
+START VALIDATION
+│
+├─→ Tests missing? ──► Skill("qa-test-creation")
+│
+├─→ Run tests ─────────► Skill("qa-validation-workflow")
+│ │
+│ └─→ Tests fail? ──► Analyze (see Test Failure Decision Tree below)
+│
+├─→ Code quality check ──► Skill("qa-code-review")
+│
+├─→ Browser testing ────► Skill("qa-browser-testing")
+│ └─► Choose sub-agent based on task type
+│
+└─→ Report result ─────► Skill("qa-reporting-bug-reporting")
+```
+
+---
+
+## Test Failure Decision Tree
+
+```
+                    TESTS FAIL
+                        │
+        ┌───────────────┴───────────────┐
+        │                               │
+    Test Code Issue?              Game Code Issue?
+        │ YES                          │ YES
+        ▼                               ▼
+   Fix and Re-run                    Create Bug Report
+   (QA can edit)                     (Return to Developer)
+```
+
+### How to Distinguish Test vs Game Code Issues
+
+| Symptom | Type | Action |
+| ------- | ---- | ------ |
+| Selector not found (`getByRole` fails) | Test code | Fix selector in test |
+| Timeout waiting for element | Test code | Adjust wait/timeout |
+| Assertion shows wrong value | Game code | Bug report |
+| Console error in game logic | Game code | Bug report |
+| Visual mismatch | Game code | Bug report |
+| Test setup fails | Test code | Fix test setup |
+
+### Test Code Issues (QA Fixes)
+
+- Incorrect selectors (`getByRole`, `getByLabel`)
+- Missing `await` on async operations
+- Incorrect test data setup
+- Race conditions in test timing
+- Page object model issues
+
+### Game Code Issues (Bug Report)
+
+- Business logic not working
+- UI not rendering correctly
+- Console errors from application code
+- Performance issues
+- Accessibility violations
+
+---
+
+## PRD Status Updates
+
+Update `prd.json` immediately when status changes:
+
+| Event | Update |
+| ------- | ------ |
+| Starting validation | `agents.qa.status = "working"` + `currentTask = {taskId}` |
+| Validation PASSED | `items[{taskId}].status = "passed"` + `passes = true` |
+| Validation FAILED | `items[{taskId}].status = "needs_fixes"` + `passes = false` + `bugs[]` |
+| Finishing | `agents.qa.status = "idle"` |
+
+---
+
+## Merge Protocol
+
+**When PASSED:**
 ```bash
-# After completing validation in agent's worktree:
 cd ..
 git checkout main
-git fetch origin {agent}-worktree
-git merge origin/{agent}-worktree
+git merge origin/qa-worktree
 git push origin main
 ```
 
-### When Validation FAILS
-
+**When FAILED:**
 ```bash
-# DO NOT MERGE - Stay on main
-cd ..
-git checkout main
-# DO NOT merge - send ProblemReport to agent instead
+# Stay on main, do NOT merge
+# Send bug_report to agent
 ```
 
 ---
 
-<details>
-<summary>Sub-Agents Reference</summary>
+## Commit Format
 
-| Sub-Agent                     | Model   | Purpose                                      |
-| ----------------------------- | ------- | -------------------------------------------- |
-| `test-creator`                | Sonnet  | Creates unit and E2E tests for features      |
-| `qa-browser-validator`        | Inherit | **MANDATORY** Playwright MCP browser testing |
-| `qa-visual-regression-tester` | Haiku   | Visual regression with Vision MCP            |
-| `qa-multiplayer-validator`    | Inherit | Server-authoritative multiplayer testing     |
-| `qa-gameplay-tester`          | Inherit | E2E gameplay loops and combos                |
-
-</details>
-
----
-
-## Pre-Commit Checklist (Definition of Done)
-
-- [ ] Correct worktree checked out
-- [ ] Validation completed in agent's worktree, NOT in main
-- [ ] Code review passed (no @ts-ignore, any, etc.)
-- [ ] Tests exist for feature (created if missing)
-- [ ] `npm run type-check` — 0 errors
-- [ ] `npm run lint` — 0 warnings (NO exceptions)
-- [ ] `npm run test` — all pass
-- [ ] `npm run build` — succeeds
-- [ ] Console checked for errors AND warnings during browser testing
-- [ ] All acceptance criteria verified
-- [ ] If PASS: Merged to main, pushed to origin main
-- [ ] If FAIL: Bug report sent, NO merge performed
-
----
-
-## PRD Validation Results (Sprint Review Output)
-
-### When Validation Passes
-
-```json
-{
-  "id": "{{TASK_ID}}",
-  "status": "passed",
-  "passes": true,
-  "qaValidatedAt": "{{ISO_TIMESTAMP}}",
-  "validationResults": {
-    "result": "PASSED",
-    "feedbackLoops": {
-      "typescript": "PASS",
-      "lint": "PASS",
-      "test": "PASS",
-      "build": "PASS"
-    },
-    "browserTest": "PASS"
-  }
-}
-```
-
-### When Validation Fails
-
-→ Use: `Skill("qa-reporting-bug-reporting")` for detailed bug format
-
-```json
-{
-  "id": "{{TASK_ID}}",
-  "status": "needs_fixes",
-  "passes": false,
-  "validatedAt": "{{ISO_TIMESTAMP}}",
-  "validationResults": {
-    "result": "FAILED",
-    "bugs": [
-      {
-        "severity": "high|medium|low",
-        "file": "path/to/file.ts",
-        "line": N,
-        "issue": "Description",
-        "steps": "Reproduction steps",
-        "expected": "Expected behavior",
-        "actual": "Actual behavior",
-        "fixSuggestion": "How to fix"
-      }
-    ]
-  }
-}
-```
-
----
-
-<details>
-<summary>Commit Format Details</summary>
-
-Use: `Skill("shared-atomic-updates")` for commit protocol
-
-**Pass:**
+**PASS:**
 
 ```
-[ralph] [qa] feat-XXX: Validation PASSED
+[ralph] [qa] {taskId}: Validation PASSED
 
 - TypeScript: pass
 - Lint: pass
 - Tests: pass
 - Build: pass
+- E2E: pass
 - Browser: pass
 
-PRD: feat-XXX | Agent: qa | Iteration: N
+All acceptance criteria verified.
+
+PRD: {taskId} | Agent: qa | Iteration: N
 ```
 
-**Fail:**
+**FAIL:**
 
 ```
-[ralph] [qa] feat-XXX: Validation FAILED
+[ralph] [qa] {taskId}: Validation FAILED
 
-- {Failed check}: FAIL
-- Bug: {Description}
+- {failed_check}: FAIL
 
-See prd.json.items[{taskId}].validationResults for full report.
-PRD: feat-XXX | Agent: qa | Iteration: N
+Bug: {brief description}
+See prd.json.items[{taskId}].bugs for full report.
+
+PRD: {taskId} | Agent: qa | Iteration: N
 ```
-
-</details>
 
 ---
 
-## Exit Conditions (V2)
+## Context Reset
+
+For big tasks (5+ acceptance criteria, 3+ components):
+
+- Use `Skill("shared-context")`
+- Monitor with `/context` command
+- Create checkpoint if >= 70% capacity
+
+---
+
+## Server Lifecycle Management
+
+**Use `shared-lifecycle` skill for proper server management.**
+
+Before running E2E tests, always check/start the dev server:
+
+```bash
+# Check if server already running
+lsof -ti:3000 || npm run dev:all:sh &
+```
+
+**MANDATORY CLEANUP after all tests complete (pass OR fail):**
+
+Use the cleanup pattern from `shared-lifecycle` skill to ensure:
+- Dev server is stopped
+- Ports are released
+- No orphaned processes remain
+
+---
+
+## Exit Conditions
 
 **BEFORE exiting, you MUST:**
 
-1. Complete all validation steps
-2. **IF PASS:** Merge to main, push to origin main
-3. **IF FAIL:** Stay on main, send `ProblemReport` to agent
+1. Complete all validation steps (type-check, lint, test, build, e2e, browser)
+2. **IF VALIDATION PASSES:** Merge to main and push
+3. **IF VALIDATION FAILS:** Send bug_report to PM (no merge)
 4. Update PRD with validation results
 5. Commit with `[ralph] [qa]` prefix
-6. Update `prd.json.agents.qa` to idle with currentTaskId: null
-7. Send result message to PM
-8. ONLY THEN exit
-
----
-
-<details>
-<summary>Context & Retrospective Details</summary>
-
-### Context Window Monitoring
-
-→ Use: `Skill("shared-context-management")`
-
-**Big task indicators:**
-
-- 5+ acceptance criteria
-- 3+ components/features to test
-- Category is `architectural` or `integration`
-
-Use `/context` command to monitor. Create checkpoint if >= 70%.
-
-### Retrospective Contribution
-
-→ Use: `Skill("shared-worker-retrospective")`
-
-When `Retrospective` message received:
-
-1. Read all task memory files
-2. Read the retrospective file
-3. Write contribution to retrospective.txt
-4. Delete task memory files
-5. Update status in prd.json
-6. Send `Retrospective` back to PM
-
-</details>
+6. Send result message to PM
+7. Update `prd.json.agents.qa.status = "idle"`
+8. **MANDATORY:** Run server cleanup (shared-lifecycle)
 
 ---
 
 ## References
 
-| Resource | Purpose |
-|----------|---------|
-| `shared-ralph-core` | Session structure, status values |
-| `shared-ralph-event-protocol` | V2 event-driven messaging |
-| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure: Event Sourcing, Actor Model, CQRS |
-| `.claude/protocols/event-driven.md` | 🆕 V2 event-driven protocol details |
-| `qa-router` | Complete QA skill catalog |
-
----
+| File | Purpose |
+| ---- | ------- |
+| `qa-router` | Full skills/sub-agents catalog |
+| `qa-test-creation` | Test coverage workflow |
+| `qa-validation-workflow` | Automated checks pipeline |
+| `qa-code-review` | Code quality checks (fail criteria) |
+| `qa-browser-testing` | E2E test execution |
+| `qa-mcp-helpers` | MCP patterns + Page Object Model |
+| `qa-reporting-bug-reporting` | Bug report format |
+| `shared-lifecycle` | Process lifecycle management |

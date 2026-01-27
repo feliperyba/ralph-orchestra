@@ -1,14 +1,16 @@
 ---
 name: qa-validation-workflow
 description: Full validation workflow for QA agent. Runs automated checks (type-check, lint, test, build) and browser testing with E2E tests. Use when validating implementation after code review.
+category: validation
 ---
 
 # Validation Workflow Skill
 
 > "Trust but verify – automated tests catch regressions, browser tests catch reality."
 
-## When to Use
+## When to Use This Skill
 
+Use when:
 - `currentTask.status === "ready_for_qa"`
 - Developer has committed changes
 - Ready to validate implementation
@@ -29,31 +31,6 @@ npm run type-check && npm run lint && npm run test && npm run build
 
 ---
 
-## ⚠️ MANDATORY GATE: E2E Tests
-
-**E2E tests are REQUIRED for every validation. NON-NEGOTIABLE.**
-
-If E2E tests cannot be run → **FAIL validation immediately** with `"E2E tests unavailable - validation gate failed"`
-
-**E2E tests MUST complete even if automated checks fail:**
-
-```
-[Automated Checks Fail]
-        │
-        ├── E2E Tests NOT run? → ❌ INVALID REPORT
-        │
-        └── E2E Tests COMPLETED → ✅ Valid bug report
-                (includes test output, console errors, visual state)
-```
-
-**Why run E2E when automated checks fail:**
-- Visual bugs may exist even when code compiles
-- Console errors only appear in browser
-- Runtime issues not caught by unit tests
-- Test output provides evidence for developer to fix
-
----
-
 ## Validation Pipeline
 
 ```
@@ -65,11 +42,20 @@ If E2E tests cannot be run → **FAIL validation immediately** with `"E2E tests 
 │    (tsc)    │    │ (eslint) │    │  (Coverage)  │    │  (vite)  │
 └─────────────┘    └──────────┘    └──────────────┘    └──────────┘
        │                │                   │                  │
+       ▼                ▼                   ▼                  ▼
+   Pass/Fail       Pass/Fail          Tests Missing?      Pass/Fail
+       │                │                   │                  │
+       │                │            ┌──────┴──────┐          │
+       │                │            │             │          │
+       │                │         Create Tests   Skip         │
+       │                │            │             │          │
+       │                └────────────┴─────────────┘          │
+       │                                                      │
        └──────────────────────────────────────────────────────┘
                                           │
                                           ▼
                               ┌─────────────────────┐
-                              │  E2E TEST EXECUTION │ ◄── MANDATORY
+                              │  E2E TEST EXECUTION │ ◄── MANDATORY GATE
                               │  (npm run test:e2e)  │     NO EXCEPTIONS
                               └─────────────────────┘
                                           │
@@ -81,23 +67,36 @@ If E2E tests cannot be run → **FAIL validation immediately** with `"E2E tests 
                     Update PRD            Report bugs
 ```
 
+> **Note**: See `qa-workflow` skill for E2E mandatory gate requirements and test failure analysis.
+
 ---
 
-<details>
-<summary>Level 0: Test Coverage Check (BEFORE Automated Checks)</summary>
+## Progressive Guide
+
+### Level 0: Test Coverage Check (BEFORE Automated Checks)
 
 **⚠️ CRITICAL: Ensure tests exist before validation**
 
-1. **Load qa-test-creation skill**: `Skill("qa-test-creation")`
-2. **Check unit test coverage** - For each source file, check if `src/tests/.../{name}.test.ts` exists
-3. **Check E2E test coverage** - Check if `tests/e2e/{feature}-suite.spec.ts` exists
-4. **If tests missing:** Invoke test-creator sub-agent, wait for tests to be created
+1. **Load qa-test-creation skill**
+   ```bash
+   Skill("qa-test-creation")
+   ```
 
-</details>
+2. **Check unit test coverage**
+   - For each source file, check if `src/tests/.../{name}.test.ts` exists
+   - Example: `src/components/game/player/index.ts` → `src/tests/components/game/player/index.test.ts`
 
----
+3. **Check E2E test coverage**
+   - Check if `tests/e2e/{feature}-suite.spec.ts` exists
+   - Example: `tests/e2e/gameplay-suite.spec.ts`
 
-## Level 1: Automated Checks
+4. **If tests missing:**
+   - Invoke test-creator sub-agent
+   - Wait for tests to be created
+   - Verify `npm run test` passes
+   - Verify `npm run test:e2e` passes
+
+### Level 1: Automated Checks
 
 ```bash
 # Step 1: Type Check
@@ -117,122 +116,43 @@ npm run build
 # Expected: Build succeeds
 ```
 
----
+### Level 2: Test Execution & Failure Analysis (MANDATORY)
 
-## Level 2: E2E Test Execution (MANDATORY)
+**Every validation MUST include test execution:**
 
-**Every validation MUST include E2E test execution:**
+1. **MANDATORY**: Manage dev server using `shared-lifecycle` skill patterns
 
-1. Ensure dev server running: `npm run dev:all:sh`
-2. Run E2E tests: `npm run test:e2e`
-3. Verify acceptance criteria via test output
-4. Review test results for console errors
-5. Check test screenshots for evidence
+2. Run unit tests: `npm run test`
 
-<examples>
+3. Run E2E tests: `npm run test:e2e`
 
-### Example Validation Results
+4. **IF TESTS FAIL**: Analyze and determine root cause
+   - See `qa-workflow` skill for Test Failure Decision Tree
 
-#### Example 1: All Pass
+5. **MANDATORY CLEANUP** (after all tests complete, pass OR fail):
+   - Use `shared-lifecycle` skill for cleanup
 
-```markdown
-## Validation Results
+### Level 3: Acceptance Criteria Verification
 
-### Automated Checks
-- TypeScript: ✅ PASS (0 errors)
-- Lint: ✅ PASS (0 warnings)
-- Unit Tests: ✅ PASS (12/12 tests)
-- Build: ✅ PASS
-
-### E2E Tests
-- Tests passed: 5/5
-- Console errors: 0
-- Console warnings: 0
-
-### Acceptance Criteria
-- Vehicle responds to WASD: ✅
-- Physics runs at 60Hz: ✅
-- Collision detection works: ✅
-
-### Overall Result: ✅ PASS
-```
-
-#### Example 2: Partial Failure
-
-```markdown
-## Validation Results
-
-### Automated Checks
-- TypeScript: ✅ PASS (0 errors)
-- Lint: ❌ FAIL (2 warnings)
-  - src/components/player/Player.tsx:45 - Unused variable 'debugMode'
-  - src/hooks/usePhysics.ts:12 - Missing dependency 'velocity'
-- Unit Tests: ✅ PASS (8/8 tests)
-- Build: ✅ PASS
-
-### E2E Tests
-- Tests passed: 3/5
-- Failed: 'player controls work', 'physics collision'
-- Console errors: 2
-
-### Overall Result: ❌ FAIL
-
-### Bugs
-1. Lint warnings must be fixed
-2. Player controls unresponsive in E2E test
-3. Physics collision not detected
-```
-
-#### Example 3: Build Failure
-
-```markdown
-## Validation Results
-
-### Automated Checks
-- TypeScript: ❌ FAIL
-  - TS2322: Type 'string' is not assignable to type 'number'
-  - Location: src/components/lobby/Lobby.tsx:67
-- Lint: Not run (TypeScript failed)
-- Unit Tests: Not run (TypeScript failed)
-- Build: ❌ FAIL
-
-### E2E Tests (Still run per MANDATORY GATE)
-- Tests passed: 0/1
-- Error: Application failed to load due to TypeScript error
-
-### Overall Result: ❌ FAIL
-
-### Bug Report
-TypeScript error at Lobby.tsx:67 prevents application from loading.
-Fix type annotation for 'playerCount' variable.
-```
-
-</examples>
-
----
-
-<details>
-<summary>Level 3: Acceptance Criteria & Performance Details</summary>
-
-### Acceptance Criteria Verification
-
-For each criterion in `prd.json.items[{taskId}]`:
+For each acceptance criterion in `prd.json.items[{taskId}]`:
 
 ```markdown
 ## Acceptance Criteria Verification
 
 ### Criterion 1: "Vehicle responds to WASD input"
+
 - **Test**: Pressed W, A, S, D keys
-- **Result**: ✅ PASS
+- **Result**: ✅ PASS / ❌ FAIL
 - **Notes**: Vehicle moves forward, left, backward, right correctly
 
 ### Criterion 2: "Physics simulation runs at 60Hz"
+
 - **Test**: Checked physics debug panel
-- **Result**: ✅ PASS
+- **Result**: ✅ PASS / ❌ FAIL
 - **Notes**: Physics running at target rate
 ```
 
-### Performance Validation
+### Level 4: Performance Validation
 
 ```markdown
 ## Performance Check
@@ -243,30 +163,30 @@ For each criterion in `prd.json.items[{taskId}]`:
 - [ ] No stuttering during interaction
 
 ### Metrics:
-- Initial FPS: __
-- FPS after 60s: __
-- Memory usage: __ MB
-- Load time: __ s
-```
 
-</details>
+- Initial FPS: \_\_
+- FPS after 60s: \_\_
+- Memory usage: \_\_ MB
+- Load time: \_\_ s
+```
 
 ---
 
 ## Decision Framework
 
-| Check Result | Action |
-|--------------|--------|
-| All automated pass, E2E tests pass | Mark as PASSED |
-| Automated pass, E2E tests fail | Mark as NEEDS_FIXES |
-| Automated fails | Mark as NEEDS_FIXES |
-| Any console errors | Mark as NEEDS_FIXES |
+| Check Result                     | Action              |
+| -------------------------------- | ------------------- |
+| All automated pass, E2E tests pass | Mark as PASSED      |
+| Automated pass, E2E tests fail    | Mark as NEEDS_FIXES |
+| Automated fails                  | Mark as NEEDS_FIXES |
+| Any console errors               | Mark as NEEDS_FIXES |
 
 ---
 
 ## Anti-Patterns
 
 ❌ **DON'T:**
+
 - Skip E2E tests
 - Use Playwright MCP directly for validation
 - Assume automated tests are sufficient
@@ -275,77 +195,12 @@ For each criterion in `prd.json.items[{taskId}]`:
 - Skip performance verification
 
 ✅ **DO:**
+
 - Always run E2E tests for validation
 - Verify each acceptance criterion via test output
 - Review test screenshots as evidence
 - Document any concerns in bug notes
 - Check console for errors in test output
-
----
-
-<details>
-<summary>Pass & Fail Protocols</summary>
-
-### Pass Protocol
-
-When ALL checks pass:
-
-**Step 1: Delete validation screenshots**
-```bash
-rm .claude/session/playwright-test/${taskId}-*.png 2>/dev/null || true
-```
-
-**Step 2: Update task files**
-```json
-{
-  "id": "{{TASK_ID}}",
-  "passes": true,
-  "status": "passed",
-  "validatedAt": "{{ISO_TIMESTAMP}}"
-}
-```
-
-**Step 3: Commit**
-```
-[ralph] [qa] feat-XXX: Validation PASSED
-
-- TypeScript: pass
-- Lint: pass
-- Tests: pass
-- Build: pass
-- Browser: pass
-
-All acceptance criteria verified.
-
-PRD: feat-XXX | Agent: qa | Iteration: N
-```
-
-### Fail Protocol
-
-When ANY check fails:
-
-**Step 1: Clean up screenshots**
-```bash
-rm .claude/session/playwright-test/${taskId}-*.png 2>/dev/null || true
-```
-
-**Step 2: Update prd.json.items[{taskId}]**
-```json
-{
-  "status": "needs_fixes",
-  "bugNotes": "Detailed description of failures...",
-  "retryCount": {{PREVIOUS + 1}}
-}
-```
-
-Include in bug notes:
-- Which check failed
-- Error messages
-- Steps to reproduce
-- Expected vs actual behavior
-- Screenshots if applicable
-
-</details>
 
 ---
 
@@ -365,10 +220,11 @@ Before marking as passed:
 
 ---
 
-<details>
-<summary>Integration Smoke Test (For Asset Tasks)</summary>
+## Integration Smoke Test (MANDATORY for Polish/Asset Tasks)
 
 **For ANY task involving assets (models, textures, audio, shaders):**
+
+Run this quick visual verification before starting full validation:
 
 ```bash
 # Integration Smoke Test Checklist
@@ -383,23 +239,55 @@ Before marking as passed:
 **CRITICAL: Check for debug-gated features**
 
 If assets appear missing or invisible:
+
 ```bash
+# Search for debug conditionals hiding features
 grep -r "{debug &&" src/components/
 grep -r "debug.*&&" src/
 ```
 
+**Learned from polish-001 retrospective (2026-01-22):**
+QA did not catch that paint projectiles were invisible because they were gated behind `debug &&` conditional. Always verify player-facing features are visible, not debug-hidden.
+
 **Integration Test Questions:**
-1. Can I see the asset in the browser?
+
+1. Can I see the asset in the browser? (not just that code compiles)
 2. Is it the actual asset or a placeholder?
 3. Does it animate/function as expected?
 4. Are there any debug flags hiding the feature?
 
-</details>
+---
+
+## E2E Test Results Template
+
+```markdown
+## E2E Test Results
+
+**Command**: npm run test:e2e
+**Test File**: tests/e2e/{feature}-suite.spec.ts
+
+### Checks Performed:
+
+- [ ] Page loads without errors
+- [ ] Canvas renders correctly
+- [ ] No console errors
+- [ ] Controls respond to input
+- [ ] Performance is acceptable (60 FPS)
+- [ ] All acceptance criteria covered by tests
+
+### Test Output:
+
+- Tests passed: X/Y
+- Failed tests: [list]
+- Screenshots captured: test-results/
+```
 
 ---
 
-## Reference
+## References
 
-- [agents/qa/AGENT.md](../../AGENT.md) — Full QA instructions
-- [qa-browser-testing](../qa-browser-testing/SKILL.md) — Browser testing guide
-- [qa-reporting-bug-reporting](../qa-reporting-bug-reporting/SKILL.md) — Bug report format
+- **[qa-workflow](../qa-workflow/SKILL.md)** — Complete validation workflow with E2E gate requirements
+- **[qa-code-review](../qa-code-review/SKILL.md)** — Code quality checks before validation
+- **[qa-browser-testing](../qa-browser-testing/SKILL.md)** — Browser testing guide
+- **[qa-mcp-helpers](../qa-mcp-helpers/SKILL.md)** — MCP patterns and Page Object Model
+- **[shared-lifecycle](../shared-lifecycle/SKILL.md)** — Server lifecycle management

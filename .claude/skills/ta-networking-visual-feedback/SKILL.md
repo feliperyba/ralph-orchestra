@@ -1,7 +1,7 @@
 ---
 name: ta-networking-visual-feedback
-description: Implements client-side prediction feedback for multiplayer. Use proactively when adding optimistic feedback, ping indicators, or validation UI.
-category: techartist
+description: Visual feedback patterns for server-authoritative multiplayer with client-side prediction. Use when implementing multiplayer visual feedback.
+category: networking
 ---
 
 # Networked Visual Feedback Skill
@@ -489,8 +489,10 @@ For each networked feature:
 - [ ] Team advantage is clearly shown
 - [ ] No confusion about what's real vs predicted
 
-## Reference
+## Related Skills
 
-- [agents/developer/skills/backend-multiplayer.md](../developer/skills/backend-multiplayer.md) — Server-authoritative architecture
-- [agents/techartist/skills/visual-polish.md](visual-polish.md) — General visual polish patterns
+For visual polish patterns: `Skill("ta-ui-polish")`
+
+## External References
+
 - [Gaffer On Games - Networked Physics](https://gafferongames.com/post/networked_physics/) — Prediction fundamentals

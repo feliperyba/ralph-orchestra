@@ -1,6 +1,7 @@
 ---
-name: texture-loading
+name: dev-assets-texture-loading
 description: Texture loading and optimization for R3F. Use when loading image textures.
+category: assets
 ---
 
 # Texture Loading
@@ -152,5 +153,6 @@ const textureFormat = isMobile ? 'webp' : 'jpg';
 
 ## Reference
 
-- [model-loading.md](./model-loading.md) - Model loading patterns
-- [performance-basics.md](../performance/performance-basics.md) - Performance optimization
+- **[dev-assets-model-loading](../dev-assets-model-loading/SKILL.md)** — FBX model loading
+- **[dev-assets-audio-loading](../dev-assets-audio-loading/SKILL.md)** — Audio loading
+- **[dev-performance-performance-basics](../dev-performance-performance-basics/SKILL.md)** — Performance optimization

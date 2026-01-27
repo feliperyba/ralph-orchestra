@@ -1,6 +1,7 @@
 ---
-name: ui-animations
+name: dev-patterns-ui-animations
 description: Game UI and HUD animation patterns with Framer Motion. Use when animating HUD elements.
+category: patterns
 ---
 
 # Game UI Animations

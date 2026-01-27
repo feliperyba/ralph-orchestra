@@ -1,284 +1,314 @@
 ---
 name: developer-workflow
-description: Complete Developer workflow orchestration - worktree coordination, task research, implementation, validation, commit. Use proactively when starting development work or when unclear about the development process flow.
+description: Complete Developer workflow orchestration - task research sequence, implementation flow, validation gates, PRD synchronization, exit conditions.
 category: workflow
-tags: [development, agile, workflow]
-dependencies:
-  [
-    shared-worker-worktree,
-    shared-validation-feedback-loops,
-    shared-worker-task-memory,
-    dev-router,
-  ]
 ---
 
 # Developer Workflow
 
-> "Research patterns → Implement → Validate → Commit - Never suppress errors."
+> "This skill orchestrates the development workflow sequence. For detailed implementation guidance, see referenced skills."
 
-## When to Use This Skill
+## Quick Reference
 
-Use **when**:
-
-- Starting development work on a task
-- Unclear about the development process sequence
-- Need to reference research, validation, or commit procedures
-
-Use **proactively**:
-
-- At the start of every development task
-- When blocked and need to understand next steps
-- Before committing to ensure all steps are complete
-
----
-
-## Quick Start
-
-<examples>
-Example 1: New feature implementation
-```
-1. Worktree check → Skill("shared-worker-worktree")
-2. Research patterns → Task("developer-code-research", ...)
-3. Implement → Create files following patterns
-4. Validate → Skill("shared-validation-feedback-loops")
-5. Commit → [ralph] [developer] feat-001: description
-```
-
-Example 2: Bug fix
-
-```
-1. Worktree check → Skill("shared-worker-worktree")
-2. Research bug patterns → Task("developer-code-research", ...)
-3. Implement fix → Modify files
-4. Validate → Skill("shared-validation-feedback-loops")
-5. Commit → [ralph] [developer] bug-001: fix description
-```
-
-Example 3: Multiplayer feature
-
-```
-1. Worktree check → Skill("shared-worker-worktree")
-2. Research server-authoritative patterns → Skill("dev-multiplayer-server-authoritative")
-3. Implement → Server + client code
-4. Validate → Skill("shared-validation-feedback-loops")
-5. Multiplayer test → Skill("dev-validation-browser-testing")
-6. Commit → [ralph] [developer] feat-002: multiplayer feature
-```
-
-</examples>
+| Phase              | Invoke With                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Worktree Setup     | `Skill("shared-worktree")`                                                                                          |
+| Task Research      | `Skill("dev-research-gdd-reading")`, `Skill("dev-research-codebase-exploration")`, `Skill("dev-research-pattern-finding")` |
+| Skill Selection    | `Skill("dev-router")`                                                                                                      |
+| E2E Testing        | `Skill("dev-validation-browser-testing")`                                                                                  |
+| Quality Gates      | `Skill("dev-validation-quality-gates")`                                                                                    |
+| Feedback Loops     | `Skill("dev-validation-feedback-loops")`                                                                                   |
+| Git/Commits        | `Skill("dev-coordination-git-protocol")`                                                                                   |
+| Task Memory        | `Skill("shared-retrospective")`                                                                                       |
+| Retrospective      | `Skill("shared-retrospective")`                                                                                     |
+| Context Management | `Skill("shared-context")`                                                                                       |
 
 ---
 
-## Development Cycle (Agile-Inspired)
+## Startup Workflow
 
-### Phase 1: Sprint Planning (Task Start)
+**You are a WORKER managed by the WATCHDOG orchestrator.**
 
-```
-Worktree check → Read PRD → Research patterns → Load skills
-```
+On agent startup or task assignment:
 
-1. Verify worktree: `Skill("shared-worker-worktree")`
-2. Read `prd.json` for task assignment
-3. Load skill router: `Skill("dev-router")`
-4. **MANDATORY**: Research existing patterns
+1. **Worktree check** - `Skill("shared-worktree")`
+2. **Process pending messages** (MANDATORY) - Use Glob + Read tools from `.claude/session/messages/developer/msg-*.json`, acknowledge to watchdog
+3. **Read prd.json** - Get current task assignment
+4. **Load skill router** - `Skill("dev-router")`
+5. **Task research** (MANDATORY) - See below
+6. **Implement feature** - Following researched patterns
+7. **Run feedback loops** - `Skill("dev-validation-feedback-loops")`
+8. **Commit and send to QA** - `Skill("dev-coordination-git-protocol")`
 
-### Phase 2: Sprint Execution (Implementation)
-
-```
-Create task memory → Implement → Test → Validate
-```
-
-1. Create task memory: `Skill("shared-worker-task-memory")`
-2. Follow researched patterns
-3. Create E2E tests for new features
-4. Run quality gates
-
-### Phase 3: Definition of Done
-
-```
-All acceptance criteria ✓ + Quality gates pass ✓ + No error suppression
-```
-
-- [ ] All acceptance criteria met
-- [ ] Type-check passes (0 errors)
-- [ ] Lint passes (0 warnings)
-- [ ] Tests pass (all green)
-- [ ] Build succeeds
-- [ ] No error suppression used
-
-### Phase 4: Sprint Review (Commit)
-
-```
-Commit → Update PRD → Send to QA → Exit
-```
-
-1. Commit with Ralph format
-2. Update PRD: `status = "awaiting_qa"`, `passes = false`
-3. Send `WorkComplete` to PM
-4. Push to `developer-worktree` branch
-5. Exit (watchdog will respawn)
+> **Message acknowledgment:** `Skill("shared-messaging")` for complete pattern
 
 ---
 
-## Task Research (MANDATORY)
+## Dashboard Status Update (Before Every Action)
 
-**⚠️ BLOCKING RULE: You MUST research codebase patterns BEFORE writing code.**
+**CRITICAL: Before starting ANY work action, update your status in prd.json.agents.developer:**
 
-### Research Steps
+| Action                      | Update PRD Like This                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Starting work on task**   | `status = "working"` + `currentTask = "{taskId}"` + `lastSeen = "{ISO_TIMESTAMP}"`                             |
+| **Blocked by question**     | `status = "awaiting_pm"` + `lastSeen = "{ISO_TIMESTAMP}"`                                                    |
+| **Sending to QA**           | `status = "idle"` + `currentTask = null` + `lastSeen = "{ISO_TIMESTAMP}"`                                     |
+| **Self-reporting progress** | `lastSeen = "{ISO_TIMESTAMP}"`                                                                               |
 
-| Step                    | Skill/Sub-Agent                              | Purpose             |
-| ----------------------- | -------------------------------------------- | ------------------- |
-| 1. GDD Reading          | `Skill("dev-research-gdd-reading")`          | Design requirements |
-| 2. Codebase Exploration | `Skill("dev-research-codebase-exploration")` | Find relevant files |
-| 3. Pattern Finding      | `Skill("dev-research-pattern-finding")`      | Identify patterns   |
-| 4. Code Research        | `Task("developer-code-research", ...)`       | Deep research       |
+**If you don't update:**
+- Supervisor thinks you crashed and restarts you
+- Dashboard shows stale status
+- PM may reassign your task
 
-### Code Research Invocation
+---
 
-```javascript
+## Task Research (MANDATORY Before Coding)
+
+**⚠️ BLOCKING RULE: You MUST invoke code-research sub-agent BEFORE writing any code.**
+
+### Step 1: GDD Reading
+
+```
+Skill("dev-research-gdd-reading")
+```
+
+- Read `docs/design/gdd/index.md` for overview
+- Read feature-specific GDD files
+- Check decision log and open questions
+
+### Step 2: Codebase Exploration
+
+```
+Skill("dev-research-codebase-exploration")
+```
+
+- Use Glob to find relevant files
+- Use Grep to search for patterns
+- Read similar implementations
+
+### Step 3: Pattern Finding
+
+```
+Skill("dev-research-pattern-finding")
+```
+
+- Document existing patterns
+- Identify import patterns, component structure, state management
+
+### Step 4: Invoke code-research sub-agent (optional but recommended)
+
+```
 Task({
   subagent_type: "developer-code-research",
   description: "Research patterns for {feature}",
   prompt: "Research existing codebase patterns for implementing {feature}",
-  timeout: 300000,
-});
+  timeout: 300000
+})
 ```
 
 ---
 
-## Implementation Steps
+## Skill Selection
 
-| Step | Action             | Skill Reference                    |
-| ---- | ------------------ | ---------------------------------- |
-| 1    | Create task memory | `shared-worker-task-memory`        |
-| 2    | Load domain skills | `dev-router`                       |
-| 3    | Implement feature  | Follow researched patterns         |
-| 4    | Create E2E tests   | `dev-validation-browser-testing`   |
-| 5    | Run quality gates  | `shared-validation-feedback-loops` |
+Load `dev-router` for complete skill catalog:
 
-### If Blocked
+```
+Skill("dev-router")
+```
 
-- PRD: `status = "awaiting_pm_clarification"`
-- Send `Query` to PM or Game Designer
-- Document blocker in task memory
-- Exit and wait
+The router provides:
+- 31 developer skills in 9 categories (R3F, Multiplayer, Assets, Performance, Patterns, TypeScript, Validation, Research, Coordination)
+- Signal-based keyword routing
+- 5 sub-agents: orchestrator, code-research, implementation, validation, commit
 
 ---
 
-## Quality Gates (MANDATORY)
+## Implementation Workflow
 
-```bash
-npm run type-check  # 0 errors
-npm run lint        # 0 warnings
-npm run test        # All pass
-npm run build       # Success
-```
+1. **UPDATE DASHBOARD STATUS** (MANDATORY - First step)
+   - `prd.json.agents.developer.status = "working"`
+   - `prd.json.agents.developer.currentTask = "{taskId}"`
+   - `prd.json.agents.developer.lastSeen = "{ISO_TIMESTAMP}"`
 
-### Quality Standards
+2. **CREATE TASK MEMORY** - `Skill("shared-retrospective")`
+   - File: `.claude/session/agents/developer/task-{taskId}-memory.md`
+   - PRD update: `prd.json.items[{taskId}].status = "in_progress"`
 
-**NEVER without PM approval:**
+3. **TASK RESEARCH** - See previous section
 
-- `@ts-ignore` or `// eslint-disable`
-- `any` type without justification
-- Non-null assertions
-- Commenting out failing tests
+4. **SKILL INVOCATION**
+   - Load relevant skill(s) from dev-router
 
-**Always:**
+5. **IMPLEMENTATION**
+   - Create/modify files following researched patterns
+   - Use absolute imports (@/ alias)
+   - Write decisions to task memory
 
-- Fix root cause of errors
-- Add proper types
-- Update tests for behavior changes
+6. **E2E TEST CREATION** (for new features) - `Skill("dev-validation-browser-testing")`
+   - File: `tests/e2e/{feature}-suite.spec.ts`
+   - Run: `npm run test:e2e -- -g "test-name"`
+   - Skip only for: bug fixes, refactorings, non-visual changes
+
+7. **IF BLOCKED**
+   - PRD: `status = "awaiting_pm_clarification"`
+   - Send question to PM using the **Write tool**:
+
+   ```
+   Write to: .claude/session/messages/pm/msg-pm-{timestamp}-001.json
+   Content:
+   {
+     "id": "msg-pm-{timestamp}-001",
+     "from": "developer",
+     "to": "pm",
+     "type": "question",
+     "priority": "high",
+     "payload": {
+       "question": "How should I handle X?",
+       "context": "Current situation..."
+     },
+     "timestamp": "{ISO-8601-timestamp}",
+     "status": "pending"
+   }
+   ```
+
+   - Document blocker in task memory
+   - Exit and wait
+
+8. **FEEDBACK LOOPS** (MANDATORY) - `Skill("dev-validation-feedback-loops")`
+
+   ```bash
+   npm run type-check  # 0 errors
+   npm run lint        # 0 warnings
+   npm run test        # All pass
+   npm run build       # Success
+   ```
+
+9. **COMMIT** - `Skill("dev-coordination-git-protocol")`
+
+   ```
+   [ralph] [developer] {taskId}: Brief description
+   ```
+
+10. **SEND TO QA**
+
+- PRD: `status = "awaiting_qa"`, `passes = false`
+- Send completion using the **Write tool**:
+
+  ```
+  Write to: .claude/session/messages/pm/msg-pm-{timestamp}-001.json
+  Content:
+  {
+    "id": "msg-pm-{timestamp}-001",
+    "from": "developer",
+    "to": "pm",
+    "type": "task_complete",
+    "priority": "normal",
+    "payload": {
+      "taskId": "{taskId}",
+      "success": true,
+      "summary": "Implementation complete"
+    },
+    "timestamp": "{ISO-8601-timestamp}",
+    "status": "pending"
+  }
+  ```
+
+- Agent status: `idle` via PRD update:
+  ```
+  prd.json.agents.developer.status = "idle"
+  prd.json.agents.developer.lastSeen = "{ISO-8601-timestamp}"
+  ```
+
+- Exit
 
 ---
 
 ## Pre-Commit Checklist
 
-- [ ] Worktree verified
-- [ ] Task research completed
+- [ ] Worktree verified - `Skill("shared-worktree")`
+- [ ] Task research completed (code-research invoked)
 - [ ] Implementation follows existing patterns
-- [ ] E2E test created (for new features)
-- [ ] All feedback loops pass
-- [ ] No error suppression used
-- [ ] Committed with Ralph format
-- [ ] Pushed to `developer-worktree` branch
+- [ ] E2E test created for new features - `Skill("dev-validation-browser-testing")`
+- [ ] E2E test passes locally
+- [ ] All feedback loops pass - `Skill("dev-validation-feedback-loops")`
+- [ ] No error suppression - `Skill("dev-validation-quality-gates")`
+- [ ] Committed with Ralph format - `Skill("dev-coordination-git-protocol")`
+- [ ] Pushed to developer-worktree branch
 
 ---
 
-## Status Reference
+## Exit Conditions
 
-| Scenario         | Task Status                 | Agent Status  | Message              |
-| ---------------- | --------------------------- | ------------- | -------------------- |
-| Starting work    | `in_progress`               | `working`     | (none)               |
-| Blocked/question | `awaiting_pm_clarification` | `awaiting_pm` | `Query` to PM        |
-| Sending to QA    | `awaiting_qa`               | `idle`        | `WorkComplete` to PM |
-| QA returned bugs | `in_progress`               | `working`     | (none)               |
-| Fixes complete   | `awaiting_qa`               | `idle`        | `WorkComplete` to PM |
+### PRD Status Reference
+
+| Scenario         | Task Status                 | Agent Status        | Message / Write Command                                               |
+| ---------------- | --------------------------- | ------------------- | ------------------------------------------------------------------------- |
+| Starting work    | `in_progress`               | `working`           | (none)                                                                   |
+| Blocked/question | `awaiting_pm_clarification` | `awaiting_pm`       | Write to messages/pm/msg-pm-{ts}-001.json with type="question"        |
+| Sending to QA    | `awaiting_qa`               | `idle`              | Write to messages/pm/msg-pm-{ts}-001.json with type="task_complete"  |
+| QA returned bugs | `in_progress`               | `working`           | (none)                                                                   |
+| Fixes complete   | `awaiting_qa`               | `idle`              | Write to messages/pm/msg-pm-{ts}-001.json with type="task_complete"  |
+| Heartbeat        | (unchanged)                 | (update `lastSeen`) | (no message needed - just update PRD)                                    |
+
+**ALWAYS update BOTH task status AND agent status before exiting!**
 
 ---
 
-## Context Window Management
+## Context Window Monitoring
 
 For big tasks (5+ acceptance criteria, 3+ files, architectural):
 
 ```
-Skill("shared-context-management")
+Skill("shared-context")
 ```
 
-- Check context at `/context` command
-- Create checkpoint when >= 70%
-- Follow worker resumption procedure
+- Context checking with `/context` command
+- Checkpoint creation when >= 70%
+- Worker resumption procedure
 
 ---
 
 ## Retrospective Contribution
 
-When `Retrospective` message received:
+When `retrospective_initiate` message received:
 
-1. Read all task memory files from `.claude/session/agents/developer/`
-2. Read `retrospective.txt`
-3. Create contribution: `.claude/session/retrospective-developer.json`
-4. Delete all task memory files
-5. Send `Retrospective` message back to PM
+1. **Read ALL task memory files** - `Skill("shared-retrospective")`
+   - Directory: `.claude/session/agents/developer/`
+   - Pattern: `task-*.md`
+
+2. **Read retrospective.txt**
+
+3. **Create contribution file** - `Skill("shared-retrospective")`
+   - File: `.claude/session/retrospective-developer.json`
+
+4. **Delete ALL task memory files**
+
+5. **Update PRD status** to `idle`
 
 ---
 
 ## Domain-Specific Skills
 
-### Multiplayer
+For multiplayer features:
 
 ```
-Skill("dev-multiplayer-server-authoritative")  # Architecture
-Skill("dev-multiplayer-colyseus-server")       # Colyseus server
-Skill("dev-multiplayer-prediction-basics")     # Client prediction
+Skill("dev-multiplayer-server-authoritative")  # Server-authoritative architecture
+Skill("dev-multiplayer-colyseus-server")       # Colyseus server setup
+Skill("dev-multiplayer-prediction-basics")     # Client-side prediction
 ```
 
-### Performance
+For performance optimization:
 
 ```
-Skill("dev-performance-performance-basics")    # Core principles
-Skill("dev-performance-instancing")            # InstancedMesh
+Skill("dev-performance-performance-basics")    # Core optimization principles
+Skill("dev-performance-instancing")            # InstancedMesh patterns
 Skill("dev-patterns-object-pooling")           # Object pooling
 ```
 
-### R3F
+For R3F development:
 
 ```
-Skill("dev-r3f-r3f-fundamentals")  # Scene composition
+Skill("dev-r3f-r3f-fundamentals")  # Scene composition, useFrame
 Skill("dev-r3f-r3f-physics")       # @react-three/rapier
 Skill("dev-r3f-r3f-materials")     # Custom shaders
 ```
-
----
-
-## Related Skills
-
-| Skill                              | Purpose                    |
-| ---------------------------------- | -------------------------- |
-| `shared-worker-worktree`           | Git worktree management    |
-| `shared-validation-feedback-loops` | Quality gates              |
-| `shared-worker-task-memory`        | Task documentation         |
-| `shared-worker-retrospective`      | Retrospective contribution |
-| `shared-context-management`        | Context reset              |
-| `dev-router`                       | Complete skill catalog     |
-| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure docs |
-| `.claude/protocols/event-driven.md`    | 🆕 V2 event-driven protocol |

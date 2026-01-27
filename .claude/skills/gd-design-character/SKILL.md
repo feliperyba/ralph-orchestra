@@ -1,9 +1,6 @@
 ---
 name: gd-design-character
 description: Character and class design documentation. Use when designing character archetypes, creating class systems, defining abilities and skills, balancing character stats, or designing progression systems.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # Character Design

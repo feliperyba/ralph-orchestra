@@ -1,7 +1,7 @@
 ---
 name: ta-r3f-materials
-description: Creates and configures PBR materials, textures, and shaders. Use proactively when working with material properties, texture mapping, or shader materials.
-category: techartist
+description: Material selection, shaders, and visual effects for R3F. Use when working with materials, PBR textures, shader materials.
+category: visual
 ---
 # R3F Materials Skill
 
@@ -228,8 +228,11 @@ Before finalizing materials:
 - [ ] Double-sided materials explicitly set
 - [ ] Shader uniforms use refs for animation
 
-## Reference
+## Related Skills
+
+For R3F fundamentals: `Skill("ta-r3f-fundamentals")`
+For performance optimization: `Skill("ta-r3f-performance")`
+
+## External References
 
 - [Three.js Materials](https://threejs.org/docs/#api/en/materials/Material) — Official docs
-- [skills/r3f-fundamentals.md](r3f-fundamentals.md) — R3F basics
-- [skills/r3f-performance.md](r3f-performance.md) — Optimization

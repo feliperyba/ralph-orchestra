@@ -1,7 +1,7 @@
 ---
 name: ta-validation-typescript
-description: Ensures TypeScript best practices for game code. Use proactively when writing React components, Zustand stores, or type-safe utilities.
-category: techartist
+description: TypeScript best practices for game development. Use when writing TypeScript for game code, defining types, avoiding anti-patterns.
+category: architectural
 ---
 
 # TypeScript Patterns Skill
@@ -450,7 +450,11 @@ Before committing TypeScript code:
 - [ ] **NEW**: No duplicate state between parent and child components
 - [ ] **NEW**: Magic numbers extracted to named constants
 
-## Reference
+## Related Skills
+
+For UI component patterns: `Skill("ta-ui-polish")`
+
+## External References
 
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/)

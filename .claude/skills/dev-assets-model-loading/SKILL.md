@@ -1,6 +1,7 @@
 ---
 name: dev-assets-model-loading
 description: FBX model loading patterns with sequential loading for React Three Fiber. Use when loading multiple FBX character models, implementing sequential loading to prevent memory overload, or creating character model components with proper error handling.
+category: assets
 ---
 
 # FBX Model Loading Patterns
@@ -323,6 +324,129 @@ function CharacterModelWithRetry({ characterType }: { characterType: string }) {
   return <primitive object={fbx} />;
 }
 ```
+
+## FBX Scale Validation
+
+### Problem: Scale Confusion Causes 10x Size Errors
+
+Asset pack FBX models often require dramatically different scale values than expected. The Blaster Kit requires 0.015 scale (not 0.15), causing weapons to appear 10x too large if incorrect.
+
+### Solution: Scale Configuration with Documentation
+
+```tsx
+// src/components/assets/WeaponModel.tsx
+// CRITICAL: Document scale values with source and date
+
+interface WeaponScaleConfig {
+  scale: number;
+  source: string;           // Asset pack name
+  verifiedDate: string;     // When scale was tested
+  notes?: string;           // Any special considerations
+}
+
+const FBX_SCALE_REGISTRY: Record<string, WeaponScaleConfig> = {
+  // Blaster Kit - requires 0.015 scale
+  blaster_rifle: {
+    scale: 0.015,
+    source: 'Blaster Kit',
+    verifiedDate: '2026-01-25',
+    notes: 'CRITICAL: 0.15 makes weapon GIGANTIC (10x too large)',
+  },
+  // Other asset packs - use 1.0 as default
+  plasma_gun: {
+    scale: 1.0,
+    source: 'Weapon Pack',
+    verifiedDate: '2026-01-25',
+  },
+};
+```
+
+### Unit Test for Scale Validation
+
+```tsx
+// src/components/assets/__tests__/WeaponModel.test.ts
+import { describe, it, expect } from 'vitest';
+import { FBX_SCALE_REGISTRY } from '../WeaponModel';
+
+describe('WeaponModel Scale Validation', () => {
+  it('should have documented scale for each weapon type', () => {
+    const weaponTypes = ['blaster_rifle', 'plasma_gun', 'shotgun'];
+
+    weaponTypes.forEach(type => {
+      expect(FBX_SCALE_REGISTRY[type]).toBeDefined();
+      expect(FBX_SCALE_REGISTRY[type].scale).toBeGreaterThan(0);
+      expect(FBX_SCALE_REGISTRY[type].scale).toBeLessThan(10); // Sanity check
+      expect(FBX_SCALE_REGISTRY[type].source).toBeTruthy();
+      expect(FBX_SCALE_REGISTRY[type].verifiedDate).toMatch(/\d{4}-\d{2}-\d{2}/);
+    });
+  });
+
+  it('should flag suspicious scale values (0.15 instead of 0.015)', () => {
+    // Common mistake: 0.15 is too large for Blaster Kit
+    Object.values(FBX_SCALE_REGISTRY).forEach(config => {
+      if (config.source === 'Blaster Kit') {
+        expect(config.scale).toBeLessThan(0.02); // Blaster Kit needs ~0.015
+      }
+    });
+  });
+});
+```
+
+### Scale Detection Helper for Development
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
+
+/**
+ * Development helper to detect actual asset scale
+ * Use during development to populate FBX_SCALE_REGISTRY
+ */
+function useAssetScaleDetection(assetUrl: string) {
+  const { scene } = useGLTF(assetUrl);
+  const scaleInfo = useRef<{ size: THREE.Vector3; suggestedScale: number } | null>(null);
+
+  useEffect(() => {
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    // For weapons, target size ~0.5 units (hand-held)
+    const suggestedScale = 0.5 / maxDim;
+
+    scaleInfo.current = { size, suggestedScale };
+
+    // Log for config development
+    console.log(`[Asset Scale Detection] ${assetUrl}`, {
+      actualSize: { x: size.x.toFixed(3), y: size.y.toFixed(3), z: size.z.toFixed(3) },
+      suggestedScale: suggestedScale.toFixed(4),
+      // Use this suggestedScale value in FBX_SCALE_REGISTRY
+    });
+  }, [scene, assetUrl]);
+
+  return scaleInfo.current;
+}
+
+// Usage during development:
+// const scaleInfo = useAssetScaleDetection('/assets/models/blaster-rifle.fbx');
+// Check console for suggested scale value
+```
+
+### Scale Validation Checklist
+
+Before committing weapon/asset code:
+
+- [ ] Scale value is documented in FBX_SCALE_REGISTRY
+- [ ] Unit test exists to verify scale is within expected range
+- [ ] Visual verification in browser confirms correct size
+- [ ] Scale source and verified date are recorded
+- [ ] Any special notes (e.g., "CRITICAL: 0.15 is 10x too large") are added
+
+**Learned from bugfix-tps-001 and feat-tps-005 retrospectives (2026-01-25)**:
+- Blaster Kit FBX models require 0.015 scale, not 0.15
+- Missing scale documentation causes confusion and rework
+- Unit tests catch scale regressions before browser testing
 
 ## Reference
 

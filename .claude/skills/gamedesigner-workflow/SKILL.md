@@ -1,9 +1,6 @@
 ---
 name: gamedesigner-workflow
-description: Complete Game Designer workflow - skill invocation, GDD creation, playtest flow with GDD review, design sessions, Agile development cycle. MUST load before starting assignments.
-category: workflow
-model: inherit
-user-invocable: true
+description: Complete Game Designer workflow - skill invocation protocol, GDD creation, playtest flow with GDD review, design sessions. MUST load before starting assignments.
 ---
 
 # Game Designer Workflow
@@ -14,8 +11,8 @@ user-invocable: true
 
 | File         | Purpose                                                | Size       |
 | ------------ | ------------------------------------------------------ | ---------- |
-| `AGENT.md`   | Quick Reference: routing, permissions, messages        | ~180 lines |
-| `this skill` | ALL detailed workflows: playtest, GDD, design sessions | ~400 lines |
+| `AGENT.md`   | Quick Reference: routing, permissions, messages        | ~150 lines |
+| `this skill` | ALL detailed workflows: playtest, GDD, design sessions | ~350 lines |
 
 **Use AGENT.md** for: Task routing table, communication protocol, status values, file permissions
 **Use this skill** for: Playtest checklist, GDD creation flow, task research, design sessions, retrospective
@@ -34,137 +31,98 @@ user-invocable: true
 | **Playtest complete, starting GDD review** | `prd.json.agents.gamedesigner.status = "reviewing"`                             | PM knows you're reviewing       |
 | **GDD review complete**                    | Send `playtest_session_report` + `prd.json.agents.gamedesigner.status = "idle"` | PM receives findings + GDD gaps |
 | **Providing acceptance criteria**          | Send `acceptance_criteria` with task details                                    | PM uses for task definition     |
-| **Self-reporting progress**                | `prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}`                       | Watchdog knows you're alive     |
+| **Self-reporting progress**                | `prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}`                       | Supervisor knows you're alive   |
 
 **⚠️ If you don't update the PRD, the system desyncs:**
 
 - PM assigns design work already in progress
 - PM waits for GDD that's complete
-- Watchdog thinks you crashed
+- Supervisor thinks you crashed
 - Loop locks occur
 
 **Rule of thumb: If your state changes, PRD changes. IMMEDIATELY.**
 
-## Agile Development Cycle
+## Startup Workflow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    GAME DESIGNER AGILE CYCLE                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  PHASE 1: BACKLOG PLANNING → PHASE 2: DESIGN ITERATION →                    │
-│  PHASE 3: COLLABORATION → PHASE 4: VALIDATION →                            │
-│  PHASE 5: RETROSPECTIVE → (continuous loop)                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+0. WATCHDOG ARCHITECTURE (READ THIS FIRST)
+
+You are a WORKER managed by the WATCHDOG orchestrator.
+
+**Watchdog spawns you when messages exist in your queue.**
+**You communicate via file-based message queues using native Read/Write tools.**
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                        WATCHDOG (Orchestrator)                       │
+│  - Spawns workers when messages exist in their queues               │
+│  - Routes messages via file queues                                 │
+│  - Monitors worker health                                           │
+└─────────────────────────────────────────────────────────────────────┘
+        ▲
+        │ (spawns when messages exist)
+        │
+┌───────────────┐
+│ GD Worker     │
+│ (You/Claude)  │
+└───────────────┘
 ```
 
-### Phase 1: Backlog Planning
-
-| Activity                          | Output                          | Tools                  |
-| --------------------------------- | ------------------------------- | ---------------------- |
-| Review PRD backlog                | Identify design dependencies    | `prd.json`             |
-| Estimate design complexity        | T-shirt sizing (S/M/L/XL)       | GDD modules            |
-| Identify skill needs              | Flag missing skills             | `gd-skill-gap-analysis`|
-| Propose task priorities           | Recommend to PM                 | Message to PM          |
-
-### Phase 2: Design Iteration
-
-| Activity                          | Output                          | Tools                  |
-| --------------------------------- | ------------------------------- | ---------------------- |
-| Create/update GDD modules         | Design documentation            | `gd-gdd-creation`      |
-| Run design sessions               | Decisions, open questions       | `gd-thermite-integration`|
-| Define success criteria           | Measurable outcomes             | Acceptance criteria    |
-| Document decisions                | Decision log entries            | `docs/design/decision_log.md`|
-
-### Phase 3: Collaboration
-
-| Activity                          | Output                          | Tools                  |
-| --------------------------------- | ------------------------------- | ---------------------- |
-| Answer design questions           | Clarifications to workers       | Message responses      |
-| Provide visual references         | Art direction for Tech Artist   | `visual-reference-researcher`|
-| Review asset inventory           | Use existing vs. request new    | `asset-analyst`        |
-| Validate implementations          | Design answers to Dev/QA        | GDD comparison         |
-
-### Phase 4: Validation
-
-| Activity                          | Output                          | Tools                  |
-| --------------------------------- | ------------------------------- | ---------------------- |
-| Playtest via Playwright MCP       | Evidence collection             | `gd-validation-playtest`|
-| GDD review vs. implementation     | Gap analysis                    | `gd-playtest-gdd-review`|
-| Identify skill gaps               | Skill proposals                 | `gd-skill-gap-analysis`|
-| Recommend priority adjustments    | Task reordering                 | Message to PM          |
-
-### Phase 5: Retrospective
-
-| Activity                          | Output                          | Tools                  |
-| --------------------------------- | ------------------------------- | ---------------------- |
-| Review task memory                | Contribution content            | `shared-worker-task-memory`|
-| Analyze pain points               | Improvement proposals           | Retrospective.txt      |
-| Identify skill gaps               | New skill proposals             | `gd-skill-gap-analysis`|
-| Propose GDD updates               | Design refinements              | GDD modules            |
-
-**Agile Principles Applied:**
-
-- **Iterative Design** - GDD evolves through sprints, not waterfall
-- **Continuous Validation** - Playtest every iteration, not just at end
-- **Evidence-Based** - Screenshots, Vision MCP analysis, not opinions
-- **Collaborative** - Design sessions involve all relevant personas
-- **Adaptive Planning** - Priorities adjust based on playtest findings
-
-## Startup Workflow (V2)
-
-```
 1. Load router skill (MANDATORY - first step)
    Skill("gd-router")
 
-2. Connect to watchdog (V2 - PRE-INITIALIZED)
-   - Named pipe connection via agent-runtime.ps1 (automatic)
-   - Messages received via Enter-AgentLoop
-   - No file-based message queues
+2. Check and process pending messages (MANDATORY - prevents missing messages)
+   Use the **Glob + Read tools** to read from `.claude/session/messages/gamedesigner/msg-*.json`
+   - Each file is a JSON message object
+   - After reading, **delete the file** to mark it as processed
 
-3. Check and process pending messages (MANDATORY - prevents watchdog restart loop)
-   - In V2, messages are received via named pipe (ralph-gamedesigner-main)
-   - Enter-AgentLoop automatically receives and processes messages
-   - Process each message based on type (WorkAssign, Query, etc.)
+   **Message reading pattern:**
+   ```
+   1. Use Glob: .claude/session/messages/gamedesigner/msg-*.json
+   2. For each file: Read the file content
+   3. Parse JSON (fields: id, from, to, type, payload, timestamp, status)
+   4. Process messages based on type field (playtest_request, prd_analysis_request, etc.)
+   5. Delete the file after processing
+   ```
 
-4. ⚠️ PROACTIVE PLAYTEST CHECK (MANDATORY - EVERY STARTUP)
+3. ⚠️ PROACTIVE PLAYTEST CHECK (MANDATORY - EVERY STARTUP)
    - Read .claude/session/retrospective.txt → Check Action Items for "[ ] Request playtest"
    - Read prd.json → Check session.currentTask.status for "playtest_phase"
-   - IF playtest needed → JUMP TO PLAYTEST FLOW immediately (skip to step 10)
+   - IF playtest needed → JUMP TO PLAYTEST FLOW immediately (skip to step 9)
 
-5. Check if GDD exists in docs/design/
+4. Check if GDD exists in docs/design/
 
-6. Read prd.json for current task
+5. Read prd.json for current task
    - Check prd.json.session.currentTask for your assignment
    - Check prd.json.agents.gamedesigner for your status
    - Update your status and lastSeen timestamp
 
-7. **SKILL CHECK** - Match task to skill/sub-agent using gd-router
+6. **SKILL CHECK** - Match task to skill/sub-agent using gd-router
 
-8. **TASK RESEARCH (MANDATORY)**
+7. **TASK RESEARCH (MANDATORY)**
    - Read GDD, check reference games
    - Check src/assets/ before requesting new assets
 
-9. Invoke appropriate skill/sub-agent
+8. Invoke appropriate skill/sub-agent
 
-10. PLAYTEST FLOW (if triggered in step 4)
-    - See Playtest Flow section below
+9. PLAYTEST FLOW (if triggered in step 4)
+   - See Playtest Flow section below
 
-11. Complete design work, commit with Ralph format, send message, exit
+10. Complete design work, commit with Ralph format, send message, exit
+
 ```
 
-## Task Research (MANDATORY - First Step)
+## Task Research (MANDATORY)
 
-**Always check:**
-
-- `docs/design/gdd/index.md` - Modular GDD overview and table of contents
-- `docs/design/gdd/{module}.md` - Feature-specific design documents (project-specific modules)
-- `docs/design/decision_log.md` - Design rationale (DEC-XXX decisions)
-- `docs/design/open_questions.md` - Unresolved issues (OQ-XXX)
-- `docs/design/reference-games.md` - Reference game analysis (document per project)
+Always check:
+- `docs/design/gdd/index.md` - Modular GDD overview
+- `docs/design/gdd/{module}.md` - Feature-specific design documents
+- `docs/design/decision_log.md` - DEC-XXX decisions
+- `docs/design/open_questions.md` - OQ-XXX questions
 - `src/assets/` - Existing assets before requesting new ones
 
-**Decision tree:**
+**For complete GDD structure:** `Skill("gd-gdd-creation")`
 
+**Decision tree:**
 - Requirements clear → Proceed with design
 - Design unclear → Use thermite-facilitator sub-agent
 - Visual reference needed → Use visual-reference-researcher sub-agent
@@ -177,102 +135,94 @@ user-invocable: true
 
 ```
 1. CREATE TASK MEMORY (MANDATORY - on task start)
-   - Load `shared/worker-task-memory` skill
+   - Load `shared-retrospective` skill
    - Extract taskId from message (e.g., P1-004)
    - Create directory: .claude/session/agents/gamedesigner/
    - Create file: .claude/session/agents/gamedesigner/task-{taskId}-memory.md
    - Initialize with taskId, title, timestamp, empty sections
-   → PRD UPDATE: prd.json.agents.gamedesigner.status = "working"
+     → PRD UPDATE: prd.json.agents.gamedesigner.status = "working"
 
 2. TASK RESEARCH (MANDATORY)
    - Check if GDD exists
    - Read README.md, prd.json
    - Research similar games
-   → WRITE TO MEMORY: Document research findings, references found
+     → WRITE TO MEMORY: Document research findings, references found
 
 3. INVOKE SKILL/SUB-AGENT
-   Task("gamedesigner-gdd-documenter", { prompt: "Create GDD structure" })
+   Task({ subagent_type: "gamedesigner-gdd-documenter", prompt: "Create GDD structure" })
    → WRITE TO MEMORY: Document design decisions made
 
 4. DESIGN SESSIONS (if needed)
-   Task("gamedesigner-thermite-facilitator", {
-     prompt: "Boardroom Retreat for [topic]"
-   })
+   Task({ subagent_type: "gamedesigner-thermite-facilitator", prompt: "Boardroom Retreat for [topic]" })
    → WRITE TO MEMORY: Document persona insights, decisions
 
 5. DOCUMENT DECISIONS
    - Update docs/design/decision_log.md
    - Track open_questions.md
-   → WRITE TO MEMORY: Document any unresolved questions
+     → WRITE TO MEMORY: Document any unresolved questions
 
 6. COMMIT AND NOTIFY PM
-   - Send gdd_ready message
+   - Write message to PM inbox: .claude/session/messages/pm/msg-{timestamp}.json
 ```
 
-## Playtest Flow (MANDATORY for Retrospective)
+## Playtest Flow
 
-**⚠️ PROACTIVE INITIATION**: Don't wait for a message! Check these conditions on EVERY startup:
+**TRIGGER CONDITIONS** (Check on EVERY startup):
+- `.claude/session/retrospective.txt` contains "[ ] Request playtest"
+- `prd.json.session.currentTask.status = "playtest_phase"`
+- PM sends `playtest_session_request` message
 
-**For detailed Playwright MCP usage, Vision MCP game state detection, code examples, and validation patterns:**
+**When ANY trigger is true, initiate playtest flow:**
+
+**For detailed Playwright MCP patterns:**
 → `Skill("gd-validation-playtest")`
 
-**HIGH-LEVEL CHECKLIST (13 steps - quick reference during startup):**
+**HIGH-LEVEL CHECKLIST:**
 
 ```
 STEP 1: DETECT playtest needed (proactive check - EVERY STARTUP)
-   - Read .claude/session/retrospective.txt → Look for "[ ] Request playtest session from Game Designer"
-   - Read prd.json → Look for session.currentTask.status = "playtest_phase"
-   - IF true → IMMEDIATELY INITIATE PLAYTESTING
+- Read .claude/session/retrospective.txt → Look for "[ ] Request playtest session from Game Designer"
+- Read prd.json → Look for session.currentTask.status = "playtest_phase"
+- IF true → IMMEDIATELY INITIATE PLAYTESTING
 
 STEP 2: START DEV SERVERS
-   - Run: npm run dev:all:sh (client :3000, server :2567)
-   - Wait for "Vite ready" and "server listening"
-   - Verify: http://localhost:3000 accessible
+- Bash("npm run dev:all:sh")
+- Wait for "Vite ready" and "Colyseus server listening" in output
+- Verify: http://localhost:3000 accessible
 
 STEP 3: UPDATE PRD status
-   → prd.json.agents.gamedesigner.status = "playtesting"
-   → prd.json.agents.gamedesigner.currentTaskId = "{taskId}"
+→ prd.json.agents.gamedesigner.status = "playtesting"
+→ prd.json.agents.gamedesigner.currentTaskId = "{taskId}"
 
 STEP 4: CREATE task memory file
-   → .claude/session/agents/gamedesigner/task-{taskId}-playtest-memory.md
+→ .claude/session/agents/gamedesigner/task-{taskId}-playtest-memory.md
 
 STEP 5-9: GAMEPLAY TESTING
-   → Use gd-validation-playtest for detailed Playwright MCP patterns:
-   - Character selection test (3D model, console check)
-   - Lobby test (server connection)
-   - Game scene test (character render, controls)
-   - Keyboard/mouse controls (WASD, Space, Shift, RMB, etc.)
-   - Acceptance criteria validation
-   - Vision MCP analysis for visual quality
+→ Use gd-validation-playtest for detailed Playwright MCP patterns
 
 STEP 10: GDD REVIEW PHASE (MANDATORY BEFORE SENDING REPORT)
-   → prd.json.agents.gamedesigner.status = "reviewing"
-   - Retrospective analysis (read pain points from workers)
-   - Game state review (compare vs GDD specs)
-   - Gap analysis (identify missing specs/skills)
-   - Use: Skill("gd-playtest-gdd-review") for detailed process
-   - Use: Skill("gd-skill-gap-analysis") for skill identification
+→ prd.json.agents.gamedesigner.status = "reviewing"
+- Retrospective analysis (read pain points from workers)
+- Game state review (compare vs GDD specs)
+- Gap analysis (identify missing specs/skills)
+→ Skill("gd-playtest-gdd-review") for detailed process
+→ Skill("gd-skill-gap-analysis") for skill identification
 
-STEP 11: SEND playtest_session_report (V2)
-   → Send via message to PM
-   Include: gddReview, skillGaps, priorityRecommendations
+STEP 11: SEND playtest_session_report
+→ Write message to PM inbox with: result, criteriaTested, screenshots, gddReview, skillGaps, priorityRecommendations
 
 STEP 12: UPDATE PRD status
-   → prd.json.agents.gamedesigner.status = "idle"
-   → prd.json.agents.gamedesigner.currentTaskId = null
-   → prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}
+→ prd.json.agents.gamedesigner.status = "idle"
+→ prd.json.agents.gamedesigner.currentTaskId = null
+→ prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}
 ```
 
-**For Playwright code examples, Vision MCP patterns, game state detection, and visual validation:**
-→ `Skill("gd-validation-playtest")`
-
-**⚠️ CRITICAL REMINDER:**
-
-- Start servers with `npm run dev:all:sh` BEFORE playtesting
-- Use Playwright MCP for all testing (no manual workarounds)
+**⚠️ CRITICAL:**
+- Start servers BEFORE playtesting
+- Use Playwright MCP for all testing
 - Test ALL keyboard/mouse controls in game scene
 - Validate against acceptance criteria in PRD
-- **MANDATORY: Conduct GDD review BEFORE sending report (STEP 10)**
+- **MANDATORY: Conduct GDD review BEFORE sending report**
 - Game must be PLAYABLE to pass playtest
 - Document EVERYTHING for retrospective contribution
 
@@ -284,95 +234,38 @@ STEP 12: UPDATE PRD status
    - Identify discussion topics
 
 2. INVOKE THERMITE-FACILITATOR
-   Task({
-     subagent_type: "gamedesigner-thermite-facilitator",
-     description: "Run design session for [topic]",
-     prompt: "Facilitate Boardroom Retreat about [problem]"
-   })
+   Task({ subagent_type: "gamedesigner-thermite-facilitator", prompt: "Facilitate Boardroom Retreat about [problem]" })
 
 3. EXTRACT DECISIONS AND UPDATE GDD
 ```
 
-## Thermite Design Integration
+## Reference Games
 
-**For full persona details (expertise, signature phrases, tensions), session types, and artifact templates:**
-→ `Skill("gd-thermite-integration")`
+**Primary inspirations - reference these when defining success criteria:**
 
-### Design Pillars (Quick Reference - Non-Negotiable)
+| Game | Developer | Key Aspects |
+|------|-----------|-------------|
+| **Splatoon** | Nintendo | Territory control, paint visualization, UI/HUD, character movement, fast-paced combat |
+| **Arc Raiders** | Embark Studios | Third-person camera, movement (vault/mantle/slide), tactical positioning, cover gameplay |
 
-Every design decision must serve at least one pillar:
+**When to reference:**
+- **Splatoon**: UI/HUD, paint/territory visualization, movement feel, win conditions
+- **Arc Raiders**: Camera follow distance, movement transitions, tactical combat, sprint responsiveness
 
-1. **Meaningful Risk** - Every action matters, gear has weight
-2. **Readable Chaos** - Chaotic but parseable, clear visual language
-3. **Compressed Tension** - 5-8 minute matches (or project-appropriate)
-4. **Earned Mastery** - Skill beats gear
-5. **Sustainable Economy** - Patchable, not exploitable
+## Thermite Design
 
-### Expert Personas (8)
+For thermite design sessions, use `gd-thermite-integration` skill which contains:
+- 8 expert personas with domains, key questions, signature phrases, and tensions
+- Design pillars (non-negotiable)
+- Session types (Boardroom Retreat, Deep Dive, Decision Review)
+- Artifact templates (decision log, open questions)
 
-| Persona        | Domain             | Key Question                          |
-| -------------- | ------------------ | ------------------------------------- |
-| Shinji Tanaka  | Classic Arcade     | "Is this readable in 2 seconds?"      |
-| Viktor Volkov  | Extraction/Economy | "Does risk feel real AND survivable?" |
-| Elena Vasquez  | Map Architecture   | "Does space create decisions?"        |
-| Marcus Chen    | Combat Balance     | "What beats this?"                    |
-| Sarah Okonkwo  | Economy            | "Where does currency leave?"          |
-| Dr. Maya Reyes | Player Psychology  | "What does first death teach?"        |
-| Wei Zhang      | Technical          | "What happens at 150ms latency?"      |
-| Jordan Ellis   | UX/Accessibility   | "Can colorblind players distinguish?" |
+## Skill and Sub-Agent Routing
 
-## Sub-Agents (invoke via Task tool)
-
-**See [gd-router](../gd-router/SKILL.md) for complete sub-agent reference.**
-
-| Sub-Agent                     | Model   | Purpose                                           |
-| ----------------------------- | ------- | ------------------------------------------------- |
-| `thermite-facilitator`        | Inherit | Multi-persona design sessions                     |
-| `playtest-evidence-collector` | Inherit | **MANDATORY** Playwright + Vision MCP playtesting |
-| `gdd-documenter`              | Inherit | GDD creation and maintenance                      |
-| `gdd-review-analyst`          | Inherit | GDD review during playtest phase                  |
-| `skill-gap-analyst`           | Haiku   | Analyze pain points, identify skill gaps          |
-| `asset-analyst`               | Haiku   | Read-only asset inventory                         |
-| `visual-reference-researcher` | Haiku   | Web search + image analysis                       |
-
-**Invocation:** `Task("gamedesigner-{subagent-name}", { prompt: "...", timeout: 300000 })`
-
-## Skill Routing
-
-**Use `gd-router` for all skill selection.** The router contains complete routing tables by keyword, category, and common combinations.
-
-See [gd-router](../gd-router/SKILL.md) for:
-
-- Quick route by keyword
-- Routing by design category
+**Use `gd-router` skill for:**
+- Complete routing table by keyword
 - All available skills and sub-agents
-- Common skill combinations
-- Skill dependencies
-
-### Quick Skill Reference
-
-| Task Type                       | Use This Skill                       |
-| ------------------------------- | ------------------------------------ |
-| **GDD Structure/Template**      | `Skill("gd-gdd-creation")`           |
-| **Thermite Design Sessions**    | `Skill("gd-thermite-integration")`   |
-| **Mechanic Documentation**      | `Skill("gd-design-mechanic")`        |
-| **Map/Level Design**            | `Skill("gd-design-level")`           |
-| **Character/Class Design**      | `Skill("gd-design-character")`       |
-| **Weapon/Item Design**          | `Skill("gd-design-weapon")`          |
-| **Game Loop Design**            | `Skill("gd-design-game-loop")`       |
-| **Asset Impact Analysis**       | `Skill("gd-assets-impact-analysis")` |
-| **Playwright Playtesting**      | `Skill("gd-validation-playtest")`    |
-| **GDD Review (Playtest Phase)** | `Skill("gd-playtest-gdd-review")`    |
-| **Skill Gap Analysis**          | `Skill("gd-skill-gap-analysis")`     |
-| **Router**                      | `Skill("gd-router")`                 |
-| **Task Memory**                 | `Skill("shared-worker-task-memory")` |
-
-**Core Skills:**
-
-| Skill                       | Purpose                                                            |
-| --------------------------- | ------------------------------------------------------------------ |
-| `gd-router`                 | **MANDATORY - Load first** Routes to appropriate skills/sub-agents |
-| `shared-worker-task-memory` | Task memory for retrospective contributions                        |
+- Skill dependencies and combinations
 
 ## Commit Format
 
@@ -405,9 +298,9 @@ PRD: {task-id} | Agent: gamedesigner | Iteration: N
 
 **Worker pool model:** Complete work → commit → send message → exit.
 
-## Retrospective Contribution (V2)
+## Retrospective Contribution
 
-**When `Retrospective` message is received from PM:**
+**When `retrospective_contribution_request` message is received:**
 
 ```
 1. READ ALL your task memory files
@@ -438,21 +331,7 @@ PRD: {task-id} | Agent: gamedesigner | Iteration: N
    - prd.json.agents.gamedesigner.status = "idle"
    - prd.json.agents.gamedesigner.lastSeen = {ISO_TIMESTAMP}
 
-7. SEND `Retrospective` message back to PM with your contribution
+7. LOG in progress file
 ```
 
 **⚠️ Your retrospective contribution will be GENERIC and USELESS without reading task memory first!**
-
----
-
-## References
-
-| Resource | Purpose |
-|----------|---------|
-| `shared-ralph-core` | Session structure, status values |
-| `shared-ralph-event-protocol` | V2 event-driven messaging |
-| `docs/powershell/v2-architecture.md` | 🆕 V2 infrastructure: Event Sourcing, Actor Model, CQRS |
-| `.claude/protocols/event-driven.md` | 🆕 V2 event-driven protocol details |
-| `gamedesigner-router` | Complete Game Designer skill catalog |
-
----

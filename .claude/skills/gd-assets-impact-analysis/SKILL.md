@@ -1,9 +1,6 @@
 ---
 name: gd-assets-impact-analysis
 description: Analyzing asset impact on gameplay and player experience. Use when evaluating how 3D assets affect gameplay mechanics, analyzing audio assets for immersive experience, assessing texture and visual impact on performance, balancing asset quality vs. technical constraints, or guiding asset optimization decisions.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # Asset Impact Analysis

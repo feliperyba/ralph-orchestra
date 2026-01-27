@@ -1,6 +1,7 @@
 ---
-name: audio-loading
+name: dev-assets-audio-loading
 description: Audio loading patterns for R3F/Three.js. Use when adding sound effects.
+category: assets
 ---
 
 # Audio Loading
@@ -184,5 +185,6 @@ function EnableAudioButton() {
 
 ## Reference
 
-- [model-loading.md](./model-loading.md) - Model loading
-- [texture-loading.md](./texture-loading.md) - Texture loading
+- **[dev-assets-model-loading](../dev-assets-model-loading/SKILL.md)** — FBX model loading
+- **[dev-assets-texture-loading](../dev-assets-texture-loading/SKILL.md)** — Texture loading
+- **[dev-assets-vite-asset-loading](../dev-assets-vite-asset-loading/SKILL.md)** — Vite 6 asset handling

@@ -1,41 +1,39 @@
 ---
 name: gd-validation-playtest
 description: Playwright-based game playtesting and design validation. Use when validating implementation against GDD, testing gameplay mechanics, capturing screenshot evidence, performing game state detection via Vision MCP, or conducting visual GDD compliance validation.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # Playtest Validation
 
-## ⚠️ MANDATORY: 2-Step Retrospective Workflow
+## When Playtest Is NOT Required
 
-**Retrospective participation requires TWO steps in strict order:**
+**Skip playtest for:**
+- Test infrastructure bugfixes (unit tests, E2E tests, build fixes)
+- Non-gameplay tasks (CI/CD, tooling, documentation)
+- Backend-only changes without visual impact
 
-```
-PM → Game Designer: playtest_request
-       ↓
-       [Game Designer uses Playwright MCP]
-       ↓
-       [Screenshots + Vision MCP analysis]
-       ↓
-Game Designer → PM: playtest_report (with evidence)
-       ↓
-       [PM verifies evidence]
-       ↓
-PM → Game Designer: retrospective_contribution_request
-       ↓
-Game Designer → PM: retrospective_contribution
-```
+**Playtest IS required for:**
+- Gameplay mechanics (movement, shooting, physics)
+- Visual features (shaders, materials, effects)
+- UI/UX changes (HUD, menus, interactions)
+- Character/weapon behavior
+- Multiplayer features
+
+## Playtest Initiation
+
+**Triggers (any of these):**
+- `.claude/session/retrospective.txt` contains "[ ] Request playtest"
+- `prd.json.session.currentTask.status = "playtest_phase"`
+- PM sends `playtest_session_request` message
+
+**When ANY trigger is true, initiate playtest flow:**
 
 **⚠️ CRITICAL RULES:**
 
-1. **WAIT for `playtest_request`** - Do NOT start playtest until PM sends this
-2. **Playwright MCP REQUIRED** - NO manual testing alternatives
-3. **Screenshot Evidence** - At least 3: start, during, end
-4. **Vision MCP Analysis** - Game state detection, GDD compliance validation
-5. **Send `playtest_report`** - MUST be sent to PM FIRST
-6. **WAIT for `retrospective_contribution_request`** - ONLY send contribution AFTER playtest verified
+1. **Playwright MCP REQUIRED** - NO manual testing alternatives
+2. **Screenshot Evidence** - At least 3: start, during, end
+3. **Vision MCP Analysis** - Game state detection, GDD compliance validation
+4. **Send `playtest_report`** - MUST be sent to PM FIRST
 
 **Non-negotiable evidence in playtest_report:**
 
@@ -54,13 +52,11 @@ Game Designer → PM: retrospective_contribution
 
 ### Step 1: Setup
 
-```powershell
+```bash
 # Start the dev server
-npm run dev:all:sh
+Bash("npm run dev:all:sh")
 
-
-# Wait for server ready
-Start-Sleep -Seconds 5
+# Wait for "Vite ready" and "Colyseus server listening" in output
 ```
 
 ### Step 2: Launch Game via Playwright
@@ -82,7 +78,7 @@ For each mechanic in GDD:
 
 ```javascript
 // Test movement
-await page.keyboard.press('KeyW');
+await page.keyboard.down('KeyW');
 await page.waitForTimeout(1000);
 await page.keyboard.up('KeyW');
 
@@ -149,7 +145,9 @@ Create playtest report:
 
 ### Starting the Game
 
-npm run dev:all:sh # succeeds
+```bash
+Bash("npm run dev:all:sh")
+```
 
 ```javascript
 // Navigate and wait for load
@@ -417,13 +415,12 @@ Is it fun?
 
 ## Sending Playtest Report
 
-After completing playtest, write message file to PM's inbox:
+After completing playtest, use Write tool to send message to PM's inbox:
 
-```bash
-# Write playtest report to PM inbox
-File: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
-{
-  "id": "msg-pm-{timestamp}-{seq}",
+```javascript
+// Use Write tool to send message:
+Write(".claude/session/messages/pm/msg-playtest-{timestamp}.json", JSON.stringify({
+  "id": "msg-playtest-{timestamp}",
   "from": "gamedesigner",
   "to": "pm",
   "type": "playtest_report",
@@ -433,7 +430,7 @@ File: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
   },
   "timestamp": "{UTC-timestamp}",
   "status": "pending"
-}
+}))
 ```
 
 ## Retrospective Participation

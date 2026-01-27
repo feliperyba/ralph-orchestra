@@ -1,9 +1,6 @@
 ---
 name: gd-playtest-gdd-review
 description: GDD review and research during playtest phase. Use during playtest phase BEFORE sending playtest_session_report to PM, after completing gameplay testing, after reviewing retrospective pain points, or before finalizing the playtest report.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # Playtest GDD Review
@@ -52,48 +49,48 @@ user-invocable: true
 
 ### Step 1: Read Retrospective
 
-```powershell
-# Read the most recent retrospective
-$retrospective = Get-Content "retrospective.txt" -Raw
+```bash
+# Read the most recent retrospective using Read tool
+Read(".claude/session/retrospective.txt")
 
 # Extract pain points from each worker section
-$workerPainPoints = @{
-    Developer = ExtractPainPoints $retrospective "Developer"
-    TechArtist = ExtractPainPoints $retrospective "Tech Artist"
-    QA = ExtractPainPoints $retrospective "QA"
-}
+# Look for sections: Developer Perspective, Tech Artist Perspective, QA Perspective
 ```
 
 ### Step 2: Identify GDD-Related Pain Points
 
 Look for patterns indicating GDD issues:
 
-| Pain Point Pattern | GDD Issue Type | Action |
-|-------------------|----------------|--------|
-| "Unclear what X means" | Ambiguous specification | Clarify in GDD |
-| "Not specified how Y works" | Missing specification | Add to GDD |
-| "Had to guess Z" | Incomplete design | Complete design |
-| "Reference images unclear" | Visual reference gap | Add/update references |
-| "Conflicting specs in X and Y" | Contradiction | Resolve conflict |
-| "No examples for pattern" | Missing examples | Add code/visual examples |
+| Pain Point Pattern             | GDD Issue Type          | Action                   |
+| ------------------------------ | ----------------------- | ------------------------ |
+| "Unclear what X means"         | Ambiguous specification | Clarify in GDD           |
+| "Not specified how Y works"    | Missing specification   | Add to GDD               |
+| "Had to guess Z"               | Incomplete design       | Complete design          |
+| "Reference images unclear"     | Visual reference gap    | Add/update references    |
+| "Conflicting specs in X and Y" | Contradiction           | Resolve conflict         |
+| "No examples for pattern"      | Missing examples        | Add code/visual examples |
 
 ### Step 3: Catalog Questions from Workers
 
-**Use Glob tool to find all messages:**
-```
-Glob: .claude/session/messages/*/msg-*.json
-```
+**Use native Read/Write tools to check for messages:**
 
-**Then read each message file to find questions:**
-- Look for `type: "question"` or `type: "design_question"`
-- Track patterns of what workers are asking about
+```bash
+# Use Glob to find messages in your inbox
+Glob(".claude/session/messages/gamedesigner/msg-*.json")
+
+# Read each message file using Read tool
+# Look for type "question" or "design_question"
+# Track patterns of what workers are asking about
+# Log question topics for GDD update analysis
+```
 
 **Question patterns to catalog:**
-| Pattern | What it means | Action |
-| -------- | ------------- | ------ |
-| design_question | Asking about design intent | Clarify in GDD |
-| reference_request | Needs visual reference | Add/update references |
-| clarification | Unclear specification | Add details to GDD |
+
+| Pattern           | What it means              | Action                |
+| ----------------- | -------------------------- | --------------------- |
+| design_question   | Asking about design intent | Clarify in GDD        |
+| reference_request | Needs visual reference     | Add/update references |
+| clarification     | Unclear specification      | Add details to GDD    |
 
 ## Phase 2: Game State Review
 
@@ -124,6 +121,7 @@ For each GDD module, verify:
 ## GDD Currency Checklist
 
 ### [Module Name].md
+
 - [ ] Version number updated
 - [ ] Last updated date current
 - [ ] Acceptance criteria match PRD
@@ -145,7 +143,7 @@ const gddVisualCheck = await visionAnalyze(screenshot, {
   - UI: [GDD spec]
   - Environment: [GDD spec]
 
-  Report any deviations with severity (low/medium/high).`
+  Report any deviations with severity (low/medium/high).`,
 });
 ```
 
@@ -156,11 +154,11 @@ const gddVisualCheck = await visionAnalyze(screenshot, {
 ```markdown
 ## GDD Update Proposals
 
-| Task ID | GDD Module | Issue | Proposed Update | Priority |
-|---------|------------|-------|-----------------|----------|
-| P1-001  | 2_paint_friction_system.md | Friction values unclear | Add specific values table | HIGH |
-| P1-002  | 4_territory_control.md | Grid cell size ambiguous | Specify 2mx2m explicitly | HIGH |
-| feat-tps-001 | TPS_CAMERA_SPEC.md | No shoulder offset examples | Add code examples | CRITICAL |
+| Task ID      | GDD Module                 | Issue                       | Proposed Update           | Priority |
+| ------------ | -------------------------- | --------------------------- | ------------------------- | -------- |
+| P1-001       | 2_paint_friction_system.md | Friction values unclear     | Add specific values table | HIGH     |
+| P1-002       | 4_territory_control.md     | Grid cell size ambiguous    | Specify 2mx2m explicitly  | HIGH     |
+| feat-tps-001 | TPS_CAMERA_SPEC.md         | No shoulder offset examples | Add code examples         | CRITICAL |
 ```
 
 ### Step 2: Identify Missing Skills
@@ -211,6 +209,7 @@ Based on playtest findings, recommend priority changes:
 ### When to Update GDD Immediately
 
 Update GDD files directly when:
+
 - Specification is clearly wrong (e.g., typo in values)
 - Acceptance criteria are ambiguous
 - Missing examples that would prevent work
@@ -219,6 +218,7 @@ Update GDD files directly when:
 ### When to Propose Updates
 
 Propose updates (include in report) when:
+
 - Design changes need team discussion
 - New features affect multiple GDD sections
 - Priority changes affect planning
@@ -235,14 +235,14 @@ Propose updates (include in report) when:
 
 ### Changes Made
 
-| Section | Before | After | Reason |
-|---------|--------|-------|--------|
+| Section   | Before        | After         | Reason        |
+| --------- | ------------- | ------------- | ------------- |
 | [Section] | [Old content] | [New content] | [Why changed] |
 
 ### Impact on Tasks
 
-| Task ID | Impact | Action Required |
-|---------|--------|-----------------|
+| Task ID  | Impact        | Action Required         |
+| -------- | ------------- | ----------------------- |
 | [taskId] | [Description] | [What worker should do] |
 
 ### Version Update
@@ -303,12 +303,12 @@ Include these sections in `playtest_session_report`:
 
 ## Sub-Agent Coordination
 
-### Use pm-skill-researcher for Skill Proposals
+### Use skill-researcher for Skill Proposals
 
 ```
 If skill gaps identified:
 1. Document gap clearly
-2. Use Task with pm-skill-researcher sub-agent
+2. Use Task with skill-researcher sub-agent
 3. Research existing similar skills
 4. Propose new skill structure
 5. Include in playtest report
@@ -340,20 +340,30 @@ Before sending playtest report:
 
 ## Messages You Send
 
-After GDD review:
+After GDD review, use Write tool to send the playtest report:
 
-```json
-{
-  "id": "msg-gd-{timestamp}",
+```javascript
+// Use Write tool to send message to PM's inbox:
+Write(".claude/session/messages/pm/msg-playtest-{timestamp}.json", JSON.stringify({
+  "id": "msg-playtest-report-{timestamp}",
   "from": "gamedesigner",
   "to": "pm",
   "type": "playtest_session_report",
   "payload": {
     "taskId": "{taskId}",
-    "playtestResult": {...},
-    "gddReview": {...},
+    "playtestResult": {
+      "overall": "PASS|FAIL|PARTIAL",
+      "criteriaTested": [...],
+      "issuesFound": [...]
+    },
+    "gddReview": {
+      "modulesReviewed": ["2_paint_friction_system.md", "4_territory_control.md"],
+      "updatesNeeded": [...],
+      "gddUpdatesMade": [...]
+    },
     "skillGaps": [...],
     "priorityRecommendations": [...]
-  }
-}
+  },
+  "timestamp": "{ISO-8601-UTC}"
+}))
 ```

@@ -165,3 +165,46 @@ Content:
 - **Watchdog delivers messages** - You receive them on restart via individual message files in `.claude/session/messages/pm/`
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
 - **ALWAYS delete message files after processing** - Delete each `msg-pm-{timestamp}-{seq}.json` file after processing
+
+---
+
+## ⚠️ CRITICAL: Background Process Cleanup
+
+**ALWAYS kill background processes before exiting!**
+
+When using the Bash tool with `run_in_background=true`:
+
+1. **Capture the shell_id** returned when starting the process
+2. **Use KillShell tool** with that shell_id before exiting
+3. **NEVER leave background processes running** when you exit
+
+### Example Pattern
+
+```bash
+# Start background process
+Bash tool -> command: "npm run server:dev" -> run_in_background: true
+# Returns: shell_id: abc123
+
+# ... do your work ...
+
+# ALWAYS cleanup before exit:
+KillShell -> shell_id: abc123
+```
+
+### Cleanup Checklist
+
+Before updating your status to "idle" or reporting task completion:
+
+- [ ] **Kill ALL background processes** using `KillShell` tool
+- [ ] All processes you started are stopped
+- [ ] Ports are released (verify with `Test-Port.ps1` if needed)
+- [ ] No orphaned node/npm processes remain
+
+### Common Scenarios Requiring Cleanup
+
+- Dev server: `npm run dev:all:sh`
+- Colyseus server: `npm run server:dev`
+- Build watcher: `npm run build -- --watch`
+- Research/test servers for validation
+
+**Reference**: See `shared-lifecycle` skill for complete procedures.

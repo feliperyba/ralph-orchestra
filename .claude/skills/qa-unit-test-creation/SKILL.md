@@ -1,13 +1,14 @@
 ---
 name: qa-unit-test-creation
 description: Vitest unit test creation patterns. Provides patterns for AAA structure, mocking, fixtures, and test data factories. Use when creating unit tests for components, services, utilities, or stores.
+category: workflow
 ---
 
 # Vitest Unit Test Creation Patterns
 
 > "Unit tests verify the smallest parts of your code work correctly."
 
-## When to Use
+## When to Use This Skill
 
 Use when creating unit tests for:
 - React components (including React Three Fiber)
@@ -28,8 +29,6 @@ Use when creating unit tests for:
 | `src/ecs/systems/MovementSystem.ts` | `src/tests/ecs/systems/MovementSystem.test.ts` |
 | `src/utils/ResourceManager.ts` | `src/tests/utils/ResourceManager.test.ts` |
 
----
-
 ## AAA Pattern (Arrange-Act-Assert)
 
 **Every test should follow this structure:**
@@ -49,11 +48,9 @@ test('should update position when velocity applied', () => {
 });
 ```
 
----
+## Common Test Patterns
 
-<examples>
-
-## Example 1: Pure Function Testing
+### 1. Pure Function Testing
 
 ```typescript
 // src/utils/VectorMath.ts
@@ -67,24 +64,39 @@ import { addVectors } from '@/utils/VectorMath';
 
 describe('addVectors', () => {
   test('should add two vectors correctly', () => {
+    // Arrange
     const vec1 = { x: 1, y: 2, z: 3 };
     const vec2 = { x: 4, y: 5, z: 6 };
+
+    // Act
     const result = addVectors(vec1, vec2);
+
+    // Assert
     expect(result).toEqual({ x: 5, y: 7, z: 9 });
   });
 
   test('should handle zero vectors', () => {
     const vec1 = { x: 0, y: 0, z: 0 };
     const vec2 = { x: 1, y: 2, z: 3 };
+
     const result = addVectors(vec1, vec2);
+
     expect(result).toEqual({ x: 1, y: 2, z: 3 });
   });
 });
 ```
 
-## Example 2: Class Testing with beforeEach
+### 2. Class Testing
 
 ```typescript
+// src/services/ShootingService.ts
+export class ShootingService {
+  calculateHit(origin: Position, direction: Vector3): HitResult {
+    // implementation
+  }
+}
+
+// src/tests/services/ShootingService.test.ts
 import { describe, test, expect, beforeEach } from 'vitest';
 import { ShootingService } from '@/services/ShootingService';
 
@@ -99,28 +111,51 @@ describe('ShootingService', () => {
     test('should return hit when target is in range', () => {
       const origin = { x: 0, y: 0, z: 0 };
       const direction = { x: 1, y: 0, z: 0 };
+
       const result = service.calculateHit(origin, direction);
+
       expect(result.hit).toBe(true);
     });
 
     test('should return miss when target is out of range', () => {
       const origin = { x: 0, y: 0, z: 0 };
       const direction = { x: 1, y: 0, z: 0 };
+
       const result = service.calculateHit(origin, direction, { maxDistance: 10 });
+
       expect(result.hit).toBe(false);
     });
   });
 });
 ```
 
-## Example 3: Zustand Store Testing
+### 3. Zustand Store Testing
 
 ```typescript
+// src/stores/gameStore.ts
+import { create } from 'zustand';
+
+interface GameState {
+  players: Player[];
+  gameState: 'character-selection' | 'lobby' | 'playing';
+  addPlayer: (player: Player) => void;
+  setGameState: (state: string) => void;
+}
+
+export const useGameStore = create<GameState>((set) => ({
+  players: [],
+  gameState: 'character-selection',
+  addPlayer: (player) => set((state) => ({ players: [...state.players, player] })),
+  setGameState: (gameState) => set({ gameState }),
+}));
+
+// src/tests/stores/gameStore.test.ts
 import { describe, test, expect, beforeEach } from 'vitest';
 import { useGameStore } from '@/stores/gameStore';
 
 describe('useGameStore', () => {
   beforeEach(() => {
+    // Reset store to initial state before each test
     useGameStore.setState({
       players: [],
       gameState: 'character-selection',
@@ -131,6 +166,7 @@ describe('useGameStore', () => {
 
   test('should initialize with default state', () => {
     const state = useGameStore.getState();
+
     expect(state.players).toEqual([]);
     expect(state.gameState).toBe('character-selection');
   });
@@ -138,6 +174,7 @@ describe('useGameStore', () => {
   test('should add player when addPlayer is called', () => {
     const store = useGameStore.getState();
     const newPlayer = { id: 'player1', name: 'Test Player', team: 'orange' };
+
     store.addPlayer(newPlayer);
 
     const state = useGameStore.getState();
@@ -145,8 +182,19 @@ describe('useGameStore', () => {
     expect(state.players[0]).toEqual(newPlayer);
   });
 
+  test('should add multiple players', () => {
+    const store = useGameStore.getState();
+
+    store.addPlayer({ id: 'player1', name: 'Player 1', team: 'orange' });
+    store.addPlayer({ id: 'player2', name: 'Player 2', team: 'blue' });
+
+    const state = useGameStore.getState();
+    expect(state.players).toHaveLength(2);
+  });
+
   test('should update game state', () => {
     const store = useGameStore.getState();
+
     store.setGameState('playing');
 
     const state = useGameStore.getState();
@@ -155,15 +203,75 @@ describe('useGameStore', () => {
 });
 ```
 
-## Example 4: ECS Component Testing
+### 4. React Hook Testing
 
 ```typescript
+// src/components/game/player/usePlayerMovement.ts
+export function usePlayerMovement() {
+  const position = useGameStore((state) => state.position);
+  const velocity = useGameStore((state) => state.velocity);
+
+  const move = (direction: Vector3) => {
+    // implementation
+  };
+
+  return { position, velocity, move };
+}
+
+// src/tests/components/game/player/usePlayerMovement.test.ts
+import { describe, test, expect, beforeEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { usePlayerMovement } from '@/components/game/player/usePlayerMovement';
+import { useGameStore } from '@/stores/gameStore';
+
+describe('usePlayerMovement', () => {
+  beforeEach(() => {
+    // Reset store before each test
+    useGameStore.setState(useGameStore.getInitialState());
+  });
+
+  test('should return current position', () => {
+    const { result } = renderHook(() => usePlayerMovement());
+
+    expect(result.current.position).toBeDefined();
+  });
+
+  test('should update position when move is called', () => {
+    const { result } = renderHook(() => usePlayerMovement());
+
+    act(() => {
+      result.current.move({ x: 1, y: 0, z: 0 });
+    });
+
+    // Assert position changed
+  });
+});
+```
+
+### 5. ECS Component Testing
+
+```typescript
+// src/ecs/components/Position.ts
+export class Position {
+  constructor(
+    public x: number = 0,
+    public y: number = 0,
+    public z: number = 0
+  ) {}
+
+  equals(other: Position): boolean {
+    return this.x === other.x && this.y === other.y && this.z === other.z;
+  }
+}
+
+// src/tests/ecs/components/Position.test.ts
 import { describe, test, expect } from 'vitest';
 import { Position } from '@/ecs/components/Position';
 
 describe('Position', () => {
   test('should create default position at origin', () => {
     const position = new Position();
+
     expect(position.x).toBe(0);
     expect(position.y).toBe(0);
     expect(position.z).toBe(0);
@@ -171,6 +279,7 @@ describe('Position', () => {
 
   test('should create position with coordinates', () => {
     const position = new Position(1, 2, 3);
+
     expect(position.x).toBe(1);
     expect(position.y).toBe(2);
     expect(position.z).toBe(3);
@@ -187,9 +296,26 @@ describe('Position', () => {
 });
 ```
 
-## Example 5: ECS System Testing
+### 6. ECS System Testing
 
 ```typescript
+// src/ecs/systems/MovementSystem.ts
+export class MovementSystem {
+  update(entities: Entity[], deltaTime: number): void {
+    for (const entity of entities) {
+      const position = entity.get(Position);
+      const velocity = entity.get(Velocity);
+
+      if (position && velocity) {
+        position.x += velocity.x * deltaTime;
+        position.y += velocity.y * deltaTime;
+        position.z += velocity.z * deltaTime;
+      }
+    }
+  }
+}
+
+// src/tests/ecs/systems/MovementSystem.test.ts
 import { describe, test, expect, beforeEach } from 'vitest';
 import { MovementSystem } from '@/ecs/systems/MovementSystem';
 import { Entity } from '@/ecs/Entity';
@@ -226,47 +352,37 @@ describe('MovementSystem', () => {
     const position = entity.get(Position);
     expect(position?.x).toBe(5); // 10 * 0.5
   });
-});
-```
 
-</examples>
+  test('should skip entities without velocity', () => {
+    const entity = new Entity();
+    entity.add(new Position(0, 0, 0));
 
----
+    system.update([entity], 1);
 
-<details>
-<summary>Additional Test Patterns</summary>
-
-### React Hook Testing
-
-```typescript
-import { describe, test, expect, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { usePlayerMovement } from '@/components/game/player/usePlayerMovement';
-
-describe('usePlayerMovement', () => {
-  beforeEach(() => {
-    useGameStore.setState(useGameStore.getInitialState());
-  });
-
-  test('should return current position', () => {
-    const { result } = renderHook(() => usePlayerMovement());
-    expect(result.current.position).toBeDefined();
-  });
-
-  test('should update position when move is called', () => {
-    const { result } = renderHook(() => usePlayerMovement());
-    act(() => {
-      result.current.move({ x: 1, y: 0, z: 0 });
-    });
-    // Assert position changed
+    const position = entity.get(Position);
+    expect(position?.x).toBe(0);
   });
 });
 ```
+
+## Mocking with Vitest
 
 ### Mocking External Modules
 
 ```typescript
-import { vi, describe, test, expect } from 'vitest';
+// src/services/NetworkManager.ts
+import { Colyseus } from 'colyseus.js';
+
+export class NetworkManager {
+  async connect(): Promise<void> {
+    const client = new Colyseus.Client('ws://localhost:2567');
+    // ...
+  }
+}
+
+// src/tests/services/NetworkManager.test.ts
+import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { NetworkManager } from '@/services/NetworkManager';
 
 // Mock the Colyseus module
 vi.mock('colyseus.js', () => ({
@@ -282,6 +398,7 @@ describe('NetworkManager', () => {
   test('should connect to server', async () => {
     const manager = new NetworkManager();
     await manager.connect();
+
     // Assert connection was attempted
   });
 });
@@ -295,15 +412,18 @@ import { vi, describe, test, expect } from 'vitest';
 describe('with mocked function', () => {
   test('should track calls', () => {
     const mockFn = vi.fn();
+
     mockFn('hello');
     mockFn('world');
 
     expect(mockFn).toHaveBeenCalledTimes(2);
     expect(mockFn).toHaveBeenCalledWith('hello');
+    expect(mockFn).toHaveBeenLastCalledWith('world');
   });
 
   test('should return mock value', () => {
     const mockFn = vi.fn().mockReturnValue(42);
+
     expect(mockFn()).toBe(42);
   });
 
@@ -320,7 +440,7 @@ describe('with mocked function', () => {
 });
 ```
 
-### Test Data Factories
+## Test Data Factories
 
 ```typescript
 // src/tests/helpers/testData.ts
@@ -331,22 +451,46 @@ export class TestDataFactory {
       name: 'Test Player',
       team: 'orange',
       position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      ...overrides,
+    };
+  }
+
+  static position(overrides?: Partial<Position>): Position {
+    return {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...overrides,
+    };
+  }
+
+  static velocity(overrides?: Partial<Velocity>): Velocity {
+    return {
+      x: 0,
+      y: 0,
+      z: 0,
       ...overrides,
     };
   }
 }
 
-// Usage
+// Usage in tests
 import { TestDataFactory } from '@/tests/helpers/testData';
 
-test('should create player with data', () => {
-  const playerData = TestDataFactory.player({ name: 'Custom Name' });
-  const entity = PlayerEntity.create(playerData);
-  expect(entity.get(Player)?.name).toBe('Custom Name');
+describe('PlayerEntity', () => {
+  test('should create player with data', () => {
+    const playerData = TestDataFactory.player({ name: 'Custom Name' });
+    const entity = PlayerEntity.create(playerData);
+
+    expect(entity.get(Player)?.name).toBe('Custom Name');
+  });
 });
 ```
 
-### Test Organization
+## Test Organization
+
+### Nested Describe Blocks
 
 ```typescript
 describe('ShootingService', () => {
@@ -362,9 +506,31 @@ describe('ShootingService', () => {
 });
 ```
 
-</details>
+### Test Setup with beforeEach
 
----
+```typescript
+describe('Entity', () => {
+  let entity: Entity;
+  let position: Position;
+  let velocity: Velocity;
+
+  beforeEach(() => {
+    entity = new Entity();
+    position = new Position(0, 0, 0);
+    velocity = new Velocity(1, 0, 0);
+  });
+
+  test('should add component', () => {
+    entity.add(position);
+    expect(entity.has(Position)).toBe(true);
+  });
+
+  test('should get component', () => {
+    entity.add(position);
+    expect(entity.get(Position)).toBe(position);
+  });
+});
+```
 
 ## Common Matchers
 
@@ -403,13 +569,12 @@ expect(object).toMatchObject({ key: 'value' });
 expect(fn).toHaveBeenCalled();
 expect(fn).toHaveBeenCalledTimes(3);
 expect(fn).toHaveBeenCalledWith(arg1, arg2);
+expect(fn).toHaveBeenLastCalledWith(lastArg);
 
 // Async
 await expect(promise).resolves.toBe(value);
 await expect(promise).rejects.toThrow(error);
 ```
-
----
 
 ## Running Tests
 
@@ -430,8 +595,6 @@ npm run test -- --coverage
 npm run test -- --grep "ShootingService"
 ```
 
----
-
 ## Best Practices
 
 1. **One assertion per test** - Tests should verify one thing
@@ -443,11 +606,9 @@ npm run test -- --grep "ShootingService"
 7. **Use beforeEach** - Set up clean state for each test
 8. **Test behavior, not implementation** - Test what the code does, not how
 
----
-
 ## References
 
 - [Vitest Documentation](https://vitest.dev/)
 - [Testing Library](https://testing-library.com/)
 - [server/vitest.config.ts](server/vitest.config.ts) - Vitest configuration
-- **[qa-e2e-test-creation/SKILL.md](../qa-e2e-test-creation/SKILL.md)** - E2E test patterns
+- [qa-e2e-test-creation](.claude/skills/qa-e2e-test-creation/SKILL.md) - E2E test patterns

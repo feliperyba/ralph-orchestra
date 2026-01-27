@@ -1,72 +1,61 @@
 ---
 name: pm-organization-task-research
-description: Codebase research for PM task assignment - understand patterns, dependencies, and complexity before assigning
-category: pm
+description: Codebase research specialist for PM task assignment. Use proactively before assigning tasks to understand existing patterns, dependencies, and implementation approaches.
 user-invocable: true
-model: haiku
-agent: pm
-degrees-of-freedom: high
+category: organization
 ---
 
 # PM Task Research
 
 > "Research before assignment - prevent misallocation and blockers."
 
+Explore the codebase and return structured summaries for task assignment. This helps ensure tasks are assigned to the right agent with accurate complexity estimates.
+
 ## When to Use
 
-Before assigning tasks to understand:
+Use proactively before assigning tasks to understand:
 - Existing patterns in the codebase
 - Files/components the task will touch
 - Potential blockers or dependencies
 - Which agent should handle the task
 - Complexity estimate
 
----
-
 ## Research Process
 
 1. Use `Grep` to find related implementations
 2. Use `Read` to examine relevant files
 3. Use `Glob` to find related components
-4. Provide **structured summary** (not raw exploration)
-
----
+4. Provide a **structured summary** (not raw exploration)
 
 ## What to Research
 
-| Area | Questions |
-|------|-----------|
-| **Existing Patterns** | What similar implementations exist? |
-| **Dependencies** | What files/components will this task touch? |
-| **Blockers** | Are there blocking issues or missing dependencies? |
-| **Agent Fit** | Should this go to Developer or Tech Artist? |
-| **Complexity** | Micro/Simple/Medium/Complex? |
+### For Each Task
 
----
+1. **Existing Patterns:** What similar implementations exist?
+2. **Dependencies:** What files/components will this task touch?
+3. **Blockers:** Are there any blocking issues or missing dependencies?
+4. **Agent Fit:** Should this go to Developer or Tech Artist?
+5. **Complexity Estimate:** Micro/Simple/Medium/Complex based on codebase state
 
-## Agent Selection Guide
+### Agent Selection Guide
 
-| Category | Default Agent | Reassign If... |
-|----------|---------------|---------------|
-| `architectural` | developer | Visual-heavy → techartist |
-| `functional` | developer | Shader/VFX → techartist |
+| Category | Default Agent | When to Reassign |
+|----------|---------------|-----------------|
+| `architectural` | developer | If visual-heavy → techartist |
+| `functional` | developer | If shader/VFX work → techartist |
 | `integration` | developer | - |
-| `visual` | techartist | Logic-heavy → developer |
+| `visual` | techartist | If logic-heavy → developer |
 | `shader` | techartist | - |
-| `polish` | techartist | Functional changes → developer |
+| `polish` | techartist | If functional changes → developer |
 
----
-
-## Complexity Estimation
+### Complexity Estimation
 
 | Level | Criteria | Example |
 |-------|----------|---------|
-| **Micro** | Single line, config change | Fix typo, change value |
-| **Simple** | Single file, well-defined | Add utility function |
-| **Medium** | 2-5 files, coordination | Add feature to system |
-| **Complex** | 5+ files, new patterns | New system, refactoring |
-
----
+| **Micro** | Single line change, config update | Fix typo, change color value |
+| **Simple** | Single file, well-defined pattern | Add utility function, simple component |
+| **Medium** | 2-5 files, some coordination | Add feature to existing system |
+| **Complex** | 5+ files, new patterns, architecture | New system, refactoring, multiplayer |
 
 ## Output Format
 
@@ -74,46 +63,48 @@ Before assigning tasks to understand:
 ## Task Research: {TASK_ID}
 
 ### Task Summary
-- **Title:** {title}
-- **Category:** {category}
-- **Description:** {brief}
+- **Title:** {task title}
+- **Category:** {architectural|functional|visual|shader|polish|integration}
+- **Description:** {brief description}
 
 ### Existing Patterns
-- Pattern 1: {location} - {description}
-- Pattern 2: {location} - {description}
+- Pattern 1: {location} - {brief description}
+- Pattern 2: {location} - {brief description}
 
 ### Dependencies
-- {file/path} - {reason}
+- {file/path} - {reason for dependency}
+- {file/path} - {reason for dependency}
 
-### Files Modified
-- {file/path} - {change}
+### Files That Will Be Modified
+- {file/path} - {what needs to change}
+- {file/path} - {what needs to change}
 
 ### Blockers
-- {none or list with severity}
+- (if none, state "No blockers identified")
+- (if blockers exist, list them with severity)
 
 ### Recommended Agent
 - {developer|techartist} - {justification}
 
-### Complexity
+### Complexity Estimate
 - {Micro|Simple|Medium|Complex} - {justification}
 
 ### Implementation Notes
-- {gotchas, areas requiring care}
+- Any relevant notes for the implementing agent
+- Potential gotchas or areas requiring extra care
 ```
-
----
 
 ## Important
 
 - Keep analysis concise and actionable
 - Don't return verbose file contents
-- Focus on what PM needs for assignment
-- Flag critical issues prominently
-- Be realistic about complexity
+- Focus on what the PM needs to know for assignment
+- If you find critical issues, flag them prominently
+- Always identify which agent should handle the task
+- Be realistic about complexity estimates
 
----
+## See Also
 
-## References
-
-- [pm-organization-task-selection](../pm-organization-task-selection/SKILL.md) - Priority algorithm
-- [dev-research-codebase-exploration](../dev-research-codebase-exploration/SKILL.md) - Exploration patterns
+- [pm-organization-task-selection](../pm-organization-task-selection/SKILL.md) — Priority algorithm for selecting tasks
+- [dev-research-codebase-exploration](../dev-research-codebase-exploration/SKILL.md) — Developer codebase exploration patterns
+- [dev-research-pattern-finding](../dev-research-pattern-finding/SKILL.md) — Pattern finding for implementations

@@ -1,6 +1,7 @@
 ---
-name: quality-gates
+name: dev-validation-quality-gates
 description: Quality standards that must pass before commit
+category: validation
 ---
 
 # Quality Gates

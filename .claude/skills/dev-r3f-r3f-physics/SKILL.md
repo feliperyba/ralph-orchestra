@@ -1,6 +1,7 @@
 ---
-name: r3f-physics
+name: dev-r3f-r3f-physics
 description: Physics integration with Rapier for R3F game development
+category: r3f
 ---
 
 # R3F Physics

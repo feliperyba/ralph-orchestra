@@ -1,7 +1,7 @@
 ---
 name: ta-r3f-performance
-description: Optimizes R3F rendering for frame rate and memory. Use proactively when addressing FPS drops, GPU bottlenecks, or memory issues.
-category: techartist
+description: Performance optimization techniques for R3F and Three.js. Use when optimizing frame rate, reducing draw calls, mobile performance.
+category: performance
 ---
 # R3F Performance Skill
 
@@ -371,8 +371,11 @@ Performance review:
 7. **Expensive shaders** → Simplify, use mobile variants
 8. **Post-processing** → Limit on mobile
 
-## Reference
+## Related Skills
+
+For R3F fundamentals: `Skill("ta-r3f-fundamentals")`
+For material optimization: `Skill("ta-r3f-materials")`
+
+## External References
 
 - [Three.js Performance Tips](https://threejs.org/manual/#en/optimize-lots-of-objects)
-- [skills/r3f-fundamentals.md](r3f-fundamentals.md) — R3F basics
-- [skills/r3f-materials.md](r3f-materials.md) — Material optimization

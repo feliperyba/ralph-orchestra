@@ -1,438 +1,145 @@
 ---
 name: ralph-worker-event
-description: Worker (Developer/QA/TechArtist/GameDesigner) in event-driven multi-agent mode
+description: Worker agent (developer/qa/techartist/gamedesigner) in event-driven multi-agent mode with watchdog orchestrator. Loads shared skills and processes tasks via file-based message queues.
 arguments:
   agent: developer qa techartist gamedesigner
-allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Bash Command, Computer, mcp__gitkraken
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__gitkraken
 ---
 
-# EVENT-DRIVEN MODE - $arguments.agent Worker
+# EVENT-DRIVEN MODE - $arguments.agent Worker (Watchdog Architecture)
 
 You are the **$arguments.agent** in **EVENT-DRIVEN MULTI-AGENT** mode.
-All agents run in parallel. You communicate via named pipes with a PowerShell bridge.
 
-**KEY BEHAVIOR: The PowerShell bridge invokes you for each message.**
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        WATCHDOG (Orchestrator)                       │
+│  - Spawns workers when messages exist in their queues               │
+│  - Routes messages via file queues                                 │
+│  - Monitors worker health                                           │
+└─────────────────────────────────────────────────────────────────────┘
+        ▲
+        │ (spawns when messages exist)
+        │
+┌───────────────┐
+│ $arguments.agent Worker
+│  (You/Claude) │
+└───────────────┘
+```
+
+**You communicate via file-based message queues.**
 
 ---
 
-## How You Are Invoked
+## Mandatory Shared Skills (Load First)
 
-1. **PowerShell bridge** connects to watchdog pipe `ralph-$arguments.agent-main` and stays alive
-2. **When a message arrives**, bridge saves it to `.claude/session/agents/$arguments.agent/pending-message.json`
-3. **Bridge invokes CLI** with `/ralph-worker-event --agent $arguments.agent` command
-4. **You process the message** (read pending-message.json for context)
-5. **You write response** to `.claude/session/agents/$arguments.agent/response.json`
-6. **Bridge reads response** and sends it through the pipe
+These skills provide foundation knowledge for all agents:
 
----
+| Skill | Purpose |
+|-------|---------|
+| `shared-core` | Session structure, status values, heartbeat, commit format |
+| `shared-messaging` | Message queues, acknowledgment protocol, message types |
+| `shared-lifecycle` | Process cleanup, background process management |
+| `shared-worker` | Base worker behavior, exit conditions, heartbeat |
 
-## FIRST: Check for Pending Message
-
-**CRITICAL STARTUP: Always check for pending-message.json FIRST:**
-
-```powershell
-$pendingMessage = ".claude\session\agents\$arguments.agent\pending-message.json"
-if (Test-Path $pendingMessage) {
-    $message = Get-Content $pendingMessage | ConvertFrom-Json
-    Write-Host "[$arguments.agent] Received message: $($message.type) from $($message.from)" -ForegroundColor Cyan
-    # Process this message before doing anything else
-}
-```
+**See shared skills for:** message format JSON examples, process cleanup procedures, heartbeat timing, exit conditions.
 
 ---
 
-## SECOND: Load your AGENT.md file and understand your role and workflow.
+## Startup Sequence
 
-## THIRD: Load your workflow skill - `Skill("{agent}-workflow")` - to see all available capabilities.
+Execute in order:
 
-## FOURTH: Use your skills and sub-agents to research about the task. Check the GDD and internet to find solutions for the problems before acting on them. Spawn parallel sub-agents using the built-in tool Task()
-
-## FIFTH: When working with Code Tasks, MUST use the Skill() `worker-worktree`
-
-## SIXTH: Always update the PRD and send the status update message before exit
-
----
-
-## Message Protocol
-
-### Receiving Messages
-
-Messages are delivered via `.claude/session/agents/$arguments.agent/pending-message.json`:
-
-```json
-{
-  "id": "msg-20250126-120000-001",
-  "from": "pm",
-  "to": "$arguments.agent",
-  "type": "WorkAssign",
-  "payload": {
-    "taskId": "feat-001",
-    "title": "Task title",
-    "description": "Task description",
-    "acceptanceCriteria": ["Criteria 1", "Criteria 2"]
-  },
-  "timestamp": "2026-01-26T12:00:00Z"
-}
-```
-
-### Sending Responses
-
-Write your response to `.claude/session/agents/$arguments.agent/response.json`:
-
-```powershell
-$response = @{
-    id = "msg-20250126-120001-001"
-    from = "$arguments.agent"
-    to = "pm"
-    type = "WorkComplete"
-    payload = @{
-        taskId = "feat-001"
-        result = "success"
-        notes = "Task completed successfully"
-    }
-    timestamp = [DateTime]::UtcNow.ToString("o")
-    inReplyTo = $message.id
-}
-$response | ConvertTo-Json -Depth 10 | Out-File -FilePath ".claude\session\agents\$arguments.agent\response.json" -Encoding utf8
-```
+1. **`Skill("shared-core")`** - Load session structure, status values, heartbeat protocol
+2. **`Skill("shared-messaging")`** - Load message queues, acknowledgment protocol
+3. **`Skill("shared-lifecycle")`** - Load process cleanup procedures
+4. **`Skill("shared-worker")`** - Load base worker behavior
+5. **`Read("agents/{agent}/AGENT.md")`** - Load role definition and decision framework
+6. **`Skill("{agent}-workflow")`** - Load detailed workflow procedures
+7. **Check for messages** - Use `Glob` on `.claude/session/messages/{agent}/msg-*.json`
+8. **For code tasks**: `Read(".claude/protocols/worktree-setup.md")` for worktree usage
+9. **Send status_update** - Update PM when ready
+10. **Exit** - Watchdog will restart you when new messages arrive
 
 ---
 
-## Context Window Monitoring (For Big Tasks)
+## Worktree Setup (For Code Tasks)
 
-**Step 1: Determine task size**
-- Big task: 5+ acceptance criteria, 3+ files, architectural/integration category
-- Small task: Single file, bug fix, simple refactor
+Developer and TechArtist use git worktrees for parallel development.
 
-**Step 2: For big tasks only**
-- After every 3-5 significant operations (file write, edit, commit)
-- Run `/context` to check token usage
-- Calculate: (total_input_tokens + total_output_tokens) / 200,000 = percentage
-
-**Step 3: If >= 70%**
-- Write checkpoint to `.claude/session/context-checkpoint-{agent}-{taskId}.json`
-- Send context_checkpoint message to watchdog (see format below)
-- Exit gracefully
-
-**Context checkpoint message format:**
-
-```json
-File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-watchdog-{timestamp}-{seq}",
-  "from": "$arguments.agent",
-  "to": "watchdog",
-  "type": "context_checkpoint",
-  "priority": "high",
-  "payload": {
-    "reason": "context_limit_approached",
-    "contextPercent": 72,
-    "taskId": "{taskId}",
-    "step": "{current_step}",
-    "completedSteps": ["step1", "step2"],
-    "remainingSteps": ["step3", "step4"],
-    "filesModified": ["path1", "path2"],
-    "nextAction": "{what to do next}"
-  },
-  "timestamp": "{ISO-timestamp}",
-  "status": "pending"
-}
-```
-
-**Step 4: After restart**
-- Read checkpoint file from `.claude/session/context-checkpoint-{agent}-{taskId}.json`
-- Resume from `nextAction`
-- Skip `completedSteps`
+**See `.claude/protocols/worktree-setup.md` for:**
+- Initial worktree creation (one-time setup)
+- Daily workflow (merge main before starting)
+- QA merge protocol (how work gets to main branch)
+- File conflict prevention
 
 ---
 
-## Message Processing Idempotency
+## Key Behaviors
 
-- Register the messages ids you have processed as soon as you start to work with the related request from the message
+### Message Processing
 
-**Example workflow:**
+- **Read messages**: Use `Glob` + `Read` on your queue
+- **Send messages**: Use `Write` to recipient's queue (usually PM)
+- **Acknowledge**: Always send `message_acknowledged` to watchdog
+- **Delete**: Remove message files after processing
 
-1. Check `.claude/session/messages/{agent}/` directory for message files
-2. For each message file (format: `msg-{agent}-{yyyyMMdd-HHmmss}-{seq}.json`), process it
-3. Delete each message file after processing
-4. Send your response/result message
+**See `shared-messaging` for complete message format and examples.**
 
-**Note:** If you crash mid-processing, on restart you may see the same message files again. This is expected behavior - simply reprocess and delete the files when done.
+### Message Types You Handle
 
----
+| Type | Action |
+|------|--------|
+| `task_assign` | Implement the task |
+| `validation_request` | Run validation tests |
+| `retrospective_initiate` | Contribute to retrospective |
+| `question` | Send answer |
+| `wake_up` | Resume work if idle |
 
-## Sending Messages
+### PRD Updates
 
-To send a message, use the **Write tool** to create a JSON file at:
-`.claude/session/messages/{recipient}/{message-id}.json`
-
-**Message ID format**: `msg-{recipient_agent}-{timestamp}-{seq}`
-
-- `recipient_agent`: The agent receiving the message (pm, developer, qa, etc.)
-- `timestamp`: Compact format `yyyyMMdd-HHmmss` (e.g., `20250123-120000`)
-- `seq`: 3-digit sequence number (001, 002, etc.) prevents collisions
-
-**Timestamp format**: Use UTC ISO 8601 in JSON: `2026-01-21T12:00:00Z`
-
-**Example:**
-
-```
-File: .claude/session/messages/watchdog/msg-watchdog-20250123-120000-001.json
-Content:
-{
-  "id": "msg-watchdog-20250123-120000-001",
-  "from": "developer",
-  "to": "watchdog",
-  "type": "status_update",
-  "priority": "low",
-  "payload": {
-    "status": "working",
-    "currentTask": "feat-001",
-    "details": "Implementing feature"
-  },
-  "timestamp": "2026-01-21T12:00:00Z",
-  "status": "pending"
-}
-```
+- **prd.json is the single source of truth** - update immediately on any status change
+- Update your agent status (`prd.json.agents.{agent}.status`)
+- Update heartbeat timestamp (`prd.json.agents.{agent}.lastSeen`)
 
 ---
 
-## Task Status Updates
+## Exit Conditions
 
-**IMPORTANT**: Always send status updates when starting and finishing work. This ensures the dashboard shows accurate agent status.
+Exit after each work cycle. Watchdog will restart you when:
 
-### When You START Working on a Task
+1. New messages arrive in your queue
+2. PM assigns a new task
+3. Heartbeat timeout requires check-in
 
-Send `status: "working"` immediately when you begin processing:
-
-```
-File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-watchdog-{timestamp}-{seq}",
-  "from": "$arguments.agent",
-  "to": "watchdog",
-  "type": "status_update",
-  "priority": "low",
-  "payload": {
-    "status": "working",
-    "currentTask": "{taskId}",
-    "details": "{brief description of what you're doing}"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
-
-### When You FINISH a Task
-
-Send `status: "ready"` when complete and ready for next assignment:
-
-```
-File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-watchdog-{timestamp}-{seq}",
-  "from": "$arguments.agent",
-  "to": "watchdog",
-  "type": "status_update",
-  "priority": "low",
-  "payload": {
-    "status": "ready",
-    "currentTask": null,
-    "details": "Task complete, ready for next assignment"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
-
-**Remember**:
-
-- Send `status: "working"` when you START a task
-- Send `status: "ready"` when you FINISH a task
-- The dashboard displays these statuses in real-time
-- Without status updates, the dashboard shows stale information
+**Before exiting:**
+- [ ] Update prd.json.agents.{agent}.status and lastSeen
+- [ ] Send status_update message to PM or watchdog
+- [ ] Cleanup all background processes (see `shared-lifecycle`)
 
 ---
 
-### Sending Bug Report (to PM for prioritization)
+## Context Reset (Big Tasks)
 
-```
-File: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-pm-{timestamp}-{seq}",
-  "from": "qa",
-  "to": "pm",
-  "type": "bug_report",
-  "priority": "high",
-  "payload": {
-    "taskId": "{taskId}",
-    "bugs": [
-      "Button click does not trigger action",
-      "Missing validation on email field"
-    ],
-    "severity": "high",
-    "recommendedAction": "fix_required"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
+For tasks with 5+ acceptance criteria or 3+ files:
 
-### Requesting Research from PM (QA)
+- Run `/context` after every 3-5 operations
+- If >= 70%, write checkpoint to `.claude/session/context-checkpoint-{agent}-{taskId}.json`
+- Update PRD with checkpoint reference
+- Exit and resume from checkpoint on restart
 
-When you need test patterns, documentation, or best practices:
-
-```
-File: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-pm-{timestamp}-{seq}",
-  "from": "qa",
-  "to": "pm",
-  "type": "research_request",
-  "priority": "normal",
-  "payload": {
-    "topic": "Best practices for testing Vite applications",
-    "context": "Setting up E2E tests for feat-001",
-    "needCodeExamples": true
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
+**See `shared-context` skill for detailed procedure.**
 
 ---
 
-**Step: Delete pending messages file**
+## References
 
-Use the Bash tool:
-
-```bash
-rm -f .claude/session/{you}/*.json
-```
-
-**Step: Send status_update to watchdog**
-
-```
-File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-watchdog-{timestamp}-{seq}",
-  "from": "$arguments.agent",
-  "to": "watchdog",
-  "type": "status_update",
-  "priority": "low",
-  "payload": {
-    "status": "ready",
-    "currentPhase": "retrospective_contributed",
-    "retrospectiveTask": "{taskId}",
-    "notifiedPm": true
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
-
-**IMPORTANT**: After contributing, DO NOT start new work. Wait for the next task assignment message from PM.
-
----
-
-### Asking Questions
-
-```
-File: .claude/session/messages/pm/msg-pm-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-pm-{timestamp}-{seq}",
-  "from": "$arguments.agent",
-  "to": "pm",
-  "type": "question",
-  "priority": "high",
-  "payload": {
-    "question": "What authentication method should we use?",
-    "context": "Implementing feat-001",
-    "taskId": "feat-001"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
-
-### Tool Selection Priority (in order)
-
-1. **Your Skills and Sub-Agents** - Use these FIRST
-   - Review your AGENT.md for full list of skills and sub-agents and load them through the claude code cli
-   - Always do this check before do your work
-   - Use the built-in tool `Task` from claude cli to spawn multiple parallel processes
-2. **Available MCP Servers** - Check if these can help:
-   - **Filesystem MCP** - File operations (if available)
-   - **GitHub MCP** - Repository operations, code search
-   - **Web Search MCP** - Research, documentation lookup
-
-3. **Built-in Claude Tools**:
-   - **Read tool** - Read files (session state, messages, source code)
-   - **Write tool** - Write files (message files, state updates)
-   - **Edit tool** - Edit existing files
-   - **Glob tool** - Find files by pattern
-   - **Grep tool** - Search file contents
-   - **Bash tool** - ONLY for: git commands, npm scripts, test runs
-
-4. **Research New MCP Servers** - If a tool could help:
-   - Search available MCP servers
-   - Propose adding new MCP to PM
-   - Update agent settings if approved
-
-## ⚠️ MANDATORY: Skill and Sub-Agent Check
-
-**Before ANY task assignment or coordination, you MUST check your skills and sub-agents.**
-
-### Skill Check Workflow (MANDATORY - Do Every Task)
-
-```
-1. Read the task requirements (category, description, acceptance criteria)
-2. Check available skills in your skills reference section
-3. Check available sub-agents in your sub-agents section
-4. Match task to relevant skills/sub-agents
-5. INVOKE the skill/sub-agent BEFORE proceeding
-```
-
-## ⚠️ MANDATORY: If you got stuck on some task (the same task gets rejected and returns to you more than twice), remember to use your MCP and Tools to a research about the problem, or ask help for the PM
-
----
-
-## Remember
-
-- **Watchdog delivers messages** - You receive them on restart via individual message files in `.claude/session/messages/{agent}/`
-- **Write messages to inbox folders** - Watchdog will detect and deliver them
-- **Parallel work** - Other agents are working at the same time
-- **ALWAYS delete message files after processing** - Delete each `msg-{agent}-{timestamp}-{seq}.json` file after processing
-
----
-
-## Signaling Work Complete
-
-**IMPORTANT**: When you finish processing a message and are ready for more work, signal the watchdog:
-
-```
-File: .claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json
-Content:
-{
-  "id": "msg-watchdog-{timestamp}-{seq}",
-  "from": "$arguments.agent",
-  "to": "watchdog",
-  "type": "status_update",
-  "priority": "low",
-  "payload": {
-    "status": "ready",
-    "lastTask": "{taskId}"
-  },
-  "timestamp": "{UTC-timestamp}",
-  "status": "pending"
-}
-```
-
-This tells the watchdog you're ready for more work. Without this signal, the watchdog will assume you're still working and won't deliver new messages.
+- `shared-core` — Session structure, status values, heartbeat
+- `shared-messaging` — Message format, types, acknowledgment
+- `shared-lifecycle` — Process cleanup, background processes
+- `shared-worker` — Base worker behavior
+- `shared-context` — Context window reset procedures
+- `.claude/protocols/worktree-setup.md` — Git worktree usage
+- `agents/{agent}/AGENT.md` — Role and decision framework
+- `{agent}-workflow` — Detailed workflow procedures

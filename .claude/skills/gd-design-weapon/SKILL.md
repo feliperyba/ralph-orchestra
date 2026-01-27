@@ -1,9 +1,6 @@
 ---
 name: gd-design-weapon
 description: Weapon and item design documentation. Use when designing weapons, creating item systems, balancing equipment, or designing consumables.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # Weapon Design
@@ -66,6 +63,34 @@ user-invocable: true
 - **Unlock:** [How to get it]
 - **Cost:** [Price/crafting]
 - **Rarity:** [Spawn rate]
+
+### Asset Requirements
+- **Asset Source:** [Asset pack name or "Custom"]
+- **Format:** [FBX / GLB / GLTF / Custom]
+- **Scale Factor:** [Documented scale value from asset testing]
+- **Bone Attachment:** [Attachment point - e.g., "RightHand", "mixamorigRightHand"]
+
+**Scale Reference:**
+| Asset Pack | Typical Scale | Notes |
+|------------|---------------|-------|
+| Blaster Kit | 0.015 | CRITICAL: 0.15 is 10x too large |
+| Mixamo | 1.0 | Standard meter scale |
+| Custom | TBD | To be determined during implementation |
+
+**Example Entry:**
+```
+Asset Source: Blaster Kit
+Format: FBX
+Scale Factor: 0.015
+Bone Attachment: mixamorigRightHand
+Notes: CRITICAL scale - 0.15 makes weapon GIGANTIC
+```
+
+**Why This Matters:**
+- Asset packs have wildly different scale expectations
+- Scale documentation prevents 10x size errors during implementation
+- Bone attachment requirements vary by rig format (Mixamo vs custom)
+- Pre-documenting reduces Developer-Tech Artist coordination overhead
 ```
 
 ## Weapon Categories

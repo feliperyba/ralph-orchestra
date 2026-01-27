@@ -1,7 +1,7 @@
 ---
 name: ta-camera-tps
-description: Implements third-person camera with proper player-relative controls. Use proactively when setting up TPS cameras, pointer lock, or camera follow behavior.
-category: techartist
+description: Third-person shooter camera implementation with proper player-relative controls. Use when implementing TPS cameras, orbit controls, camera follow.
+category: camera
 ---
 # TPS Camera Skill
 
@@ -401,14 +401,14 @@ Before marking TPS camera complete:
 - [ ] **Click-to-resume functionality**
 - [ ] **Auto-lock on mount with click fallback**
 
-## Reference
+## Related Skills
 
-- [skills/r3f-fundamentals.md](r3f-fundamentals.md) — Core R3F patterns
-- [bugfix-003](../../prd.json) — Pointer Lock implementation
-- [bugfix-004](../../prd.json) — TPS camera fix retrospective
+For R3F fundamentals: `Skill("ta-r3f-fundamentals")`
 
-**Learned from bugfix-003 retrospective (2026-01-22):**
+## Retrospective Learnings
+
+**bugfix-003 (2026-01-22):**
 Pointer Lock API integration for smooth FPS/TPS mouse control. Auto-lock on mount, ESC unlock handling with PAUSED overlay, click-to-resume, and proper state tracking with `pointerlockchange` event.
 
-**Learned from bugfix-004 retrospective (2026-01-22):**
+**bugfix-004 (2026-01-22):**
 TPS camera must orbit behind player - player moves relative to camera direction. The player character should NOT rotate toward the camera. Camera orbits, player stays oriented to movement direction.

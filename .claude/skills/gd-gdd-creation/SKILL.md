@@ -1,16 +1,28 @@
 ---
 name: gd-gdd-creation
 description: Game Design Document creation and structure. Use when no GDD exists in the project, starting a new game project, major feature requires design documentation, GDD needs updating due to changes, or preparing for prototype or production.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # GDD Creation
 
 ## GDD Document Structure
 
-### Main Document: `docs/design/gdd.md`
+### Modular GDD: `docs/design/gdd/`
+
+Modern GDD structure uses modular organization:
+
+| File | Purpose |
+|------|---------|
+| `index.md` | GDD overview and navigation |
+| `1_overview.md` | High concept, elevator pitch, target audience |
+| `2_paint_friction_system.md` | Core gameplay mechanics |
+| `3_movement_system.md` | Player controls and locomotion |
+| `4_territory_control.md` | Win conditions and territory gameplay |
+| `5_weapon_system.md` | Combat and weapons |
+| `8_ui_hud_system.md` | Interface and feedback |
+| `13_multiplayer.md` | Network architecture and sync |
+
+### Main Document Template: `docs/design/gdd.md` (Optional)
 
 ```markdown
 # Game Design Document - [Project Name]
@@ -235,14 +247,12 @@ The GDD is supported by separate documents:
 
 Gather context about the project:
 
-```powershell
-# Read project files
-$readme = Get-Content "README.md" -Raw
-$packageJson = Get-Content "package.json" -Raw | ConvertFrom-Json
-$prd = Get-Content "prd.json" -Raw | ConvertFrom-Json
-
-# Explore source structure
-Get-ChildItem -Path "src/" -Recurse -File
+```bash
+# Read project files for context
+Read("README.md")
+Read("package.json")
+Read("prd.json")
+Glob("src/**/*")  # List source files
 ```
 
 Document:

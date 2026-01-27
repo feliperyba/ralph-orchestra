@@ -1,6 +1,7 @@
 ---
-name: mobile-haptics
+name: dev-patterns-mobile-haptics
 description: Haptic feedback patterns for mobile games using Vibration API. Use when adding tactile feedback.
+category: patterns
 ---
 
 # Mobile Haptics
@@ -170,4 +171,4 @@ function landFeedback() {
 
 ## Reference
 
-- [ui-animations.md](./ui-animations.md) - UI animation patterns
+- **[dev-patterns-ui-animations](../dev-patterns-ui-animations/SKILL.md)** — UI animation patterns

@@ -1,7 +1,7 @@
 ---
 name: ta-ui-polish
-description: Polishes UI components with animations, feedback, and styling. Use proactively when improving game presentation, button states, or visual feedback.
-category: techartist
+description: UI and visual polish checklist for game presentation. Use when adding final polish, styling, animations, visual feedback.
+category: ui
 ---
 
 # Visual Polish Skill
@@ -296,8 +296,11 @@ Before considering visual polish complete:
 - [ ] Performance tested on target devices
 - [ ] Visual style matches GDD
 
-## Reference
+## Related Skills
+
+For post-processing polish: `Skill("ta-vfx-postfx")`
+
+## External References
 
 - [WCAG Color Contrast](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html)
 - [Type Scale Calculator](https://type-scale.com/)
-- [skills/postfx-effects.md](postfx-effects.md) — Post-processing polish

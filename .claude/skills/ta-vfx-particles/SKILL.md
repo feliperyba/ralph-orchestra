@@ -1,7 +1,7 @@
 ---
 name: ta-vfx-particles
-description: Implements GPU particle systems for fire, smoke, spark effects. Use proactively when rendering large particle counts (>1000) or building magical/sci-fi effects.
-category: techartist
+description: GPU particle systems for high-performance visual effects. Use when creating particle effects, instanced rendering, GPU-accelerated VFX.
+category: vfx
 ---
 
 # GPU Particles Skill
@@ -403,8 +403,11 @@ Before implementing particle system:
 | Dust      | Alpha                   | Float       | Brown/Grey         |
 | Magic     | Additive                | Spiral/in   | Purple/Blue        |
 
-## Reference
+## Related Skills
+
+For R3F fundamentals: `Skill("ta-r3f-fundamentals")`
+For post-processing: `Skill("ta-vfx-postfx")`
+
+## External References
 
 - [Three.js Points](https://threejs.org/docs/#api/en/objects/Points)
-- [skills/r3f-fundamentals.md](r3f-fundamentals.md) — R3F basics
-- [skills/postfx-effects.md](postfx-effects.md) — Post-processing for particles

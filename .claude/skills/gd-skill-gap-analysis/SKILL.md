@@ -1,9 +1,6 @@
 ---
 name: gd-skill-gap-analysis
 description: Analyzes worker pain points to identify missing skills and create skill proposals. Use during playtest GDD review phase when workers report repeated struggles with specific patterns, retrospective pain points indicate missing knowledge, questions about implementation approaches recur, or technical decisions are delayed due to uncertainty.
-category: gamedesign
-model: inherit
-user-invocable: true
 ---
 
 # Skill Gap Analysis
@@ -60,33 +57,33 @@ user-invocable: true
 
 ### Developer Pattern Gaps
 
-| Pain Point | Skill Proposal | Priority |
-|------------|----------------|----------|
-| "Unsure how to implement X pattern" | dev-patterns-{x} | HIGH |
-| "Don't know React Three Fiber way to do Y" | dev-r3f-{y} | HIGH |
-| "Had to guess state management approach" | dev-patterns-state-management | MEDIUM |
-| "Unclear how to handle Z edge case" | dev-patterns-{z}-edge-cases | MEDIUM |
+| Pain Point                                 | Skill Proposal                | Priority |
+| ------------------------------------------ | ----------------------------- | -------- |
+| "Unsure how to implement X pattern"        | dev-patterns-{x}              | HIGH     |
+| "Don't know React Three Fiber way to do Y" | dev-r3f-{y}                   | HIGH     |
+| "Had to guess state management approach"   | dev-patterns-state-management | MEDIUM   |
+| "Unclear how to handle Z edge case"        | dev-patterns-{z}-edge-cases   | MEDIUM   |
 
 ### Tech Artist Visual Gaps
 
-| Pain Point | Skill Proposal | Priority |
-|------------|----------------|----------|
-| "Shader doesn't match visual spec" | ta-shader-{effect}-examples | HIGH |
-| "Don't know R3F material approach for X" | ta-r3f-materials-{x} | HIGH |
-| "Performance issues with particles" | ta-performance-particle-optimization | MEDIUM |
-| "Unsure how to achieve visual style Y" | ta-visual-{style}-patterns | MEDIUM |
+| Pain Point                               | Skill Proposal                       | Priority |
+| ---------------------------------------- | ------------------------------------ | -------- |
+| "Shader doesn't match visual spec"       | ta-shader-{effect}-examples          | HIGH     |
+| "Don't know R3F material approach for X" | ta-r3f-materials-{x}                 | HIGH     |
+| "Performance issues with particles"      | ta-performance-particle-optimization | MEDIUM   |
+| "Unsure how to achieve visual style Y"   | ta-visual-{style}-patterns           | MEDIUM   |
 
 ### Game Designer Reference Gaps
 
-| Pain Point | Skill Proposal | Priority |
-|------------|----------------|----------|
-| "Reference image unclear for X" | gd-visual-reference-{x} | MEDIUM |
-| "Need examples of Y mechanic" | gd-mechanic-examples-{y} | MEDIUM |
-| "Unclear design intent for Z" | gd-design-rationale-{z} | LOW |
+| Pain Point                      | Skill Proposal           | Priority |
+| ------------------------------- | ------------------------ | -------- |
+| "Reference image unclear for X" | gd-visual-reference-{x}  | MEDIUM   |
+| "Need examples of Y mechanic"   | gd-mechanic-examples-{y} | MEDIUM   |
+| "Unclear design intent for Z"   | gd-design-rationale-{z}  | LOW      |
 
 ## Skill Proposal Template
 
-```markdown
+````markdown
 ---
 name: {agent}-{category}-{specific}
 description: {Clear one-line description of skill purpose}
@@ -102,6 +99,7 @@ category: {gamedesign|developer|techartist|qa|shared}
 ## When to Use This Skill
 
 Use when:
+
 - {Trigger condition 1}
 - {Trigger condition 2}
 - {Trigger condition 3}
@@ -109,6 +107,7 @@ Use when:
 ## Problem Being Solved
 
 **Original Pain Point:**
+
 > "{Quote from retrospective about the struggle}"
 
 **Root Cause:**
@@ -128,6 +127,7 @@ Use when:
 // After: Worker has clear pattern
 // {What skill provides}
 ```
+````
 
 ### Example 2: {Context}
 
@@ -135,10 +135,10 @@ Use when:
 
 ## Common Pitfalls
 
-| Pitfall | Why It's Bad | Correct Approach |
-|---------|--------------|------------------|
-| {Pitfall 1} | {Explanation} | {Solution} |
-| {Pitfall 2} | {Explanation} | {Solution} |
+| Pitfall     | Why It's Bad  | Correct Approach |
+| ----------- | ------------- | ---------------- |
+| {Pitfall 1} | {Explanation} | {Solution}       |
+| {Pitfall 2} | {Explanation} | {Solution}       |
 
 ## Related Skills
 
@@ -148,7 +148,8 @@ Use when:
 ## Version
 
 - 1.0.0 - Initial creation from playtest {taskId} retrospective
-```
+
+````
 
 ## Example Skill Proposals
 
@@ -202,7 +203,7 @@ function updateFrictionTransition(
 
   return lerp(getFriction(current.from), getFriction(current.to), ease);
 }
-```
+````
 
 ## Momentum Preservation
 
@@ -218,12 +219,13 @@ targetVelocity = preservedVelocity.add(
 
 ## Common Pitfalls
 
-| Pitfall | Why | Fix |
-|---------|-----|-----|
-| Instant snap | Jarring feel, breaks immersion | Use 100ms blend |
-| Losing all momentum | Player feels stuck | Preserve 80% |
-| No client prediction | Laggy feel | Predict on client, validate on server |
-```
+| Pitfall              | Why                            | Fix                                   |
+| -------------------- | ------------------------------ | ------------------------------------- |
+| Instant snap         | Jarring feel, breaks immersion | Use 100ms blend                       |
+| Losing all momentum  | Player feels stuck             | Preserve 80%                          |
+| No client prediction | Laggy feel                     | Predict on client, validate on server |
+
+````
 
 ### Example 2: Visual Reference for Territory Colors
 
@@ -291,8 +293,9 @@ const TERRITORY_PATTERNS = {
     color: '#4A90D9'
   }
 };
-```
-```
+````
+
+````
 
 ## Skill Gap Report Template
 
@@ -324,16 +327,16 @@ const TERRITORY_PATTERNS = {
     }
   ]
 }
-```
+````
 
 ## Priority Guidelines
 
-| Priority | Criteria | Examples |
-|----------|----------|----------|
-| CRITICAL | Blocks multiple tasks, safety/security | dev-multiplayer-anti-cheat |
-| HIGH | Causes delays, repeated questions | dev-patterns-{core-system} |
-| MEDIUM | Improves quality, reduces revisions | ta-visual-{style}-patterns |
-| LOW | Nice to have, edge cases | gd-mechanic-examples-{rare} |
+| Priority | Criteria                               | Examples                    |
+| -------- | -------------------------------------- | --------------------------- |
+| CRITICAL | Blocks multiple tasks, safety/security | dev-multiplayer-anti-cheat  |
+| HIGH     | Causes delays, repeated questions      | dev-patterns-{core-system}  |
+| MEDIUM   | Improves quality, reduces revisions    | ta-visual-{style}-patterns  |
+| LOW      | Nice to have, edge cases               | gd-mechanic-examples-{rare} |
 
 ## Integration with PM Skill Research
 
@@ -341,7 +344,7 @@ When skill gaps are identified:
 
 1. **Document gaps** in playtest report
 2. **PM reviews** during skill_research phase
-3. **PM uses pm-skill-researcher** to:
+3. **PM uses skill-researcher** to:
    - Verify gap isn't already covered
    - Research best practices
    - Create/update skill files

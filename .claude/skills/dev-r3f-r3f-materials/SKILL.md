@@ -1,6 +1,7 @@
 ---
-name: r3f-materials
+name: dev-r3f-r3f-materials
 description: Material selection, shaders, and visual effects for R3F
+category: r3f
 ---
 
 # R3F Materials

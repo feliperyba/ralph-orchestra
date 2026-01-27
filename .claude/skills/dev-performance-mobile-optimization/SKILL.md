@@ -1,6 +1,7 @@
 ---
-name: mobile-optimization
+name: dev-performance-mobile-optimization
 description: Mobile-specific optimization for R3F/Three.js. Use when targeting mobile devices.
+category: performance
 ---
 
 # Mobile Optimization

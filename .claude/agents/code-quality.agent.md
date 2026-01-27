@@ -1,10 +1,10 @@
 ---
 name: techartist-code-quality
-description: Ensures TypeScript and lint quality standards for visual code before commit. Use proactively when the Tech Artist needs to verify no @ts-ignore or any types exist in visual assets.
+description: TypeScript/lint quality checks before commit. Ensures no @ts-ignore, any types.
 model: haiku
 skills:
-  - shared-validation-feedback-loops
-  - ta-validation-typescript
+  - techartist-feedback-loops
+  - techartist-typescript-patterns
 tools:
   - Read
   - Grep

@@ -1,7 +1,7 @@
 ---
 name: ta-r3f-physics
-description: Integrates physics with Rapier for R3F game development. Use proactively when adding physics bodies, collisions, or joints to R3F scenes.
-category: techartist
+description: Physics integration with Rapier for R3F game development. Use when adding physics, colliders, rigid bodies.
+category: performance
 ---
 # R3F Physics Skill
 
@@ -421,8 +421,11 @@ Before implementing physics:
 - [ ] Forces scaled by deltaTime
 - [ ] Physics debug visualized during development
 
-## Reference
+## Related Skills
+
+For R3F fundamentals: `Skill("ta-r3f-fundamentals")`
+
+## External References
 
 - [Rapier documentation](https://rapier.rs/docs/)
 - [@react-three/rapier docs](https://github.com/pmndrs/react-three-rapier)
-- [skills/r3f-fundamentals.md](r3f-fundamentals.md) — R3F basics

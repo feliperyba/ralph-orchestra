@@ -1,7 +1,7 @@
 ---
 name: ta-shader-sdf
-description: Creates shader-based 3D primitives using Signed Distance Functions. Use proactively when implementing procedural geometry in shaders.
-category: techartist
+description: Signed Distance Functions for shader-based 3D primitives. Use when creating procedural geometry, raymarching, SDF terrain.
+category: shader
 ---
 # Shader SDF Skill
 
@@ -205,6 +205,104 @@ vec3 getNormal(vec3 p) {
 }
 ```
 
+## ShaderToy MCP for SDF Research
+
+> "Query thousands of ray marching shaders for SDF patterns and optimization techniques."
+
+**For general ShaderToy MCP usage (tools, conversion patterns), see:** `Skill("ta-shader-development")`
+
+### SDF-Specific Shader Search
+
+```bash
+# Search for SDF/raymarching patterns
+search_shader("terrain SDF")
+search_shader("raymarching clouds")
+search_shader("procedural mountains")
+
+# Get shader code for analysis
+get_shader_info("Mtd3Wf")  # Vale terrain shader
+get_shader_info("4tdSWr")  # Raymarching example
+```
+
+### Common ShaderToy SDF Shaders
+
+| Shader ID | Effect | What to Extract |
+|-----------|--------|-----------------|
+| `4tdSWr` | Terrain Raymarching | Height SDF, smooth min, LOD |
+| `Mtd3Wf` | Vale Terrain | Noise-based terrain, water |
+| `XsjXRz` | Cloud SDF | FBM noise, volumetric |
+| `WtBDWf` | Hologram SDF | Fresnel, scanline patterns |
+| `MsS2Wc` | Ocean Waves | Displacement, foam patterns |
+
+### SDF Patterns from ShaderToy
+
+**Terrain Height SDF:**
+```glsl
+// From ShaderToy "Terrain Raymarching" shaders
+float getTerrainHeight(vec2 p) {
+  float h = 0.0;
+  float amplitude = 1.0;
+  float frequency = 1.0;
+
+  // FBM-based terrain
+  for(int i = 0; i < 6; i++) {
+    h += amplitude * noise(p * frequency);
+    amplitude *= 0.5;
+    frequency *= 2.0;
+  }
+
+  return h * 0.3;
+}
+
+float sdTerrain(vec3 p) {
+  float h = getTerrainHeight(p.xz);
+  return p.y - h;
+}
+```
+
+**Smooth Union for Organic Shapes:**
+```glsl
+// Polynomial smooth min (k = 0.1)
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// Use for blending terrain features
+float map(vec3 p) {
+  float ground = sdTerrain(p);
+  float rock = sdSphere(p - vec3(2.0, 1.0, 0.0), 0.5);
+  return smin(ground, rock, 0.5);
+}
+```
+
+**Displacement for Detail:**
+```glsl
+// Add surface detail with displacement
+float opDisplacement(vec3 p, float d) {
+  float disp = sin(p.x * 10.0) * sin(p.z * 10.0) * 0.05;
+  return d + disp;
+}
+
+void main() {
+  float d = map(p);
+  d = opDisplacement(p, d);
+  // ...
+}
+```
+
+### Attribution Protocol
+
+```tsx
+/**
+ * Terrain Raymarching Shader
+ * Based on "[Original Name]" by [Author] on ShaderToy
+ * Original: https://www.shadertoy.com/view/[shaderId]
+ * SDF patterns: terrain height, smooth union, FBM noise
+ * Adapted for React Three Fiber by [Your Name]
+ */
+```
+
 ## React Three Fiber Usage
 
 ```tsx
@@ -280,8 +378,12 @@ Before using SDF shaders:
 - [ ] Smooth minimum used for blending
 - [ ] Performance tested on target hardware
 
-## Reference
+## Related Skills
+
+For general ShaderToy MCP usage: `Skill("ta-shader-development")`
+For material basics: `Skill("ta-r3f-materials")`
+
+## External References
 
 - [Inigo Quilez SDF Functions](https://iquilezles.org/articles/distfunctions/)
 - [Shadertoy SDF Examples](https://www.shadertoy.com/)
-- [skills/r3f-materials.md](r3f-materials.md) — Material basics

@@ -1,23 +1,16 @@
 ---
 name: dev-validation-feedback-loops
-description: Type-check, lint, test, build validation for Developer agent. Use proactively before committing code. Consider using shared-validation-feedback-loops for comprehensive guidance.
+description: Type-check, lint, test, build validation for Developer agent. Developer-specific patterns for R3F/gameplay validation.
 category: validation
 ---
 
 # Feedback Loops (Developer Agent)
 
-> "Quality gates protect the codebase - ALL must pass before commit."
-
-**Note:** This skill provides a quick reference for Developer agents. For comprehensive guidance, see `shared-validation-feedback-loops`.
+> "Validate early, validate often – catch errors before they compound."
 
 ## When to Use This Skill
 
-Use when:
-- Before committing any code
-- After implementing a feature
-- After fixing bugs
-- After refactoring
-- **MANDATORY** before sending WorkComplete to PM
+Use **before every commit** to ensure code quality and prevent broken builds.
 
 ## Quick Reference
 
@@ -28,209 +21,185 @@ npm run test        # All tests pass
 npm run build       # Build succeeds
 ```
 
-## Progressive Guide
+## The Feedback Loop
 
-### Level 1: Basic Validation
-
-```bash
-# Run all quality gates in sequence
-npm run type-check && npm run lint && npm run test && npm run build
+```
+┌─────────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│ type-check  │───▶│   lint   │───▶│   test   │───▶│  build   │
+│   (tsc)     │    │ (eslint) │    │ (vitest) │    │  (vite)  │
+└─────────────┘    └──────────┘    └──────────┘    └──────────┘
+       │                │                │               │
+       ▼                ▼                ▼               ▼
+   Type errors     Code style      Test failures   Bundle issues
 ```
 
-If all pass: Proceed to commit.
-If any fail: Fix and re-run.
+## Developer-Specific Validation
 
-### Level 2: Individual Gate Debugging
+### R3F Component Validation
 
-```bash
-# Run individually to see specific errors
-npm run type-check  # Check for TypeScript errors
-npm run lint        # Check for ESLint warnings
-npm run test        # Run unit/integration tests
-npm run build       # Verify production build
+For React Three Fiber components, verify:
+
+```typescript
+// ✅ Proper refs cleanup
+useEffect(() => {
+  const mesh = meshRef.current;
+  return () => {
+    mesh?.geometry.dispose();
+    mesh?.material.dispose();
+  };
+}, []);
 ```
 
-Parse error output for specific file:line references.
+**Type-check catches:**
+- Missing `useFrame` dependencies
+- Incorrect ref types (RefObject<T>)
+- Event handler type mismatches
 
-### Level 3: Fix Pattern Application
+### Gameplay State Validation
 
-```xml
-<validation_failure>
-1. Identify error type (type | lint | test | build)
-2. Parse error message for file:line
-3. Apply specific fix for error type
-4. Re-run only the failed gate
-5. Repeat until all gates pass
-</validation_failure>
+For game state with Zustand:
+
+```typescript
+// ✅ Proper typing
+interface GameState {
+  players: Map<string, Player>;
+  phase: GamePhase;
+  score: number;
+}
+
+// ✅ Action typing
+const useGameStore = create<GameState & {
+  addPlayer: (player: Player) => void;
+}>((set) => ({ ... }));
 ```
 
-### Level 4: Maximum Attempts Recovery
+**Lint catches:**
+- Missing state selectors
+- Unoptimized re-renders
+- Action type mismatches
 
-```xml
-<validation_loop max_attempts="3">
-Attempt 1: Fix immediate error, re-run
-Attempt 2: Different approach if same error
-Attempt 3: Escalate if still failing
-</validation_loop>
+### Physics Integration Validation
+
+For @react-three/rapier:
+
+```typescript
+// ✅ Proper collider typing
+import type { RigidBody } from '@react-three/rapier';
+
+interface PlayerProps {
+  rigidBodyRef: RefObject<RigidBody>;
+}
 ```
 
-### Level 5: Framework-Specific Validation
+**Test catches:**
+- Physics interactions not working
+- Collision detection failures
+- Gravity/scale issues
 
-```bash
-# For React/R3F components
-npm run type-check  # Check props interfaces
-npm run lint        # Check React hooks rules
-npm run test        # Check component rendering
+## When to Skip Steps
 
-# For Phaser scenes
-npm run type-check  # Check scene class definitions
-npm run lint        # Check Phaser API usage
-npm run test        # Check scene lifecycle
-
-# For Colyseus multiplayer
-npm run type-check  # Check state schema decorators
-npm run lint        # Check room handler patterns
-npm run test        # Check message handling
-```
-
-## Decision Framework
-
-| Error Type | Common Cause | Fix Strategy |
-|------------|--------------|--------------|
-| `TS2304` | Missing import | Add import or check tsconfig |
-| `TS2307` | Module not found | Check import path, install dependency |
-| `TS2345` | Type mismatch | Add proper types or assertions |
-| `no-unused-vars` | Unused variable | Remove or prefix with `_` |
-| `prefer-const` | Mutable variable | Change `let` to `const` |
-| Test failed | Logic error | Fix implementation or test |
-| Build failed | Bundling issue | Check circular dependencies, exports |
-
-## Troubleshooting Table
-
-| Symptom | Diagnosis | Solution |
-|---------|-----------|----------|
-| "Cannot find module" | Missing dependency | `npm install {module}` |
-| "Unexpected token" | Syntax error | Check for typos, brackets |
-| "Property does not exist" | Type error | Add type definition or cast |
-| Test timeout | Async issue | Add `await`, increase timeout |
-| "Module not found" after install | Cache issue | `rm -rf node_modules && npm install` |
-| Type errors in test files | Test setup issue | Check test globals, mocks |
-| Lint errors in generated files | Config issue | Add to .eslintignore |
-| Build fails but tests pass | Runtime dependency | Check for browser-only APIs |
-
-## Code Patterns
-
-### Type-Check First Pattern
-
-```bash
-# Always type-check before other gates
-if npm run type-check; then
-  npm run lint && npm run test && npm run build
-else
-  echo "Type errors found - fix before continuing"
-  exit 1
-fi
-```
-
-### Fix-Validate Loop
-
-```xml
-<fix_validate_loop>
-1. Run validation gate
-2. If fail:
-   a. Read error message carefully
-   b. Fix specific error (don't over-fix)
-   c. Re-run same gate
-   d. If pass: move to next gate
-   e. If fail: return to step a
-3. If pass: move to next gate
-</fix_validate_loop>
-```
-
-### Escalation Pattern
-
-```xml
-<escalation_after_3_attempts>
-Gate: {gate_name}
-Attempt 1: {what you tried} → Result: {error}
-Attempt 2: {what you tried} → Result: {error}
-Attempt 3: {what you tried} → Result: {error}
-
-Action: Send WorkBlocked to PM with:
-- All error messages
-- Attempts made
-- Root cause analysis
-- Recommended solution
-</escalation_after_3_attempts>
-```
-
-## Multishot Examples
-
-### Example 1: Type Error Fix
-
-```bash
-# Error: src/components/Player.ts:23 - Property 'health' is missing
-# Fix: Add health to Player interface
-# Result: Type-check passes
-```
-
-### Example 2: Lint Error Fix
-
-```bash
-# Error: src/player/Movement.ts:45 - prefer-const over let
-# Fix: Change 'let' to 'const' for immutable variable
-# Result: Lint passes
-```
-
-### Example 3: Test Failure Recovery
-
-```bash
-# Error: Player movement test failed - expected 10, got 5
-# Attempt 1: Check test expectations (found bug in test)
-# Attempt 2: Fix implementation (movement formula wrong)
-# Attempt 3: Re-run test → passes
-```
+| Situation         | What to Run                                 |
+| ----------------- | ------------------------------------------- |
+| Small type change | type-check only (then full before commit)   |
+| Styling only      | lint only (then full before commit)         |
+| Quick iteration   | type-check + lint (then full before commit) |
+| **Before commit** | **Always run ALL four**                     |
 
 ## Anti-Patterns
 
-**DON'T:**
+❌ **DON'T:**
 
-- Skip validation gates to "save time"
-- Suppress errors without fixing root cause
-- Run gates in wrong order (always type-check first)
-- Assume tests pass without running
-- Commit with `--no-verify` to bypass hooks
+- Commit without running feedback loops
+- Use `@ts-ignore` or `// eslint-disable` to hide errors
+- Skip tests because "it's a small change"
+- Use `any` type without justification
+- Comment out failing tests
 
-**DO:**
+✅ **DO:**
 
-- Run ALL gates before commit
-- Fix each error individually
-- Re-run only the failed gate after fixing
-- Escalate after 3 failed attempts
-- Document why you made specific fixes
+- Run all loops before every commit
+- Fix errors properly, don't suppress
+- Update tests when behavior changes
+- Add types to all public interfaces
+- Run `--fix` for auto-fixable issues
+
+## Error Resolution Patterns
+
+### TypeScript Error: Object Possibly Undefined
+
+```typescript
+// Error: Object is possibly 'undefined'
+const value = obj.prop; // ❌
+
+// Solution 1: Optional chaining
+const value = obj?.prop;
+
+// Solution 2: Nullish coalescing
+const value = obj.prop ?? defaultValue;
+
+// Solution 3: Non-null assertion (if you're sure)
+const value = obj!.prop; // Use sparingly
+```
+
+### ESLint Error: Missing Dependencies
+
+```typescript
+// Error: React Hook useEffect has missing dependencies
+useEffect(() => {
+  doSomething(value);
+}, []); // ❌
+
+// Solution: Add dependency
+useEffect(() => {
+  doSomething(value);
+}, [value]); // ✅
+```
+
+### Test Failure
+
+```typescript
+// If test is correct and code is wrong:
+// → Fix the code
+
+// If test is outdated:
+// → Update test to match new behavior
+// → Add comment explaining the change
+```
+
+## Never Suppress Errors
+
+To maintain code quality:
+- NO `@ts-ignore` without PM approval
+- NO `eslint-disable` without PM approval
+- NO skipping tests without PM approval
+- NO committing with failing loops
+
+## Commit Protocol
+
+Only commit when ALL pass:
+
+```bash
+# Run all checks
+npm run type-check && npm run lint && npm run test && npm run build
+
+# If all pass, commit
+git add .
+git commit -m "[ralph] [developer] {task-id}: description"
+```
 
 ## Checklist
 
 Before committing:
 
-- [ ] Type-check passes (0 TypeScript errors)
-- [ ] Lint passes (0 ESLint warnings)
-- [ ] Tests pass (all tests green)
-- [ ] Build succeeds (no bundling errors)
-- [ ] No `@ts-ignore` without PM approval
-- [ ] No `any` types without justification
-- [ ] No `eslint-disable` without PM approval
-
-## Framework-Specific Skills
-
-For framework-specific validation, see:
-
-- [dev-r3f-r3f-fundamentals](../dev-r3f-r3f-fundamentals/SKILL.md) — R3F component patterns
-- [dev-phaser-fundamentals](../dev-phaser-fundamentals/SKILL.md) — Phaser scene patterns
-- [dev-typescript-typescript-basics](../dev-typescript-typescript-basics/SKILL.md) — Type safety patterns
+- [ ] `npm run type-check` passes with 0 errors
+- [ ] `npm run lint` passes with 0 warnings
+- [ ] `npm run test` passes (all tests green)
+- [ ] `npm run build` succeeds
+- [ ] No `@ts-ignore` or `any` without justification
+- [ ] Commit message follows Ralph format
 
 ## See Also
 
-- [shared-validation-feedback-loops](../shared-validation-feedback-loops/SKILL.md) — Comprehensive feedback loops guide
-- [dev-validation-quality-gates](../dev-validation-quality-gates/SKILL.md) — Quality standards definition
-- [dev-validation-browser-testing](../dev-validation-browser-testing/SKILL.md) — E2E validation patterns
+- **[shared-validation-feedback-loops](../shared-validation-feedback-loops/SKILL.md)** — Comprehensive feedback loops guide with E2E best practices
+- **[dev-validation-quality-gates](../dev-validation-quality-gates/SKILL.md)** — Code review quality standards
+- **[dev-validation-browser-testing](../dev-validation-browser-testing/SKILL.md)** — E2E test creation patterns

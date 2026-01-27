@@ -1,7 +1,7 @@
 ---
 name: ta-vfx-postfx
-description: Implements post-processing effects (bloom, DOF, color grading). Use proactively when adding screen-space visual effects or cinematic looks.
-category: techartist
+description: Post-processing effects with React Three Fiber. Use when adding bloom, depth of field, effect composer, visual polish.
+category: vfx
 ---
 
 # Post-Processing Effects Skill
@@ -291,8 +291,11 @@ Before adding post-processing:
 </EffectComposer>
 ```
 
-## Reference
+## Related Skills
+
+For material basics: `Skill("ta-r3f-materials")`
+For custom shaders: `Skill("ta-shader-sdf")`
+
+## External References
 
 - [react-postprocessing docs](https://github.com/pmndrs/react-postprocessing)
-- [skills/r3f-materials.md](r3f-materials.md) — Material basics
-- [skills/shader-sdf.md](shader-sdf.md) — Custom shaders

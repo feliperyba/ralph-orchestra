@@ -109,6 +109,49 @@ HANDOFF:qa:Ready for validation
 
 ---
 
+## ⚠️ CRITICAL: Background Process Cleanup
+
+**ALWAYS kill background processes BEFORE handoff!**
+
+When using the Bash tool with `run_in_background=true`:
+
+1. **Capture the shell_id** returned when starting the process
+2. **Use KillShell tool** with that shell_id BEFORE writing handoff
+3. **NEVER handoff with background processes still running**
+
+### Example Pattern
+
+```bash
+# Start background process for testing
+Bash tool -> command: "npm run server:dev" -> run_in_background: true
+# Returns: shell_id: abc123
+
+# ... run your tests ...
+
+# ALWAYS cleanup BEFORE handoff:
+KillShell -> shell_id: abc123
+
+# NOW you can handoff safely
+```
+
+### Cleanup Checklist (Before Handoff)
+
+- [ ] **Kill ALL background processes** using `KillShell` tool
+- [ ] All processes you started are stopped
+- [ ] Ports are released (verify with `Test-Port.ps1` if needed)
+- [ ] No orphaned node/npm processes remain
+
+### Common Requiring Cleanup
+
+- Dev server: `npm run dev:all:sh`
+- Colyseus server: `npm run server:dev`
+- Build watcher: `npm run build -- --watch`
+- Test runner: `npm run test -- --watch`
+
+**Reference**: See `shared-lifecycle` skill for complete procedures.
+
+---
+
 ## REMEMBER
 
 1. **Write handoff-signal.json** - this is how agents switch

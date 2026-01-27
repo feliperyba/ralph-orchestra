@@ -1,7 +1,7 @@
 ---
 name: ta-assets-workflow-vite-6
-description: Handles Vite 6 asset loading and optimization. Use proactively when optimizing assets for Vite 6 builds or configuring Vite plugins for asset processing.
-category: techartist
+description: Vite 6 asset handling and optimization workflow for Tech Artists. Use when creating and optimizing assets for Vite 6 builds.
+category: asset
 ---
 
 # Vite 6 Asset Workflow for Tech Artists
@@ -121,8 +121,13 @@ const priorityOrder = ['player', 'weapons', 'enemies', 'environment'];
 
 **Performance Monitoring:** Use Chrome DevTools Performance tab
 
-## Reference
+## Related Skills
 
-- [Vite Asset Documentation](https://vite.dev/guide/assets) — Official asset handling
-- [Three.js Optimization](https://threejs.org/docs/#manual/en/introduction/Performance) — Performance best practices
-- [Image Optimization](https://github.com/imagemin/imagemin) — Image compression tools
+For general asset workflow: `Skill("ta-assets-workflow")`
+For performance optimization: `Skill("ta-r3f-performance")`
+
+## External References
+
+- [Vite Asset Documentation](https://vite.dev/guide/assets)
+- [Three.js Optimization](https://threejs.org/docs/#manual/en/introduction/Performance)
+- [Image Optimization](https://github.com/imagemin/imagemin)

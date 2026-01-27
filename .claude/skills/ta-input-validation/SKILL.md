@@ -1,7 +1,7 @@
 ---
 name: ta-input-validation
-description: Validates player input for WASD, mouse, and touch controls. Use proactively when testing camera-relative movement, input handling, or controls.
-category: techartist
+description: Player input validation testing patterns for WASD, mouse, and touch controls. Use when testing input systems, validating controls.
+category: architectural
 ---
 
 # Input Validation Pattern Skill
@@ -234,7 +234,12 @@ Before committing input changes:
 - [ ] Debug mode shows input direction
 - [ ] `npm run type-check && npm run lint` passes
 
-## Reference
+## Related Skills
+
+For camera controls: `Skill("ta-camera-tps")`
+For physics input: `Skill("ta-r3f-physics")`
+
+## External References
 
 - [Three.js Camera Direction](https://threejs.org/docs/#api/en/core/Camera.getWorldDirection)
 - [KeyboardEvent.code values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code)

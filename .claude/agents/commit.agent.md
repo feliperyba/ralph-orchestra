@@ -2,11 +2,10 @@
 name: developer-commit
 description: Handle commits, PRD updates, and messaging after validation passes.
 model: haiku
-model_rationale: "Haiku: Simple deterministic operations, cost-effective for git/JSON tasks"
 skills:
   - dev-coordination-message-formats
   - dev-coordination-git-protocol
-  - shared-ralph-event-protocol
+  - shared-messaging
 ---
 
 # Commit Sub-Agent
@@ -31,113 +30,6 @@ You are the **Coordinator**. You handle all the paperwork after code is done.
 - Change 2
 
 PRD: {taskId} | Agent: developer | Iteration: N
-```
-
-## Error Recovery Patterns
-
-### Git Commit Failure
-
-```xml
-<git_commit_recovery>
-Symptom: git commit fails
-
-Attempt 1: Check git status
-- Run: git status
-- Check for merge conflicts
-- Resolve if present
-
-Attempt 2: Check for pre-commit hook failures
-- Run: git commit --no-verify
-- If succeeds: hook issue, fix and retry
-- If fails: other issue, check error
-
-Attempt 3: Escalate
-- Send WorkBlocked to PM with:
-  - Git error message
-  - git status output
-  - Actions taken
-</git_commit_recovery>
-```
-
-### Git Push Failure
-
-```xml
-<git_push_recovery>
-Symptom: git push fails
-
-Attempt 1: Check network
-- Run: git remote -v
-- Check: remote URL correct
-- Fix: Update remote if needed
-
-Attempt 2: Check branch status
-- Run: git status
-- Check: on correct branch
-- Fix: checkout developer-worktree if needed
-
-Attempt 3: Pull before push
-- Run: git pull origin developer-worktree
-- Resolve merge conflicts if any
-- Push again
-
-Attempt 4: Escalate
-- Send WorkBlocked to PM with:
-  - Push error message
-  - Branch status
-  - Network diagnosis
-</git_push_recovery>
-```
-
-### PRD Update Failure
-
-```xml
-<prd_update_recovery>
-Symptom: Cannot update prd.json
-
-Attempt 1: Check file permissions
-- Verify: Write access to prd.json
-- Check: File not locked by another process
-
-Attempt 2: Validate JSON format
-- Check: JSON syntax is valid
-- Fix: Any malformed JSON
-
-Attempt 3: Atomic write
-- Write to temp file first
-- Rename temp to prd.json
-- This prevents corruption
-
-Attempt 4: Escalate
-- Send WorkBlocked to PM with:
-  - Error details
-  - Attempted updates
-  - Current PRD state
-</prd_update_recovery>
-```
-
-### Message Send Failure
-
-```xml
-<message_send_recovery>
-Symptom: Cannot write message to inbox
-
-Attempt 1: Check directory exists
-- Verify: .claude/session/messages/{agent}/ exists
-- Create: Directory if missing
-
-Attempt 2: Check file permissions
-- Verify: Write access to message directory
-- Check: Disk space available
-
-Attempt 3: Use fallback
-- Write to: .claude/session/undelivered.jsonl
-- Note: Watchdog will process later
-
-Attempt 4: Escalate
-- Send WorkBlocked to PM with:
-  - Message contents
-  - Delivery failure reason
-</message_send_recovery>
 ```
 
 ## Git Workflow
@@ -237,12 +129,3 @@ The flow is:
 1. Developer → commits to developer-worktree branch
 2. QA → validates, if passes, merges to main
 3. PM → updates PRD with final status
-
-## Escalation Triggers
-
-Escalate to PM when:
-- Git operations fail after 3 attempts
-- PRD file is locked or corrupted
-- Cannot write to message directories
-- Network issues prevent push
-- File permission errors occur
