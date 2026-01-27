@@ -199,26 +199,6 @@ Invoke-AcknowledgeMessage -MessageId "msg-xxx"
 
 ---
 
-## 🔀 Polling Mode (Legacy)
-
-### ralph-multi-session.ps1
-
-**Purpose:** Launch all five agents simultaneously in separate windows with polling-based coordination.
-
-**Usage:**
-
-```powershell
-# Basic usage
-.\.claude\scripts\ralph-multi-session.ps1
-
-# Wait for completion
-.\.claude\scripts\ralph-multi-session.ps1 -Wait
-```
-
-> **Note:** Consider using Event-Driven mode instead for better message handling and debugging.
-
----
-
 ## ⚙️ Configuration
 
 ### ralph-config.ps1
@@ -308,7 +288,7 @@ $Script:AgentConfig = @{
 
 ---
 
-## 🏗️ V2 Architecture Modules
+## 🏗️ Architecture Modules
 
 The `v2-architecture/` directory contains the next-generation orchestration infrastructure with event sourcing, Actor Model, and true parallel execution.
 
