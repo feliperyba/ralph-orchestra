@@ -58,13 +58,13 @@ Use during `skill_research` phase when:
 
 Use this matrix to identify which skills to improve for each agent:
 
-| Agent             | Skill Areas to Improve                                                                                                                                               | When to Trigger                                                                            |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Agent             | Skill Areas to Improve                                                                                                                                        | When to Trigger                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | **PM**            | pm-organization-task-selection, pm-retrospective-facilitation, pm-organization-prd-reorganization, pm-improvement-self-improvement, shared-worktree, AGENT.md | Task assignment issues, retrospective gaps, PRD not reorganized, agent workspace conflicts |
-| **Developer**     | dev-r3f-r3f-fundamentals, dev-validation-feedback-loops, dev-typescript-basics, dev-r3f-r3f-physics, AGENT.md                                                        | Code quality issues, failed builds, type errors, worktree violations                       |
-| **Tech Artist**   | ta-r3f-materials, ta-shader-development, ta-assets-workflow, ta-ui-polish, AGENT.md                                                                                  | Visual quality issues, shader errors, asset workflow problems, worktree violations         |
-| **QA**            | qa-validation-workflow, qa-browser-testing, qa-reporting-bug-reporting, AGENT.md                                                                                     | Missed bugs, incomplete validation, test failures, build conflicts from parallel agents    |
-| **Game Designer** | gd-gdd-creation, gd-thermite-integration, gd-validation-playtest, AGENT.md                                                                                           | GDD unclear, playtest issues, design violations                                            |
+| **Developer**     | dev-r3f-r3f-fundamentals, dev-typescript-basics, dev-r3f-r3f-physics, AGENT.md                                                                                | Code quality issues, failed builds, type errors, worktree violations                       |
+| **Tech Artist**   | ta-r3f-materials, ta-shader-development, ta-assets-workflow, ta-ui-polish, AGENT.md                                                                           | Visual quality issues, shader errors, asset workflow problems, worktree violations         |
+| **QA**            | qa-validation-workflow, qa-browser-testing, qa-reporting-bug-reporting, AGENT.md                                                                              | Missed bugs, incomplete validation, test failures, build conflicts from parallel agents    |
+| **Game Designer** | gd-gdd-creation, gd-thermite-integration, gd-validation-playtest, AGENT.md                                                                                    | GDD unclear, playtest issues, design violations                                            |
 
 ## Decision Framework
 
@@ -168,7 +168,6 @@ Create or update skill files based on research:
 
 - `agents/developer/AGENT.md` — Core developer behavior
 - `.claude/skills/dev-r3f-r3f-fundamentals/` — R3F patterns
-- `.claude/skills/dev-validation-feedback-loops/` — Development workflow
 - `.claude/skills/dev-typescript-basics/` — TypeScript best practices
 - `.claude/skills/dev-r3f-r3f-physics/` — Physics integration
 

@@ -345,10 +345,10 @@ The Shadertoy MCP server provides two tools for shader research and development:
 
 ### Available MCP Tools
 
-| Tool | Purpose | Usage |
-|------|---------|-------|
+| Tool                | Purpose                                | Usage                                                |
+| ------------------- | -------------------------------------- | ---------------------------------------------------- |
 | `get_shader_info()` | Retrieve full shader code and metadata | Get implementation details from any ShaderToy shader |
-| `search_shader()` | Search shaders by keywords | Find reference shaders for specific effects |
+| `search_shader()`   | Search shaders by keywords             | Find reference shaders for specific effects          |
 
 ### Shader Research Workflow
 
@@ -367,6 +367,7 @@ get_shader_info("4tdSWr")  # Shader ID from search results
 ShaderToy uses a different entry point than Three.js/R3F:
 
 **ShaderToy Format:**
+
 ```glsl
 // ShaderToy - single pass, mainImage entry point
 void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
@@ -376,6 +377,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
 ```
 
 **R3F Format (Fragment Shader):**
+
 ```glsl
 // R3F - standard vertex/fragment shader pairing
 varying vec2 vUv;
@@ -390,14 +392,14 @@ void main() {
 
 ### Uniform Mapping Table
 
-| ShaderToy | R3F/Three.js | Description |
-|-----------|--------------|-------------|
-| `iTime` | `uTime` | Elapsed time in seconds |
-| `iResolution` | `uResolution` | Canvas resolution (width, height) |
-| `iMouse` | `uMouse` | Mouse position |
-| `iChannel0-3` | `uTexture0-3` | Texture inputs |
-| `iFrame` | (compute in JS) | Frame counter |
-| `iDate` | (compute in JS) | Year, month, day, time |
+| ShaderToy     | R3F/Three.js    | Description                       |
+| ------------- | --------------- | --------------------------------- |
+| `iTime`       | `uTime`         | Elapsed time in seconds           |
+| `iResolution` | `uResolution`   | Canvas resolution (width, height) |
+| `iMouse`      | `uMouse`        | Mouse position                    |
+| `iChannel0-3` | `uTexture0-3`   | Texture inputs                    |
+| `iFrame`      | (compute in JS) | Frame counter                     |
+| `iDate`       | (compute in JS) | Year, month, day, time            |
 
 ### Complete Conversion Example
 
@@ -546,6 +548,7 @@ function OceanMesh() {
 ### Common Shader-to-R3F Conversions
 
 **Terrain/Heightmap:**
+
 ```glsl
 // ShaderToy
 vec3 rayMarch(vec3 ro, vec3 rd) { ... }
@@ -559,6 +562,7 @@ vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
 ```
 
 **Texture Sampling:**
+
 ```glsl
 // ShaderToy
 vec4 tex = texture(iChannel0, uv);
@@ -569,6 +573,7 @@ vec4 tex = texture2D(uTexture0, uv);
 ```
 
 **Mouse Interaction:**
+
 ```glsl
 // ShaderToy
 vec2 mouse = iMouse.xy / iResolution.xy;
@@ -594,14 +599,14 @@ When using ShaderToy shaders as reference:
 
 ### Search Strategy by Effect Type
 
-| Want to Create | Search Terms | Example Shaders |
-|----------------|--------------|-----------------|
-| Terrain | `terrain raymarching`, `heightmap`, `mountains` | 4tdSWr, MdX3Rf |
-| Water | `ocean waves`, `water caustics`, `ripple` | MsS2Wc, Xts3DD |
-| Fire/Smoke | `fire`, `smoke`, `particles` | 4sf3RN, XslGRr |
-| Hologram | `hologram`, `scanline`, `glitch` | 4tlSzl, WtBDWf |
-| Glow/Bloom | `glow`, `bloom`, `neon` | 4sS3Wc, XtG3zw |
-| Clouds | `clouds`, `sky`, `atmosphere` | 4dS3Wc, MtXS3S |
+| Want to Create | Search Terms                                    | Example Shaders |
+| -------------- | ----------------------------------------------- | --------------- |
+| Terrain        | `terrain raymarching`, `heightmap`, `mountains` | 4tdSWr, MdX3Rf  |
+| Water          | `ocean waves`, `water caustics`, `ripple`       | MsS2Wc, Xts3DD  |
+| Fire/Smoke     | `fire`, `smoke`, `particles`                    | 4sf3RN, XslGRr  |
+| Hologram       | `hologram`, `scanline`, `glitch`                | 4tlSzl, WtBDWf  |
+| Glow/Bloom     | `glow`, `bloom`, `neon`                         | 4sS3Wc, XtG3zw  |
+| Clouds         | `clouds`, `sky`, `atmosphere`                   | 4dS3Wc, MtXS3S  |
 
 ## Shader Debugging
 
@@ -741,7 +746,7 @@ import { Fn, hash, dot, vec2, uniform } from 'three/examples/jsm/nodes/Nodes.js'
 const SafeTSLMaterial = shaderMaterial(
   {
     uTime: 0,
-    uTexture: null,  // Nullable texture
+    uTexture: null, // Nullable texture
   },
   // Vertex shader
   `
@@ -794,13 +799,21 @@ import { TextureLoader } from 'three';
 // Option 1: Using useTexture hook (recommended)
 function MyMesh() {
   const texture = useTexture('/assets/textures/MyTexture.png');
-  return <mesh><meshStandardMaterial map={texture} /></mesh>;
+  return (
+    <mesh>
+      <meshStandardMaterial map={texture} />
+    </mesh>
+  );
 }
 
 // Option 2: Using useLoader with TextureLoader
 function MyMesh2() {
   const texture = useLoader(TextureLoader, '/assets/textures/MyTexture.png');
-  return <mesh><meshStandardMaterial map={texture} /></mesh>;
+  return (
+    <mesh>
+      <meshStandardMaterial map={texture} />
+    </mesh>
+  );
 }
 
 // Option 3: Loading multiple textures
@@ -810,7 +823,11 @@ function TexturedMesh() {
     normal: '/assets/textures/normal.png',
     roughness: '/assets/textures/roughness.png',
   });
-  return <mesh><meshStandardMaterial {...textures} /></mesh>;
+  return (
+    <mesh>
+      <meshStandardMaterial {...textures} />
+    </mesh>
+  );
 }
 ```
 
@@ -819,6 +836,7 @@ function TexturedMesh() {
 **CRITICAL**: When asset folder names contain spaces (e.g., "Splat Pack"), you must:
 
 1. **URL-encode the paths** in your TypeScript code:
+
 ```tsx
 // WRONG - Will fail to load
 const texturePath = '/assets/Splat Pack/splat1.png';
@@ -828,6 +846,7 @@ const texturePath = '/assets/Splat%20Pack/splat1.png';
 ```
 
 2. **Extend Vite's assetsPlugin** to serve non-standard file types:
+
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite';
@@ -857,6 +876,7 @@ export default defineConfig({
 ```
 
 3. **Create a centralized texture manager**:
+
 ```tsx
 // src/components/game/effects/SplatTextureManager.ts
 const SPLAT_TEXTURE_BASE = '/assets/Splat%20Pack';
@@ -868,9 +888,7 @@ export const SPLAT_TEXTURES = [
 ] as const;
 
 export function getRandomSplatTexture(): string {
-  return SPLAT_TEXTURES[
-    Math.floor(Math.random() * SPLAT_TEXTURES.length)
-  ];
+  return SPLAT_TEXTURES[Math.floor(Math.random() * SPLAT_TEXTURES.length)];
 }
 ```
 
@@ -881,15 +899,11 @@ import { useLoader } from '@react-three/fiber';
 import { TextureLoader } from 'three';
 
 // Preload multiple textures before scene renders
-function TexturePreloader({ urls, onLoaded }: { urls: string[], onLoaded: () => void }) {
-  useLoader(
-    TextureLoader,
-    urls,
-    (loader) => {
-      // All textures loaded
-      onLoaded();
-    }
-  );
+function TexturePreloader({ urls, onLoaded }: { urls: string[]; onLoaded: () => void }) {
+  useLoader(TextureLoader, urls, (loader) => {
+    // All textures loaded
+    onLoaded();
+  });
   return null;
 }
 ```
@@ -897,6 +911,7 @@ function TexturePreloader({ urls, onLoaded }: { urls: string[], onLoaded: () => 
 ### Texture Best Practices
 
 ✅ **DO:**
+
 - URL-encode paths with spaces (`%20` for space)
 - Use relative paths from `/public` folder: `/assets/...`
 - Preload textures before they're needed
@@ -904,31 +919,8 @@ function TexturePreloader({ urls, onLoaded }: { urls: string[], onLoaded: () => 
 - Implement texture atlases for many small textures
 
 ❌ **DON'T:**
+
 - Use un-encoded paths with spaces in URLs
 - Import large textures directly in JSX (causes bundle bloat)
 - Forget to dispose unused textures (memory leak)
 - Load full-resolution textures for mobile devices
-
-### Asset Folder Structure
-
-```
-/public
-  /assets
-    /Splat Pack          <- Spaces in names need encoding
-    /Weapon Pack
-    /Character Models
-    /Audio
-```
-
-## Related Skills
-
-For SDF functions: `Skill("ta-shader-sdf")`
-For materials: `Skill("ta-r3f-materials")`
-
-## External References
-
-- [Book of Shaders](https://thebookofshaders.com/)
-- [Shadertoy](https://www.shadertoy.com/) — Shader gallery
-- [@modelcontextprotocol/server-shadertoy](https://www.npmjs.com/package/@modelcontextprotocol/server-shadertoy) — MCP Server for ShaderToy
-- [ShaderToy-MCP GitHub](https://github.com/wilsonchenghy/ShaderToy-MCP) — Source code and documentation
-- [Vite Static Asset Handling](https://vite.dev/guide/assets) — Official Vite docs

@@ -23,17 +23,17 @@ description: Complete Game Designer workflow - skill invocation protocol, GDD cr
 
 **Whenever your status changes, UPDATE YOUR STATE FILE IMMEDIATELY.**
 
-| When This Happens                          | Update State File Like This                                    | Why                             |
-| ------------------------------------------ | -------------------------------------------------------------- | ------------------------------- |
-| **Starting design work**                   | `current-task-gamedesigner.json: state.status = "working"`     | PM knows you're designing       |
-| **GDD created/updated**                    | Include in message to PM                                       | PM knows GDD is ready           |
-| **Playtest requested**                     | `state.status = "playtesting"`                                 | PM knows you're testing         |
-| **Playtest complete, starting GDD review** | `state.status = "reviewing"`                                   | PM knows you're reviewing       |
-| **GDD review complete**                    | Send `playtest_session_report` + `state.status = "idle"`        | PM receives findings + GDD gaps |
-| **Providing acceptance criteria**          | Send `acceptance_criteria` with task details                    | PM uses for task definition     |
-| **Self-reporting progress**                | `state.lastSeen = {ISO_TIMESTAMP}`                             | PM knows you're alive            |
+| When This Happens                          | Update State File Like This                                    | Send Status Update to Watchdog | Why                             |
+| ------------------------------------------ | -------------------------------------------------------------- | ------------------------------ | ------------------------------- |
+| **Starting design work**                   | `current-task-gamedesigner.json: state.status = "working"`     | `Send-StatusUpdate -From "gamedesigner" -Status "working"` | PM knows you're designing       |
+| **GDD created/updated**                    | Include in message to PM                                       | - | PM knows GDD is ready           |
+| **Playtest requested**                     | `state.status = "playtesting"`                                 | `Send-StatusUpdate -From "gamedesigner" -Status "waiting"` | PM knows you're testing         |
+| **Playtest complete, starting GDD review** | `state.status = "reviewing"`                                   | `Send-StatusUpdate -From "gamedesigner" -Status "working"` | PM knows you're reviewing       |
+| **GDD review complete**                    | Send `playtest_session_report` + `state.status = "idle"`        | `Send-StatusUpdate -From "gamedesigner" -Status "idle"` | PM receives findings + GDD gaps |
+| **Providing acceptance criteria**          | Send `acceptance_criteria` with task details                    | - | PM uses for task definition     |
+| **Self-reporting progress**                | `state.lastSeen = {ISO_TIMESTAMP}`                             | - | PM knows you're alive            |
 
-**⚠️ V2.0:** Game Designer does NOT update prd.json directly. PM reads your state file and syncs.
+**⚠️ V2.1:** Game Designer does NOT update prd.json directly. PM reads your state file and syncs. The `Send-StatusUpdate` to watchdog ensures reliable message delivery.
 
 **⚠️ If you don't update your state file, the system desyncs:**
 
@@ -72,20 +72,37 @@ You are a WORKER managed by the WATCHDOG orchestrator.
 1. Load router skill (MANDATORY - first step)
    Skill("gd-router")
 
-2. Check and process pending messages (MANDATORY - prevents missing messages)
-   Use the **Glob + Read tools** to read from `.claude/session/messages/gamedesigner/msg-*.json`
-   - Each file is a JSON message object
-   - After reading, **delete the file** to mark it as processed
+2. Check and process pending messages (MANDATORY - v2.1 pattern)
+   Use the message queue functions for reliable message processing
 
-   **Message reading pattern:**
+   **Message reading pattern (v2.1):**
 
+   ```powershell
+   # Source message queue module
+   . "$PSScriptRoot\.claude\scripts\message-queue.ps1"
+   Initialize-MessageQueue -SessionDir ".\.claude\session"
+
+   # Get your messages
+   $messages = Get-PendingMessages -Agent "gamedesigner"
+
+   # CRITICAL: Confirm receipt immediately
+   Confirm-MessageReceipt -Agent "gamedesigner" -Messages $messages
+
+   # Process messages...
+   foreach ($msg in $messages) {
+       # Handle based on type field (playtest_request, prd_analysis_request, etc.)
+       # ... design work ...
+
+       # Acknowledge completion
+       Invoke-AcknowledgeMessage -MessageId $msg.id -Agent "gamedesigner"
+   }
    ```
-   1. Use Glob: .claude/session/messages/gamedesigner/msg-*.json
-   2. For each file: Read the file content
-   3. Parse JSON (fields: id, from, to, type, payload, timestamp, status)
-   4. Process messages based on type field (playtest_request, prd_analysis_request, etc.)
-   5. Delete the file after processing
-   ```
+
+   **Why the new pattern is required:**
+   - Message locking prevents duplicate processing
+   - Delivery receipt tracking enables watchdog verification
+   - Lease files expire if agent crashes, allowing retry
+   - Dead letter queue handles failed messages
 
 3. ⚠️ PROACTIVE PLAYTEST CHECK (MANDATORY - EVERY STARTUP)
    - Read .claude/session/retrospective.txt → Check Action Items for "[ ] Request playtest"
@@ -145,6 +162,7 @@ Always check:
    - Create file: .claude/session/agents/gamedesigner/task-{taskId}-memory.md
    - Initialize with taskId, title, timestamp, empty sections
      → STATE UPDATE: current-task-gamedesigner.json: state.status = "working"
+     → SEND STATUS UPDATE: `Send-StatusUpdate -From "gamedesigner" -Status "working" -CurrentTask "{taskId}"`
 
 2. TASK RESEARCH (MANDATORY)
    - Check if GDD exists
@@ -225,6 +243,7 @@ STEP 12: UPDATE STATE FILE
 → current-task-gamedesigner.json: state.status = "idle"
 → state.currentTaskId = null
 → state.lastSeen = {ISO_TIMESTAMP}
+→ SEND STATUS UPDATE: `Send-StatusUpdate -From "gamedesigner" -Status "idle"`
 
 ```
 
@@ -348,6 +367,7 @@ PRD: {task-id} | Agent: gamedesigner | Iteration: N
 6. UPDATE status in state file
    - current-task-gamedesigner.json: state.status = "idle"
    - state.lastSeen = {ISO_TIMESTAMP}
+   - SEND STATUS UPDATE: `Send-StatusUpdate -From "gamedesigner" -Status "idle"`
 
 7. LOG in progress file
 ```

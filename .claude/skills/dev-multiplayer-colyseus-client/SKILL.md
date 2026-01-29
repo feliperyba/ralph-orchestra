@@ -273,6 +273,124 @@ client.http.get('/profile').then(response => {
 4. **Send inputs, not positions** - Server-authoritative
 5. **Handle state changes** - Use schema callbacks for updates
 
+## Connection Lifecycle Management
+
+**CRITICAL:** Handle all connection states properly for a good UX.
+
+```typescript
+// Connection states enum
+enum ConnectionState {
+  DISCONNECTED = 'disconnected',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  RECONNECTING = 'reconnecting',
+  ERROR = 'error',
+}
+
+// Connection hook with lifecycle
+function useColyseusConnection(roomName: string) {
+  const [state, setState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const connect = async () => {
+    setState(ConnectionState.CONNECTING);
+    setError(null);
+
+    try {
+      const client = new Client('ws://localhost:2567');
+      const joinedRoom = await client.joinOrCreate(roomName);
+
+      setRoom(joinedRoom);
+      setState(ConnectionState.CONNECTED);
+
+      // Handle disconnection
+      joinedRoom.onLeave((code) => {
+        if (code === 1000) {
+          setState(ConnectionState.DISCONNECTED);
+        } else {
+          setState(ConnectionState.RECONNECTING);
+          // Attempt reconnection
+          setTimeout(() => connect(), 3000);
+        }
+      });
+
+      joinedRoom.onError((err) => {
+        setError(err.message);
+        setState(ConnectionState.ERROR);
+      });
+
+    } catch (err) {
+      setError(err.message);
+      setState(ConnectionState.ERROR);
+    }
+  };
+
+  const disconnect = () => {
+    if (room) {
+      room.leave();
+      setRoom(null);
+      setState(ConnectionState.DISCONNECTED);
+    }
+  };
+
+  return { state, error, connect, disconnect, room };
+}
+```
+
+### Reconnection Testing Pattern
+
+**For E2E tests covering disconnect/reconnect cycles:**
+
+```typescript
+// E2E test for reconnection
+test('handles disconnect and reconnect', async ({ page }) => {
+  // 1. Connect to server
+  await page.goto('/game');
+  await expect(page.getByTestId('connection-status')).toHaveText('Connected');
+
+  // 2. Simulate server disconnect
+  await page.evaluate(() => {
+    // @ts-ignore - Test utility
+    window.__testDisconnectServer();
+  });
+
+  // 3. Verify disconnected state
+  await expect(page.getByTestId('connection-status')).toHaveText('Disconnected');
+
+  // 4. Wait for auto-reconnect
+  await expect(page.getByTestId('connection-status')).toHaveText('Reconnecting', { timeout: 5000 });
+
+  // 5. Verify reconnected
+  await expect(page.getByTestId('connection-status')).toHaveText('Connected', { timeout: 10000 });
+});
+```
+
+### Connection State Monitoring
+
+```typescript
+// Browser's online/offline events
+useEffect(() => {
+  const handleOnline = () => {
+    console.log('Browser online - attempt reconnect');
+    // Trigger reconnection logic
+  };
+
+  const handleOffline = () => {
+    console.log('Browser offline - show disconnected');
+    setState(ConnectionState.DISCONNECTED);
+  };
+
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
+}, []);
+```
+
 ## Common Mistakes
 
 | ❌ Wrong | ✅ Right |

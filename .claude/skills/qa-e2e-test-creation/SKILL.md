@@ -63,6 +63,312 @@ Use when creating E2E tests for:
 
 **Naming convention:** `{feature}-suite.spec.ts`
 
+## Three.js / WebGL Testing Patterns
+
+**⚠️ CRITICAL:** Testing Three.js applications requires specific patterns for WebGL context support.
+
+## Running E2E Tests
+
+```bash
+# Run all E2E tests
+npm run test:e2e
+
+# Run specific file
+npm run test:e2e -- tests/e2e/auth-suite.spec.ts
+
+# Run in headed mode (see browser)
+npm run test:e2e -- --headed
+
+# Run with debug mode
+npm run test:e2e -- --debug
+
+# Run specific test
+npm run test:e2e -- -g "should connect 2 clients"
+
+# Run on different browsers
+npm run test:e2e -- --project=chromium
+npm run test:e2e -- --project=firefox
+npm run test:e2e -- --project=webkit
+```
+
+## Best Practices Summary
+
+Based on Playwright official documentation and testing community best practices:
+
+### 1. Focus on Critical User Journeys
+
+- Test complete flows, not individual components
+- Cover happy path + common error cases
+- Avoid over-testing (don't test every possible input)
+
+```typescript
+// ✅ Good - Tests complete user flow
+test('should select character and join lobby', async ({ page }) => {
+  const gamePage = new GamePage(page);
+  await gamePage.goto();
+  await gamePage.selectCharacter('TestPlayer');
+  await gamePage.waitForLobby();
+  expect(await gamePage.isConnected()).toBe(true);
+});
+
+// ❌ Bad - Tests implementation detail
+test('should set characterName state variable', async ({ page }) => {
+  // Don't test internal state, test user-observable behavior
+});
+```
+
+### 2. Use Page Object Model
+
+- All page objects in `tests/pages/` directory
+- Reusable across tests
+- Single source of truth for selectors
+
+### 3. Accessible Selectors First
+
+```typescript
+// ✅ Good - Role-based
+page.getByRole('button', { name: 'Submit' });
+
+// ✅ Good - By label
+page.getByLabel('Email address');
+
+// ✅ Good - Test ID (when no accessible name)
+page.getByTestId('submit-button');
+
+// ⚠️ Acceptable - ID selector (existing code)
+page.locator('#characterName');
+
+// ❌ Bad - Brittle CSS selector
+page.locator('.btn-primary:first-child');
+```
+
+### 4. Let Playwright Wait
+
+```typescript
+// ✅ Good - Auto-waiting
+await expect(button).toBeVisible();
+await page.waitForLoadState('networkidle');
+
+// ❌ Bad - Hard-coded wait
+await page.waitForTimeout(5000);
+```
+
+### 5. Test Isolation
+
+- Each test should be independent
+- Use `test.beforeEach` for setup
+- Clean up in `test.afterEach` if needed
+
+```typescript
+test.describe('Character Selection', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:3000');
+  });
+
+  test('should accept valid name', async ({ page }) => {
+    // Test assumes starting at character selection
+  });
+});
+```
+
+### 6. Parallel Execution
+
+- Tests run in parallel by default
+- Don't share state between tests
+- Use unique data per test
+
+```typescript
+// ✅ Good - Unique data per test
+test('should handle player join', async ({ page }) => {
+  const playerName = `Player_${Date.now()}_${Math.random()}`;
+  await gamePage.selectCharacter(playerName);
+});
+
+// ❌ Bad - Shared data causes race conditions
+test('should handle player join', async ({ page }) => {
+  await gamePage.selectCharacter('TestPlayer'); // Fails when tests run in parallel
+});
+```
+
+### 7. Clean Up Resources
+
+Always clean up in `finally` blocks:
+
+```typescript
+test('multiplayer test', async ({ browser }) => {
+  const players = await setupMultiPlayerTest(browser, 2);
+  try {
+    // Test implementation
+  } finally {
+    await cleanupPlayers(players); // Always runs, even on failure
+  }
+});
+```
+
+### Scene Readiness Pattern
+
+Always wait for Three.js scene initialization using a data attribute:
+
+```typescript
+// In your Scene.tsx or App.tsx component
+useEffect(() => {
+  // Mark scene as ready when Three.js has initialized
+  const canvas = canvasRef.current;
+  if (canvas) {
+    canvas.dataset.ready = '1';
+  }
+}, []);
+
+// In your E2E test
+test('scene renders correctly', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+
+  // Wait for scene to be ready
+  await page.locator('canvas[data-ready="1"]').waitFor({ timeout: 15000 });
+
+  // Now safe to interact with the scene
+  await page.mouse.click(400, 300);
+});
+```
+
+### WebGL Context Verification
+
+Verify WebGL context is properly initialized:
+
+```typescript
+test('WebGL context is available', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.locator('canvas[data-ready="1"]').waitFor();
+
+  const webglInfo = await page.evaluate(() => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) return { hasContext: false };
+
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) return { hasContext: false };
+
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+
+    return {
+      hasContext: true,
+      version: gl.getParameter(gl.VERSION),
+      vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'unknown',
+      renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'unknown',
+    };
+  });
+
+  expect(webglInfo.hasContext).toBe(true);
+  console.log('WebGL Info:', webglInfo);
+});
+```
+
+### Canvas-Only Screenshots for WebGL
+
+For visual regression of WebGL scenes, screenshot only the canvas element:
+
+```typescript
+test('canvas visual regression', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.locator('canvas[data-ready="1"]').waitFor();
+
+  const canvas = page.locator('canvas');
+
+  // Screenshot just the canvas element
+  await expect(canvas).toHaveScreenshot('canvas-render.png', {
+    animations: 'allow',
+    // Thresholds configured in playwright.config.ts:
+    // threshold: 0.2, maxDiffPixelRatio: 0.02, maxDiffPixels: 500
+  });
+});
+```
+
+### Headless vs Headed Mode for WebGL
+
+| Browser  | Headless WebGL   | Configuration                              |
+| -------- | ---------------- | ------------------------------------------ |
+| Chromium | Yes (with flags) | `--use-gl=desktop` in playwright.config.ts |
+| Chrome   | Yes (with flags) | Best WebGL support                         |
+| Firefox  | **No**           | `headless: false` required                 |
+| WebKit   | **No**           | `headless: false` required                 |
+
+**Firefox Testing:**
+
+```bash
+# Local - headed mode
+npm run test:e2e -- --project=firefox-webgl --headed
+
+# CI - use Xvfb for virtual display
+xvfb-run --auto-servernum npm run test:e2e -- --project=firefox-webgl
+```
+
+### Exposing Three.js State for Testing (Development Only)
+
+```typescript
+// In Scene.tsx (development builds only)
+if (import.meta.env.DEV) {
+  (window as any).__THREE__ = {
+    scene: sceneRef.current,
+    camera: cameraRef.current,
+    renderer: gl,
+  };
+}
+
+// In E2E test
+test('scene has expected lights', async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.locator('canvas[data-ready="1"]').waitFor();
+
+  const lights = await page.evaluate(() => {
+    const scene = (window as any).__THREE__?.scene;
+    if (!scene) return { ambient: 0, directional: 0 };
+
+    let ambient = 0;
+    let directional = 0;
+
+    scene.traverse((obj: any) => {
+      if (obj.isAmbientLight) ambient++;
+      if (obj.isDirectionalLight) directional++;
+    });
+
+    return { ambient, directional };
+  });
+
+  expect(lights.ambient).toBeGreaterThan(0);
+  expect(lights.directional).toBeGreaterThan(0);
+});
+```
+
+### Shader Error Detection
+
+```typescript
+test('should have no shader compilation errors', async ({ page }) => {
+  const shaderErrors: string[] = [];
+
+  page.on('console', (msg) => {
+    const text = msg.text();
+    const shaderErrorPatterns = [
+      /THREE\.WebGLProgram/i,
+      /shader error/i,
+      /program info log/i,
+      /WEBGL_WARNING/i, // But filter out WEBGL_debug_renderer_info
+    ];
+
+    if (shaderErrorPatterns.some((p) => p.test(text))) {
+      shaderErrors.push(text);
+    }
+  });
+
+  await page.goto('http://localhost:3000');
+  await page.locator('canvas[data-ready="1"]').waitFor();
+
+  // Trigger shader-heavy interactions
+  await page.mouse.click(400, 300);
+  await page.waitForTimeout(1000);
+
+  expect(shaderErrors).toHaveLength(0);
+});
+```
+
 ## Basic Test Structure
 
 ```typescript
@@ -308,14 +614,21 @@ test.describe('Shooting Controls', () => {
 
 ### 6. Console Error Checking
 
+**⚠️ IMPORTANT: For Three.js/WebGL applications, filter out expected headless browser warnings.**
+
 ```typescript
 test.describe('Error Handling', () => {
-  test('should not have console errors', async ({ page }) => {
+  test('should not have application console errors', async ({ page }) => {
     // Collect console messages
     const errors: string[] = [];
+    const warnings: string[] = [];
+
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         errors.push(msg.text());
+      }
+      if (msg.type() === 'warning') {
+        warnings.push(msg.text());
       }
     });
 
@@ -324,10 +637,43 @@ test.describe('Error Handling', () => {
     // Navigate through app
     await page.getByRole('button', { name: 'Play' }).click();
 
-    // Verify no errors
-    expect(errors).toHaveLength(0);
+    // Filter out known headless WebGL errors (expected, not application bugs)
+    const filteredErrors = errors.filter((error) => {
+      const webglHeadlessPatterns = [
+        /WebGL2RenderingContext/i,
+        /Error creating WebGL context/i,
+        /WebGL context could not be created/i,
+        /Failed to create WebGL2RenderingContext/i,
+        /WEBGL_debug_renderer_info/i,
+        /ANGLE flag/i,
+        /swiftshader/i,
+      ];
+      return !webglHeadlessPatterns.some((p) => p.test(error));
+    });
+
+    // Verify no actual application errors
+    expect(filteredErrors).toHaveLength(0);
+
+    // Log warnings (non-failing)
+    if (warnings.length > 0) {
+      console.warn('Warnings:', warnings);
+    }
   });
 });
+```
+
+**Shader errors should NOT be filtered** - they indicate actual bugs:
+
+```typescript
+// These patterns indicate REAL shader compilation errors
+const shaderErrorPatterns = [
+  /THREE\.WebGLProgram/i,
+  /shader error/i,
+  /program info log/i,
+  /WEBGL_WARNING/i, // But not WEBGL_debug_renderer_info
+];
+
+// Do NOT filter these - they indicate bugs in shader code
 ```
 
 ## Page Object Model
@@ -804,162 +1150,97 @@ test.describe('Long Running Tests', () => {
 });
 ```
 
-## Running E2E Tests
+## State Management Testing (Zustand)
 
-```bash
-# Run all E2E tests
-npm run test:e2e
-
-# Run specific file
-npm run test:e2e -- tests/e2e/auth-suite.spec.ts
-
-# Run in headed mode (see browser)
-npm run test:e2e -- --headed
-
-# Run with debug mode
-npm run test:e2e -- --debug
-
-# Run specific test
-npm run test:e2e -- -g "should connect 2 clients"
-
-# Run on different browsers
-npm run test:e2e -- --project=chromium
-npm run test:e2e -- --project=firefox
-npm run test:e2e -- --project=webkit
-```
-
-## Best Practices Summary (2026)
-
-Based on Playwright official documentation and testing community best practices:
-
-### 1. Focus on Critical User Journeys
-
-- Test complete flows, not individual components
-- Cover happy path + common error cases
-- Avoid over-testing (don't test every possible input)
+For architectural tasks involving state management (Zustand stores), test state updates and reactivity:
 
 ```typescript
-// ✅ Good - Tests complete user flow
-test('should select character and join lobby', async ({ page }) => {
-  const gamePage = new GamePage(page);
-  await gamePage.goto();
-  await gamePage.selectCharacter('TestPlayer');
-  await gamePage.waitForLobby();
-  expect(await gamePage.isConnected()).toBe(true);
-});
-
-// ❌ Bad - Tests implementation detail
-test('should set characterName state variable', async ({ page }) => {
-  // Don't test internal state, test user-observable behavior
-});
-```
-
-### 2. Use Page Object Model
-
-- All page objects in `tests/pages/` directory
-- Reusable across tests
-- Single source of truth for selectors
-
-### 3. Accessible Selectors First
-
-```typescript
-// ✅ Good - Role-based
-page.getByRole('button', { name: 'Submit' });
-
-// ✅ Good - By label
-page.getByLabel('Email address');
-
-// ✅ Good - Test ID (when no accessible name)
-page.getByTestId('submit-button');
-
-// ⚠️ Acceptable - ID selector (existing code)
-page.locator('#characterName');
-
-// ❌ Bad - Brittle CSS selector
-page.locator('.btn-primary:first-child');
-```
-
-### 4. Let Playwright Wait
-
-```typescript
-// ✅ Good - Auto-waiting
-await expect(button).toBeVisible();
-await page.waitForLoadState('networkidle');
-
-// ❌ Bad - Hard-coded wait
-await page.waitForTimeout(5000);
-```
-
-### 5. Test Isolation
-
-- Each test should be independent
-- Use `test.beforeEach` for setup
-- Clean up in `test.afterEach` if needed
-
-```typescript
-test.describe('Character Selection', () => {
-  test.beforeEach(async ({ page }) => {
+test.describe('Zustand Store Tests', () => {
+  test('should update state and trigger re-renders', async ({ page }) => {
     await page.goto('http://localhost:3000');
-  });
 
-  test('should accept valid name', async ({ page }) => {
-    // Test assumes starting at character selection
+    // Check initial state
+    const initialState = await page.evaluate(() => {
+      return (window as any).__ZUSTAND__?.connectionStore?.getState() ?? {};
+    });
+
+    expect(initialState.connected).toBe(false);
+
+    // Trigger state update (connect button, etc.)
+    await page.getByRole('button', { name: 'Connect' }).click();
+
+    // Verify state changed
+    const updatedState = await page.evaluate(() => {
+      return (window as any).__ZUSTAND__?.connectionStore?.getState() ?? {};
+    });
+
+    expect(updatedState.connected).toBe(true);
   });
 });
 ```
 
-### 6. Parallel Execution
-
-- Tests run in parallel by default
-- Don't share state between tests
-- Use unique data per test
+### Exposing Zustand Store for Testing
 
 ```typescript
-// ✅ Good - Unique data per test
-test('should handle player join', async ({ page }) => {
-  const playerName = `Player_${Date.now()}_${Math.random()}`;
-  await gamePage.selectCharacter(playerName);
-});
-
-// ❌ Bad - Shared data causes race conditions
-test('should handle player join', async ({ page }) => {
-  await gamePage.selectCharacter('TestPlayer'); // Fails when tests run in parallel
-});
+// In development, expose stores to window object
+if (import.meta.env.DEV) {
+  (window as any).__ZUSTAND__ = {
+    connectionStore: useConnectionStore,
+    playerStore: usePlayerStore,
+    matchStore: useMatchStore,
+    uiStore: useUIStore,
+  };
+}
 ```
 
-### 7. Clean Up Resources
+## Architectural Task Testing
 
-Always clean up in `finally` blocks:
+For foundational architectural tasks (like arch-001 Canvas setup):
+
+| Component      | What to Test                     | Test Pattern               |
+| -------------- | -------------------------------- | -------------------------- |
+| R3F Canvas     | Renders, has lighting, no errors | WebGL context verification |
+| Component tree | Renders without crashes          | Error boundary testing     |
+| State stores   | Create, update, DevTools access  | Store exposure pattern     |
+| Build system   | Type-check, lint pass            | Run during validation      |
+
+### Minimal Coverage for Simple Architectural Tasks
 
 ```typescript
-test('multiplayer test', async ({ browser }) => {
-  const players = await setupMultiPlayerTest(browser, 2);
-  try {
-    // Test implementation
-  } finally {
-    await cleanupPlayers(players); // Always runs, even on failure
-  }
+test.describe('Architectural - Canvas Setup (arch-001)', () => {
+  test('should render Canvas element', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    const canvas = page.locator('canvas');
+    await expect(canvas).toBeVisible();
+  });
+
+  test('should initialize WebGL context', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.locator('canvas[data-ready="1"]').waitFor();
+
+    const hasWebGL = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const gl = canvas?.getContext('webgl2') || canvas?.getContext('webgl');
+      return gl !== null;
+    });
+
+    expect(hasWebGL).toBe(true);
+  });
+
+  test('should have no console errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+
+    await page.goto('http://localhost:3000');
+    await page.waitForTimeout(2000); // Allow for async errors
+
+    const filteredErrors = errors.filter(
+      (e) => !/WEBGL_debug_renderer_info|WEBGL2RenderingContext/i.test(e)
+    );
+
+    expect(filteredErrors).toHaveLength(0);
+  });
 });
 ```
-
-## Legacy Best Practices
-
-1. **Test user flows, not implementation** - Focus on what users see and do
-2. **Use accessible selectors** - `getByRole`, `getByLabel`, `getByTestId`
-3. **Avoid hardcoded waits** - Use assertions and auto-waiting
-4. **Clean up after tests** - Close contexts, reset state
-5. **Make tests independent** - Each test should work alone
-6. **Use descriptive names** - Test names should explain the scenario
-7. **Take screenshots on failure** - Helps debug failing tests
-8. **Test on real browsers** - Use Playwright's browser contexts
-
-## References
-
-- [Playwright Documentation](https://playwright.dev/)
-- [playwright.config.ts](playwright.config.ts) - Playwright configuration
-- [tests/pages/base.page.ts](tests/pages/base.page.ts) - Base page class
-- [tests/pages/game.page.ts](tests/pages/game.page.ts) - Game page object
-- [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts) - Multiplayer page object
-- [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) - Example E2E tests
-- [.claude/skills/qa-mcp-helpers/SKILL.md](.claude/skills/qa-mcp-helpers/SKILL.md) - MCP helper patterns
-- [qa-unit-test-creation](.claude/skills/qa-unit-test-creation/SKILL.md) - Unit test patterns

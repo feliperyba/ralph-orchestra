@@ -695,3 +695,134 @@ TaskStop(task_id="abc123")  # MANDATORY cleanup
 - [Playwright Screenshot API](https://playwright.dev/docs/api/class-page#page-screenshot)
 - [Playwright Visual Testing](https://playwright.dev/docs/test-snapshots)
 - [tests/helpers/visual-analysis.ts](tests/helpers/visual-analysis.ts) - Vision MCP helpers
+
+---
+
+## UI Visual Regression Testing (Added: ui-001 Playtest)
+
+**Learned from ui-001:** Visual quality requires dedicated testing beyond functional validation.
+
+### UI Design System Validation Tests
+
+```typescript
+test.describe('UI Design System Compliance', () => {
+  test('16:9 aspect ratio is enforced', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    await page.waitForTimeout(1000);
+
+    // Check for aspect ratio container
+    const aspectContainer = page.locator('[style*="aspect-ratio"]');
+    await expect(aspectContainer).toBeVisible();
+
+    // Verify centered positioning
+    const container = await aspectContainer.boundingBox();
+    const viewport = page.viewportSize();
+
+    if (container && viewport) {
+      // Container should be centered
+      const centerX = viewport.width / 2;
+      const containerCenterX = container.x + container.width / 2;
+      expect(Math.abs(centerX - containerCenterX)).toBeLessThan(5);
+    }
+  });
+
+  test('design system tokens are applied', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+
+    // Check for custom fonts
+    const fonts = await page.evaluate(() => {
+      const styles = window.getComputedStyle(document.body);
+      return {
+        displayFont: styles.getPropertyValue('--font-display'),
+        uiFont: styles.getPropertyValue('--font-ui'),
+      };
+    });
+
+    expect(fonts.displayFont).toBeTruthy();
+    expect(fonts.uiFont).toBeTruthy();
+  });
+
+  test('buttons have metallic styling', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    const button = page.getByRole('button').first();
+
+    // Check for gradient background
+    const background = await button.evaluate((el) => {
+      return window.getComputedStyle(el).background;
+    });
+
+    expect(background).toContain('gradient');
+  });
+
+  test('hover states provide visual feedback', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+    const button = page.getByRole('button').first();
+
+    // Screenshot before hover
+    await expect(page).toHaveScreenshot('button-before-hover.png');
+
+    // Hover and capture
+    await button.hover();
+    await page.waitForTimeout(150);
+
+    // Screenshot after hover - check for glow/transform
+    await expect(page).toHaveScreenshot('button-after-hover.png', {
+      maxDiffPixels: 500, // Allow for animation timing
+    });
+  });
+
+  test('screen transitions use custom easing', async ({ page }) => {
+    await page.goto('http://localhost:3000');
+
+    // Click to trigger transition
+    await page.getByRole('button', { name: /main menu/i }).click();
+
+    // Capture mid-transition (challenging but useful)
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: 'mid-transition.png' });
+
+    // Wait for completion
+    await page.waitForTimeout(400);
+    await expect(page).toHaveScreenshot('after-transition.png');
+  });
+});
+```
+
+### Multi-Resolution Testing
+
+```typescript
+const resolutions = [
+  { name: '1080p', width: 1920, height: 1080 },
+  { name: '720p', width: 1280, height: 720 },
+  { name: '1440p', width: 2560, height: 1440 },
+  { name: 'ultrawide', width: 3440, height: 1440 },
+];
+
+test.describe('UI Scaling Across Resolutions', () => {
+  resolutions.forEach((res) => {
+    test(`UI scales correctly at ${res.name}`, async ({ page }) => {
+      await page.setViewportSize({ width: res.width, height: res.height });
+      await page.goto('http://localhost:3000');
+      await page.waitForTimeout(1000);
+
+      // UI should remain centered and proportional
+      await expect(page).toHaveScreenshot(`ui-${res.name}.png`);
+    });
+  });
+});
+```
+
+### Visual Quality Checklist for QA
+
+Before passing visual validation:
+
+- [ ] **Aspect Ratio** - 16:9 enforced with letterbox
+- [ ] **Scaling** - UI scales proportionally
+- [ ] **Typography** - Gaming fonts applied
+- [ ] **Buttons** - Metallic styling, hover/active states
+- [ ] **Transitions** - Custom easing curves
+- [ ] **Colors** - Theme palette used throughout
+- [ ] **Spacing** - Consistent grid/spacing system
+- [ ] **Accessibility** - WCAG AA contrast minimum
+- [ ] **Performance** - 60+ FPS with animations
+- [ ] **E2E Tests** - All UI paths covered

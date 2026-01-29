@@ -17,7 +17,7 @@ category: orchestration
 
 ---
 
-## Coordinator Role Overview (v2.0)
+## Coordinator Role Overview
 
 As PM coordinator, you:
 
@@ -29,43 +29,14 @@ As PM coordinator, you:
 6. **Run retrospectives** after each completed task
 7. **Detect session completion** when all tasks pass
 
-**Key Change (v2.0):**
+**Key Points:**
+
 - Workers update their own `current-task-{agent}.md` files
 - PM reads all agent state files to monitor status
 - PM syncs changes to `prd.json.agents.*` section
 - Workers NEVER read prd.json (saves ~109KB per read)
 
 ---
-
-## Mode Selection
-
-The orchestration mode is set in `prd.json.session.orchestrationMode`:
-
-| Mode           | Parallel Work | Communication   | Spawning                  |
-| -------------- | ------------- | --------------- | ------------------------- |
-| `event-driven` | Yes           | Message queues  | Watchdog spawns on demand |
-| `single-agent` | No            | Handoff phrases | One agent at a time       |
-
----
-
-## Event-Driven Mode
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    WATCHDOG (Message Broker)                     │
-│  - Spawns agents when messages exist in their queues               │
-│  - Routes messages via file queues                                 │
-│  - Monitors agent health                                           │
-└─────────────────────────────────────────────────────────────────┘
-        ▲
-        │ (reads/writes message files)
-        │
-┌───────────────┐
-│  PM (You)     │ ← Uses Glob/Read/Write tools
-└───────────────┘
-```
 
 ### Startup (First Run)
 
@@ -105,7 +76,7 @@ mkdir -p .claude/session/messages/{pm,developer,qa,techartist,gamedesigner,watch
 
 4. **Select next task** — See Task Selection below
 
-### Task Assignment Flow (v2.0 - Complete Task Copy)
+### Task Assignment Flow
 
 **Step 1:** Select task from PRD (see Task Selection Algorithm)
 
@@ -151,12 +122,14 @@ Read: .claude/session/current-task-developer.json
 
 ```json
 {
-  "items": [{
-    "id": "{taskId}",
-    "status": "assigned",
-    "agent": "developer",
-    "assignedAt": "{NOW}"
-  }],
+  "items": [
+    {
+      "id": "{taskId}",
+      "status": "assigned",
+      "agent": "developer",
+      "assignedAt": "{NOW}"
+    }
+  ],
   "agents": {
     "developer": {
       "status": "working",
@@ -193,30 +166,6 @@ Read: .claude/session/current-task-developer.json
 }
 ```
 
-**Step 4:** Log handoff to `handoff-log.json`
-
-### Worker Health Monitoring (v2.0)
-
-**Read all agent state files** to check worker health:
-
-```bash
-# Read all worker state files
-Read: .claude/session/current-task-developer.json
-Read: .claude/session/current-task-qa.json
-Read: .claude/session/current-task-techartist.json
-Read: .claude/session/current-task-gamedesigner.json
-
-# Update Worker Status Summary in current-task-pm.json
-```
-
-| Condition                | Action                         |
-| ------------------------ | ------------------------------ |
-| Not seen in 60+ seconds  | Log warning                    |
-| Not seen in 120+ seconds | Log concern, consider reassign |
-| Worker dies during task  | Note for reassignment          |
-
-**PM also syncs to prd.json.agents.{agent} after checking state files:**
-
 ### Completion Detection
 
 **A task is ONLY complete when:**
@@ -230,17 +179,6 @@ Read: .claude/session/current-task-gamedesigner.json
 
 ---
 
-## Single-Agent Mode
-
-### Key Differences
-
-| Aspect        | Event-Driven         | Single-Agent             |
-| ------------- | -------------------- | ------------------------ |
-| Your role     | Poll continuously    | Work, then handoff       |
-| Other agents  | Running in parallel  | Only started when needed |
-| Communication | File polling         | Handoff phrases          |
-| Your exit     | Never (poll forever) | Handoff to another agent |
-
 ### Handoff Protocol
 
 When you need another agent, output:
@@ -248,8 +186,6 @@ When you need another agent, output:
 ```
 HANDOFF:agent_name:base64_context
 ```
-
-**See `shared-handoff` skill for full protocol details.**
 
 ### Startup (First Run)
 
@@ -330,84 +266,7 @@ If you receive handoff context (from QA or Developer):
 4. Update `prd.json.items[{taskId}]` with bug details
 5. Handoff to Developer with fix instructions
 
-### Complete PM Action Cycle
-
-```
-START
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 1. Check handoff context        │
-└─────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 2. Read current state files     │
-└─────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 3. Determine action needed      │
-└─────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 4. Execute action               │
-└─────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 5. Save ALL state               │
-└─────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 6. Signal ready                 │
-│    AGENT_READY_FOR_HANDOFF      │
-└─────────────────────────────────┘
-  │
-  ▼
-┌─────────────────────────────────┐
-│ 7. Output handoff phrase        │
-│    HANDOFF:agent:context        │
-└─────────────────────────────────┘
-```
-
 ---
-
-## Task Selection Algorithm
-
-**Applicable to both modes:**
-
-```javascript
-// Filter incomplete items
-const incomplete = prd.items.filter((item) => !item.passes);
-
-// Filter unblocked (all dependencies passed)
-const unblocked = incomplete.filter((item) =>
-  item.dependencies.every((dep) => prd.items.find((p) => p.id === dep)?.passes === true)
-);
-
-// Sort by priority
-const priority = {
-  architectural: 1,
-  integration: 2,
-  spike: 3,
-  unknown: 3,
-  functional: 4,
-  polish: 5,
-};
-const sorted = unblocked.sort((a, b) => priority[a.category] - priority[b.category]);
-
-// Select top item
-const selected = sorted[0];
-```
-
-**Why this order?** Tackle hard problems first before easy wins bury you in technical debt.
-
----
-
-## Common to Both Modes
 
 ### Status Values
 
@@ -444,23 +303,6 @@ Acceptance criteria:
 ✓ {CRITERION_2}
 ```
 
-### Handoff Logging
-
-Append to `.claude/session/handoff-log.json`:
-
-```json
-{
-  "handoffs": [{
-    "timestamp": "{ISO_TIMESTAMP}",
-    "from": "pm",
-    "to": "developer",
-    "task": "{TASK_ID}",
-    "reason": "task_assignment",
-    "iteration": {N}
-  }]
-}
-```
-
 ### Session Completion Report
 
 When all tasks complete, generate `.claude/session/final-report.md`:
@@ -491,19 +333,20 @@ Iterations: {TOTAL}
 
 ---
 
-## What PM Controls (v2.0)
+## What PM Controls
 
-| Field                                   | You Control       | Notes                                  |
-| --------------------------------------- | ----------------- | -------------------------------------- |
-| `prd.json.session`                      | ✅ Full ownership | Session state                          |
-| `prd.json.items[{taskId}].status`       | ✅ Yes            | Task flow management                   |
-| `prd.json.items[{taskId}].passes`       | ✅ Yes            | Based on QA validation                  |
-| `prd.json.items[{taskId}].agent`        | ✅ Yes            | Task assignment                        |
-| `prd.json.agents.{agent}`               | ✅ Yes            | **SYNCED from agent state files**       |
-| `current-task-pm.json`                    | ✅ Full ownership | PM coordinator state                    |
-| `current-task-{worker}.md`              | ✅ Read/Write     | **READ** all, **WRITE** on assignment  |
+| Field                             | You Control       | Notes                                 |
+| --------------------------------- | ----------------- | ------------------------------------- |
+| `prd.json.session`                | ✅ Full ownership | Session state                         |
+| `prd.json.items[{taskId}].status` | ✅ Yes            | Task flow management                  |
+| `prd.json.items[{taskId}].passes` | ✅ Yes            | Based on QA validation                |
+| `prd.json.items[{taskId}].agent`  | ✅ Yes            | Task assignment                       |
+| `prd.json.agents.{agent}`         | ✅ Yes            | **SYNCED from agent state files**     |
+| `current-task-pm.json`            | ✅ Full ownership | PM coordinator state                  |
+| `current-task-{worker}.md`        | ✅ Read/Write     | **READ** all, **WRITE** on assignment |
 
-**PM's Sync Pattern (v2.0):**
+**PM's Sync Pattern:**
+**CRITICAL: Tasks move between agent state files as they progress through workflow.**
 
 1. **After processing each message:**
    - Read all agent state files
@@ -522,58 +365,9 @@ Iterations: {TOTAL}
    - Update prd.json accordingly
 
 4. **When archiving completed task:**
-   - Add to prd_completed.txt
+   - Add to prd_completed.json
    - **CLEAR task from ALL agent state files**
    - Delete from prd.json.items
-
-## Task Handoff Pattern (v2.0)
-
-**CRITICAL: Tasks move between agent state files as they progress through workflow.**
-
-### Developer → QA Handoff
-
-When Developer completes implementation:
-
-```bash
-# 1. Read developer state file, copy task JSON
-# 2. HAND OFF to QA:
-Read: .claude/session/current-task-qa.json
-# Paste task JSON to QA's "Active Task" section
-# Update QA YAML: status=working, currentTaskId={taskId}
-
-# 3. Clear from developer:
-# Move task to developer's "Completed Tasks" array
-# Clear developer's "Active Task" (null/unassigned)
-# Update developer YAML: status=idle, currentTaskId=null
-
-# 4. Update PRD:
-prd.json.items[{taskId}].status = "awaiting_qa"
-prd.json.agents.developer.status = "idle"
-prd.json.agents.qa.status = "working"
-```
-
-### QA → Archive Handoff
-
-When QA validates (passes) and retrospective complete:
-
-```bash
-# 1. Move QA task to "Completed Tasks" array
-# 2. Clear QA's "Active Task"
-
-# 3. PM archives:
-# - Add to prd_completed.txt
-# - CLEAR task from ALL agent state files (remove from "Completed Tasks" arrays)
-# - Delete from prd.json.items
-```
-
-### Handoff Summary Table
-
-| Event              | From    | To      | PM Action                                        |
-| ------------------ | ------- | ------- | ------------------------------------------------ |
-| Impl complete      | Dev     | QA      | Copy task to QA state file, clear from Dev       |
-| Asset complete     | TA      | QA      | Copy task to QA state file, clear from TA          |
-| Validation pass    | QA      | Archive | Move to completed, clear from all state files      |
-| Validation fail    | QA      | Dev     | Update bugs, reassign, keep in QA state file       |
 
 ---
 
@@ -588,11 +382,3 @@ Output `<promise>RALPH_COMPLETE</promise>` when:
 Stop gracefully when `/cancel-ralph` is invoked.
 
 ---
-
-## References
-
-- `pm-workflow` — Complete PM workflow with decision framework
-- `shared-core` — Status values, session structure
-- `shared-messaging` — Event-driven message protocol
-- `shared-handoff` — Single-agent handoff protocol
-- `shared-state` — File ownership, atomic updates

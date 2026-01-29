@@ -8,174 +8,185 @@ category: routing
 
 > "Right skill, right sub-agent, right time."
 
-## When to Use This Skill
+# Common Skill Combinations
 
-Use when:
+Typical task types and the skill combinations that work well for them.
 
-- Starting any development task
-- Deciding which skills to load
-- Determining which sub-agent to invoke
-- Combining multiple skills for complex features
+## Task Type → Skill Combination Mapping
 
-## Quick Route by Category
+### 1. New Game Feature (e.g., Player Movement)
 
-| Category             | Skills                                                                                                                                                     | Signal Keywords                                               |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| **R3F** (3)          | r3f-fundamentals, r3f-materials, r3f-physics                                                                                                               | scene, canvas, mesh, material, shader, physics, collision     |
-| **Multiplayer** (8)  | server-authoritative, colyseus-server, colyseus-state, colyseus-client, prediction-basics, prediction-movement, prediction-shooting, anti-cheat-validation | multiplayer, server, colyseus, network, sync, prediction, lag |
-| **Assets** (4)       | audio-loading, model-loading, texture-loading, vite-asset-loading                                                                                          | asset, load, fbx, gltf, audio, sound, texture, image          |
-| **Performance** (4)  | performance-basics, instancing, lod-systems, mobile-optimization                                                                                           | fps, slow, optimize, performance, mobile, instance, lod       |
-| **Patterns** (4)     | object-pooling, ui-animations, mobile-haptics, coverage-tracking                                                                                           | pool, reuse, animation, haptic, vibration, territory          |
-| **TypeScript** (2)   | typescript-basics, typescript-advanced                                                                                                                     | type, interface, generic, utility, infer                      |
-| **Validation** (3)   | feedback-loops, browser-testing, quality-gates                                                                                                             | validate, test, type-check, lint, e2e                         |
-| **Research** (3)     | codebase-exploration, gdd-reading, pattern-finding                                                                                                         | research, find, search, explore, existing code                |
-| **Coordination** (2) | git-protocol, message-formats                                                                                                                              | commit, branch, git, message, json                            |
+**Skills:**
 
-## Quick Route by Signal
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-r3f-r3f-fundamentals
 
-### R3F Signals
+**Why:** Research ensures patterns are followed.
 
-| Signal                                 | Load Skill                 |
-| -------------------------------------- | -------------------------- |
-| physics, collision, rigid body, rapier | `dev-r3f-r3f-physics`      |
-| material, shader, texture, pbr         | `dev-r3f-r3f-materials`    |
-| scene, canvas, useFrame, component     | `dev-r3f-r3f-fundamentals` |
+---
 
-### Multiplayer Signals
+### 2. Multiplayer Feature (e.g., Room Creation)
 
-| Signal                               | Load Skill                              |
-| ------------------------------------ | --------------------------------------- |
-| server authoritative, client-server  | `dev-multiplayer-server-authoritative`  |
-| colyseus server, room handler        | `dev-multiplayer-colyseus-server`       |
-| room state, schema, @type            | `dev-multiplayer-colyseus-state`        |
-| colyseus client, connection          | `dev-multiplayer-colyseus-client`       |
-| client prediction, lag compensation  | `dev-multiplayer-prediction-basics`     |
-| movement prediction, wasd prediction | `dev-multiplayer-prediction-movement`   |
-| shooting prediction, hit prediction  | `dev-multiplayer-prediction-shooting`   |
-| anti-cheat, input validation         | `dev-multiplayer-anti-cheat-validation` |
+**Skills:**
 
-### Asset Signals
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-multiplayer-server-authoritative
+- dev-multiplayer-colyseus-server
+- dev-multiplayer-colyseus-state
+- dev-multiplayer-colyseus-client
 
-| Signal                         | Load Skill                      |
-| ------------------------------ | ------------------------------- |
-| fbx, model, useFBX, 3d model   | `dev-assets-model-loading`      |
-| audio, sound, music, howler    | `dev-assets-audio-loading`      |
-| texture, image, TextureLoader  | `dev-assets-texture-loading`    |
-| vite 6, asset loading, ?import | `dev-assets-vite-asset-loading` |
+**Why:** Full server-authoritative stack from architecture to client. Validation ensures server builds correctly.
 
-### Performance Signals
+---
 
-| Signal                                  | Load Skill                            |
-| --------------------------------------- | ------------------------------------- |
-| fps, performance, slow                  | `dev-performance-performance-basics`  |
-| instancing, InstancedMesh, many objects | `dev-performance-instancing`          |
-| lod, level of detail                    | `dev-performance-lod-systems`         |
-| mobile, android, ios, touch             | `dev-performance-mobile-optimization` |
+### 3. Client-Side Prediction (e.g., Movement Prediction)
 
-### Pattern Signals
+**Skills:**
 
-| Signal                             | Load Skill                       |
-| ---------------------------------- | -------------------------------- |
-| object pool, reuse, recycle        | `dev-patterns-object-pooling`    |
-| ui animation, framer motion        | `dev-patterns-ui-animations`     |
-| haptics, vibration, touch feedback | `dev-patterns-mobile-haptics`    |
-| territory, coverage, grid tracking | `dev-patterns-coverage-tracking` |
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY )
+- dev-multiplayer-server-authoritative
+- dev-multiplayer-prediction-basics
+- dev-multiplayer-prediction-movement
+- dev-typescript-advanced
 
-### TypeScript Signals
+**Why:** Prediction builds on server-authoritative foundation. Advanced TypeScript for generic prediction types.
 
-| Signal                       | Load Skill                |
-| ---------------------------- | ------------------------- |
-| typescript, type, interface  | `dev-typescript-basics`   |
-| generic, utility type, infer | `dev-typescript-advanced` |
+---
 
-### Validation Signals
+### 4. Asset Loading (e.g., Character Models)
 
-| Signal                                  | Load Skill                       |
-| --------------------------------------- | -------------------------------- |
-| validate, type-check, lint, test, build | `dev-validation-feedback-loops`  |
-| e2e test, playwright, browser test      | `dev-validation-browser-testing` |
-| quality gates, review code              | `dev-validation-quality-gates`   |
+**Skills:**
 
-### Research Signals
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-assets-vite-asset-loading
+- dev-assets-model-loading
+- dev-r3f-r3f-fundamentals
 
-| Signal                                 | Load Skill                          |
-| -------------------------------------- | ----------------------------------- |
-| research, find patterns, existing code | `dev-research-codebase-exploration` |
-| gdd, design specs, requirements        | `dev-research-gdd-reading`          |
-| find similar, how is this done         | `dev-research-pattern-finding`      |
+**Why:** Vite patterns + specific model loading. R3F fundamentals for scene integration.
 
-### Coordination Signals
+---
 
-| Signal                        | Load Skill                         |
-| ----------------------------- | ---------------------------------- |
-| commit, git, branch, worktree | `dev-coordination-git-protocol`    |
-| message format, json schema   | `dev-coordination-message-formats` |
+### 5. Performance Optimization (e.g., FPS Drop)
 
-## Sub-Agents
+**Skills:**
 
-| Sub-Agent      | Model  | Purpose                     | When to Invoke              |
-| -------------- | ------ | --------------------------- | --------------------------- |
-| orchestrator   | Sonnet | Routes work to specialists  | Start of complex tasks      |
-| code-research  | Haiku  | Research existing patterns  | **MANDATORY before coding** |
-| implementation | Sonnet | Implement features          | After research              |
-| validation     | Haiku  | Run feedback loops          | **MANDATORY before commit** |
-| commit         | Haiku  | Handle commits, PRD updates | After validation            |
+- dev-research-codebase-exploration (MANDATORY)
+- dev-performance-performance-basics
+- dev-performance-instancing (if many objects)
+- dev-performance-lod-systems (if complex models)
+- dev-patterns-object-pooling (if transient objects)
 
-### Sub-Agent Invocation
+**Why:** Start with basics, add specific techniques based on problem. Object pooling for per-frame creation.
 
-```javascript
-Task({
-  subagent_type: 'developer-code-research',
-  description: 'Research patterns for {feature}',
-  prompt: 'Research existing codebase patterns for {feature}',
-  timeout: 300000,
-});
-```
+---
 
-## Common Skill Combinations
+### 6. UI/HUD Implementation
 
-### Game Feature
+**Skills:**
 
-```
-r3f-fundamentals + r3f-physics + typescript-basics + feedback-loops
-```
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-typescript-basics
+- dev-patterns-ui-animations
 
-### Multiplayer Feature
+**Why:** TypeScript for component props. UI animations for polish. E2E testing for UI validation.
 
-```
-server-authoritative + colyseus-server + colyseus-state + colyseus-client + prediction-basics
-```
+---
 
-### Asset Loading
+### 7. Shooting Mechanics
 
-```
-vite-asset-loading + model-loading + texture-loading + audio-loading
-```
+**Skills:**
 
-### Performance Optimization
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-multiplayer-server-authoritative
+- dev-multiplayer-prediction-shooting
+- dev-r3f-r3f-fundamentals
+- dev-patterns-object-pooling
 
-```
-performance-basics + instancing + lod-systems + object-pooling
-```
+**Why:** Server-authoritative hit detection. Shooting prediction. Object pooling for projectiles.
 
-### UI Implementation
+---
 
-```
-typescript-basics + ui-animations + browser-testing
-```
+### 8. Territory/Coverage System
 
-## Skill Dependencies
+**Skills:**
+
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-patterns-coverage-tracking
+- dev-typescript-advanced
+- dev-r3f-r3f-fundamentals
+
+**Why:** Coverage tracking pattern. Advanced TypeScript for grid state types. R3F for visualization.
+
+---
+
+### 9. Mobile Touch Controls
+
+**Skills:**
+
+- dev-research-gdd-reading (MANDATORY)
+- dev-research-codebase-exploration (MANDATORY)
+- dev-performance-mobile-optimization
+- dev-patterns-mobile-haptics
+- dev-typescript-basics
+
+**Why:** Mobile optimization patterns. Haptics for feedback. E2E testing with touch events.
+
+---
+
+### 10. Bug Fix (any category)
+
+**Skills:**
+
+- dev-research-pattern-finding
+- [Category-specific skill based on bug]
+
+**Why:** Find existing patterns first. Load only the relevant domain skill. Validation to ensure fix works.
+
+---
+
+## Skill Load Order
+
+For complex tasks, load skills in this order:
+
+1. **Research first:** dev-research-codebase-exploration (always)
+2. **Foundations:** r3f-fundamentals, typescript-basics, server-authoritative
+3. **Domain specific:** physics, materials, prediction, etc.
+4. **Patterns:** object-pooling, ui-animations
+5. **Validation last:** feedback-loops, browser-testing
+
+## Combining with Sub-Agents
 
 ```
-r3f-materials ─────┐
-                  ├──▶ r3f-fundamentals
-r3f-physics ───────┤
-                  │
-performance ──────┘
-
-server-authoritative ──▶ colyseus-server ──▶ colyseus-state ──▶ colyseus-client
-                                     │
-prediction-basics ───────────────────┘
-    ├──▶ prediction-movement
-    └──▶ prediction-shooting
+Task({ subagent_type: "developer-code-research", ... })
+  ↓
+[Research completes, provides findings]
+  ↓
+Load domain skills based on findings
+  ↓
+Task({ subagent_type: "code-implementation", ... })
+  ↓
+[Implementation completes]
+  ↓
+Task({ subagent_type: "developer-validation", ... })
+  ↓
+[Validation passes]
+  ↓
+Task({ subagent_type: "commit-agent", ... })
 ```
+
+## Anti-Patterns to Avoid
+
+| Anti-Pattern                                   | Why           | Correct Approach                  |
+| ---------------------------------------------- | ------------- | --------------------------------- |
+| Loading all R3F skills at once                 | Context bloat | Load only relevant skills         |
+| Loading validation before research             | Wasted cycles | Research → Implement → Validate   |
+| Skipping research for "simple" tasks           | Miss patterns | Always research first             |
+| Loading both basics and advanced TypeScript    | Redundant     | Advanced includes basics concepts |
+| Loading multiplayer for single-player features | Unused code   | Only load when needed             |

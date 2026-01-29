@@ -209,3 +209,98 @@ Before finalizing the core loop:
 - [ ] Win/lose conditions defined
 - [ ] Progression tied to loop
 - [ ] Technical feasibility confirmed
+
+---
+
+## Multiplayer State Synchronization (NEW - 2026-01-28)
+
+**Design considerations for server-authoritative multiplayer games.**
+
+### State Authority Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SERVER AUTHORITATIVE                     │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │  Game State │◄───│   Physics   │◄───│   Player    │     │
+│  │   (Truth)   │    │  Simulation │    │   Inputs    │     │
+│  └─────────────┘    └─────────────┘    └─────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+         │                                          │
+         │ State sync (20Hz)                        │ Input (client)
+         ▼                                          ▼
+┌─────────────────┐                     ┌─────────────────────┐
+│  CLIENT STATE   │                     │   PREDICTED STATE   │
+│  (Display only) │                     │   (Immediate feedback)│
+└─────────────────┘                     └─────────────────────┘
+```
+
+### State Design Principles
+
+**Server State (Authoritative):**
+- Player positions (x, y, z, rotation)
+- Health, armor, weapon state
+- Match state (lobby, playing, ended)
+- Projectile positions and velocities
+
+**Client State (Predicted):**
+- Local player position (client-side prediction)
+- Visual effects (immediate feedback)
+- UI state (local only)
+
+**Shared State (Synced):**
+- Match scores
+- Leaderboard
+- Player alive/dead status
+
+### State Update Categories
+
+| Category | Update Rate | Authority | Rollback |
+|----------|-------------|-----------|----------|
+| Player Input | Client → Server (immediate) | Client | No |
+| Player Position | Server → Client (20Hz) | Server | Yes |
+| Health/Armor | Server → Client (on change) | Server | Yes |
+| Visual Effects | Client only | Client | No |
+| Match State | Server → Client (on change) | Server | No |
+
+### Prediction vs Reconciliation
+
+```
+Client sends input → Client predicts result → Display immediately
+                      ↓
+                      Server processes input → Sends correction
+                      ↓
+                      Client reconciles (smooth correction)
+```
+
+### Design Checklist for Multiplayer Features
+
+Before adding gameplay features:
+
+- [ ] Is this feature server-authoritative or client-authoritative?
+- [ ] What happens if state sync is delayed (100ms+ latency)?
+- [ ] Can this feature exploit prediction/reconciliation?
+- [ ] What visual feedback is needed during network delays?
+- [ ] Does this feature need rollback support?
+
+### State Management for Multiplayer
+
+**Store Structure:**
+```
+src/store/
+├── connectionStore.ts  - Server connection status
+├── playerStore.ts      - Local player state (predicted)
+├── matchStore.ts       - Match/server state (authoritative)
+└── uiStore.ts          - UI state (local only)
+```
+
+**Integration Points:**
+- `connectionStore.sessionId` - Unique player identifier
+- `playerStore.position` - Predicted local position
+- `matchStore.players` - Server-authoritative player list
+- `matchStore.leaderboard` - Synced match state
+
+**Sources:**
+- https://docs.colyseus.io/state
+- https://docs.colyseus.io/state/best-practices
+- **Learned from arch-002 retrospective (2026-01-28)**

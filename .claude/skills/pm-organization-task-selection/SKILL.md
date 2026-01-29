@@ -18,33 +18,41 @@ When both Developer AND Tech Artist are idle, the PM MUST check for parallel wor
 
 ```javascript
 // 1. Read both PRD files for complete picture
-const prd = readJson("prd.json");
-const backlog = readJson(prd.backlogFile || "prd_backlog.json");
+const prd = readJson('prd.json');
+const backlog = readJson(prd.backlogFile || 'prd_backlog.json');
 const allItems = [...prd.items, ...backlog.backlogItems];
 
 // 2. Check if BOTH agents are idle
-const developerIdle = prd.agents.developer?.status === "idle" || prd.agents.developer?.status === "awaiting_pm";
-const techartistIdle = prd.agents.techartist?.status === "idle" || prd.agents.techartist?.status === "awaiting_pm";
+const developerIdle =
+  prd.agents.developer?.status === 'idle' || prd.agents.developer?.status === 'awaiting_pm';
+const techartistIdle =
+  prd.agents.techartist?.status === 'idle' || prd.agents.techartist?.status === 'awaiting_pm';
 
 // 3. If both idle, find tasks for each agent
 if (developerIdle && techartistIdle) {
   // Find Developer task (architectural, functional, integration categories)
-  const devCategories = ["architectural", "functional", "integration"];
-  const devTasks = allItems.filter(item =>
-    !item.passes &&
-    item.status === "pending" &&
-    devCategories.includes(item.category) &&
-    item.dependencies.every(depId => allItems.find(i => i.id === depId)?.passes === true)
-  ).sort(priorityComparator);
+  const devCategories = ['architectural', 'functional', 'integration'];
+  const devTasks = allItems
+    .filter(
+      (item) =>
+        !item.passes &&
+        item.status === 'pending' &&
+        devCategories.includes(item.category) &&
+        item.dependencies.every((depId) => allItems.find((i) => i.id === depId)?.passes === true)
+    )
+    .sort(priorityComparator);
 
   // Find Tech Artist task (visual, shader, polish categories)
-  const artistCategories = ["visual", "shader", "polish"];
-  const artistTasks = allItems.filter(item =>
-    !item.passes &&
-    item.status === "pending" &&
-    artistCategories.includes(item.category) &&
-    item.dependencies.every(depId => allItems.find(i => i.id === depId)?.passes === true)
-  ).sort(priorityComparator);
+  const artistCategories = ['visual', 'shader', 'polish'];
+  const artistTasks = allItems
+    .filter(
+      (item) =>
+        !item.passes &&
+        item.status === 'pending' &&
+        artistCategories.includes(item.category) &&
+        item.dependencies.every((depId) => allItems.find((i) => i.id === depId)?.passes === true)
+    )
+    .sort(priorityComparator);
 
   // 4. Check if we have non-conflicting tasks
   if (devTasks.length > 0 && artistTasks.length > 0) {
@@ -55,9 +63,9 @@ if (developerIdle && techartistIdle) {
     if (!areTasksConflicting(devTask, artistTask)) {
       // ⭐ PARALLEL ASSIGNMENT PATH ⭐
       // Assign BOTH tasks in parallel using 5-step atomic process for each
-      assignTask(devTask, "developer");
-      assignTask(artistTask, "techartist");
-      return "parallel_assigned"; // Exit after parallel assignment
+      assignTask(devTask, 'developer');
+      assignTask(artistTask, 'techartist');
+      return 'parallel_assigned'; // Exit after parallel assignment
     }
   }
 }
@@ -108,8 +116,8 @@ Use when:
 
 ```javascript
 // 1. Read both PRD files
-const prd = readJson("prd.json");
-const backlog = readJson("prd.backlogFile" || "prd_backlog.json");
+const prd = readJson('prd.json');
+const backlog = readJson('prd.backlogFile' || 'prd_backlog.json');
 
 // 2. Combine items from both files
 const allItems = [...prd.items, ...backlog.backlogItems];
@@ -130,10 +138,10 @@ const next = unblocked.sort(priorityComparator)[0];
 
 **Since v3.1.0**, tasks are split between two files:
 
-| File | Contains | Size |
-|------|----------|------|
-| `prd.json` | Top 5 active queue | ~5 tasks |
-| `prd_backlog.json` | Remaining backlog | ~70 tasks |
+| File               | Contains           | Size      |
+| ------------------ | ------------------ | --------- |
+| `prd.json`         | Top 5 active queue | ~5 tasks  |
+| `prd_backlog.json` | Remaining backlog  | ~70 tasks |
 
 **Only PM and Game Designer need full backlog access.** Workers only read their assigned task.
 
@@ -159,37 +167,44 @@ if (prd.items.length < 5) {
 
   // Find highest-priority UNBLOCKED task from backlog
   const allTasks = [...prd.items, ...backlog.backlogItems];
-  const candidates = backlog.backlogItems.filter(item => {
+  const candidates = backlog.backlogItems.filter((item) => {
     if (item.passes) return false;
     // Check dependencies (need to check across both files)
-    const depsMet = item.dependencies.every(depId =>
-      allTasks.find(t => t.id === depId)?.passes === true
+    const depsMet = item.dependencies.every(
+      (depId) => allTasks.find((t) => t.id === depId)?.passes === true
     );
     return depsMet;
   });
 
   // Sort by priority tier, then by priority value
-  const tierOrder = { TIER_0_BLOCKER: 1, TIER_1_FOUNDATION: 2, TIER_2_ECONOMY: 3, TIER_3_SUPPORT: 4 };
+  const tierOrder = {
+    TIER_0_BLOCKER: 1,
+    TIER_1_FOUNDATION: 2,
+    TIER_2_ECONOMY: 3,
+    TIER_3_SUPPORT: 4,
+  };
   candidates.sort((a, b) => {
     const tierDiff = (tierOrder[a.tier] || 99) - (tierOrder[b.tier] || 99);
     if (tierDiff !== 0) return tierDiff;
-    return (a.priority === 'critical' ? 1 : a.priority === 'high' ? 2 : 3) -
-           (b.priority === 'critical' ? 1 : b.priority === 'high' ? 2 : 3);
+    return (
+      (a.priority === 'critical' ? 1 : a.priority === 'high' ? 2 : 3) -
+      (b.priority === 'critical' ? 1 : b.priority === 'high' ? 2 : 3)
+    );
   });
 
   // Move highest priority to prd.json
   if (candidates.length > 0) {
     const toMove = candidates[0];
     // Remove from backlog
-    backlog.backlogItems = backlog.backlogItems.filter(i => i.id !== toMove.id);
+    backlog.backlogItems = backlog.backlogItems.filter((i) => i.id !== toMove.id);
     // Add to prd.json
     prd.items.push(toMove);
     // Update stats
     prd.session.stats.backlogSize = backlog.backlogItems.length;
     prd.session.stats.activeQueueSize = prd.items.length;
     // Write both files
-    writeJson("prd_backlog.json", backlog);
-    writeJson("prd.json", prd);
+    writeJson('prd_backlog.json', backlog);
+    writeJson('prd.json', prd);
   }
 }
 ```
@@ -212,13 +227,12 @@ Select first incomplete, unblocked task (reads from both files):
 
 ```javascript
 // Read both files
-const prd = readJson("prd.json");
-const backlog = readJson(prd.backlogFile || "prd_backlog.json");
+const prd = readJson('prd.json');
+const backlog = readJson(prd.backlogFile || 'prd_backlog.json');
 const allItems = [...prd.items, ...backlog.backlogItems];
 
 const next = allItems.find(
-  (item) =>
-    !item.passes && item.dependencies.every((d) => allItems.find((i) => i.id === d)?.passes)
+  (item) => !item.passes && item.dependencies.every((d) => allItems.find((i) => i.id === d)?.passes)
 );
 ```
 
@@ -228,8 +242,8 @@ Apply category priority ordering (reads from both files):
 
 ```javascript
 // Read both files
-const prd = readJson("prd.json");
-const backlog = readJson(prd.backlogFile || "prd_backlog.json");
+const prd = readJson('prd.json');
+const backlog = readJson(prd.backlogFile || 'prd_backlog.json');
 const allItems = [...prd.items, ...backlog.backlogItems];
 
 const priorityOrder = {
@@ -261,8 +275,8 @@ Consider retry count and complexity (reads from both files):
 
 ```javascript
 // Read both files
-const prd = readJson("prd.json");
-const backlog = readJson(prd.backlogFile || "prd_backlog.json");
+const prd = readJson('prd.json');
+const backlog = readJson(prd.backlogFile || 'prd_backlog.json');
 const allItems = [...prd.items, ...backlog.backlogItems];
 
 // Deprioritize repeatedly failing tasks
@@ -297,7 +311,7 @@ const unblockScore = allItems.filter((i) => i.dependencies.includes(task.id)).le
 - **Assign parallel tasks to Developer AND Tech Artist when safe** (see Parallel Assignment below)
 - **Read both prd.json and prd_backlog.json** when selecting tasks
 - **Automatically refill** when active queue drops below 5 tasks
-- **Move completed tasks** to prd_completed.txt and refill queue
+- **Move completed tasks** to prd_completed.json and refill queue
 
 ## Parallel Task Assignment (Git Worktree Support)
 
@@ -322,33 +336,33 @@ Check these conditions before assigning parallel tasks:
 
 ### Conflict Detection Matrix
 
-| Developer Category | Tech Artist Category | File Path Overlap? | Safe for Parallel? |
-|-------------------|---------------------|--------------------|--------------------|
-| `architectural` (src/hooks, src/stores, src/server) | `visual` (src/assets) | ❌ No | ✅ Yes |
-| `functional` (src/components/* logic) | `shader` (src/vfx) | ❌ No | ✅ Yes |
-| `integration` (src/utils) | `polish` (src/styles) | ❌ No | ✅ Yes |
-| `architectural` (src/components) | `visual` (src/components) | ⚠️ Yes | ❌ No - sequential only |
-| `functional` (public/) | `visual` (public/) | ⚠️ Yes | ❌ No - sequential only |
+| Developer Category                                  | Tech Artist Category      | File Path Overlap? | Safe for Parallel?      |
+| --------------------------------------------------- | ------------------------- | ------------------ | ----------------------- |
+| `architectural` (src/hooks, src/stores, src/server) | `visual` (src/assets)     | ❌ No              | ✅ Yes                  |
+| `functional` (src/components/\* logic)              | `shader` (src/vfx)        | ❌ No              | ✅ Yes                  |
+| `integration` (src/utils)                           | `polish` (src/styles)     | ❌ No              | ✅ Yes                  |
+| `architectural` (src/components)                    | `visual` (src/components) | ⚠️ Yes             | ❌ No - sequential only |
+| `functional` (public/)                              | `visual` (public/)        | ⚠️ Yes             | ❌ No - sequential only |
 
 ### Parallel Assignment Algorithm
 
 ```javascript
 // Check if parallel assignment is possible
-const developerIdle = prd.agents.developer?.status === "idle";
-const techartistIdle = prd.agents.techartist?.status === "idle";
+const developerIdle = prd.agents.developer?.status === 'idle';
+const techartistIdle = prd.agents.techartist?.status === 'idle';
 
 if (developerIdle && techartistIdle) {
   // Find highest priority Developer task
-  const devTask = findNextTaskForAgent("developer", allItems);
+  const devTask = findNextTaskForAgent('developer', allItems);
 
   // Find highest priority Tech Artist task
-  const artistTask = findNextTaskForAgent("techartist", allItems);
+  const artistTask = findNextTaskForAgent('techartist', allItems);
 
   // Check if tasks are non-conflicting
   if (areTasksNonConflicting(devTask, artistTask)) {
     // Assign to both agents in parallel
-    assignTask(devTask, "developer");
-    assignTask(artistTask, "techartist");
+    assignTask(devTask, 'developer');
+    assignTask(artistTask, 'techartist');
     return; // Exit after parallel assignment
   }
 }
@@ -362,13 +376,20 @@ if (developerIdle && techartistIdle) {
 function areTasksNonConflicting(task1, task2) {
   // Define file path patterns for each agent
   const devPaths = [
-    "src/hooks/", "src/stores/", "src/server/", "src/utils/",
-    "src/types/", "test/"
+    'src/hooks/',
+    'src/stores/',
+    'src/server/',
+    'src/utils/',
+    'src/types/',
+    'test/',
   ];
 
   const artistPaths = [
-    "src/assets/", "src/vfx/", "src/styles/", "public/textures/",
-    "public/models/"
+    'src/assets/',
+    'src/vfx/',
+    'src/styles/',
+    'public/textures/',
+    'public/models/',
   ];
 
   // Check for overlap (simplified - in production, parse task descriptions)
@@ -376,8 +397,8 @@ function areTasksNonConflicting(task1, task2) {
   const task2Path = guessFilePathFromTask(task2);
 
   // Tasks in different directories = non-conflicting
-  const task1InDev = devPaths.some(p => task1Path?.startsWith(p));
-  const task2InArtist = artistPaths.some(p => task2Path?.startsWith(p));
+  const task1InDev = devPaths.some((p) => task1Path?.startsWith(p));
+  const task2InArtist = artistPaths.some((p) => task2Path?.startsWith(p));
 
   return task1InDev && task2InArtist;
 }
@@ -466,7 +487,7 @@ ONLY when status is `"completed"` may you set `prd.json.session.currentTask = nu
 
 **⚠️ CRITICAL: After a task completes retrospective (status: "completed"), you MUST:**
 
-1. **Move completed task to `prd_completed.txt`**
+1. **Move completed task to `prd_completed.json`**
 2. **Remove it from `prd.json.items` array**
 3. **Refill from backlog if `prd.json.items.length < 5`**
 
@@ -474,10 +495,12 @@ ONLY when status is `"completed"` may you set `prd.json.session.currentTask = nu
 
 ```javascript
 // 1. Identify completed tasks
-const prd = readJson("prd.json");
-const completedTasks = prd.items.filter(item => item.status === "completed" && item.passes === true);
+const prd = readJson('prd.json');
+const completedTasks = prd.items.filter(
+  (item) => item.status === 'completed' && item.passes === true
+);
 
-// 2. For each completed task, append to prd_completed.txt
+// 2. For each completed task, append to prd_completed.json
 for (const task of completedTasks) {
   const entry = {
     id: task.id,
@@ -485,56 +508,64 @@ for (const task of completedTasks) {
     category: task.category,
     tier: task.tier,
     completedAt: task.completedAt || task.qaValidatedAt,
-    notes: task.notes || "",
-    validationSummary: task.validationResults || "PASSED"
+    notes: task.notes || '',
+    validationSummary: task.validationResults || 'PASSED',
   };
 
   // Append to completed file
-  appendFileSync("prd_completed.txt", JSON.stringify(entry, null, 2) + "\n\n");
+  appendFileSync('prd_completed.json', JSON.stringify(entry, null, 2) + '\n\n');
 }
 
 // 3. Remove completed tasks from prd.json
-prd.items = prd.items.filter(item => !(item.status === "completed" && item.passes === true));
+prd.items = prd.items.filter((item) => !(item.status === 'completed' && item.passes === true));
 
 // 4. Update completedTasks count
-prd.completedTasks = parseInt(readFileSync("prd_completed.txt", "utf8")
-  .match(/"id":/g)?.length || 0) + completedTasks.length;
+prd.completedTasks =
+  parseInt(readFileSync('prd_completed.json', 'utf8').match(/"id":/g)?.length || 0) +
+  completedTasks.length;
 
 // 5. Refill from backlog if needed
 if (prd.items.length < 5) {
-  const backlog = readJson(prd.backlogFile || "prd_backlog.json");
+  const backlog = readJson(prd.backlogFile || 'prd_backlog.json');
 
   // Find highest-priority UNBLOCKED task from backlog
   const allTasks = [...prd.items, ...backlog.backlogItems];
-  const candidates = backlog.backlogItems.filter(item => {
-    if (item.passes || item.status === "deferred") return false;
+  const candidates = backlog.backlogItems.filter((item) => {
+    if (item.passes || item.status === 'deferred') return false;
     // Check dependencies (need to check across both files)
-    const depsMet = item.dependencies?.every(depId =>
-      allTasks.find(t => t.id === depId)?.passes === true
-    ) ?? true;
+    const depsMet =
+      item.dependencies?.every((depId) => allTasks.find((t) => t.id === depId)?.passes === true) ??
+      true;
     return depsMet;
   });
 
   // Sort by priority tier, then by priority value
-  const tierOrder = { TIER_0_BLOCKER: 1, TIER_1_FOUNDATION: 2, TIER_2_ECONOMY: 3, TIER_3_SUPPORT: 4 };
+  const tierOrder = {
+    TIER_0_BLOCKER: 1,
+    TIER_1_FOUNDATION: 2,
+    TIER_2_ECONOMY: 3,
+    TIER_3_SUPPORT: 4,
+  };
   candidates.sort((a, b) => {
     const tierDiff = (tierOrder[a.tier] || 99) - (tierOrder[b.tier] || 99);
     if (tierDiff !== 0) return tierDiff;
-    return (a.priority === 'critical' ? 1 : a.priority === 'high' ? 2 : 3) -
-           (b.priority === 'critical' ? 1 : b.priority === 'high' ? 2 : 3);
+    return (
+      (a.priority === 'critical' ? 1 : a.priority === 'high' ? 2 : 3) -
+      (b.priority === 'critical' ? 1 : b.priority === 'high' ? 2 : 3)
+    );
   });
 
   // Move highest priority to prd.json until we have 5 items
   while (prd.items.length < 5 && candidates.length > 0) {
     const toMove = candidates.shift();
     // Remove from backlog
-    backlog.backlogItems = backlog.backlogItems.filter(i => i.id !== toMove.id);
+    backlog.backlogItems = backlog.backlogItems.filter((i) => i.id !== toMove.id);
     // Add to prd.json
     prd.items.push(toMove);
   }
 
   // Update backlog
-  writeJson(prd.backlogFile || "prd_backlog.json", backlog);
+  writeJson(prd.backlogFile || 'prd_backlog.json', backlog);
 }
 
 // 6. Update stats
@@ -543,7 +574,7 @@ prd.session.stats.completed = prd.completedTasks;
 prd.session.stats.backlogSize = backlog.backlogItems.length;
 
 // 7. Write updated prd.json
-writeJson("prd.json", prd);
+writeJson('prd.json', prd);
 ```
 
 ### Cleanup Timing
@@ -558,7 +589,7 @@ writeJson("prd.json", prd);
 
 - [ ] Task has `status: "completed"` AND `passes: true`
 - [ ] Retrospective completed (`retrospectiveCompletedAt` is set)
-- [ ] Task appended to `prd_completed.txt`
+- [ ] Task appended to `prd_completed.json`
 - [ ] Task removed from `prd.json.items`
 - [ ] `prd.completedTasks` count updated
 - [ ] If `prd.json.items.length < 5`, refilled from backlog

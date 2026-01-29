@@ -10,87 +10,48 @@ category: validation
 
 ## When to Use This Skill
 
-Use **before every commit** to ensure code quality and prevent broken builds.
+Use **before every task related changes commit** to ensure code quality and prevent broken builds.
 
 ## Quick Start
 
-```bash
-# Run all feedback loops in sequence
-npm run type-check && npm run lint && npm run test && npm run build
-```
+**⚠️ PRE-REQUISITE: Test Coverage Check (BLOCKING)**
 
-## The Feedback Loop
-
-```
-┌─────────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│ type-check  │───▶│   lint   │───▶│   test   │───▶│  build   │
-│   (tsc)     │    │ (eslint) │    │ (vitest) │    │  (vite)  │
-└─────────────┘    └──────────┘    └──────────┘    └──────────┘
-       │                │                │               │
-       ▼                ▼                ▼               ▼
-   Type errors     Code style      Test failures   Bundle issues
-```
-
-## Progressive Guide
-
-### Level 1: Type Check
+Before running feedback loops, verify test coverage exists:
 
 ```bash
-npm run type-check
-# or
-npx tsc --noEmit
+# Check for modified files without tests
+git diff --name-only HEAD~5 | grep '^src/' | while read file; do
+  test_file="src/tests/${file#src/}"
+  test_file="${test_file%.ts}.test.ts"
+  if [ ! -f "$test_file" ]; then
+    echo "COVERAGE GAP: $file missing $test_file"
+  fi
+done
+
+# If coverage gaps found: BLOCK - invoke test-creator
 ```
 
-**Common Issues:**
-
-- Missing type annotations
-- Incompatible types
-- Missing imports
-- Property doesn't exist
-
-**Solutions:**
-
-```typescript
-// ❌ Implicit any
-function process(data) { ... }
-
-// ✅ Explicit type
-function process(data: PlayerData) { ... }
-
-// ❌ Missing null check
-const name = player.name.toUpperCase();
-
-// ✅ Safe access
-const name = player?.name?.toUpperCase() ?? 'Unknown';
-```
-
-### Level 2: Lint
+**Then run all feedback loops in sequence:**
 
 ```bash
-npm run lint
-# or
-npx eslint . --ext .ts,.tsx
+npm run type-check && npm run lint && npm run build  && npm run test && npm run test:e2e
 ```
 
-**Common Issues:**
+## Test Coverage Gate (Before Feedback Loops)
 
-- Unused variables
-- Missing dependencies in useEffect
-- Inconsistent formatting
-- Import order
-
-**Auto-fix:**
+**⚠️ BLOCKING CHECK: Tests must exist for modified code.**
 
 ```bash
-npm run lint -- --fix
-```
+# For each source file modified, verify test exists:
+src/components/game/player/index.ts → src/tests/components/game/player/index.test.ts
+src/services/ShootingService.ts → src/tests/services/ShootingService.test.ts
 
-### Level 3: Test
-
-```bash
-npm run test
-# or
-npx vitest run
+# If tests missing: BLOCK and invoke test-creator
+Task({
+  subagent_type: "test-creator",
+  description: "Create tests for missing coverage",
+  prompt: "Create unit/E2E tests for: {files_missing_coverage}"
+})
 ```
 
 **If tests fail:**
@@ -99,14 +60,7 @@ npx vitest run
 2. Check which test failed
 3. Review recent changes that could affect it
 4. Fix the code (not the test, unless test is wrong)
-
-### Level 4: Build
-
-```bash
-npm run build
-# or
-npx vite build
-```
+5. Commit changes and merge
 
 **Common Issues:**
 
@@ -151,124 +105,6 @@ npx vite build
 - Add types to all public interfaces
 - Run `--fix` for auto-fixable issues
 
-## Error Resolution Patterns
-
-### TypeScript Error
-
-```typescript
-// Error: Object is possibly 'undefined'
-const value = obj.prop; // ❌
-
-// Solution 1: Optional chaining
-const value = obj?.prop;
-
-// Solution 2: Nullish coalescing
-const value = obj.prop ?? defaultValue;
-
-// Solution 3: Non-null assertion (if you're sure)
-const value = obj!.prop; // Use sparingly
-```
-
-### ESLint Error
-
-```typescript
-// Error: React Hook useEffect has missing dependencies
-useEffect(() => {
-  doSomething(value);
-}, []); // ❌
-
-// Solution: Add dependency
-useEffect(() => {
-  doSomething(value);
-}, [value]); // ✅
-```
-
-### Test Failure
-
-```typescript
-// If test is correct and code is wrong:
-// → Fix the code
-
-// If test is outdated:
-// → Update test to match new behavior
-// → Add comment explaining the change
-```
-
-## Never Suppress Errors
-
-To maintain code quality:
-
-- NO `@ts-ignore` without PM approval
-- NO `eslint-disable` without PM approval
-- NO skipping tests without PM approval
-- NO committing with failing loops
-
-## Commit Protocol
-
-Only commit when ALL pass:
-
-```bash
-# Run all checks
-npm run type-check && npm run lint && npm run test && npm run build
-
-# If all pass, commit
-git add .
-git commit -m "[ralph] [{agent}] {task-id}: description"
-```
-
-## Checklist
-
-Before committing:
-
-- [ ] `npm run type-check` passes with 0 errors
-- [ ] `npm run lint` passes with 0 warnings
-- [ ] `npm run test` passes (all tests green)
-- [ ] `npm run build` succeeds
-- [ ] No `@ts-ignore` or `any` without justification
-- [ ] Commit message follows Ralph format
-
-## Reference
-
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [ESLint Rules](https://eslint.org/docs/rules/)
-- [Vitest Documentation](https://vitest.dev/)
-
-## E2E Testing Best Practices (Learned 2026-01-26)
-
-### MANDATORY: Port Detection Before Browser Testing
-
-**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
-
-**Before ANY browser interaction, ALWAYS detect the correct port:**
-
-```bash
-# Method 1: Check listening ports
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
-
-# Method 2: Try curl to detect Vite
-curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
-curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
-curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
-```
-
-**E2E tests in `playwright.config.ts` should automatically detect the port.**
-
-**For manual MCP validation, use the detected port in navigation.**
-
-### Load State Selection
-
-When writing E2E tests with Playwright, the choice of load state affects test reliability:
-
-```typescript
-// Detect port first, then use in navigation
-const detectedPort = 3000; // From detection above
-await page.goto(`http://localhost:${detectedPort}`);
-await page.waitForLoadState('domcontentloaded');
-
-// Why: Faster, doesn't timeout on background activity
-// Use for: Page structure, element visibility, UI interactions
-```
-
 **Load State Decision Tree:**
 
 - `domcontentloaded` - Use by default. Fastest, most reliable.
@@ -278,24 +114,5 @@ await page.waitForLoadState('domcontentloaded');
 **Lesson from bugfix-e2e-001:** Changing `networkidle` to `domcontentloaded` fixed timeout issues. 23/23 accessibility tests now pass.
 
 ### Server Port Management
-
-For E2E tests involving servers (Colyseus, WebSocket):
-
-```typescript
-const TEST_PORT = 2577; // Unique from default
-
-test.beforeAll(async () => {
-  serverProcess = spawn('npm', ['run', 'server'], {
-    env: { ...process.env, PORT: String(TEST_PORT) },
-  });
-});
-
-test.afterAll(async () => {
-  if (serverProcess) {
-    serverProcess.kill('SIGTERM');
-    serverProcess = null;
-  }
-});
-```
 
 **Lesson from bugfix-e2e-002:** Explicit port cleanup prevents EADDRINUSE errors. 65/65 E2E tests passing (100% success rate).

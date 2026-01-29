@@ -30,14 +30,65 @@ Use when:
 5. On wake-up: If all 3 workers contributed → read separate files → merge → synthesize
 6. **Commit changes with git**: `[ralph] [pm] {taskId} retrospective: Worker contributions synthesized`
 7. Set status to `retrospective_synthesized`
-8. **EXIT** (context reset for next phase)
+8. **⚠️ DO NOT EXIT! Continue to Phase 2 (Playtest) using the router table**
 
 **P1 FIX: Workers now write to separate contribution files (prevents race conditions):**
 
-- `.claude/session/retrospective-developer.json`
-- `.claude/session/retrospective-techartist.json`
-- `.claude/session/retrospective-qa.json`
-- PM reads all 3 files and merges them into final retrospective.txt
+- `.claude/session/retro-contributions-developer-{taskId}.json`
+- `.claude/session/retro-contributions-techartist-{taskId}.json`
+- `.claude/session/retro-contributions-qa-{taskId}.json`
+- PM reads all 3 files and merges them into synthesized retrospective
+
+### Retrospective Contribution Acknowledgment Pattern (v2.1)
+
+**When workers send retrospective_contribution messages:**
+
+1. PM receives `retrospective_contribution` message from worker
+2. PM reads contribution file
+3. **PM sends `message_acknowledged` to watchdog using `Confirm-MessageReceipt`**
+4. PM deletes original message from queue
+5. PM continues until all workers contributed or timeout
+
+```powershell
+# After reading messages
+. "$PSScriptRoot\.claude\scripts\message-queue.ps1"
+Initialize-MessageQueue -SessionDir ".\.claude\session"
+
+$messages = Get-PendingMessages -Agent "pm"
+
+# CRITICAL: Confirm receipt immediately
+Confirm-MessageReceipt -Agent "pm" -Messages $messages
+
+# Process messages...
+foreach ($msg in $messages) {
+    if ($msg.type -eq "retrospective_contribution") {
+        # ... handle contribution ...
+    }
+    Invoke-AcknowledgeMessage -MessageId $msg.id -Agent "pm"
+}
+```
+
+**Contribution message format:**
+```json
+{
+  "id": "msg-pm-{agent}-retro-{timestamp}",
+  "from": "{agent}",
+  "to": "pm",
+  "type": "retrospective_contribution",
+  "priority": "low",
+  "payload": {
+    "taskId": "{taskId}",
+    "contributor": "{agent}",
+    "contributionFile": ".claude/session/retro-contributions-{agent}-{taskId}.json"
+  },
+  "timestamp": "{ISO-8601}",
+  "status": "pending"
+}
+```
+
+**Watchdog triggers `retrospective_complete` when:**
+- All 3 workers (Developer, Tech Artist, QA) have sent contributions
+- OR timeout reached (configurable, default 10 minutes per worker)
 
 **⚠️ CRITICAL: Playtest is a SEPARATE Phase**
 
@@ -107,15 +158,25 @@ This task has no visual/shader component requiring Tech Artist input.
 ## State Flow
 
 ```
-passed → in_retrospective → retrospective_synthesized
+passed → in_retrospective → retrospective_synthesized → (CONTINUE to Phase 2)
 ```
+
+**⚠️ CRITICAL: After setting `retrospective_synthesized`, DO NOT EXIT!**
+
+**Continuation steps:**
+1. Check if playtest is required (see decision matrix below)
+2. If YES: Use `Skill("pm-retrospective-playtest-session")` → `playtest_complete`
+3. If NO: Skip to `Skill("pm-organization-prd-reorganization")` → `prd_refinement`
 
 **Next phases** (handled by other skills):
 
-- `retrospective_synthesized` → `playtest_phase` (via pm-retrospective-playtest-session skill)
+- `retrospective_synthesized` → `playtest_phase` OR `prd_refinement` (decision required)
 - `playtest_complete` → `prd_refinement` (via pm-organization-prd-reorganization skill)
-- `task_ready` → `skill_research` (via pm-improvement-skill-research skill)
-- `completed` → next task assignment
+- `prd_refinement` → `cleanup_completed` (inline in pm-workflow)
+- `cleanup_completed` → `skill_research` (via pm-improvement-skill-research skill)
+- `skill_updates_applied` → `task_ready` (via pm-organization-task-selection skill)
+- `task_ready` → `test_plan_ready` (via pm-planning-test-planning skill)
+- `test_plan_ready` → `assigned` (assign to worker, THEN exit)
 
 ## Decision Framework
 

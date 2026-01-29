@@ -194,3 +194,111 @@ const gameServer = new Server({
 
 - [Colyseus Server Docs](https://docs.colyseus.io/server)
 - [Room Handlers](https://docs.colyseus.io/server/room/)
+
+---
+
+## Room Lifecycle Best Practices (Updated 2026-01-28)
+
+From arch-003 retrospective - proven patterns for Colyseus room implementation.
+
+### Lifecycle Event Order
+
+```
+onCreate (once) → onAuth (per client) → onJoin (per client) → onMessage (loop)
+→ onLeave (per client) → onDispose (once, when no clients)
+```
+
+### onCreate Implementation Pattern
+
+```typescript
+import { Room, Client } from 'colyseus';
+import { MyRoomState } from '../schema/MyRoomState';
+
+export class MyRoom extends Room<MyRoomState> {
+  maxClients = 64;  // Set on class for 64-player FFA
+
+  onCreate(options: any) {
+    // 1. Initialize state
+    this.setState(new MyRoomState());
+
+    // 2. Set patch rate (20Hz = 50ms for multiplayer games)
+    this.setPatchRate(50);  // 50ms = 20 ticks/sec
+
+    // 3. Set up simulation interval (optional game loop)
+    this.setSimulationInterval((deltaTime) => {
+      this.gameLoop(deltaTime);
+    });
+
+    // 4. Register message handlers
+    this.onMessage('input', (client, data) => {
+      this.handlePlayerInput(client, data);
+    });
+
+    console.log(`[Room ${this.roomId}] Created with options:`, options);
+  }
+
+  onAuth(client: Client, options: any): boolean | Promise<any> {
+    // Return true to allow, false/error to reject
+    // Can return Promise for async validation
+    return true;
+  }
+
+  onJoin(client: Client, options: any) {
+    console.log(`[Room ${this.roomId}] Client joined: ${client.sessionId}`);
+
+    // Create player state
+    const player = new PlayerState();
+    player.sessionId = client.sessionId;
+    this.state.players.set(client.sessionId, player);
+
+    // Send welcome message
+    client.send('welcome', { sessionId: client.sessionId });
+  }
+
+  onLeave(client: Client, consented: boolean) {
+    console.log(`[Room ${this.roomId}] Client left: ${client.sessionId} (consented: ${consented})`);
+
+    // Remove player from state
+    this.state.players.delete(client.sessionId);
+  }
+
+  onDispose() {
+    console.log(`[Room ${this.roomId}] Disposed`);
+  }
+
+  private gameLoop(deltaTime: number) {
+    // Game logic here
+  }
+}
+```
+
+### Room Configuration Best Practices
+
+| Configuration | Value | Purpose |
+|--------------|-------|---------|
+| `maxClients` | 64 | FFA mode capacity |
+| `patchRate` | 50ms | 20Hz state sync for multiplayer |
+| `autoDispose` | true | Cleanup when empty (default) |
+| `setSimulationInterval` | 16.6ms | 60Hz game loop (optional) |
+
+### Message Handler Pattern
+
+```typescript
+// Specific message type
+this.onMessage('move', (client, data) => {
+  const player = this.state.players.get(client.sessionId);
+  if (player) {
+    player.x = data.x;
+    player.y = data.y;
+  }
+});
+
+// Catch-all for other messages
+this.onMessage('*', (client, type, data) => {
+  console.log(`Unhandled message: ${type}`, data);
+});
+```
+
+**Sources:**
+- https://docs.colyseus.io/colyseus/server/room/
+- **Learned from arch-003 retrospective (2026-01-28)**

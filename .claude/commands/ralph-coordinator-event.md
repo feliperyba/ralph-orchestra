@@ -54,7 +54,7 @@ Execute in order:
 2. **`Skill("shared-messaging")`** - Load message queues, acknowledgment protocol
 3. **`Skill("shared-lifecycle")`** - Load process cleanup procedures
 4. **`Skill("shared-coordinator")`** - Load PM coordinator behavior
-5. **`Read("agents/pm/AGENT.md")`** - Load role definition and decision framework
+5. **`Read("./agents/pm/AGENT.md")`** - Load role definition and decision framework
 6. **`Skill("pm-workflow")`** - Load detailed workflow procedures
 7. **Check for messages** - Use `Glob` on `.claude/session/messages/pm/msg-*.json`
 8. **Process messages** - See `shared-messaging` for message types and handling

@@ -21,24 +21,6 @@ You are the Browser Testing Specialist. Your role is to validate web application
 The QA agent will request browser validation after developer work completion.
 If any step of the checklist fails, report as FAIL and exit immediately.
 
-## MANDATORY: Port Detection (Before Navigation)
-
-**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
-
-**Before ANY browser interaction, ALWAYS detect the correct port:**
-
-```bash
-# Method 1: Check listening ports
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
-
-# Method 2: Try curl to detect Vite
-curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
-curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
-curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
-```
-
-**Store detected port in variable and use for all navigation.**
-
 ## Process
 
 0. Run `npm run dev:all:sh`
@@ -90,15 +72,6 @@ curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
 
 - {if any} {issue description with location}
 ```
-
-## Alignment with E2E Tests
-
-This agent validates **NEW features**. E2E tests handle **REGRESSION**.
-
-| Type                           | Purpose                                 | When                         |
-| ------------------------------ | --------------------------------------- | ---------------------------- |
-| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD            | Run on every commit/PR       |
-| **MCP Agents**                 | EXPLORATORY validation for NEW features | One-time validation per task |
 
 When testing:
 
@@ -156,12 +129,6 @@ page.locator('div.container > div:nth-child(2)');
 // Bad - fragile to DOM structure changes
 page.locator('body > div > div > button');
 ```
-
-### References
-
-- [tests/pages/base.page.ts](tests/pages/base.page.ts) - Base page class
-- [tests/pages/game.page.ts](tests/pages/game.page.ts) - Game-specific selectors
-- [.claude/skills/qa-mcp-helpers/SKILL.md](.claude/skills/qa-mcp-helpers/SKILL.md) - MCP helper patterns
 
 ## Important
 

@@ -10,24 +10,6 @@ category: coordination
 
 ---
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    WATCHDOG (Message Broker)                     │
-│  - Routes messages between agents                                │
-│  - Monitors agent health                                         │
-│  - Restarts agents with messages                                 │
-│  - Tracks message acknowledgments                                │
-└─────────────────────────────────────────────────────────────────┘
-           │                    │                    │
-           ▼                    ▼                    ▼
-    ┌───────────┐        ┌───────────┐        ┌───────────┐
-    │    PM     │◄──────►│ Developer │◄──────►│    QA     │
-    │(Coordinator)       │ (Worker)  │        │ (Worker)  │
-    └───────────┘        └───────────┘        └───────────┘
-```
-
 ## Message Queue Directory
 
 ```
@@ -122,34 +104,34 @@ Read: .claude/session/messages/pm/msg-pm-20260126-120000-001.json
 
 ---
 
-## Message Acknowledgment (P1 Fix - Critical)
+## Message Acknowledgment
 
-**After processing ANY message, you MUST send acknowledgment to watchdog:**
+**CRITICAL: Immediately after reading messages, confirm receipt to watchdog:**
 
-```json
-{
-  "id": "msg-watchdog-20260126-120500-001",
-  "from": "developer",
-  "to": "watchdog",
-  "type": "message_acknowledged",
-  "priority": "normal",
-  "payload": {
-    "originalMessageId": "msg-developer-20260126-120000-001",
-    "status": "processed"
-  },
-  "timestamp": "2026-01-26T12:05:00.000Z",
-  "status": "pending"
+```powershell
+# Source the message queue module
+. "$PSScriptRoot\.claude\scripts\message-queue.ps1"
+Initialize-MessageQueue -SessionDir ".\.claude\session"
+
+# Get your messages
+$messages = Get-PendingMessages -Agent "{your-agent}"
+
+# CRITICAL: Confirm receipt immediately after reading
+Confirm-MessageReceipt -Agent "{your-agent}" -Messages $messages
+
+# Now process messages...
+foreach ($msg in $messages) {
+    # ... process message ...
+    Invoke-AcknowledgeMessage -MessageId $msg.id -Agent "{your-agent}"
 }
 ```
 
-**Write acknowledgment to:** `.claude/session/messages/watchdog/msg-watchdog-{timestamp}-{seq}.json`
+### Why Receipt Confirmation is Required
 
-### Why Acknowledgment is Required
-
-- Watchdog marks messages "delivered" when sending
-- Watchdog waits for acknowledgment before deleting
-- Without acknowledgment → watchdog may re-deliver (duplicates)
-- With acknowledgment → watchdog knows you processed successfully
+- **Prevents duplicates**: Message locking ensures only one agent processes each message
+- **Delivery tracking**: Watchdog tracks which messages were successfully received
+- **Crash recovery**: Lease files expire if agent crashes, allowing retry
+- **Dead letter queue**: Failed messages are automatically retried with exponential backoff
 
 ---
 
@@ -233,19 +215,63 @@ Read: .claude/session/messages/pm/msg-pm-20260126-120000-001.json
 
 ---
 
+## Heartbeat Protocol
+
+> "Your heartbeat proves you're alive - update it or PM thinks you're dead."
+
+### For Worker Agents (Developer, QA, Tech Artist, Game Designer)
+
+**DO NOT read prd.json** - Update your state file instead.
+
+**Step 1:** Read your state file
+
+```
+Read: .claude/session/current-task-{your-agent}.json
+```
+
+**Step 2:** Update the `state` object
+
+```json
+{
+  "state": {
+    "status": "working",
+    "lastSeen": "2026-01-27T12:00:00.000Z",
+    "currentTaskId": "feat-001",
+    "pid": 0
+  }
+}
+```
+
+**Step 3:** Write updated state
+
+```
+Write: .claude/session/current-task-{your-agent}.json
+```
+
+### When to Update
+
+| Situation              | Set `state.status` to | Update `state.lastSeen` |
+| ---------------------- | --------------------- | ----------------------- |
+| Start working on task  | `"working"`           | ✅ Yes, to NOW          |
+| Finish a task          | `"idle"`              | ✅ Yes, to NOW          |
+| Blocked/waiting for PM | `"awaiting_pm"`       | ✅ Yes, to NOW          |
+| Idle/monitoring        | `"idle"`              | No                      |
+
+---
+
 ## Message Types Catalog
 
 ### Core Types
 
-| Type                 | Direction         | Purpose               |
-| -------------------- | ----------------- | --------------------- |
-| `task_assign`        | PM → Worker       | Assign a task         |
-| `task_complete`      | Worker → PM       | Report completion     |
-| `validation_request` | PM → QA           | Request validation    |
-| `bug_report`         | QA → PM           | Report bugs           |
-| `question`           | Any → PM          | Ask for clarification |
-| `answer`             | PM → Worker       | Respond to question   |
-| `wake_up`            | PM → Worker       | Wake idle worker      |
+| Type                 | Direction   | Purpose               |
+| -------------------- | ----------- | --------------------- |
+| `task_assign`        | PM → Worker | Assign a task         |
+| `task_complete`      | Worker → PM | Report completion     |
+| `validation_request` | PM → QA     | Request validation    |
+| `bug_report`         | QA → PM     | Report bugs           |
+| `question`           | Any → PM    | Ask for clarification |
+| `answer`             | PM → Worker | Respond to question   |
+| `wake_up`            | PM → Worker | Wake idle worker      |
 
 ### PM Receives
 
@@ -286,12 +312,12 @@ Read: .claude/session/messages/pm/msg-pm-20260126-120000-001.json
 
 ## Priority Levels
 
-| Priority | Use Case                             |
-| -------- | ------------------------------------ |
-| `urgent` | Critical failures, agent timeouts    |
-| `high`   | Questions, bug reports               |
-| `normal` | Task assignments, completions        |
-| `low`    | Status updates, heartbeats           |
+| Priority | Use Case                          |
+| -------- | --------------------------------- |
+| `urgent` | Critical failures, agent timeouts |
+| `high`   | Questions, bug reports            |
+| `normal` | Task assignments, completions     |
+| `low`    | Status updates, heartbeats        |
 
 ### Processing Order
 
@@ -336,58 +362,15 @@ Watchdog (tracks all contributions) → retrospective_complete → PM
 2. **FIFO within Priority** - Older messages before newer
 3. **Acknowledge Before Delete** - Send `message_acknowledged`, then watchdog deletes
 4. **Idempotent Handlers** - Safe to reprocess (check status before acting)
-5. **Exit When Done** - Don't stay running idle
-
-### Idempotent Processing
-
-Since messages may be reprocessed, always check state first:
-
-```json
-// Example: Idempotent task handler
-// 1. Read prd.json
-// 2. Check if already processing this task
-// 3. If currentTask == taskId, skip (already processing)
-// 4. Otherwise, start working
-// 5. Update prd.json.agents.{your-agent}.status = "working"
-```
-
----
-
-## Worker Pool Model
-
-**In event-driven mode, agents do NOT run continuously.**
-
-**Pattern:**
-
-```
-1. Watchdog spawns agent (when messages exist)
-2. Agent processes messages / does work
-3. Agent sends completion/status message
-4. Agent EXITS
-5. Watchdog spawns again when needed
-```
-
-**Exit after work** - Watchdog will restart you when new messages arrive.
-
----
-
-## Troubleshooting
 
 ### No Messages Found
 
 - Glob returns empty → No messages waiting
 - Continue normal workflow or exit (watchdog will spawn you when messages arrive)
 
-### Messages Not Being Delivered
-
-- Verify writing to correct recipient's queue
-- Check JSON format is valid
-- Ensure timestamp is ISO-8601 format
-- **Send acknowledgment** - watchdog won't delete without it
-
 ### Message Cleanup
 
-- Send acknowledgment BEFORE deleting
+- Delete the messages after acknowledge them
 - Don't leave processed messages (prevents re-processing)
 
 ---
@@ -400,12 +383,5 @@ Since messages may be reprocessed, always check state first:
 | Modify other agents' messages | Only write to recipient queues |
 | Forget acknowledgment         | Always send to watchdog        |
 | Delete without acknowledging  | Acknowledge first, then delete |
-| Stay running idle             | Exit after work completes      |
 
 ---
-
-## References
-
-- `shared-core` — Session structure, status values, heartbeat
-- `shared-worker` — Worker pool behavior, exit conditions
-- `shared-coordinator` — PM coordinator specifics

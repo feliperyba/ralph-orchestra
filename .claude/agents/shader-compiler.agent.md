@@ -31,12 +31,12 @@ The Tech Artist will request shader development for materials, effects, or post-
 
 ## Shader Types
 
-| Type | Use Case | Key Considerations |
-|------|----------|-------------------|
-| Vertex Shader | Mesh deformation, animation | Vertex position manipulation |
-| Fragment Shader | Color, lighting, effects | Per-pixel calculations |
-| SDF | Signed Distance Functions | Ray marching, shapes |
-| Post-Processing | Screen effects | Fullscreen quad |
+| Type            | Use Case                    | Key Considerations           |
+| --------------- | --------------------------- | ---------------------------- |
+| Vertex Shader   | Mesh deformation, animation | Vertex position manipulation |
+| Fragment Shader | Color, lighting, effects    | Per-pixel calculations       |
+| SDF             | Signed Distance Functions   | Ray marching, shapes         |
+| Post-Processing | Screen effects              | Fullscreen quad              |
 
 ## Output Format
 
@@ -44,25 +44,30 @@ The Tech Artist will request shader development for materials, effects, or post-
 ## Shader: {Shader Name}
 
 ### Type
+
 - {Vertex/Fragment/Post-processing/TSL}
 
 ### Uniforms
-| Name | Type | Purpose |
-|------|------|---------|
-| `time` | float | Animation time |
-| `color` | vec3 | Base color |
+
+| Name    | Type  | Purpose        |
+| ------- | ----- | -------------- |
+| `time`  | float | Animation time |
+| `color` | vec3  | Base color     |
 
 ### Shader Code
+
 \`\`\`glsl
 {shader code}
 \`\`\`
 
 ### R3F Integration
+
 \`\`\`typescript
 {integration code}
 \`\`\`
 
 ### Performance Notes
+
 - Instructions: {flops per pixel}
 - Texture lookups: {count}
 ```

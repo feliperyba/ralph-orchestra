@@ -312,3 +312,75 @@ Assign tasks to the appropriate agent:
 - [pm-organization-task-selection](../pm-organization-task-selection/SKILL.md) — Assigns newly created tasks
 - [pm-organization-scale-adaptive](../pm-organization-scale-adaptive/SKILL.md) — Adjusts approach based on task count
 - [pm-improvement-self-improvement](../pm-improvement-self-improvement/SKILL.md) — PM improves this skill
+
+---
+
+## Playtest-Driven Task Creation (Added: ui-001 Playtest)
+
+**Learned from ui-001:** Playtest may reveal visual inadequacy even when functional requirements pass. PM must create follow-up tasks for visual polish.
+
+### CONDITIONAL_PASS Handling
+
+When Game Designer issues CONDITIONAL_PASS:
+
+1. **Assess functional status** - If all mechanics work, mark functional requirements as PASS
+2. **Identify visual gaps** - Document specific visual deficiencies
+3. **Create redesign task** - New task for visual design system implementation
+4. **Set dependency** - Original task blocked on redesign completion
+5. **Update PRD** - Move redesign to TIER_0_BLOCKER if UI is primary feature
+
+### Visual Redesign Task Template
+
+```json
+{
+  "id": "{original-id}-002",
+  "title": "Professional UI/UX Redesign - {Feature Name}",
+  "description": "Complete UI/UX redesign based on playtest findings. Current implementation is functionally complete but visually inadequate. Implement a professional design system inspired by {reference titles}. Full specification in {spec-file}.",
+  "category": "visual",
+  "priority": "high",
+  "tier": "TIER_0_BLOCKER",
+  "status": "pending",
+  "passes": false,
+  "agent": "techartist",
+  "dependencies": [],
+  "gddReference": "{spec-file}",
+  "gddVersion": "1.0",
+  "specificationFile": "{spec-file}",
+  "acceptanceCriteria": [
+    "All UI screens enforce 16:9 aspect ratio",
+    "UI scales proportionally at any window size",
+    "Design system tokens implemented",
+    "{Specific visual requirements from spec}"
+  ]
+}
+```
+
+### Common Visual Gaps to Address
+
+| Gap Found                     | Task Category        | Agent         |
+| ------------------------------ | --------------------- | ------------- |
+| No aspect ratio enforcement   | visual                | techartist    |
+| Basic styling (Tailwind only) | visual                | techartist    |
+| Generic fonts                 | visual                | techartist    |
+| Default easing curves         | visual                | techartist    |
+| No hover/active feedback      | visual                | techartist    |
+| Inconsistent spacing          | visual                | techartist    |
+| Poor contrast/accessibility   | visual                | techartist    |
+
+### Specification Document Creation
+
+When creating visual redesign tasks:
+
+1. **Game Designer** creates detailed specification document
+2. **Save to** `docs/design/{feature-name}-specification.md`
+3. **Include**:
+   - Aspect ratio and scaling requirements
+   - Color palette with hex values
+   - Typography (font families, sizes, weights)
+   - Button/component designs
+   - Animation timing and easing curves
+   - Screenshot references where applicable
+
+**Sources:**
+- **Learned from ui-001 playtest (2026-01-28)**
+- Specification document: `docs/design/ui-redesign-specification.md`

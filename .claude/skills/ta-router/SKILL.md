@@ -12,85 +12,56 @@ category: routing
 
 ### By Task Category
 
-| Category        | Skills                                                  |
-| --------------- | ------------------------------------------------------- |
-| `architectural` | `ta-r3f-fundamentals`, `ta-validation-typescript`       |
-| `visual`        | `ta-r3f-materials`, `ta-shader-sdf`, `ta-vfx-postfx`    |
-| `shader`        | `ta-shader-development`, `ta-shader-sdf`                |
-| `vfx`           | `ta-vfx-particles`, `ta-vfx-postfx`                     |
-| `asset`         | `ta-assets-workflow`, `ta-assets-pipeline-optimization` |
-| `performance`   | `ta-r3f-performance`, `ta-r3f-physics`                  |
-| `ui`            | `ta-ui-polish`, `ta-ui-debug-helpers`                   |
-| `camera`        | `ta-camera-tps`                                         |
-| `networking`    | `ta-networking-visual-feedback`                         |
+| Category        | Skills                                                          |
+| --------------- | --------------------------------------------------------------- |
+| `architectural` | `ta-r3f-fundamentals`, `ta-validation-typescript`               |
+| `visual`        | `ta-r3f-materials`, `ta-shader-sdf`, `ta-vfx-postfx`            |
+| `shader`        | `ta-shader-development`, `ta-shader-sdf`                        |
+| `vfx`           | `ta-vfx-particles`, `ta-vfx-postfx`                             |
+| `asset`         | `ta-assets-workflow`, `ta-assets-pipeline-optimization`         |
+| `performance`   | `ta-r3f-performance`, `ta-r3f-physics`                          |
+| `ui`            | `ta-ui-polish`, `ta-ui-debug-helpers`, `ta-ui-design-reference` |
+| `figma`         | `ta-figma-integration`                                          |
+| `camera`        | `ta-camera-tps`                                                 |
+| `networking`    | `ta-networking-visual-feedback`                                 |
 
 ### By Signal Keywords
 
-| Signal                               | Route To                                        |
-| ------------------------------------ | ----------------------------------------------- |
-| "shader", "glsl", "tsl"              | `ta-shader-development`, `ta-shader-sdf`        |
-| "particle", "gpu", "instanced"       | `ta-vfx-particles`, `ta-foliage-instancing`     |
-| "postfx", "bloom", "effect"          | `ta-vfx-postfx`                                |
-| "material", "pbr", "texture"         | `ta-r3f-materials`                             |
-| "physics", "collision", "rapier"     | `ta-r3f-physics`                               |
-| "water", "ocean", "gerstner"         | `ta-water-shader`                              |
-| "foliage", "grass", "vegetation"     | `ta-foliage-instancing`                       |
-| "paint", "territory", "splat"        | `ta-paint-territory`                           |
-| **"terrain mesh", "heightmap"**      | `ta-terrain-mesh` (NEW - multiplayer terrain)  |
-| **"territory grid", "cpu territory"** | `ta-territory-grid-cpu` (NEW - server grid)    |
-| **"terrain testing", "e2e terrain"**  | `ta-terrain-testing` (NEW - E2E patterns)      |
+| Signal                                         | Route To                                         |
+| ---------------------------------------------- | ------------------------------------------------ |
+| "shader", "glsl", "tsl"                        | `ta-shader-development`, `ta-shader-sdf`         |
+| "particle", "gpu", "instanced"                 | `ta-vfx-particles`, `ta-foliage-instancing`      |
+| "postfx", "bloom", "effect"                    | `ta-vfx-postfx`                                  |
+| "material", "pbr", "texture"                   | `ta-r3f-materials`                               |
+| "physics", "collision", "rapier"               | `ta-r3f-physics`                                 |
+| "water", "ocean", "gerstner"                   | `ta-water-shader`                                |
+| "foliage", "grass", "vegetation"               | `ta-foliage-instancing`                          |
+| "paint", "territory", "splat"                  | `ta-paint-territory`                             |
+| **"terrain mesh", "heightmap"**                | `ta-terrain-mesh` (mesh component)               |
+| **"procedural terrain", "perlin", "simplex"**  | `ta-procedural-terrain` (algorithms - RESEARCH)  |
+| **"caldera", "crater", "volcano"**             | `ta-procedural-terrain` (radial terrain)         |
+| **"territory grid", "cpu territory"**          | `ta-territory-grid-cpu` (server grid)            |
+| **"terrain testing", "e2e terrain"**           | `ta-terrain-testing` (E2E patterns)              |
+| **"figma", "design reference", "ui design"**   | `ta-figma-integration`, `ta-ui-design-reference` |
+| **"ut3", "unreal tournament", "carbon fiber"** | `ta-ui-design-reference` (UT3 aesthetic)         |
 
 ### Common Combinations
 
-| Task Type          | Skills                                                       |
-| ------------------ | ------------------------------------------------------------ |
-| Shader Development | `ta-r3f-fundamentals` + `ta-shader-development`              |
-| VFX Creation       | `ta-r3f-fundamentals` + `ta-vfx-particles` + `ta-vfx-postfx` |
-| Asset Pipeline     | `ta-r3f-fundamentals` + `ta-assets-workflow`                 |
-| Material Creation  | `ta-r3f-fundamentals` + `ta-r3f-materials`                   |
+| Task Type            | Skills                                                        |
+| -------------------- | ------------------------------------------------------------- |
+| Shader Development   | `ta-r3f-fundamentals` + `ta-shader-development`               |
+| VFX Creation         | `ta-r3f-fundamentals` + `ta-vfx-particles` + `ta-vfx-postfx`  |
+| Asset Pipeline       | `ta-r3f-fundamentals` + `ta-assets-workflow`                  |
+| Material Creation    | `ta-r3f-fundamentals` + `ta-r3f-materials`                    |
 | Terrain System (NEW) | `ta-r3f-fundamentals` + `ta-terrain-mesh` + `ta-water-shader` |
-
-## Routing Protocol
-
-```
-1. Analyze task signals
-   -> task.category
-   -> task.title keywords
-   -> task.acceptanceCriteria keywords
-
-2. Determine skill sequence
-   -> Always start with ta-r3f-fundamentals for R3F tasks
-   -> Add domain-specific skills based on signals
-
-3. Load skills
-   -> Skill("ta-r3f-fundamentals")
-   -> Skill("{domain-skill-1}")
-   -> Skill("{domain-skill-2}")
-```
 
 ## Research Guides
 
-**Before creating assets, check:**
-
-| Topic           | Guide                                        | When to Use                         |
-| --------------- | -------------------------------------------- | ----------------------------------- |
-| **Terrain (NEW)** | `docs/implementation/terrain-refactor-plan.md` | **Mesh-based multiplayer terrain** |
-| **Terrain (NEW)** | `docs/research/terrain-rethink.md`            | **Why we switched from raymarching** |
-| **Terrain (NEW)** | `docs/references/terrain/README.md`           | **Visual reference images**         |
-| **Terrain (NEW)** | `docs/references/terrain/color-palette.ts`   | **Color palette reference**          |
-| Terrain shaders | `docs/research/terrain-shader-research.md`   | Legacy SDF terrain (deprecated)      |
-| Paint effects   | `docs/research/paint-shader-research.md`     | Wet paint, splat decals             |
-| Weapons         | `docs/research/weapons-loading-research.md`  | Weapon models, accessories          |
-| Characters      | `docs/research/character-models-research.md` | Character skins, animations         |
+**Before creating assets, check ./src/assets/index.md**
 
 ## GDD Research
 
-**Before creating, always read:**
-
-- `docs/design/gdd/1_core_identity.md` - Art direction, colors
-- `docs/design/gdd/14_audio_visual.md` - Shaders, VFX, materials
-- `docs/design/gdd/12_characters.md` - Character models
-- `docs/design/gdd/8_ui_hud_system.md` - UI styling
+**Before creating, always read the GDD specs**
 
 ## Skill Hierarchy
 
@@ -104,13 +75,3 @@ category: routing
    ta-shader-*          ta-camera-tps         ta-vfx-*
    ta-ui-*
 ```
-
-**Rule:** Always load `ta-r3f-fundamentals` before other TA skills.
-
-## Sub-Agents
-
-For sub-agent catalog, see: [subagents.md](subagents.md)
-
-## Domain Skills
-
-For complete skill catalog, see: [domain-skills.md](domain-skills.md)

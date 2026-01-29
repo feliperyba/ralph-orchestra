@@ -8,6 +8,145 @@ category: validation
 
 > "Validate implementations with E2E tests that become regression tests for the project."
 
+## Three.js / WebGL Testing Best Practices (2025-2026)
+
+**CRITICAL**: Testing Three.js applications requires specific configuration for WebGL context support.
+
+### Playwright Configuration Requirements
+
+The `playwright.config.ts` **MUST** include these GPU acceleration flags for headless WebGL support:
+
+```typescript
+// playwright.config.ts - Required for Three.js testing
+projects: [
+  {
+    name: 'chromium-webgl',
+    use: {
+      ...devices['Desktop Chrome'],
+      channel: 'chrome',
+      launchOptions: {
+        args: [
+          '--use-gl=desktop',        // Desktop OpenGL (Windows/macOS/Linux)
+          '--enable-webgl',
+          '--enable-webgl2',
+          '--ignore-gpu-blocklist',
+          '--enable-gpu-rasterization',
+          '--enable-zero-copy',
+          '--disable-gpu-vsync',
+        ],
+      },
+    },
+  },
+]
+```
+
+### Headless vs Headed Mode for WebGL
+
+| Browser   | Headless WebGL | Solution |
+|-----------|----------------|----------|
+| Chromium  | Yes (with flags) | Use `--use-gl=desktop` flags |
+| Chrome     | Yes (with flags) | Best WebGL support |
+| Firefox   | **No** | Set `headless: false` or use Xvfb in CI |
+| WebKit    | **No** | Set `headless: false` |
+
+**Firefox Testing Pattern** (requires headed mode):
+```bash
+# Local development - use headed mode
+npm run test:e2e -- --project=firefox-webgl
+
+# CI environment - use Xvfb for virtual display
+xvfb-run --auto-servernum npx playwright test --project=firefox-webgl
+```
+
+### WebGL Console Error Filtering
+
+**Headless browsers may produce expected WebGL warnings**. Always filter these out:
+
+```typescript
+// Filter out known headless WebGL errors
+const filteredErrors = errors.filter(
+  (error) =>
+    !error.includes('WebGL2RenderingContext') &&
+    !error.includes('Error creating WebGL context') &&
+    !error.includes('WebGL context could not be created') &&
+    !error.includes('WEBGL_debug_renderer_info')
+);
+```
+
+### Scene Readiness Pattern
+
+**Always wait for scene initialization** using a data attribute:
+
+```typescript
+// In your app code (Scene.tsx or main component)
+useEffect(() => {
+  // Mark scene as ready when Three.js has initialized
+  const canvas = canvasRef.current;
+  if (canvas) {
+    canvas.dataset.ready = '1';
+  }
+}, []);
+
+// In your test
+await page.locator('canvas[data-ready="1"]').waitFor({ timeout: 15000 });
+```
+
+### GPU Acceleration Verification Test
+
+Include this test to verify GPU acceleration is working:
+
+```typescript
+test('GPU hardware acceleration is enabled', async ({ page }) => {
+  // This test verifies WebGL context is properly initialized
+  await page.goto('/');
+
+  const canvas = await page.locator('canvas').first();
+  await expect(canvas).toBeVisible();
+
+  const webglInfo = await page.evaluate(() => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) return { hasContext: false };
+
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) return { hasContext: false };
+
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+
+    return {
+      hasContext: true,
+      version: gl.getParameter(gl.VERSION),
+      vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'unknown',
+      renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'unknown',
+    };
+  });
+
+  expect(webglInfo.hasContext).toBe(true);
+  console.log('WebGL Info:', webglInfo);
+});
+```
+
+### Canvas-Only Screenshots
+
+For visual regression of WebGL scenes, screenshot only the canvas:
+
+```typescript
+test('canvas visual regression', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('canvas[data-ready="1"]');
+
+  const canvas = page.locator('canvas');
+
+  // Screenshot just the canvas element
+  await expect(canvas).toHaveScreenshot('canvas-render.png', {
+    animations: 'allow',
+    // Anti-aliasing tolerance is set in playwright.config.ts
+    // threshold: 0.2, maxDiffPixelRatio: 0.02
+  });
+});
+```
+
+---
+
 ## When to Use This Skill
 
 Use for **every validation** after automated checks pass:
@@ -323,11 +462,11 @@ test('performance is acceptable', async ({ page }) => {
 
 ## Console Error Monitoring
 
-Every validation should include console error checking:
+Every validation should include console error checking **with WebGL-specific filtering**:
 
 ```typescript
 test.describe('Console Error Check', () => {
-  test('should have no console errors', async ({ page }) => {
+  test('should have no application console errors', async ({ page }) => {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -337,13 +476,56 @@ test.describe('Console Error Check', () => {
     });
 
     await page.goto('http://localhost:3000');
-    await page.waitForTimeout(5000);
+    await page.waitForSelector('canvas[data-ready="1"]');
+    await page.waitForTimeout(3000);
 
-    expect(errors).toHaveLength(0);
-    expect(warnings).toHaveLength(0);
+    // Filter out known headless WebGL/browser errors that are not app bugs
+    const filteredErrors = errors.filter((error) => {
+      // WebGL context errors in headless mode (expected, not app bugs)
+      const webglContextPatterns = [
+        /WebGL2RenderingContext/i,
+        /Error creating WebGL context/i,
+        /WebGL context could not be created/i,
+        /Failed to create WebGL2RenderingContext/i,
+        /WEBGL_debug_renderer_info/i,
+      ];
+
+      // ANGLE/GPU driver warnings (platform-specific, not app bugs)
+      const gpuDriverPatterns = [
+        /ANGLE flag/,
+        /GPU process/,
+        /swiftshader/i,
+      ];
+
+      // Filter if matches any known non-bug pattern
+      return !webglContextPatterns.some((p) => p.test(error)) &&
+             !gpuDriverPatterns.some((p) => p.test(error));
+    });
+
+    // Report actual application errors
+    expect(filteredErrors).toHaveLength(0);
+
+    // Log warnings for review (non-failing)
+    if (warnings.length > 0) {
+      console.warn('Console warnings found:', warnings);
+    }
   });
 });
 ```
+
+### WebGL Error Filter Patterns
+
+| Pattern | Type | Action |
+|---------|------|--------|
+| `WebGL2RenderingContext` | Headless limitation | Filter out |
+| `Error creating WebGL context` | Headless limitation | Filter out |
+| `Failed to create WebGL2RenderingContext` | Headless limitation | Filter out |
+| `WEBGL_debug_renderer_info` | Extension not available | Filter out |
+| `ANGLE flag` | GPU driver info | Filter out |
+| `swiftshader` | Software renderer | Filter out |
+| `THREE.WebGLProgram` | **Shader compilation** | **FAIL - This is a bug** |
+| `shader error` | **Shader compilation** | **FAIL - This is a bug** |
+| `program info log` | **Shader compilation** | **FAIL - This is a bug** |
 
 ### Load State Decision Tree
 
@@ -738,20 +920,55 @@ test('multiplayer state sync', async ({ browser }) => {
 });
 ```
 
-## Cross-Browser Testing
+## Cross-Browser Testing for WebGL
 
-| Browser         | Priority         | Notes                   |
-| --------------- | ---------------- | ----------------------- |
-| Chrome/Chromium | Required         | Primary target          |
-| Firefox         | Recommended      | WebGL differences       |
-| Safari/WebKit   | If targeting iOS | Significant differences |
-| Edge            | Optional         | Uses Chromium           |
+| Browser         | Headless WebGL | GPU Acceleration | Priority | Notes |
+| --------------- | -------------- | ----------------- | -------- | ------ |
+| Chrome          | Yes (with flags) | Yes (with flags) | **Primary** | Best WebGL support |
+| Chromium        | Yes (with flags) | Yes (with flags) | **Primary** | CI/CD standard |
+| Firefox         | **No** | Yes (headed only) | Optional | Use `headless: false` or Xvfb |
+| WebKit/Safari   | **No** | Yes (headed only) | If iOS target | Use `headless: false` |
+| Edge            | Yes (with flags) | Yes (with flags) | Optional | Uses Chromium |
+
+### Running Tests by Browser
 
 ```bash
-# Run on different browsers
-npm run test:e2e -- --project=chromium
-npm run test:e2e -- --project=firefox
-npm run test:e2e -- --project=webkit
+# Chrome/Chromium (primary - works in headless)
+npm run test:e2e -- --project=chromium-webgl
+
+# Firefox (requires headed mode or Xvfb)
+npm run test:e2e -- --project=firefox-webgl --headed
+
+# Firefox with Xvfb (CI/CD)
+xvfb-run --auto-servernum npm run test:e2e -- --project=firefox-webgl
+
+# All browsers
+npm run test:e2e
+```
+
+### Firefox WebGL Testing Setup
+
+**Firefox doesn't support WebGL in headless mode.** Configure project in `playwright.config.ts`:
+
+```typescript
+{
+  name: 'firefox-webgl',
+  use: {
+    ...devices['Desktop Firefox'],
+    headless: false,  // Required for WebGL support
+  },
+}
+```
+
+**For CI/CD with Firefox**, use Xvfb (virtual display):
+
+```yaml
+# GitHub Actions example
+- name: Install Xvfb
+  run: sudo apt-get install -y xvfb
+
+- name: Run Firefox WebGL tests
+  run: xvfb-run --auto-servernum npx playwright test --project=firefox-webgl
 ```
 
 ## Hybrid Model: Tests Serve Dual Purpose

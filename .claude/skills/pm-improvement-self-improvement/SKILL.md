@@ -199,6 +199,99 @@ function shouldPlaytest(task) {
 
 **Rationale:** Playtesting is time-consuming and should be focused on features that directly impact player experience. Technical fixes can be validated through code review and automated tests.
 
+### 10. Test Coverage for Architectural Tasks (NEW - 2026-01-28)
+
+**Goal**: Ensure minimal E2E test coverage is created even for foundational architectural tasks.
+
+**Problem Identified (arch-001 retrospective):**
+- Architectural tasks (R3F Canvas setup) had limited E2E test coverage
+- No error boundary testing established upfront
+- Performance monitoring not set up before optimization needs arise
+
+**Test Coverage Requirements for Architectural Tasks:**
+```markdown
+For ANY architectural task (arch-*, integration):
+1. WebGL context verification test
+2. Console error check (with WebGL headless filtering)
+3. Component renders without crashes test
+4. Error boundary exists (if applicable)
+```
+
+**QA Agent Instructions (add to task assignment):**
+- For architectural tasks: Create basic E2E tests verifying setup
+- For state management tasks: Expose stores for testing, verify state updates
+- Document test coverage gaps in retrospective for future improvement
+
+**Performance Monitoring Setup:**
+- Add Stats.js from drei for all R3F tasks
+- Establish FPS, draw call, and triangle count baselines
+- Create performance checkpoints before adding complex features
+
+**Developer Agent Instructions:**
+- Add ErrorBoundary wrapper to App.tsx during initial Canvas setup
+- Expose Zustand stores to `window.__ZUSTAND__` in development builds
+- Add `data-ready="1"` attribute to Canvas when scene initializes
+
+### 11. GDD-to-PRD Validation Gap Prevention (NEW - 2026-01-28)
+
+**Goal**: Ensure PRD tasks derived from GDD include acceptance criteria and test plans.
+
+**Problem:** Some tasks have minimal acceptance criteria, making validation difficult for QA.
+
+**When creating PRD tasks from GDD:**
+```markdown
+For each task extracted from GDD sections:
+1. Define at least 3 specific acceptance criteria
+2. Include verification steps for each criterion
+3. Reference specific GDD sections
+4. Consider testability during task creation
+```
+
+**Acceptance Criteria Quality Checklist:**
+- [ ] Each criterion is objectively verifiable (pass/fail)
+- [ ] Criteria can be tested via automation or manual verification
+- [ ] Visual criteria include reference images or descriptions
+- [ ] Performance criteria include measurable thresholds (FPS, ms)
+- [ ] Behavior criteria include expected user actions and responses
+
+### 12. State Management Testing Requirements (NEW - 2026-01-28)
+
+**Goal**: Ensure state management tasks have comprehensive test coverage including integration tests.
+
+**Problem Identified (arch-002 retrospective):**
+- State management tasks need both unit tests (store slices) AND integration tests (React re-renders)
+- Mock patterns must be reusable across test files
+- DevTools exposure required for debugging
+
+**State Management Task Requirements:**
+```markdown
+For ANY state management task (Zustand, Redux, Context):
+1. Unit tests for each store slice (connection, player, match, ui)
+2. Integration tests verifying React component re-renders on state changes
+3. Mock factory pattern for consistent test data
+4. DevTools middleware configured (development builds)
+5. Expose stores to window.__ZUSTAND__ for debugging
+```
+
+**QA Validation Checklist for State Tasks:**
+- [ ] All store slices have unit tests
+- [ ] Integration tests verify React re-renders
+- [ ] TypeScript types defined for all state
+- [ ] Zero @ts-ignore or dangerous any types
+- [ ] DevTools middleware working
+- [ ] State updates trigger UI changes
+
+**Developer Implementation Checklist:**
+- [ ] Separate slice files for clear separation of concerns
+- [ ] Shared types.ts file for cross-store interfaces
+- [ ] JSDoc documentation on all exports
+- [ ] Barrel export pattern (@/store) for convenient importing
+- [ ] Mock store factory in tests for isolated setups
+
+**Sources:**
+- https://zustand.docs.pmnd.rs/guides/advanced-typescript
+- https://github.com/pmndrs/zustand
+
 ### 9. Tech Artist Retrospective Excusal Criteria (NEW - 2026-01-27)
 
 **Goal**: Avoid blocking Tech Artist from TIER_0_BLOCKER work for non-visual retrospectives.

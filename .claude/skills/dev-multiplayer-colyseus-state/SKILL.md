@@ -203,3 +203,93 @@ this.state.players.forEach((player, index) => {
 
 - [Schema Documentation](https://docs.colyseus.io/state-synchronization/)
 - [Schema API](https://docs.colyseus.io/state-synchronization/schema-api/)
+
+---
+
+## Schema Definition Best Practices (Updated 2026-01-28)
+
+From arch-003 retrospective - proven patterns for @colyseus/schema.
+
+### Complete Player Schema Pattern
+
+```typescript
+import { Schema, type } from '@colyseus/schema';
+
+/**
+ * Player state schema for server-authoritative multiplayer
+ *
+ * Type Selection Guidelines:
+ * - uint8: 0-255 (health, armor, small counters)
+ * - uint16: 0-65535 (scores, larger counters)
+ * - float32: Coordinates, rotation (precision needed)
+ * - string: Variable text (sessionId, weapon names)
+ * - boolean: Flags (isAlive, connected)
+ */
+export class PlayerState extends Schema {
+  // Position (float32 for precision)
+  @type('float32') x: number = 0;
+  @type('float32') y: number = 0;
+  @type('float32') z: number = 0;
+
+  // Rotation (degrees or radians)
+  @type('float32') rotation: number = 0;
+
+  // Combat stats (uint8 sufficient for 0-100 ranges)
+  @type('uint8') health: number = 100;
+  @type('uint8') armor: number = 0;
+
+  // Weapon (string for flexibility - consider enum for type safety)
+  @type('string') weapon: string = 'blaster';
+
+  // Score tracking
+  @type('uint8') kills: number = 0;
+  @type('boolean') isAlive: boolean = true;
+}
+```
+
+### Complete Room State Pattern
+
+```typescript
+import { Schema, type, MapSchema } from '@colyseus/schema';
+import { PlayerState } from './PlayerState';
+
+export class ArenaState extends Schema {
+  // Players map - keyed by sessionId
+  @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
+
+  // Room settings
+  @type('string') mapSeed: string = '';
+
+  // Match state
+  @type('uint16') playersAlive: number = 0;
+  @type('string') phase: string = 'lobby';  // lobby, playing, ended
+}
+```
+
+### Schema Type Selection Guide
+
+| Data | Type | Bytes | Range | Example |
+|------|------|-------|-------|---------|
+| Health 0-100 | uint8 | 1 | 0-255 | `@type('uint8') health: number = 100` |
+| Armor 0-100 | uint8 | 1 | 0-255 | `@type('uint8') armor: number = 0` |
+| Kills 0-63 | uint8 | 1 | 0-255 | `@type('uint8') kills: number = 0` |
+| Score 0-65535 | uint16 | 2 | 0-65535 | `@type('uint16') score: number = 0` |
+| Position X/Y/Z | float32 | 4 | ±3.4E38 | `@type('float32') x: number = 0` |
+| Rotation | float32 | 4 | ±3.4E38 | `@type('float32') rotation: number = 0` |
+| Session ID | string | variable | text | `@type('string') sessionId: string = ''` |
+| Weapon name | string | variable | text | `@type('string') weapon: string = ''` |
+| Alive status | boolean | 1 | true/false | `@type('boolean') isAlive: boolean = true` |
+| Player map | MapSchema | 4+ bytes | dynamic | `@type({ map: PlayerState })` |
+
+### Common Schema Mistakes
+
+| ❌ Wrong | ✅ Right | Why |
+|----------|----------|-----|
+| `@type()` missing | `@type('uint8')` | Required for serialization |
+| `@type('number')` for health | `@type('uint8')` | Saves 3 bytes per player |
+| `health` without default | `health: number = 100` | Prevents undefined |
+| Using `Array` for players | `MapSchema<Player>` | Efficient lookup by ID |
+
+**Sources:**
+- https://docs.colyseus.io/colyseus/server/schema/
+- **Learned from arch-003 retrospective (2026-01-28)**

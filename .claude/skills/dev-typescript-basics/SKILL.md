@@ -121,6 +121,95 @@ function getTeam(config: PlayerConfig): string {
 }
 ```
 
+## Error Boundaries (React 18+)
+
+Error boundaries catch JavaScript errors in component trees, preventing app crashes.
+
+```typescript
+// components/ErrorBoundary.tsx
+import { Component, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <h2>Something went wrong</h2>
+          <button onClick={() => window.location.reload()}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Usage in App.tsx
+function App() {
+  return (
+    <ErrorBoundary>
+      <Canvas>
+        <Scene />
+      </Canvas>
+    </ErrorBoundary>
+  );
+}
+```
+
+### Error Boundary Best Practices
+
+| Strategy | When to Use |
+|----------|-------------|
+| Wrap entire app | Always - prevents total crashes |
+| Wrap Canvas | For R3F scene errors |
+| Wrap data fetching | For API/server errors |
+| Wrap third-party integrations | For unpredictable components |
+
+### Async Error Handling
+
+Error boundaries don't catch async errors. Use error callbacks:
+
+```typescript
+// For async operations
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const data = await fetchSomething();
+      setState(data);
+    } catch (error) {
+      console.error('Async error:', error);
+      // Handle async errors explicitly
+      setErrorState(error);
+    }
+  };
+  fetchData();
+}, []);
+```
+
 ## Common Mistakes
 
 | ❌ Wrong | ✅ Right |
@@ -129,6 +218,7 @@ function getTeam(config: PlayerConfig): string {
 | `type` for object shape | Use `interface` |
 | Using `enum` | Use `const as const` unions |
 | Not handling null | Use `??` or `?.` |
+| No error boundaries | Wrap app with ErrorBoundary |
 
 ## Reference
 

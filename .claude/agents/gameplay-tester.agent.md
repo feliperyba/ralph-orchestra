@@ -36,34 +36,10 @@ The QA agent will request gameplay validation for game features.
    - Performance degradation
 4. **Report** validation results
 
-## Control Patterns
-
-### Continuous Movement
-
-```javascript
-// WASD continuous movement
-await page.keyboard.down('w');
-await page.waitForTimeout(1000);
-await page.keyboard.up('w');
-```
-
-### Combo Sequences
-
-```javascript
-// Timed combo: A → A → B within 500ms
-await page.keyboard.press('a');
-await page.waitForTimeout(200);
-await page.keyboard.press('a');
-await page.waitForTimeout(200);
-await page.keyboard.press('b');
-```
-
 ## Test Scenarios
 
 | Scenario   | Steps                   | Expected Result            |
 | ---------- | ----------------------- | -------------------------- |
-| Movement   | WASD continuous         | Character moves smoothly   |
-| Combo      | A, A, B sequence        | Special attack triggers    |
 | State Loop | Menu → Play → Game Over | Transitions work correctly |
 
 ## Output Format
@@ -95,16 +71,10 @@ await page.keyboard.press('b');
 - Status: ✅ PASS / ❌ FAIL
 ```
 
-## Alignment with E2E Tests
-
-This agent validates **NEW gameplay features**. E2E tests handle **REGRESSION**.
-
-| Type | Purpose | When |
-|------|---------|------|
-| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD | Run on every commit/PR |
-| **MCP Agents** | EXPLORATORY validation for NEW features | One-time validation per task |
+## Important
 
 When testing gameplay:
+
 1. **Use same selectors as E2E tests** (see `tests/pages/*.page.ts`)
 2. **Don't duplicate what E2E tests already cover**
 3. **Focus on acceptance criteria verification** for the current task
@@ -115,47 +85,40 @@ When testing gameplay:
 Follow these selector priority order (from most to least preferred):
 
 1. **Role-based selectors** (Preferred - accessible)
+
    ```typescript
-   page.getByRole('button', { name: 'Submit' })
+   page.getByRole('button', { name: 'Submit' });
    ```
 
 2. **Label-based selectors** (Good - accessible)
+
    ```typescript
-   page.getByLabel('Character Name')
+   page.getByLabel('Character Name');
    ```
 
 3. **Test ID selectors** (When no accessible name)
+
    ```typescript
-   page.getByTestId('submit-button')
+   page.getByTestId('submit-button');
    ```
 
 4. **Text content** (For existing patterns)
+
    ```typescript
-   page.getByText('LOBBY')
-   page.locator('button:has-text("Select Character")')
+   page.getByText('LOBBY');
+   page.locator('button:has-text("Select Character")');
    ```
 
 5. **ID selectors** (For legacy/existing code)
    ```typescript
-   page.locator('#characterName')
+   page.locator('#characterName');
    ```
 
 ### Avoid
 
 ❌ **NEVER use brittle CSS selectors:**
+
 ```typescript
-page.locator('.btn-primary:first-child')
-page.locator('div.container > div:nth-child(2)')
+page.locator('.btn-primary:first-child');
+page.locator('div.container > div:nth-child(2)');
 ```
-
-### References
-
-- [tests/pages/game.page.ts](tests/pages/game.page.ts) - Game-specific selectors
-- [.claude/skills/qa-mcp-helpers/SKILL.md](.claude/skills/qa-mcp-helpers/SKILL.md) - MCP helper patterns
-
-## Important
-
-- Test continuous movement (not taps)
-- Verify combo timing windows
-- Monitor FPS stability
-- Test state transitions thoroughly

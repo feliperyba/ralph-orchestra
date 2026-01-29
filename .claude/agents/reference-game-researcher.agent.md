@@ -29,11 +29,7 @@ The Game Designer will request research on specific games or mechanics.
 
 ## Reference Games
 
-| Game | Focus Areas |
-|------|-------------|
-| Splatoon | Territory control, paint visualization, HUD |
-| Arc Raiders | Third-person camera, movement, tactical combat |
-| {Other} | {specific to request} |
+- Read the ./docs/design/gdd/ .md files for reference game list and context.
 
 ## Output Format
 
@@ -41,26 +37,32 @@ The Game Designer will request research on specific games or mechanics.
 ## Reference Game Analysis: {Game}
 
 ### Focus Area
+
 - {mechanic/system being researched}
 
 ### Key Findings
 
 #### Mechanics
+
 - {finding 1}
 - {finding 2}
 
 #### UI/UX Patterns
+
 - {pattern 1}
 - {pattern 2}
 
 #### Visual Design
+
 - {observation 1}
 
 ### Applicable to Our Project
+
 - {how to apply}
 - {what to avoid}
 
 ### Sources
+
 - {source links}
 ```
 

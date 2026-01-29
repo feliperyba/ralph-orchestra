@@ -270,3 +270,115 @@ For physics: `Skill("ta-r3f-physics")`
 
 - [drei documentation](https://github.com/pmndrs/drei) — Helper components
 - [R3F documentation](https://docs.pmnd.rs/react-three-fiber) — Official docs
+
+---
+
+## State-Driven Visual Updates (NEW - 2026-01-28)
+
+**Connecting game state to visual updates in R3F using Zustand selectors.**
+
+### Pattern: Selective Re-renders
+
+```tsx
+// ❌ WRONG - Entire component re-renders on ANY state change
+import { useGameStore } from '@/store/gameStore';
+
+function HealthBar() {
+  const { player, match, ui } = useGameStore(); // Unnecessary dependencies
+  return <mesh scale={{ x: player.health / 100 }}>{/* ... */}</mesh>;
+}
+
+// ✅ CORRECT - Only re-renders when player.health changes
+function HealthBar() {
+  const health = useGameStore((state) => state.player.health);
+  return <mesh scale={{ x: health / 100 }}>{/* ... */}</mesh>;
+}
+```
+
+### Performance Pattern: useShallow
+
+```tsx
+import { useShallow } from '@/store/useShallow';
+import { usePlayerStore } from '@/store/playerStore';
+
+// Multiple related values - use shallow comparison
+function PlayerStatus() {
+  const { health, armor, weapon } = usePlayerStore(
+    useShallow((state) => ({
+      health: state.health,
+      armor: state.armor,
+      weapon: state.weapon,
+    }))
+  );
+  // Only re-renders if health, armor, or weapon change
+}
+```
+
+### Visual State Synchronization
+
+```tsx
+// State-driven material properties
+function DamageIndicator() {
+  const isDamaged = usePlayerStore((state) => state.health < 50);
+
+  return (
+    <mesh>
+      <meshStandardMaterial
+        color={isDamaged ? 'red' : 'blue'}
+        emissive={isDamaged ? 'red' : undefined}
+        emissiveIntensity={isDamaged ? 0.5 : 0}
+      />
+    </mesh>
+  );
+}
+
+// State-driven animation
+function PulsingEffect({ active }: { active: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (!meshRef.current || !active) return;
+    const scale = 1 + Math.sin(clock.elapsedTime * 5) * 0.1;
+    meshRef.current.scale.setScalar(scale);
+  });
+
+  return <sphereGeometry ref={meshRef} args={[0.5, 16, 16]} />;
+}
+```
+
+### Anti-Patterns for State-Driven Visuals
+
+❌ **DON'T:**
+- Subscribe to entire store when only using one value
+- Call setState inside useFrame (infinite loop)
+- Update state on every frame (performance issue)
+- Use deep selectors without memoization
+
+✅ **DO:**
+- Use specific selectors for each value
+- Batch visual updates before state commits
+- Use shallow comparison for multiple values
+- Keep visual state separate from game state when possible
+
+### State-Driven Texture Changes
+
+```tsx
+function WeaponModel() {
+  const weaponType = usePlayerStore((state) => state.weapon);
+
+  const textures = {
+    blaster: useTexture('/weapons/blaster.png'),
+    rocket: useTexture('/weapons/rocket.png'),
+  };
+
+  return (
+    <mesh>
+      <meshStandardMaterial map={textures[weaponType]} />
+    </mesh>
+  );
+}
+```
+
+**Sources:**
+- https://docs.pmnd.rs/zustand/guides/performance
+- **Learned from arch-002 retrospective (2026-01-28)**

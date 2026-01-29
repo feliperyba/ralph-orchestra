@@ -34,6 +34,124 @@ Use when:
 - [ ] **Loading states exist** - User knows something is happening
 - [ ] **Error states are clear** - Problems are visible and understandable
 - [ ] **Success feedback exists** - Positive reinforcement
+- [ ] **Connection status visible** - Multiplayer shows network state
+
+---
+
+## Connection Status UI Pattern (Multiplayer)
+
+**CRITICAL for multiplayer games:** Players need to see connection state and network quality.
+
+### States to Indicate
+
+| State      | Visual Indicator                    | Color     | Animation    |
+| ---------- | ----------------------------------- | --------- | ------------ |
+| Connecting | Spinner + "Connecting..." text      | Yellow    | Rotate       |
+| Connected  | Checkmark icon + ping in ms         | Green     | Pulse (subtle) |
+| Disconnected | X icon + "Disconnected" text      | Red       | Blink        |
+| Reconnecting | Spinner + "Reconnecting..."      | Orange    | Rotate       |
+
+### Ping Quality Color Coding
+
+```tsx
+function PingIndicator({ ping }: { ping: number }) {
+  const getPingColor = (ping: number) => {
+    if (ping < 50) return '#22c55e';  // Green
+    if (ping < 100) return '#eab308'; // Yellow
+    return '#ef4444';                  // Red
+  };
+
+  const getPingStatus = (ping: number) => {
+    if (ping < 50) return 'Excellent';
+    if (ping < 100) return 'Fair';
+    return 'Poor';
+  };
+
+  return (
+    <div className="ping-indicator" style={{ color: getPingColor(ping) }}>
+      <WifiIcon className={`animate-pulse ${ping > 100 ? 'animate-ping' : ''}`} />
+      <span>{ping}ms</span>
+      <span className="status">{getPingStatus(ping)}</span>
+    </div>
+  );
+}
+```
+
+### Implementation Example
+
+```tsx
+// ConnectionStatus.tsx
+import { useEffect, useState } from 'react';
+import { useConnectionStore } from '@/store/connectionStore';
+
+export function ConnectionStatus() {
+  const { connected, connecting, roomId } = useConnectionStore();
+  const [ping, setPing] = useState(0);
+
+  // Measure ping every second
+  useEffect(() => {
+    if (!connected) return;
+
+    const interval = setInterval(async () => {
+      const start = performance.now();
+      // Send ping to server and await response
+      await fetch('/api/ping');
+      setPing(Math.round(performance.now() - start));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [connected]);
+
+  if (connecting) {
+    return (
+      <div className="connection-status connecting">
+        <Spinner className="animate-spin" />
+        <span>Connecting...</span>
+      </div>
+    );
+  }
+
+  if (!connected) {
+    return (
+      <div className="connection-status disconnected">
+        <XIcon className="animate-pulse" />
+        <span>Disconnected</span>
+      </div>
+    );
+  }
+
+  const pingColor = ping < 50 ? 'green' : ping < 100 ? 'yellow' : 'red';
+
+  return (
+    <div className="connection-status connected">
+      <CheckIcon className="text-green-500" />
+      <span>Connected</span>
+      <span className={`ping ping-${pingColor}`}>{ping}ms</span>
+    </div>
+  );
+}
+```
+
+### Placement in HUD
+
+```
+┌─────────────────────────────────────────────────────┐
+│                              [Connection: ● 45ms] │
+│  Health: 100█████████████                           │
+│  Armor:  50█████                                    │
+│                                  [Alive: 42/64]     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Icon Patterns
+
+| Icon          | When to Use              | Styling                      |
+| ------------- | ------------------------ | ---------------------------- |
+| Spinner       | Connecting, Reconnecting | `animate-spin` rotation      |
+| Checkmark     | Connected                | Green, subtle pulse          |
+| X mark        | Disconnected             | Red, `animate-ping` blink     |
+| Warning       | High ping (>100ms)       | Yellow, `animate-pulse`       |
+| Wifi bars     | Signal strength          | 3-4 bars based on ping       |
 
 ### UI Presentation
 
@@ -304,3 +422,212 @@ For post-processing polish: `Skill("ta-vfx-postfx")`
 
 - [WCAG Color Contrast](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html)
 - [Type Scale Calculator](https://type-scale.com/)
+- [Easing functions - Motion.dev](https://motion.dev/docs/easing-functions) - Official Framer Motion easing documentation
+- [The Easing Blueprint - Reuben Rapose](https://www.reubence.com/articles/the-easing-blueprint) - Comprehensive easing guide for Framer Motion
+- [Creating Metallic Effect with CSS](https://ibelick.com/blog/creating-metallic-effect-with-css) - CSS gradients for metallic buttons
+
+---
+
+## Professional Game UI Design System (Added: ui-001 Playtest Findings)
+
+**Learned from ui-001 playtest:** Current UI lacked professional polish. This section documents patterns for shipping-quality game UI.
+
+### 16:9 Aspect Ratio Enforcement
+
+**Pattern:** All UI screens must maintain 16:9 aspect ratio, centered on screen with letterbox bars for other ratios.
+
+```tsx
+// src/components/ui/AspectContainer.tsx
+const ASPECT_RATIO = 16 / 9;
+
+export function AspectContainer({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black">
+      <div
+        className="relative overflow-hidden"
+        style={{
+          aspectRatio: ASPECT_RATIO,
+          maxWidth: '100vw',
+          maxHeight: '100vh',
+          width: 'min(100vw, 100vh * 16/9)',
+          height: 'min(100vh, 100vw * 9/16)',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+```
+
+**Letterbox CSS:**
+```css
+/* Letterbox bars for non-16:9 displays */
+.ui-letterbox-top,
+.ui-letterbox-bottom {
+  position: fixed;
+  left: 0; right: 0;
+  height: calc((100vh - (100vw * 9 / 16)) / 2);
+  background: #000;
+  z-index: 50;
+}
+.ui-letterbox-top { top: 0; }
+.ui-letterbox-bottom { bottom: 0; }
+
+@media (min-aspect-ratio: 16/9) {
+  .ui-letterbox-top, .ui-letterbox-bottom { display: none; }
+}
+```
+
+### Adaptive Scaling Tokens
+
+```typescript
+// src/components/ui/tokens.ts
+export const UIScale = {
+  base: { width: 1920, height: 1080 },
+
+  getScaleFactor(windowWidth: number, windowHeight: number): number {
+    const baseWidth = 1920;
+    const scale = Math.min(
+      windowWidth / baseWidth,
+      windowHeight / (baseWidth * 9 / 16)
+    );
+    return Math.max(0.5, Math.min(2, scale));
+  },
+
+  fontSize: {
+    xs: '14px',   // 0.875rem
+    sm: '16px',   // 1rem
+    base: '18px', // 1.125rem
+    lg: '24px',   // 1.5rem
+    xl: '32px',   // 2rem
+    '2xl': '48px', // 3rem
+    '3xl': '64px', // 4rem
+    display: '128px', // 8rem
+  },
+};
+```
+
+### Metallic Button Design System
+
+**Inspired by:** Quake III Arena, modern Call of Duty, Overwatch
+
+```tsx
+// Metallic gradient backgrounds
+const metallicBackgrounds = {
+  primary: `linear-gradient(180deg,
+    rgba(249, 115, 22, 0.1) 0%,
+    rgba(0, 0, 0, 0.9) 20%,
+    rgba(0, 0, 0, 1) 50%,
+    rgba(0, 0, 0, 0.9) 80%,
+    rgba(249, 115, 22, 0.1) 100%
+  )`,
+
+  secondary: `linear-gradient(180deg,
+    rgba(38, 38, 38, 0.9) 0%,
+    rgba(10, 10, 10, 1) 50%,
+    rgba(38, 38, 38, 0.9) 100%
+  )`,
+};
+
+// Hover glow effects
+const metallicGlow = {
+  hover: `box-shadow:
+    0 0 20px rgba(251, 115, 22, 0.4),
+    inset 0 0 20px rgba(251, 115, 22, 0.1)`,
+
+  active: `box-shadow:
+    0 0 40px rgba(251, 115, 22, 0.6),
+    inset 0 0 30px rgba(251, 115, 22, 0.2)`,
+};
+```
+
+### Custom Easing Curves for Game UI
+
+**Sources:** [Motion.dev Easing](https://motion.dev/docs/easing-functions), [The Easing Blueprint](https://www.reubence.com/articles/the-easing-blueprint)
+
+```typescript
+// Easing curve library for game UI
+export const GameEasing = {
+  // Snappy entrance (menu reveal)
+  snap: [0.22, 1, 0.36, 1] as const,
+
+  // Smooth reveal (screen transitions)
+  reveal: [0.16, 1, 0.3, 1] as const,
+
+  // Elastic bounce (button release)
+  bounce: [0.34, 1.56, 0.64, 1] as const,
+
+  // Weighty press (button click)
+  press: [0.4, 0, 0.2, 1] as const,
+};
+
+// Animation timing specifications
+const buttonAnimations = {
+  idleEnter: { duration: 400, ease: GameEasing.snap },
+  hover: { duration: 150, ease: GameEasing.press },
+  active: { duration: 50, ease: GameEasing.press },
+  release: { duration: 300, ease: GameEasing.bounce },
+};
+```
+
+### Gaming Typography
+
+```css
+/* Import Google Fonts for game UI */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+:root {
+  --font-display: 'Orbitron', 'Impact', sans-serif;
+  --font-ui: 'Rajdhani', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+```
+
+| Usage          | Font      | Size  | Weight | Letter Spacing | Transform |
+| -------------- | --------- | ----- | ------ | -------------- | --------- |
+| Game Logo      | Orbitron  | 128px | 900    | 0.05em         | Uppercase  |
+| Screen Title   | Orbitron  | 64px  | 700    | 0.1em          | Uppercase  |
+| Button Text    | Rajdhani  | 24px  | 600    | 0.15em         | Uppercase  |
+| Body Text      | Rajdhani  | 18px  | 500    | 0.02em         | None       |
+| Data/Stats     | JetBrains Mono | 16px | 500  | 0              | None       |
+
+### Industrial Color Palette
+
+```css
+:root {
+  /* Primary - Electric Orange (Quake-inspired) */
+  --color-primary-500: #f97316;
+  --color-primary-600: #ea580c;
+
+  /* Secondary - Cyan/Blue */
+  --color-secondary-500: #06b6d4;
+
+  /* Metallic Grays */
+  --color-metal-900: #0a0a0a;
+  --color-metal-700: #262626;
+  --color-metal-500: #525252;
+
+  /* Surface Colors */
+  --color-surface-bg: rgba(10, 10, 10, 0.95);
+  --color-surface-border: rgba(251, 115, 22, 0.3);
+
+  /* Glow Effects */
+  --color-glow-primary: rgba(249, 115, 22, 0.6);
+}
+```
+
+### UI Design System Checklist
+
+Before considering UI polished:
+
+- [ ] **16:9 Enforcement** - All screens maintain aspect ratio
+- [ ] **Adaptive Scaling** - UI scales to any window size
+- [ ] **Design Tokens** - Colors, typography, spacing systematized
+- [ ] **Metallic Buttons** - Industrial styling with gradients
+- [ ] **Custom Easing** - Game-appropriate animation curves
+- [ ] **Gaming Fonts** - Orbitron/Rajdhani or similar
+- [ ] **Hover Glow** - Visual feedback on interaction
+- [ ] **Sound Feedback** - Optional but recommended
+- [ ] **60+ FPS** - Animations maintain performance
+- [ ] **E2E Tests** - Visual regression tests pass

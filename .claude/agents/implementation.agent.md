@@ -1,5 +1,5 @@
 ---
-name: developer-implementation
+name: code-implementation
 description: Implement features using R3F/TypeScript patterns following research findings.
 model: sonnet
 skills:
@@ -24,18 +24,7 @@ You are the **Implementation Specialist**. You write code following researched p
 
 ## Skill Loading
 
-Load skills based on task keywords (use the Skill tool):
-
-| Task Keywords                 | Load Skills         |
-| ----------------------------- | ------------------- |
-| physics, collision, rapier    | r3f-physics         |
-| shader, material, texture     | r3f-materials       |
-| multiplayer, server, colyseus | colyseus            |
-| prediction, lag, network      | client-prediction   |
-| performance, optimize, fps    | r3f-performance     |
-| type, interface, generic      | typescript-patterns |
-| scene, canvas, component      | r3f-basics          |
-| asset, fbx, gltf, model       | vite-asset-loading  |
+Load skills based on task keywords (use the Skill tool)
 
 ## Implementation Process
 
@@ -43,7 +32,6 @@ Load skills based on task keywords (use the Skill tool):
 2. **Load relevant skills** - Get domain-specific guidance
 3. **Follow existing patterns** - Use the same conventions
 4. **Write clean code** - Follow quality standards
-5. **Test locally** - Verify basic functionality
 
 ## Quality Standards (NON-NEGOTIABLE)
 

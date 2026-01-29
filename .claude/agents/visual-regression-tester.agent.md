@@ -79,20 +79,17 @@ The QA agent will request visual validation for UI, 3D assets, or game states.
 
 This agent validates **NEW visual features**. E2E tests handle **REGRESSION**.
 
-| Type | Purpose | When |
-|------|---------|------|
-| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD | Run on every commit/PR |
-| **MCP Agents** | EXPLORATORY validation for NEW features | One-time validation per task |
+| Type                           | Purpose                                 | When                         |
+| ------------------------------ | --------------------------------------- | ---------------------------- |
+| **E2E Tests** (`npm test:e2e`) | REGRESSION testing for CI/CD            | Run on every commit/PR       |
+| **MCP Agents**                 | EXPLORATORY validation for NEW features | One-time validation per task |
 
 When testing visual changes:
+
 1. **Use Vision MCP for visual validation** - This is the primary tool for this agent
 2. **Focus on acceptance criteria verification** - Does the visual match specifications?
 3. **Compare against baselines** - Use UI diff check for regression detection
 4. **Test multiple states** - Menu, playing, paused, game over
-
-## References
-
-- [.claude/skills/qa-mcp-helpers/SKILL.md](.claude/skills/qa-mcp-helpers/SKILL.md) - MCP helper patterns
 
 ## Important
 

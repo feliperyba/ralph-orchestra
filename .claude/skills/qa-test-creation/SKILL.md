@@ -15,6 +15,64 @@ Use when:
 - PRD item has acceptance criteria but no tests exist
 - Source files are modified but corresponding test files are missing
 
+## E2E Test Structure (Two-Test Requirement)
+
+**⚠️ CRITICAL: Each feature requires TWO E2E tests:**
+
+### 1. Isolated Scene Test
+
+Tests the feature in complete isolation from other game systems.
+
+**Purpose:** Verify the feature works standalone without dependencies.
+
+**Pattern:**
+```typescript
+test.describe('FeatureName - Isolated', () => {
+  test('should render feature in isolation', async ({ page }) => {
+    // Navigate to isolated test scene
+    await page.goto('http://localhost:3000/test/feature-name');
+
+    // Verify feature renders
+    // Verify no console errors
+    // Capture screenshot
+  });
+});
+```
+
+**Test Routes:** Use dedicated test routes if available:
+- `/test/{feature-name}` - For feature-specific isolation
+- `/dev/scenes/{scene-name}` - For scene-based testing
+
+### 2. Integration Test
+
+Tests the feature within full game context alongside other features.
+
+**Purpose:** Verify feature works correctly with other game systems.
+
+**Pattern:**
+```typescript
+test.describe('FeatureName - Integration', () => {
+  test('should work in full game context', async ({ page }) => {
+    // Navigate to main game
+    await page.goto('http://localhost:3000');
+
+    // Navigate through game to feature
+    // Verify interactions with related systems
+    // Ensure no regressions in existing features
+  });
+});
+```
+
+### Test Coverage Matrix
+
+| Feature Type | Isolated Test? | Integration Test? |
+| ------------ | -------------- | ----------------- |
+| Gameplay mechanic | YES | YES |
+| UI Component | YES | YES |
+| Visual effect | YES | YES |
+| Service/Utility | YES (unit) | YES |
+| Asset (model/texture) | YES | YES |
+
 ## Quick Start
 
 ```bash

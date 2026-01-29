@@ -22,11 +22,16 @@ model: sonnet
 
 ```
 1. Read PRD item for acceptance criteria
-2. Read GDD specs for feature requirements
+2. Read GDD specs for feature requirements at ./docs/design/gdd/
 3. Identify source files that need testing
 4. Determine test types needed (unit, E2E, or both)
 5. Load appropriate test creation skills
-6. Create tests following project patterns
+6. Create tests following project patterns:
+
+   ⚠️ E2E TEST REQUIREMENT: Two tests per feature
+   ├─ Isolated Scene Test: Feature tested alone, no dependencies
+   └─ Integration Test: Feature tested in full game context
+
 7. Run tests to verify they pass
 8. Commit tests with proper message
 ```
@@ -118,44 +123,73 @@ describe('useGameStore', () => {
 
 ### Phase 4: Create E2E Tests
 
+**Load skill:** `Skill("qa-e2e-test-creation")`
+
+Every feature requires **TWO E2E tests**:
+
+#### Test 1: Isolated Scene Test
+
+Tests the feature in complete isolation from other game systems.
+
+**Purpose:** Verify the feature works standalone without dependencies.
+
+**When to use:** All features - gameplay, UI, visual effects, services.
+
+**Pattern:**
+
+```typescript
+test.describe('FeatureName - Isolated Scene', () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to isolated test route
+    await page.goto('http://localhost:3000/test/feature-name');
+  });
+
+  test('should render feature correctly in isolation', async ({ page }) => {
+    // Test the feature alone
+    // No dependency on other game features
+  });
+});
+```
+
+#### Test 2: Integration Test
+
+Tests the feature within full game context alongside other features.
+
+**Purpose:** Verify feature works correctly with related systems and doesn't break existing functionality.
+
+**Pattern:**
+
+```typescript
+test.describe('FeatureName - Integration', () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to main game
+    await page.goto('http://localhost:3000');
+    // Navigate through game to reach the feature
+  });
+
+  test('should work correctly in full game context', async ({ page }) => {
+    // Test interactions with related systems
+    // Verify no regressions in existing features
+  });
+});
+```
+
+#### Test Route Reference
+
+| Test Type      | Route Pattern          | Example                        |
+| -------------- | ---------------------- | ------------------------------ |
+| Isolated scene | `/test/{feature-name}` | `/test/shooting-system`        |
+| Integration    | Main game route        | `/` (then navigate to feature) |
+
+**If isolated route doesn't exist:** Create it using a test-only scene component.
+
+---
+
 **⚠️ CRITICAL: Server Lifecycle Awareness**
 
 **Playwright manages servers for E2E tests automatically.**
 
 When creating E2E tests, DO NOT manually start dev servers. The `playwright.config.ts` `webServer` configuration handles server startup and shutdown automatically.
-
-### When to NOT start servers:
-
-- Running `npm run test:e2e`
-- Running `npm run test:e2e -- -g "test-name"`
-- Verifying tests during creation
-
-### When to check for servers:
-
-- Manual testing with browser MCP
-- Visual verification during test creation
-
-### Server Check Pattern:
-
-```bash
-# Before manual MCP testing, check if server exists
-curl -s http://localhost:3000 > /dev/null && echo "Server running" || echo "Start server"
-
-# Or use netstat
-netstat -an | grep :3000 || lsof -i :3000
-```
-
-**Port Detection:**
-
-Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.). E2E tests in `playwright.config.ts` use `baseURL: 'http://localhost:3000'` and the `webServer` configuration automatically starts the dev server on the correct port.
-
-**For manual testing, detect the port first:**
-
-```bash
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
-```
-
-**Load skill:** `Skill("qa-e2e-test-creation")`
 
 **For each user flow:**
 
@@ -224,7 +258,7 @@ TEST FAILS
     │
     ├─→ Can I fix this by editing test code?
     │   │ YES → Fix test code → Re-run tests
-    │   │ NO  → This is a game code issue
+    │   │ NO  → This is a game code issue.
     │
     └─→ Create detailed bug report including:
         • Test that failed
@@ -317,7 +351,6 @@ Test "{test_name}" failed due to game code not meeting acceptance criteria.
 - Test one behavior per test
 - Have descriptive test names
 - Mock external dependencies
-- Be fast (< 100ms per test)
 - Cover edge cases
 
 ### E2E Tests Must:
@@ -415,17 +448,7 @@ test.describe('Multiplayer Feature', () => {
 });
 ```
 
-## Skills Reference
-
-Load these skills for detailed patterns:
-
-| Skill                   | Purpose                   |
-| ----------------------- | ------------------------- |
-| `qa-unit-test-creation` | Vitest unit test patterns |
-| `qa-e2e-test-creation`  | Playwright E2E patterns   |
-| `qa-test-creation`      | Test coverage workflow    |
-
-## File Permissions
+## Test File Path Pattern
 
 **MAY write to:**
 
@@ -433,17 +456,10 @@ Load these skills for detailed patterns:
 - Test helpers: `tests/helpers/*.ts`
 - Test fixtures: `tests/fixtures/*.ts`
 
-**MAY NOT write to:**
-
-- Source files in `src/` (production code)
-- Configuration files (unless test-related)
-
 ## Exit Conditions
 
 **BEFORE exiting, verify:**
 
 1. All acceptance criteria have corresponding tests
-2. Unit tests pass: `npm run test`
-3. E2E tests pass: `npm run test:e2e`
-4. Tests follow project patterns
-5. Test files are committed with proper message
+2. Tests follow project patterns
+3. Test files are committed with proper message

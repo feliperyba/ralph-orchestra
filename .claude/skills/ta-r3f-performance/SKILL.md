@@ -43,6 +43,79 @@ Use when:
 | Buffer     | ~3ms        | Safety margin         |
 | **Total**  | **16.67ms** | 60 FPS target         |
 
+## Performance Monitoring Setup
+
+Always establish performance monitoring before optimizing. Use Stats.js from drei:
+
+```tsx
+import { Stats } from '@react-three/drei';
+
+function Scene() {
+  const showStats = import.meta.env.DEV;
+
+  return (
+    <>
+      {showStats && <Stats />}
+      {/* Your scene content */}
+    </>
+  );
+}
+
+// In App.tsx
+<Canvas>
+  <Stats className="stats-position" />
+  <Scene />
+</Canvas>
+```
+
+### CSS for Stats Positioning
+
+```css
+.stats-position {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+```
+
+### Performance Benchmarks to Establish
+
+| Metric          | Target    | How to Measure        |
+| --------------- | --------- | --------------------- |
+| FPS             | 60+       | Stats.js              |
+| Frame Time      | <16.67ms  | Stats.js MS           |
+| Draw Calls      | <100      | renderer.info.render.calls |
+| Triangles       | <100k     | renderer.info.render.triangles |
+| Textures        | <50MB     | renderer.info.memory.textures |
+| Geometries      | <20MB     | renderer.info.memory.geometries |
+
+### Reading Renderer Info (Development)
+
+```tsx
+import { useThree } from '@react-three/fiber';
+
+function PerfMonitor() {
+  const { gl } = useThree();
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const info = gl.info;
+    console.log('Render Info:', {
+      calls: info.render.calls,
+      triangles: info.render.triangles,
+      points: info.render.points,
+      lines: info.render.lines,
+      textures: info.memory.textures,
+      geometries: info.memory.geometries,
+    });
+  }, [gl]);
+
+  return null;
+}
+```
+
 ## Decision Framework
 
 | Symptom            | Likely Cause        | Solution            |

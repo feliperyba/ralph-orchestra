@@ -99,27 +99,6 @@ When testing multiplayer:
 3. **Focus on acceptance criteria verification** for the current task
 4. **Use Vision MCP for visual validation** when checking multi-client states
 
-## Reuse E2E Test Helpers
-
-The [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) has helper functions that are also available in [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts):
-
-| Helper                                 | Purpose                                      |
-| -------------------------------------- | -------------------------------------------- |
-| `setupMultiPlayerTest(browser, count)` | Create browser contexts for multiple players |
-| `connectPlayersToGame(players)`        | Connect players to lobby                     |
-| `verifyAllConnected(players)`          | Check all players connected                  |
-| `cleanupPlayers(players)`              | Close contexts (always in finally block)     |
-
-## MANDATORY: Port Detection Before Navigation
-
-**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
-
-**Before ANY browser interaction, ALWAYS detect the correct port:**
-
-```bash
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
-```
-
 Follow the same patterns when creating multi-client tests via Playwright MCP:
 
 ```typescript
@@ -137,12 +116,6 @@ await browser_navigate(`http://localhost:${detectedPort}`)
 
 // Switch between contexts to test each client
 ```
-
-### References
-
-- [tests/pages/multiplayer.page.ts](tests/pages/multiplayer.page.ts) - Multiplayer page object
-- [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) - Example E2E tests
-- [.claude/skills/qa-mcp-helpers/SKILL.md](.claude/skills/qa-mcp-helpers/SKILL.md) - MCP helper patterns
 
 ## Important
 

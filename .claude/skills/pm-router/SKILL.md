@@ -8,6 +8,40 @@ category: coordination
 
 > "Right skill for the right phase at the right time."
 
+---
+
+## Route by Current Status (Post-Completion Flow)
+
+⚠️ **CRITICAL: When in post-completion workflow, follow this routing table to continue through ALL phases!**
+
+| Current Status                    | Action                                                       | Next Skill/Phase                     |
+| --------------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| `retrospective_synthesized`       | Check if playtest required → Use playtest session skill OR skip to PRD reorganization | `pm-retrospective-playtest-session` or `pm-organization-prd-reorganization` |
+| `playtest_complete`               | Continue to PRD reorganization                               | `pm-organization-prd-reorganization` |
+| `playtest_skipped`                | Continue to PRD reorganization                               | `pm-organization-prd-reorganization` |
+| `prd_refinement`                  | Continue to cleanup phase                                    | Cleanup (inline in pm-workflow)      |
+| `cleanup_completed`               | Continue to skill research                                   | `pm-improvement-skill-research`      |
+| `skill_updates_applied`           | Continue to task selection                                   | `pm-organization-task-selection`     |
+| `task_ready` (post-completion)    | Create test plan                                             | `pm-planning-test-planning`          |
+| `test_plan_ready`                 | Assign task, send message, EXIT                              | (Exit - worker has task)             |
+
+**Playtest Decision (at `retrospective_synthesized`):**
+
+Skip playtest for:
+- Test infrastructure bugfixes
+- Non-gameplay tasks (CI/CD, tooling, documentation)
+- Backend-only changes without visual impact
+- Small typo/minor text fixes
+
+Use playtest for:
+- Gameplay mechanics (movement, shooting, physics)
+- Visual features (shaders, materials, effects)
+- UI/UX changes (HUD, menus, interactions)
+- Character/weapon behavior changes
+- Multiplayer features
+
+---
+
 ## Route by Workflow Phase
 
 | Phase                  | Primary Skills                                                       | Sub-Agents                     |

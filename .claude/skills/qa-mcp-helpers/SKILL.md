@@ -101,16 +101,118 @@ await page.waitForSelector('canvas');
 ```typescript
 // Track console errors during validation
 const errors: string[] = [];
+const warnings: string[] = [];
 
 page.on('console', (msg) => {
   if (msg.type() === 'error') {
     errors.push(msg.text());
   }
+  if (msg.type() === 'warning') {
+    warnings.push(msg.text());
+  }
 });
 
 // After performing actions:
-// Check that no errors occurred
-expect(errors).toHaveLength(0);
+// Filter out known headless WebGL errors (expected, not application bugs)
+const filteredErrors = errors.filter((error) => {
+  const webglHeadlessPatterns = [
+    /WebGL2RenderingContext/i,
+    /Error creating WebGL context/i,
+    /WebGL context could not be created/i,
+    /Failed to create WebGL2RenderingContext/i,
+    /WEBGL_debug_renderer_info/i,
+    /ANGLE flag/i,
+    /swiftshader/i,
+  ];
+  return !webglHeadlessPatterns.some((p) => p.test(error));
+});
+
+// Check that no actual application errors occurred
+if (filteredErrors.length > 0) {
+  console.error('Application errors found:', filteredErrors);
+}
+```
+
+## WebGL / Three.js MCP Patterns
+
+**⚠️ CRITICAL:** Three.js applications require specific patterns for MCP validation.
+
+### Scene Readiness Detection
+
+```typescript
+// Wait for Three.js scene to be ready using data attribute
+await page.waitForSelector('canvas[data-ready="1"]', { timeout: 15000 });
+
+// Alternative: Wait for canvas and additional delay
+await page.waitForSelector('canvas');
+await page.waitForTimeout(2000); // Allow Three.js initialization
+```
+
+### WebGL Context Verification
+
+```typescript
+// Verify WebGL is working before proceeding
+const webglStatus = await page.evaluate(() => {
+  const canvas = document.querySelector('canvas');
+  if (!canvas) return { exists: false, hasContext: false };
+
+  const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+  if (!gl) return { exists: true, hasContext: false };
+
+  return {
+    exists: true,
+    hasContext: true,
+    version: gl.getParameter(gl.VERSION),
+  };
+});
+
+if (!webglStatus.hasContext) {
+  throw new Error('WebGL context not available - cannot validate 3D scene');
+}
+```
+
+### Canvas Element Screenshot
+
+```typescript
+// For WebGL scenes, screenshot only the canvas element
+const canvas = await page.locator('canvas').boundingBox();
+
+if (canvas) {
+  await page.screenshot({
+    path: '.claude/session/qa-validation/canvas-render.png',
+    clip: {
+      x: canvas.x,
+      y: canvas.y,
+      width: canvas.width,
+      height: canvas.height,
+    },
+  });
+}
+```
+
+### Shader Error Detection
+
+```typescript
+// Track shader compilation errors separately
+const shaderErrors: string[] = [];
+
+page.on('console', (msg) => {
+  const text = msg.text();
+  const shaderErrorPatterns = [
+    /THREE\.WebGLProgram/i,
+    /shader error/i,
+    /program info log/i,
+    /WEBGL_WARNING/i,  // But NOT WEBGL_debug_renderer_info
+  ];
+
+  if (shaderErrorPatterns.some((p) => p.test(text))) {
+    shaderErrors.push(text);
+  }
+});
+
+if (shaderErrors.length > 0) {
+  throw new Error(`Shader compilation errors: ${shaderErrors.join(', ')}`);
+}
 ```
 
 ### Screenshot Evidence

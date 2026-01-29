@@ -463,3 +463,64 @@ Before completing playtest:
 - [ ] GDD compliance validated
 - [ ] Findings documented
 - [ ] Report sent to PM
+
+---
+
+## Visual Quality Assessment Criteria (Added: ui-001 Playtest)
+
+**Learned from ui-001 playtest:** Functionally complete UI can still be visually inadequate for shipping.
+
+### Visual Quality Assessment Matrix
+
+| Category                | Pass Criteria                                  | Weight |
+| ----------------------- | --------------------------------------------- | ------ |
+| Aspect Ratio            | 16:9 enforced, letterbox on non-16:9           | High   |
+| Design System           | Tokens, consistent styling, reusable components | High   |
+| Typography              | Gaming fonts, readable, appropriate scale       | Medium |
+| Button Polish           | Hover/active states, feedback animations       | High   |
+| Color Palette           | Theme-appropriate, accessible contrast         | Medium |
+| Animations              | Smooth, custom easing, not default/linear       | Medium |
+| Professional Appearance | Not prototype-like, shipping quality            | High   |
+
+### Visual Quality Levels
+
+| Level        | Description                                      | Action                  |
+| ------------ | ------------------------------------------------ | ----------------------- |
+| SHIPPABLE    | All visual criteria met, professional appearance | PASS                    |
+| CONDITIONAL  | Functional but needs polish                      | CONDITIONAL_PASS        |
+| PROTOTYPE    | Looks like prototype, not shipping game          | FAIL - Create redesign task |
+
+### When to Issue CONDITIONAL_PASS
+
+**Use CONDITIONAL_PASS when:**
+- All functional requirements work correctly
+- Core mechanics are playable
+- Visual design is functional but lacks polish
+- UI looks prototype-like, not production-ready
+
+**Mandatory Actions on CONDITIONAL_PASS:**
+1. Document specific visual gaps in report
+2. Create dedicated visual redesign task (TIER_0_BLOCKER if UI is primary feature)
+3. Create specification document for redesign
+4. Block original task completion until visual redesign done
+
+**Example:**
+```json
+{
+  "result": "CONDITIONAL_PASS",
+  "functionalStatus": "PASS",
+  "visualStatus": "NEEDS_REDESIGN",
+  "gaps": [
+    "No 16:9 aspect ratio enforcement",
+    "Basic Tailwind styling instead of custom design",
+    "Generic fonts instead of gaming typography",
+    "No custom easing curves for animations"
+  ],
+  "recommendation": "BLOCK until visual design addressed",
+  "newTask": {
+    "id": "ui-002",
+    "title": "Professional UI/UX Redesign",
+    "priority": "TIER_0_BLOCKER"
+  }
+}
+```
