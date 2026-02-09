@@ -25,6 +25,11 @@
       "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-brave-search"],
       "description": "Brave search engine"
     },
+    "typescript": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "cclsp"],
+      "description": "TypeScript Language Server and Compiler API"
+    },
     "playwright": {
       "command": "cmd",
       "args": ["/c", "npx", "@playwright/mcp@latest"],
@@ -61,13 +66,13 @@
     "developer": {
       "displayName": "Developer",
       "type": "worker",
-      "mcpServers": ["github", "filesystem", "web-search", "brave-search"],
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search", "typescript"],
       "color": "Cyan"
     },
     "qa": {
       "displayName": "QA",
       "type": "worker",
-      "mcpServers": ["playwright", "filesystem", "github", "vision"],
+      "mcpServers": ["playwright", "filesystem", "github", "vision", "typescript"],
       "color": "Yellow"
     },
     "gamedesigner": {
@@ -79,7 +84,7 @@
     "techartist": {
       "displayName": "Tech Artist",
       "type": "worker",
-      "mcpServers": ["github", "filesystem", "web-search", "brave-search", "playwright", "vision", "blender", "shadertoy", "image-process"],
+      "mcpServers": ["github", "filesystem", "web-search", "brave-search", "playwright", "vision", "blender", "shadertoy", "image-process", "typescript"],
       "color": "Green"
     }
   },
