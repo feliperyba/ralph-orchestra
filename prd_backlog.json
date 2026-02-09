@@ -1,0 +1,959 @@
+{
+  "project": "bomber-royale",
+  "version": "1.0.0",
+  "lastUpdated": "2026-02-09T12:00:00Z",
+  "backlog": {
+    "criticalPath": [
+      "ARCH-003",
+      "ARCH-001",
+      "NET-001",
+      "PHYS-001",
+      "GAME-001",
+      "COMBAT-001",
+      "MAP-001",
+      "ZONE-001",
+      "UI-001",
+      "OPT-001"
+    ],
+    "phases": {
+      "phase1": {
+        "name": "Foundation (Weeks 1-4)",
+        "description": "Core infrastructure, multiplayer framework, basic game loop",
+        "tasks": ["ARCH-003", "ARCH-001", "ARCH-002", "NET-001", "NET-002", "PHYS-001", "PHYS-002", "BUILD-001"]
+      },
+      "phase2": {
+        "name": "Core Gameplay (Weeks 5-8)",
+        "description": "Combat, looting, movement, map generation",
+        "tasks": ["GAME-001", "GAME-002", "COMBAT-001", "COMBAT-002", "MAP-001", "MAP-002", "ZONE-001", "LOOT-001"]
+      },
+      "phase3": {
+        "name": "Polish & UX (Weeks 9-12)",
+        "description": "UI/UX, feedback, audio, optimization",
+        "tasks": ["UI-001", "UI-002", "FEEDBACK-001", "AUDIO-001", "OPT-001", "OPT-002", "ACCESS-001"]
+      },
+      "phase4": {
+        "name": "Launch Prep (Weeks 13-16)",
+        "description": "Testing, balancing, monetization, onboarding",
+        "tasks": ["TEST-001", "TEST-002", "BALANCE-001", "MONET-001", "ONBOARD-001", "SECURE-001", "MATCH-001"]
+      }
+    }
+  },
+  "tasks": [
+    {
+      "id": "ARCH-001",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Setup Project Structure and Build Pipeline",
+      "description": "Initialize Vite project with TypeScript, configure build for client and server, setup linting and testing frameworks",
+      "acceptanceCriteria": [
+        "Vite project configured for client and server builds",
+        "TypeScript strict mode enabled",
+        "ESLint configured with recommended ruleset",
+        "Vitest configured for unit testing",
+        "Playwright configured for E2E testing",
+        "Package scripts for dev, build, test, lint"
+      ],
+      "verificationSteps": [
+        "Run `npm run dev` - client and server start",
+        "Run `npm run build` - both build successfully",
+        "Run `npm run test` - sample test passes",
+        "Run `npm run lint` - no errors"
+      ],
+      "files": [
+        "package.json",
+        "vite.config.ts",
+        "tsconfig.json",
+        "eslint.config.js",
+        "vitest.config.ts",
+        "playwright.config.ts"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "Foundation for all development. Strict TypeScript mode required by quality standards."
+    },
+    {
+      "id": "ARCH-002",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Define Project Architecture and Folder Structure",
+      "description": "Create folder structure for client, server, shared code. Define module boundaries and architectural patterns",
+      "acceptanceCriteria": [
+        "Clear separation: /client, /server, /shared",
+        "Shared code for types, constants, utilities",
+        "Folder structure documented in README",
+        "Module boundaries defined",
+        "Import aliases configured"
+      ],
+      "verificationSteps": [
+        "Review folder structure matches architecture",
+        "Verify imports work with aliases",
+        "Confirm shared code compiles for both client and server"
+      ],
+      "files": [
+        "/src/client",
+        "/src/server",
+        "/src/shared",
+        "tsconfig.json (paths)",
+        "README.md (structure docs)"
+      ],
+      "agent": "developer",
+      "dependencies": ["ARCH-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Critical for maintainability. Follow server-authoritative pattern."
+    },
+    {
+      "id": "ARCH-003",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Setup Turborepo Monorepo Configuration",
+      "description": "Configure Turborepo for client-server monorepo with Vite build tooling. Set up pnpm workspaces, turbo.json task orchestration, and internal package sharing between client and server.",
+      "acceptanceCriteria": [
+        "Turborepo installed and configured with turbo.json",
+        "pnpm workspaces configured (pnpm-workspace.yaml)",
+        "Monorepo structure: apps/client, apps/server, packages/shared",
+        "Internal package imports working (workspace protocol)",
+        "Build pipeline: turbo run build compiles both client and server",
+        "Dev pipeline: turbo run dev starts both client and server concurrently",
+        "Task caching and dependency graph configured"
+      ],
+      "verificationSteps": [
+        "Run pnpm install - all workspace dependencies install correctly",
+        "Run pnpm build - both client and server build successfully",
+        "Run pnpm dev - both client and server start concurrently",
+        "Test workspace protocol - import shared types from @bomber-royale/shared",
+        "Verify Turborepo caching - rebuild unchanged packages uses cache",
+        "Test task dependency graph - server builds after shared package"
+      ],
+      "files": [
+        "turbo.json",
+        "pnpm-workspace.yaml",
+        "package.json (root)",
+        "apps/client/package.json",
+        "apps/server/package.json",
+        "packages/shared/package.json"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "Foundation task - must precede all other development. Enables shared types, utilities, and efficient build orchestration. Reference: https://github.com/vercel/turborepo/tree/main/examples/with-vite"
+    },
+    {
+      "id": "NET-001",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Setup Colyseus Server and Room Management",
+      "description": "Initialize Colyseus server, create room handler for 64 players, setup WebSocket communication",
+      "acceptanceCriteria": [
+        "Colyseus server running on Node.js",
+        "Room handler configured for 64 max clients",
+        "WebSocket connection established",
+        "Basic room join/leave working",
+        "Room state synchronized to clients"
+      ],
+      "verificationSteps": [
+        "Start Colyseus server - no errors",
+        "Connect 64 test clients - all join successfully",
+        "Verify room state syncs to all clients",
+        "Test client disconnect handling"
+      ],
+      "files": [
+        "/src/server/rooms/GameRoom.ts",
+        "/src/server/server.ts",
+        "/src/client/network/NetworkManager.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["ARCH-002"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core multiplayer foundation. DEC-014: Server Architecture."
+    },
+    {
+      "id": "NET-002",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Implement Client-Side Prediction and Reconciliation",
+      "description": "Add prediction for local movement, implement reconciliation for server corrections",
+      "acceptanceCriteria": [
+        "Client-side prediction for movement",
+        "Server reconciliation when corrections received",
+        "Input buffering for attacks",
+        "Smooth interpolation of other entities",
+        "<100ms perceived input lag"
+      ],
+      "verificationSteps": [
+        "Test with 100ms simulated latency - movement feels responsive",
+        "Verify server corrections don't cause rubber-banding",
+        "Measure input lag - under 100ms for 95% cases"
+      ],
+      "files": [
+        "/src/client/game/ClientState.ts",
+        "/src/client/game/Prediction.ts",
+        "/src/client/network/NetworkManager.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["NET-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Critical for responsive feel. DEC-014: Client-side prediction."
+    },
+    {
+      "id": "PHYS-001",
+      "category": "architectural",
+      "priority": "high",
+      "title": "Integrate Matter.js Physics Engine",
+      "description": "Setup Matter.js on client and server, create physics world with collision detection",
+      "acceptanceCriteria": [
+        "Matter.js integrated on client and server",
+        "Physics world created with proper bounds",
+        "Collision detection working",
+        "Physics bodies sync from server to client",
+        "Gravity and friction configured for top-down"
+      ],
+      "verificationSteps": [
+        "Create test physics body - appears on both client and server",
+        "Test collision - bodies collide correctly",
+        "Verify physics sync from server",
+        "Measure physics performance - acceptable overhead"
+      ],
+      "files": [
+        "/src/shared/physics/PhysicsConfig.ts",
+        "/src/server/physics/ServerPhysics.ts",
+        "/src/client/physics/ClientPhysics.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["ARCH-002"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core physics foundation. DEC-003: Physics object limits."
+    },
+    {
+      "id": "PHYS-002",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Physics Object Pooling and Limits",
+      "description": "Create object pool for throwables, enforce 30 object limit per sector, implement cleanup system",
+      "acceptanceCriteria": [
+        "Object pooling for crates, barrels, chests",
+        "Maximum 30 physics objects per sector enforced",
+        "Priority cleanup: oldest objects despawned first",
+        "Sector-based culling: objects outside active sectors cleaned",
+        "LOD system: physics stops for objects >15 tiles from players"
+      ],
+      "verificationSteps": [
+        "Test with 31 objects - 31st despawns immediately",
+        "Verify cleanup happens continuously",
+        "Test sector culling - objects in inactive sectors removed",
+        "Profile memory - no leaks"
+      ],
+      "files": [
+        "/src/server/physics/ObjectPool.ts",
+        "/src/server/physics/PhysicsManager.ts",
+        "/src/shared/constants/PhysicsLimits.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["PHYS-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-003: Critical for 64-player performance."
+    },
+    {
+      "id": "GAME-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Player Entity and Movement",
+      "description": "Create player entity with 8-directional movement, 8 tiles/second speed, WASD + touch controls",
+      "acceptanceCriteria": [
+        "Player entity created with physics body",
+        "8-directional movement implemented",
+        "Movement speed: 8 tiles/second",
+        "WASD keyboard controls working",
+        "Touch controls with virtual joystick",
+        "Movement validated on server"
+      ],
+      "verificationSteps": [
+        "Test movement in all 8 directions",
+        "Verify movement speed matches spec",
+        "Test touch controls - responsive",
+        "Test server validation - speed hacks rejected"
+      ],
+      "files": [
+        "/src/shared/game/entities/Player.ts",
+        "/src/client/input/InputManager.ts",
+        "/src/server/game/PlayerController.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["PHYS-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core movement mechanic. DEC-010: Spawn system depends on this."
+    },
+    {
+      "id": "GAME-002",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Spawn System with Protection",
+      "description": "Distributed spawn across 16 sectors, 4 players per sector, 3-tile spacing, 10-second protection",
+      "acceptanceCriteria": [
+        "64 players distributed across 16 sectors (4 per sector)",
+        "Pre-defined safe zones with 3-tile minimum spacing",
+        "10-second invulnerability with shield visual",
+        "Protection breaks early on attack",
+        "Starting loadout: random common weapon"
+      ],
+      "verificationSteps": [
+        "Test with 64 players - no spawns within 3 tiles",
+        "Verify invulnerability - no damage for 10 seconds",
+        "Attack during protection - protection ends",
+        "Test spawn distribution - even across sectors"
+      ],
+      "files": [
+        "/src/server/game/SpawnSystem.ts",
+        "/src/client/game/SpawnEffects.ts",
+        "/src/shared/game/constants/SpawnConfig.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["GAME-001", "MAP-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-010: Spawn system sets match tone."
+    },
+    {
+      "id": "COMBAT-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Melee and Ranged Weapons",
+      "description": "Create 14 weapon types with unique stats, implement melee and ranged attacks, damage system",
+      "acceptanceCriteria": [
+        "14 weapon types implemented",
+        "Melee attacks with hit detection",
+        "Ranged attacks with projectiles",
+        "Weapon stats: damage, speed, range",
+        "Rock-paper-scissors counterplay",
+        "Server-authoritative damage"
+      ],
+      "verificationSteps": [
+        "Test all 14 weapons - unique feel",
+        "Verify counterplay - melee beats ranged beats throwables",
+        "Test damage calculations - correct values",
+        "Verify server validation - no damage hacks"
+      ],
+      "files": [
+        "/src/shared/game/weapons/WeaponRegistry.ts",
+        "/src/server/game/combat/CombatSystem.ts",
+        "/src/client/game/combat/CombatEffects.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["GAME-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-006, DEC-009: Core combat mechanics. OQ-001: Damage formula."
+    },
+    {
+      "id": "COMBAT-002",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Physics-Based Throwing",
+      "description": "Allow throwing crates, barrels, chests. Damage = mass × velocity. 30 object limit enforced",
+      "acceptanceCriteria": [
+        "Throw mechanics for all physics objects",
+        "Damage formula: mass × velocity (OQ-001)",
+        "Maximum 30 active throwables per sector",
+        "Visual feedback for throw trajectory",
+        "Server validation of throw physics"
+      ],
+      "verificationSteps": [
+        "Test throwing - physics feels correct",
+        "Measure damage - matches formula",
+        "Test with 31 objects - limit enforced",
+        "Verify server validation - no speed hacks"
+      ],
+      "files": [
+        "/src/server/game/combat/ThrowingSystem.ts",
+        "/src/client/game/combat/ThrowingEffects.ts",
+        "/src/shared/physics/PhysicsUtils.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["COMBAT-001", "PHYS-002"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core mechanic. OQ-001: Need exact damage formula."
+    },
+    {
+      "id": "MAP-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Create 4x4 Sector Map System",
+      "description": "Generate 4x4 grid of sectors, implement hybrid fixed/procedural generation",
+      "acceptanceCriteria": [
+        "4x4 sector grid created",
+        "5-8 fixed sector templates",
+        "Procedural soft-block placement",
+        "Randomized loot spawn positions",
+        "Cellular Automata generation for variety"
+      ],
+      "verificationSteps": [
+        "Generate 10 maps - all unique",
+        "Verify fixed templates - consistent structure",
+        "Test procedural elements - sufficient variety",
+        "Verify 64 players can spawn without overlap"
+      ],
+      "files": [
+        "/src/server/map/MapGenerator.ts",
+        "/src/server/map/SectorTemplates.ts",
+        "/src/client/map/MapRenderer.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["ARCH-002"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-001: Hybrid map generation core to gameplay."
+    },
+    {
+      "id": "MAP-002",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Destructible Environment",
+      "description": "Soft blocks destructible, hard blocks indestructible, crates/barrels as physics objects",
+      "acceptanceCriteria": [
+        "Soft blocks destroyable with all weapons",
+        "Hard blocks indestructible",
+        "Crates, barrels, chests as physics bodies",
+        "Destruction visual effects",
+        "Server validation of destruction"
+      ],
+      "verificationSteps": [
+        "Test destroying soft blocks - breaks correctly",
+        "Test hard blocks - indestructible",
+        "Test physics objects - spawn with physics",
+        "Verify destruction syncs to all clients"
+      ],
+      "files": [
+        "/src/server/map/DestructionSystem.ts",
+        "/src/client/map/DestructionEffects.ts",
+        "/src/shared/map/TileTypes.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["MAP-001", "PHYS-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core map interaction."
+    },
+    {
+      "id": "ZONE-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Shrinking Zone System",
+      "description": "12-minute match with 5 closure phases. 30-second warning, 10-second closure, 10 damage/second",
+      "acceptanceCriteria": [
+        "12-minute match with 5 phases",
+        "30-second warning before closure",
+        "10-second active closure animation",
+        "10 damage/second in damage zone",
+        "Hard cap at 12 minutes",
+        "Visual and audio warnings"
+      ],
+      "verificationSteps": [
+        "Play full match - all phases trigger correctly",
+        "Time each phase - matches spec",
+        "Test damage zone - 10 damage/second",
+        "Test warnings - clear and timely"
+      ],
+      "files": [
+        "/src/server/game/ZoneSystem.ts",
+        "/src/client/game/ZoneEffects.ts",
+        "/src/shared/game/constants/ZoneConfig.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["MAP-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-007, DEC-011: Core pacing mechanic. OQ-002: Closure mechanics."
+    },
+    {
+      "id": "LOOT-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Looting and Inventory System",
+      "description": "Loot from crates, barrels, chests. Inventory management. Loot rarity system",
+      "acceptanceCriteria": [
+        "Three container types: crates, barrels, chests",
+        "Loot by rarity: Common (60%), Uncommon (30%), Rare (10%)",
+        "Instant or manual pickup",
+        "Inventory management UI",
+        "Loot drops on death (OQ-004: design decision needed)"
+      ],
+      "verificationSteps": [
+        "Test all container types - loot spawns",
+        "Verify rarity distribution - matches percentages",
+        "Test inventory - pickup, equip, drop",
+        "Test death drops - correct behavior"
+      ],
+      "files": [
+        "/src/server/game/loot/LootSystem.ts",
+        "/src/client/game/loot/LootUI.ts",
+        "/src/shared/game/loot/LootTable.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["COMBAT-001", "MAP-002"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Core progression. OQ-004: Death loot rules need decision."
+    },
+    {
+      "id": "UI-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Core HUD and UI",
+      "description": "Health bar, weapon display, minimap, zone timer, kill feed, damage numbers",
+      "acceptanceCriteria": [
+        "Health bar with current/max HP",
+        "Current weapon display",
+        "Minimap with sector overview",
+        "Zone timer and warnings",
+        "Kill feed",
+        "Floating damage numbers"
+      ],
+      "verificationSteps": [
+        "Test all UI elements - visible and functional",
+        "Verify UI updates in real-time",
+        "Test with 64 players - performance acceptable",
+        "Verify mobile layout - readable on small screens"
+      ],
+      "files": [
+        "/src/client/ui/HUD.ts",
+        "/src/client/ui/Minimap.ts",
+        "/src/client/ui/DamageNumbers.ts",
+        "/src/client/ui/KillFeed.ts"
+      ],
+      "agent": "techartist",
+      "dependencies": ["GAME-001", "COMBAT-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-012: Visual language applies to all UI."
+    },
+    {
+      "id": "UI-002",
+      "category": "feature",
+      "priority": "medium",
+      "title": "Implement Mobile Touch Controls",
+      "description": "Virtual joysticks for movement and aiming, on-screen buttons for actions, aim assist",
+      "acceptanceCriteria": [
+        "Left virtual joystick for movement",
+        "Right virtual joystick for aiming",
+        "On-screen buttons for attack, throw, interact",
+        "Haptic feedback",
+        "Customizable and movable controls",
+        "Aim assist (OQ-006: strength to be determined)"
+      ],
+      "verificationSteps": [
+        "Test touch controls - responsive",
+        "Test aim assist - helpful but not overpowered",
+        "Test customizability - can move controls",
+        "Verify haptics - feedback feels good"
+      ],
+      "files": [
+        "/src/client/input/TouchControls.ts",
+        "/src/client/input/AimAssist.ts",
+        "/src/client/ui/TouchUI.ts"
+      ],
+      "agent": "techartist",
+      "dependencies": ["UI-001", "GAME-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-004: Cross-platform requires good touch controls."
+    },
+    {
+      "id": "FEEDBACK-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Multi-Modal Damage Feedback",
+      "description": "Directional indicator, damage numbers, sound effects, screen shake, kill cam",
+      "acceptanceCriteria": [
+        "Directional indicator to damage source",
+        "Color-coded floating damage numbers",
+        "Unique sound effects per damage type",
+        "Screen shake proportional to damage",
+        "Kill cam replay on death",
+        "Damage log"
+      ],
+      "verificationSteps": [
+        "Test all damage types - feedback is clear",
+        "Test in chaotic situations - can identify source",
+        "Test kill cam - replay is accurate",
+        "Verify with colorblind players - accessible"
+      ],
+      "files": [
+        "/src/client/feedback/DamageFeedback.ts",
+        "/src/client/feedback/KillCam.ts",
+        "/src/client/feedback/ScreenShake.ts"
+      ],
+      "agent": "techartist",
+      "dependencies": ["COMBAT-001", "UI-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-008: Critical for retention. OQ-007: Kill cam implementation."
+    },
+    {
+      "id": "AUDIO-001",
+      "category": "feature",
+      "priority": "medium",
+      "title": "Implement Audio System",
+      "description": "Distinct sounds for all actions, stereo positioning, volume attenuation, priority capping",
+      "acceptanceCriteria": [
+        "Distinct sounds for each damage type",
+        "Stereo panning for directional audio",
+        "Volume attenuation by distance",
+        "Max 10 simultaneous SFX",
+        "Separate sliders for music, SFX, voice",
+        "Music layers for lobby, drop, combat, endgame"
+      ],
+      "verificationSteps": [
+        "Test all sounds - distinct and clear",
+        "Test positioning - accurate stereo",
+        "Test with 64 players - capped at 10 SFX",
+        "Test sliders - all channels work"
+      ],
+      "files": [
+        "/src/client/audio/AudioManager.ts",
+        "/src/client/audio/SoundRegistry.ts",
+        "/src/client/audio/MusicManager.ts"
+      ],
+      "agent": "techartist",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-013: Audio as information channel."
+    },
+    {
+      "id": "OPT-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Performance Optimizations",
+      "description": "Object pooling, sprite atlases, LOD system, sector culling for 60/30 FPS target",
+      "acceptanceCriteria": [
+        "Object pooling for all frequent objects",
+        "Sprite atlases for efficient rendering",
+        "LOD system for distant objects",
+        "Sector-based culling",
+        "60 FPS desktop, 30 FPS mobile",
+        "Profiling tools"
+      ],
+      "verificationSteps": [
+        "Profile with 64 players - targets met",
+        "Test object pooling - no allocations",
+        "Test sprite atlases - batch rendering",
+        "Test LOD - distant objects simplified"
+      ],
+      "files": [
+        "/src/client/pooling/ObjectPool.ts",
+        "/src/client/rendering/SpriteAtlas.ts",
+        "/src/client/rendering/LODSystem.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["MAP-001", "PHYS-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Design Pillar: Sustainable Performance."
+    },
+    {
+      "id": "OPT-002",
+      "category": "feature",
+      "priority": "high",
+      "title": "Optimize Network Bandwidth",
+      "description": "State delta compression, efficient serialization, priority-based updates for <20KB/sec target",
+      "acceptanceCriteria": [
+        "State delta compression",
+        "Efficient binary serialization",
+        "Priority-based entity updates",
+        "<20KB/sec bandwidth per client",
+        "Bandwidth profiling tools"
+      ],
+      "verificationSteps": [
+        "Profile with 64 players - under 20KB/sec",
+        "Test compression - effective delta encoding",
+        "Test priority updates - critical info sent first"
+      ],
+      "files": [
+        "/src/server/network/StateCompression.ts",
+        "/src/server/network/PriorityUpdate.ts",
+        "/src/shared/network/Serialization.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["NET-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Critical for 64-player scalability."
+    },
+    {
+      "id": "ACCESS-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Accessibility Features",
+      "description": "Shape + color visual language, colorblind filters, high contrast mode, mono audio",
+      "acceptanceCriteria": [
+        "Shape + color for all elements",
+        "4 player colors with 4 shapes",
+        "Colorblind filters available",
+        "High contrast mode",
+        "Mono audio mode",
+        "Tested with all colorblind types"
+      ],
+      "verificationSteps": [
+        "Test all elements - shape + color distinct",
+        "Test colorblind filters - effective",
+        "Test high contrast - readable",
+        "Test with colorblind players - accessible"
+      ],
+      "files": [
+        "/src/client/accessibility/ColorblindMode.ts",
+        "/src/client/accessibility/HighContrast.ts",
+        "/src/client/ui/VisualLanguage.ts"
+      ],
+      "agent": "techartist",
+      "dependencies": ["UI-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-012: Accessibility requirement."
+    },
+    {
+      "id": "BUILD-001",
+      "category": "architectural",
+      "priority": "medium",
+      "title": "Setup CI/CD Pipeline",
+      "description": "Configure automated builds, tests, and deployments",
+      "acceptanceCriteria": [
+        "GitHub Actions workflow for CI/CD",
+        "Automated testing on PR",
+        "Automated builds for all environments",
+        "Deployment automation",
+        "Code quality checks"
+      ],
+      "verificationSteps": [
+        "Create PR - CI runs",
+        "Push to main - build and test",
+        "Verify deployment - successful"
+      ],
+      "files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/cd.yml"
+      ],
+      "agent": "developer",
+      "dependencies": ["ARCH-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Quality infrastructure."
+    },
+    {
+      "id": "TEST-001",
+      "category": "bugfix",
+      "priority": "high",
+      "title": "Implement Automated Testing Suite",
+      "description": "Unit tests for core logic, integration tests for server, E2E tests with Playwright",
+      "acceptanceCriteria": [
+        "80% code coverage",
+        "Unit tests for core game logic",
+        "Integration tests for server-room interactions",
+        "E2E tests for multiplayer scenarios",
+        "Performance tests for 64-player load"
+      ],
+      "verificationSteps": [
+        "Run all tests - 80% coverage",
+        "Test multiplayer scenarios - pass",
+        "Load test - 64 players, performance acceptable"
+      ],
+      "files": [
+        "/tests/unit/**",
+        "/tests/integration/**",
+        "/tests/e2e/**",
+        "/tests/performance/**"
+      ],
+      "agent": "qa",
+      "dependencies": ["BUILD-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Quality standard requirement."
+    },
+    {
+      "id": "TEST-002",
+      "category": "bugfix",
+      "priority": "high",
+      "title": "Multiplayer Combat Testing",
+      "description": "Test combat scenarios with multiple players, verify damage resolution, test edge cases",
+      "acceptanceCriteria": [
+        "Test 1v1 combat scenarios",
+        "Test 4+ player chaotic combat",
+        "Test damage resolution accuracy",
+        "Test edge cases (simultaneous deaths, etc.)",
+        "Test network edge cases (latency, packet loss)"
+      ],
+      "verificationSteps": [
+        "Run combat tests - all scenarios pass",
+        "Test with real players - feels fair",
+        "Test with high latency - still playable"
+      ],
+      "files": [
+        "/tests/e2e/combat/**",
+        "/tests/e2e/multiplayer/**"
+      ],
+      "agent": "qa",
+      "dependencies": ["COMBAT-001", "TEST-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "Critical for combat integrity."
+    },
+    {
+      "id": "BALANCE-001",
+      "category": "feature",
+      "priority": "medium",
+      "title": "Weapon and Combat Balancing",
+      "description": "Tune all 14 weapons for balance, adjust TTK, verify counterplay effectiveness",
+      "acceptanceCriteria": [
+        "All 14 weapons balanced",
+        "Average TTK matches design goals",
+        "Counterplay clear and effective",
+        "No dominant strategies",
+        "Skill beats gear (60%+ win rate)"
+      ],
+      "verificationSteps": [
+        "Playtest all weapons - feel balanced",
+        "Measure TTK - matches 75 HP design",
+        "Test counterplay - effective",
+        "Test skilled vs unskilled - skill wins"
+      ],
+      "files": [
+        "/src/shared/game/weapons/WeaponBalance.ts",
+        "/docs/balance/CombatBalancing.md"
+      ],
+      "agent": "developer",
+      "dependencies": ["COMBAT-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "OQ-001: Damage formula needs to be finalized first."
+    },
+    {
+      "id": "MONET-001",
+      "category": "feature",
+      "priority": "medium",
+      "title": "Implement Cosmetic-Only Battle Pass",
+      "description": "Free and premium battle pass, cosmetic shop, currency system",
+      "acceptanceCriteria": [
+        "Free battle pass with basic rewards",
+        "Premium battle pass ($9.99) with all rewards",
+        "8-10 week season duration",
+        "Direct shop with rotating cosmetics",
+        "Premium currency purchase",
+        "No gameplay-affecting items"
+      ],
+      "verificationSteps": [
+        "Test battle pass progression - works",
+        "Test shop - purchases successful",
+        "Verify no pay-to-win - only cosmetics"
+      ],
+      "files": [
+        "/src/server/monetization/BattlePass.ts",
+        "/src/server/monetization/Shop.ts",
+        "/src/client/ui/BattlePassUI.ts"
+      ],
+      "agent": "developer",
+      "dependencies": [],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-005: Cosmetic-only monetization. OQ-015: Customization scope."
+    },
+    {
+      "id": "ONBOARD-001",
+      "category": "feature",
+      "priority": "medium",
+      "title": "Implement New Player Onboarding",
+      "description": "Mandatory tutorial, bot matches, tooltips, hints",
+      "acceptanceCriteria": [
+        "Mandatory 3-minute tutorial",
+        "Teaches: movement, combat, looting, zones",
+        "First match: 50% bots",
+        "Bot percentage reduced over 10 matches",
+        "Matches labeled as learning",
+        "Evergreen tooltips and hints"
+      ],
+      "verificationSteps": [
+        "Play tutorial - teaches effectively",
+        "Play first match - bots helpful",
+        "Test progression - bot percentage drops",
+        "Test tooltips - helpful, not intrusive"
+      ],
+      "files": [
+        "/src/client/onboarding/Tutorial.ts",
+        "/src/server/game/BotAI.ts",
+        "/src/client/ui/Tooltips.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["GAME-001", "COMBAT-001", "ZONE-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-015: Critical for new player retention."
+    },
+    {
+      "id": "SECURE-001",
+      "category": "feature",
+      "priority": "high",
+      "title": "Implement Anti-Cheat Measures",
+      "description": "Server validation, position checks, rate limiting, player reporting",
+      "acceptanceCriteria": [
+        "Server-authoritative damage calculation",
+        "Position validation prevents teleportation",
+        "Rate limiting prevents spam",
+        "Heuristic analysis for suspicious behavior",
+        "Player reporting system"
+      ],
+      "verificationSteps": [
+        "Test server validation - exploits blocked",
+        "Test position validation - teleporting prevented",
+        "Test rate limiting - spam blocked",
+        "Test reporting - system functional"
+      ],
+      "files": [
+        "/src/server/security/Validation.ts",
+        "/src/server/security/RateLimit.ts",
+        "/src/server/security/AntiCheat.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["NET-001", "COMBAT-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "OQ-013: Anti-cheat requirements. Critical for competitive integrity."
+    },
+    {
+      "id": "MATCH-001",
+      "category": "feature",
+      "priority": "medium",
+      "title": "Implement Matchmaking and Queue System",
+      "description": "Unified player pool, input-based grouping, cross-input matching after timeout",
+      "acceptanceCriteria": [
+        "Unified player pool",
+        "Input-based grouping preference",
+        "Cross-input after 90-second queue",
+        "Estimated queue time",
+        "Party system (OQ-003: solo/duo/squad decision needed)",
+        "Separate leaderboards by input"
+      ],
+      "verificationSteps": [
+        "Test matchmaking - groups by input type",
+        "Test queue timeout - cross-input after 90s",
+        "Test leaderboards - separated correctly"
+      ],
+      "files": [
+        "/src/server/matchmaking/Matchmaker.ts",
+        "/src/client/ui/QueueUI.ts",
+        "/src/server/leaderboard/Leaderboard.ts"
+      ],
+      "agent": "developer",
+      "dependencies": ["NET-001"],
+      "status": "pending",
+      "passes": false,
+      "notes": "DEC-004: Cross-platform strategy. OQ-003: Queue modes decision needed."
+    }
+  ]
+}

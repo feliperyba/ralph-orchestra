@@ -118,10 +118,10 @@ This project uses Ralph Orchestra with the following agents:
 
 ```bash
 # Start event-driven mode (recommended)
-.\\.\.claude\\scripts\\ralph-event-session.ps1
+.\\.\\.claude\\\\scripts\\\\ralph-event-session.ps1
 
 # Start sequential mode (token-efficient)
-.\\.\.claude\\scripts\\ralph-single-session.ps1
+.\\.\\.claude\\\\scripts\\\\ralph-single-session.ps1
 
 # Start HITL mode (learning)
 /ralph-hitl

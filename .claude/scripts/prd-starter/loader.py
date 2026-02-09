@@ -86,9 +86,9 @@ def state_to_project_config(state: dict, project_root: Path = Path(".")) -> Proj
     Returns:
         ProjectConfig object
     """
-    # Check both 'version' and '_version' fields (v4.0 template uses '_version')
-    version = state.get("version") or state.get("_version", "1.0.0")
-    
+    # Check both 'version', 'schemaVersion', and '_version' fields
+    version = state.get("version") or state.get("schemaVersion") or state.get("_version", "1.0.0")
+
     # Version 3.0+ state format (with wizardMode and direct agent config)
     if version.startswith("3."):
         return _state_v3_to_project_config(state, project_root)
@@ -117,8 +117,8 @@ def _state_v3_to_project_config(state: dict, project_root: Path) -> ProjectConfi
         if preset:
             return _preset_to_project_config(preset, state)
 
-    # Extract project info
-    project = state.get("project", {})
+    # Extract project info - support both 'project' and 'projectData' keys
+    project = state.get("project", state.get("projectData", {}))
     project_name = project.get("name", "My Project")
     project_description = project.get("description", "")
 
@@ -136,25 +136,48 @@ def _state_v3_to_project_config(state: dict, project_root: Path) -> ProjectConfi
     project_type = category_map.get(project.get("category", "other"), ProjectType.OTHER)
 
     # Extract agents from v3.0 format
-    agents_dict = state.get("agents", {})
+    # Support both 'agents' dict format and 'agentData' list format
+    agents_value = state.get("agents", state.get("agentData", []))
+
+    # Handle list format (agentData)
+    if isinstance(agents_value, list):
+        agents_dict = {agent.get("id", agent.get("name", "")): agent for agent in agents_value}
+    else:
+        agents_dict = agents_value
     agents = []
 
     for agent_name, agent_data in agents_dict.items():
         if not agent_data.get("enabled", False):
             continue
 
-        # Get agent role mapping
+        # Get agent role mapping - use 'id' field to determine role type
+        # The 'role' field may contain a description string, not the role type
         role_map = {
             "pm": "pm",
+            "pm-coordinator": "pm",
+            "coordinator": "pm",
             "developer": "developer",
+            "dev": "developer",
             "techartist": "techartist",
+            "tech-artist": "techartist",
+            "tech_artist": "techartist",
             "qa": "qa",
-            "gamedesigner": "gamedesigner"
+            "qa-validator": "qa",
+            "gamedesigner": "gamedesigner",
+            "game-designer": "gamedesigner"
         }
 
-        role = agent_data.get("role", agent_name)
-        if role not in role_map.values():
-            role = agent_name
+        # Try to determine role from agent_name (id field)
+        role = agent_name
+        for key, value in role_map.items():
+            if key in agent_name.lower():
+                role = value
+                break
+
+        # Fall back to role field if it contains a role type
+        role_field = agent_data.get("role", "")
+        if role_field in role_map.values():
+            role = role_field
 
         # Build icon (default icons based on role)
         icons = {

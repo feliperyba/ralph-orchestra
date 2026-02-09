@@ -1,0 +1,71 @@
+{
+  "project": "Bomber Royale",
+  "version": "1.0.0",
+  "lastUpdated": "2026-02-09T14:45:00Z",
+  "quality": "production",
+  "description": "64-player 2D top-down Battle Royale game with physics-based combat and shrinking map mechanic",
+  "architecture": {
+    "type": "monorepo",
+    "tool": "Turborepo",
+    "packageManager": "pnpm",
+    "structure": {
+      "apps": [
+        "apps/client (Vite + Phaser 3 + TypeScript)",
+        "apps/server (Node.js + Colyseus + WebSocket)"
+      ],
+      "packages": [
+        "packages/shared (Types, constants, utilities)"
+      ]
+    },
+    "buildPipeline": "Turborepo task orchestration with caching",
+    "referenceUrl": "https://github.com/vercel/turborepo/tree/main/examples/with-vite"
+  },
+  "session": {
+    "sessionId": "",
+    "startedAt": "",
+    "maxIterations": 200,
+    "iteration": 0,
+    "completionPromise": "RALPH_COMPLETE",
+    "status": "running",
+    "currentTask": null,
+    "stats": {
+      "totalTasks": 0,
+      "completed": 0,
+      "failed": 0,
+      "commits": 0
+    }
+  },
+  "agents": {
+    "pm": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "developer": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "techartist": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "qa": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    },
+    "gamedesigner": {
+      "status": "idle",
+      "lastSeen": "",
+      "currentTaskId": null,
+      "pid": 0
+    }
+  },
+  "items": []
+}

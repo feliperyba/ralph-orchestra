@@ -84,7 +84,7 @@ version: 2.0
 
 ## Quick Start Checklist
 
-- [ ] Source message queue: `. .\\.\.claude\\scripts\\message-queue.ps1`
+- [ ] Source message queue: `. .\\.\\.claude\\\\scripts\\\\message-queue.ps1`
 - [ ] Check for pending messages on startup
 - [ ] Read coordinator-state.json and current-task.json
 - [ ] Complete assigned work
