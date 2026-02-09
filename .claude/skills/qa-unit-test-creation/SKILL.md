@@ -17,6 +17,8 @@ Use when creating unit tests for:
 - ECS components and systems
 - Hooks and custom functions
 
+NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
+
 ## Test File Locations
 
 **Pattern:** Mirror `src/` structure in `src/tests/`

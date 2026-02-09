@@ -347,6 +347,30 @@ class PRDStarterGenerator:
             else:
                 errors.append("Failed to generate CLAUDE.md")
 
+        # Generate research summary if research data exists
+        research_data = getattr(project_config, 'research_data', None)
+        if research_data and (research_data.get('similarProjects') or research_data.get('bestPractices')):
+            if self.generate_research_summary(research_data, project_config):
+                print("✓ Generated research summary")
+            else:
+                warnings.append("Failed to generate research summary")
+
+        # Generate GDD summary if GDD data exists (games only)
+        gdd_data = getattr(project_config, 'gdd_data', None)
+        if gdd_data and gdd_data.get('enabled'):
+            if self.generate_gdd_summary(gdd_data, project_config):
+                print("✓ Generated GDD documents")
+            else:
+                warnings.append("Failed to generate GDD summary")
+
+        # Generate PRD if PRD data exists
+        prd_data = getattr(project_config, 'prd_data', None)
+        if prd_data and prd_data.get('approved'):
+            if self.generate_prd(project_config, tech_stack):
+                print("✓ Generated PRD")
+            else:
+                warnings.append("Failed to generate PRD")
+
         return ValidationResult(
             valid=len(errors) == 0,
             errors=errors,

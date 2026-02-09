@@ -28,38 +28,11 @@ Use when:
 
 | Task Agent | Worktree Path            | Branch Name           | Command to Navigate         |
 | ---------- | ------------------------ | --------------------- | --------------------------- |
-| developer  | `../developer-worktree`  | `developer-worktree`  | `cd ../developer-worktree`  |
-| techartist | `../techartist-worktree` | `techartist-worktree` | `cd ../techartist-worktree` |
-| qa         | `.` (current directory)  | `main`                | Stay in current directory   |
+| {agent}  | `../{agent}-worktree`  | `{agent}-worktree`  | `cd ../{agent}-worktree`  |
 
 **⚠️ NEVER validate from main if the task was implemented in a worktree!**
 
-### Step 2: Navigate and Verify (MANDATORY - DO NOT SKIP)
-
-```bash
-# 1. CHECK current location BEFORE doing anything
-pwd
-git branch --show-current
-
-# 2. Navigate to the CORRECT worktree based on task.agent
-# If task.agent == "developer":
-cd ../developer-worktree
-
-# If task.agent == "techartist":
-cd ../techartist-worktree
-
-# If task.agent == "qa":
-# Stay in current directory (no cd needed)
-
-# 3. VERIFY you're in the RIGHT place (MANDATORY CHECK)
-pwd
-git branch --show-current
-# This MUST show the expected worktree branch!
-
-# 4. ONLY THEN proceed with validation steps below
-```
-
-### Step 3: If You Ran Tests in Wrong Worktree
+### Step 2: If You Ran Tests in Wrong Worktree
 
 **Stop immediately and report the error:**
 
@@ -72,14 +45,6 @@ git branch --show-current
 
 ---
 
-## Quick Start
-
-```bash
-# Run full validation suite
-npm run type-check && npm run lint && npm run build && npm run test && npm run test:e2e
-```
-
----
 
 ## Validation Pipeline
 
@@ -137,7 +102,7 @@ npm run type-check && npm run lint && npm run build && npm run test && npm run t
    ```bash
    # Get files changed in this task
    git diff --name-only HEAD~5 | grep '^src/'
-   # Or read from task context in current-task-qa.json
+   # Or read from task context
    ```
 
 3. **For EACH modified source file, check test coverage:**
@@ -151,15 +116,6 @@ npm run type-check && npm run lint && npm run build && npm run test && npm run t
    - Check if `tests/e2e/{feature}-suite.spec.ts` exists
    - Example: `tests/e2e/gameplay-suite.spec.ts`, `tests/e2e/ui-suite.spec.ts`
    - If missing: **BLOCK** - invoke test-creator
-
-4. **COVERAGE VERIFICATION TABLE** (Must pass ALL rows):
-
-   | Check Type       | Pattern                                         | Status | Action             |
-   | ---------------- | ----------------------------------------------- | ------ | ------------------ |
-   | Unit test exists | `src/tests/**/*.test.ts` for each `src/**/*.ts` | ✅/❌  | If ❌: BLOCK       |
-   | E2E test exists  | `tests/e2e/*-suite.spec.ts`                     | ✅/❌  | If ❌: BLOCK       |
-   | Tests run        | `npm run test` passes                           | ✅/❌  | If ❌: Report bugs |
-   | E2E tests run    | `npm run test:e2e` passes                       | ✅/❌  | If ❌: Report bugs |
 
 ### Acceptance Criteria Verification
 
@@ -185,7 +141,6 @@ For each acceptance criterion in `current-task-qa.json` (acceptanceCriteria arra
 
 ❌ **DON'T:**
 
-- Use Playwright MCP directly for validation
 - Assume automated tests are sufficient
 - Mark as passed without running E2E tests
 - Ignore console warnings/errors

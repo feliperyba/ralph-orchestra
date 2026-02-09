@@ -14,6 +14,8 @@ Use when:
 - Validating a new feature (status: "awaiting_qa")
 - PRD item has acceptance criteria but no tests exist
 - Source files are modified but corresponding test files are missing
+  
+NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
 
 ## E2E Test Structure (Two-Test Requirement)
 
@@ -72,6 +74,8 @@ test.describe('FeatureName - Integration', () => {
 | Visual effect | YES | YES |
 | Service/Utility | YES (unit) | YES |
 | Asset (model/texture) | YES | YES |
+
+NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
 
 ## Quick Start
 

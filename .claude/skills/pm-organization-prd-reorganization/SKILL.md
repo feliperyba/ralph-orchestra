@@ -25,9 +25,9 @@ PRD reorganization is triggered by:
 3. **Technical Debt** - Debt items identified that need dedicated tasks
 4. **Process Improvements** - Workflow changes requiring new tasks
 
-## PRD Backlog Architecture (v3.1.0+)
+## PRD Backlog Architecture
 
-Since v3.1.0, tasks are split between two files:
+Tasks are split between two files:
 
 | File | Contains | Size |
 |------|----------|------|
@@ -71,7 +71,7 @@ For each GDD section, extract implementation requirements:
 For each extracted requirement, check if PRD already covers it:
 
 ```powershell
-# Load both PRD files (v3.1.0+)
+# Load both PRD files
 READ prd.json
 READ prd.backlogFile (or "prd_backlog.json")
 

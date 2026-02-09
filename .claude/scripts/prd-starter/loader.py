@@ -86,12 +86,15 @@ def state_to_project_config(state: dict, project_root: Path = Path(".")) -> Proj
     Returns:
         ProjectConfig object
     """
+    # Check both 'version' and '_version' fields (v4.0 template uses '_version')
+    version = state.get("version") or state.get("_version", "1.0.0")
+    
     # Version 3.0+ state format (with wizardMode and direct agent config)
-    if state.get("version", "1.0.0").startswith("3."):
+    if version.startswith("3."):
         return _state_v3_to_project_config(state, project_root)
 
     # Version 4.0+ state format (with customAgents dynamic creation)
-    if state.get("version", "1.0.0").startswith("4."):
+    if version.startswith("4."):
         return _state_v3_to_project_config(state, project_root)
 
     # Legacy state format (v2.x with phases)
@@ -243,7 +246,6 @@ def _state_v3_to_project_config(state: dict, project_root: Path) -> ProjectConfi
     orchestration_mode_map = {
         "event-driven": OrchestrationMode.EVENT_DRIVEN,
         "sequential": OrchestrationMode.SEQUENTIAL,
-        "polling": OrchestrationMode.EVENT_DRIVEN,
         "hitl": OrchestrationMode.HITL
     }
     orchestration = orchestration_mode_map.get(
@@ -355,7 +357,6 @@ def _preset_to_project_config(preset: dict, state: dict) -> ProjectConfig:
     orchestration_mode_map = {
         "event-driven": OrchestrationMode.EVENT_DRIVEN,
         "sequential": OrchestrationMode.SEQUENTIAL,
-        "polling": OrchestrationMode.EVENT_DRIVEN,
         "hitl": OrchestrationMode.HITL
     }
 

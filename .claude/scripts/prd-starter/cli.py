@@ -129,7 +129,17 @@ def main() -> int:
         # Extract tech stack from state (for v3.0+ format)
         tech_stack = None
         research_data = state.get("researchData", {})
-        if state.get("version", "1.0.0").startswith(("3.", "4.")):
+        gdd_data = state.get("gddData", {})
+        prd_data = state.get("prdData", {})
+        
+        # Attach research/GDD/PRD data to project_config for generator access
+        project_config.research_data = research_data
+        project_config.gdd_data = gdd_data
+        project_config.prd_data = prd_data
+        
+        # Check both 'version' and '_version' fields
+        version = state.get("version") or state.get("_version", "1.0.0")
+        if version.startswith(("3.", "4.")):
             # Try to get tech stack from projectInitialization section
             project_init = state.get("projectInitialization", {})
             if project_init.get("techStack"):

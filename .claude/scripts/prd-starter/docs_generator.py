@@ -261,6 +261,8 @@ Write-Host "  - Start Ralph coordinator: /ralph-coordinator-event"
     def generate_gdd_summary(self, gdd_data: dict, project_config: ProjectConfig) -> bool:
         """Generate GDD summary document from thermite facilitator findings.
 
+        Handles both minimal state format and rich gdd-findings.json format gracefully.
+
         Args:
             gdd_data: GDD data collected by gamedesigner-thermite-facilitator
             project_config: Project configuration
@@ -273,32 +275,106 @@ Write-Host "  - Start Ralph coordinator: /ralph-coordinator-event"
             design_dir = self.project_root / "docs" / "design"
             design_dir.mkdir(parents=True, exist_ok=True)
 
-            # Format design decisions
+            # Format design decisions (handle both minimal and rich formats)
             decisions = ""
             if gdd_data.get("designDecisions"):
-                decisions = "\n".join([
-                    f"### {d.get('id', 'DEC-XXX')}: {d.get('title', 'Unknown')}\n"
-                    f"**Decision:** {d.get('decision', '')}\n\n"
-                    f"**Rationale:** {d.get('rationale', '')}\n"
-                    for d in gdd_data["designDecisions"]
-                ])
+                decision_parts = []
+                for d in gdd_data["designDecisions"]:
+                    decision_id = d.get('id', 'DEC-XXX')
+                    title = d.get('title', 'Unknown')
+                    status = d.get('status', 'Unknown')
+                    decision = d.get('decision', '')
+                    rationale = d.get('rationale', '')
+                    
+                    # Build decision entry
+                    entry = f"### {decision_id}: {title}\n"
+                    entry += f"**Status:** {status}\n"
+                    
+                    # Add pillars if available
+                    if d.get('pillars'):
+                        pillars_str = ", ".join(d['pillars']) if isinstance(d['pillars'], list) else str(d['pillars'])
+                        entry += f"**Pillars:** {pillars_str}\n"
+                    
+                    entry += f"\n**Decision:** {decision}\n"
+                    
+                    if rationale:
+                        entry += f"\n**Rationale:** {rationale}\n"
+                    
+                    # Add context if available (rich format)
+                    if d.get('context'):
+                        entry += f"\n**Context:** {d['context']}\n"
+                    
+                    # Add validation needed
+                    if d.get('validationNeeded'):
+                        validation = d['validationNeeded']
+                        if isinstance(validation, list):
+                            entry += f"\n**Validation Needed:**\n"
+                            for v in validation:
+                                entry += f"- {v}\n"
+                    
+                    decision_parts.append(entry)
+                
+                decisions = "\n".join(decision_parts)
 
             # Format open questions
             open_questions = ""
             if gdd_data.get("openQuestions"):
-                open_questions = "\n".join([
-                    f"### {q.get('id', 'OQ-XXX')}: {q.get('question', 'Unknown')}\n"
-                    f"**Priority:** {q.get('priority', 'medium')}\n"
-                    for q in gdd_data["openQuestions"]
-                ])
+                question_parts = []
+                for q in gdd_data["openQuestions"]:
+                    q_id = q.get('id', 'OQ-XXX')
+                    question = q.get('question', 'Unknown')
+                    priority = q.get('priority', 'medium')
+                    
+                    entry = f"### {q_id}: {question}\n"
+                    entry += f"**Priority:** {priority}\n"
+                    
+                    # Add owner if available
+                    if q.get('owner'):
+                        entry += f"**Owner:** {q['owner']}\n"
+                    
+                    # Add tags if available
+                    if q.get('tags'):
+                        tags = q['tags'] if isinstance(q['tags'], list) else [q['tags']]
+                        entry += f"**Tags:** {', '.join(tags)}\n"
+                    
+                    # Add blocker info if available
+                    if q.get('blockerFor'):
+                        blockers = q['blockerFor'] if isinstance(q['blockerFor'], list) else [q['blockerFor']]
+                        entry += f"**Blocks:** {', '.join(blockers)}\n"
+                    
+                    question_parts.append(entry)
+                
+                open_questions = "\n".join(question_parts)
 
-            # Format design pillars
+            # Format design pillars (handle both string list and object list)
             pillars = ""
             if gdd_data.get("designPillars"):
-                pillars = "\n".join([
-                    f"- {pillar}"
-                    for pillar in gdd_data["designPillars"]
-                ])
+                pillar_parts = []
+                for pillar in gdd_data["designPillars"]:
+                    if isinstance(pillar, str):
+                        # Minimal format: just strings
+                        pillar_parts.append(f"- {pillar}")
+                    elif isinstance(pillar, dict):
+                        # Rich format: objects with description
+                        name = pillar.get('name', 'Unknown')
+                        desc = pillar.get('description', '')
+                        pillar_parts.append(f"- **{name}**: {desc}")
+                pillars = "\n".join(pillar_parts)
+
+            # Format core mechanics (handle both string list and object list)
+            mechanics = ""
+            if gdd_data.get("coreMechanics"):
+                mechanic_parts = []
+                for mech in gdd_data["coreMechanics"]:
+                    if isinstance(mech, str):
+                        # Minimal format: just strings
+                        mechanic_parts.append(f"- {mech}")
+                    elif isinstance(mech, dict):
+                        # Rich format: objects with description
+                        name = mech.get('name', 'Unknown')
+                        desc = mech.get('description', '')
+                        mechanic_parts.append(f"- **{name}**: {desc}")
+                mechanics = "\n".join(mechanic_parts)
 
             # Generate decision log
             decision_log = design_dir / "decision_log.md"
@@ -357,7 +433,7 @@ Write-Host "  - Start Ralph coordinator: /ralph-coordinator-event"
 
 ## Core Mechanics
 
-{chr(10).join([f"- {m}" for m in gdd_data.get('coreMechanics', [])]) if gdd_data.get('coreMechanics') else "No core mechanics documented."}
+{mechanics if mechanics else "No core mechanics documented."}
 
 ---
 
@@ -372,6 +448,16 @@ Write-Host "  - Start Ralph coordinator: /ralph-coordinator-event"
 
 - [Decision Log](decision_log.md) - All design decisions
 - [Open Questions](open_questions.md) - Unresolved questions
+
+**Additional Artifacts:**
+Check docs/design/ for specialized artifacts:
+- core_loop.md - Gameplay loop specification
+- economy_model.md - Economy systems and balance
+- map_templates.md - Map design and layouts
+- gear_registry.md - Items with stats and counterplay
+- visual_language.md - Visual and audio design
+- tech_spec.md - Technical architecture
+- mvd_checklist.md - Prototype readiness checklist
 
 ---
 

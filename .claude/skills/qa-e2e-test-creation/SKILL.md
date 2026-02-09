@@ -15,6 +15,8 @@ category: workflow
 
 E2E tests ensure existing features don't break. MCP agents verify new feature implementation.
 
+NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
+
 ## MANDATORY: Port Detection Before Browser Testing
 
 **⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**

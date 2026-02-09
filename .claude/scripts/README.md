@@ -2,27 +2,15 @@
 
 This directory contains all orchestration scripts for the Ralph multi-agent system.
 
-> **📘 Comprehensive Documentation:** For in-depth technical documentation covering architecture, orchestration modes, messaging, configuration, and troubleshooting, see:
-> - **[PowerShell Architecture](../../docs/powershell-architecture.md)** - Complete orchestration architecture overview
-> - **[Event-Driven Mode](../../docs/powershell-event-mode.md)** - Parallel orchestration deep dive
-> - **[Sequential Mode](../../docs/powershell-sequential-mode.md)** - Handoff-based orchestration
-> - **[Message System](../../docs/powershell-messaging.md)** - Message queue and pipe transport
-> - **[Configuration Reference](../../docs/powershell-configuration.md)** - Environment variables and settings
-> - **[Testing Guide](../../docs/powershell-testing.md)** - Test scripts and troubleshooting
-
 ## 📋 Script Overview
 
 | Script                       | Purpose                           | Mode         |
 | ---------------------------- | --------------------------------- | ------------ |
-| `ralph-event-session.ps1`    | Launch event-driven parallel mode | Event-driven |
+| `ralph-event-session.ps1`    | Launch event-driven mode          | Event-driven |
 | `ralph-single-session.ps1`   | Launch sequential orchestration   | Sequential   |
-| `ralph-multi-session.ps1`    | Launch polling parallel mode      | Polling      |
 | `watchdog-event.ps1`         | Message broker for event mode     | Event-driven |
 | `watchdog-single.ps1`        | Orchestrate agent handoffs        | Sequential   |
-| `watchdog.ps1`               | Monitor agent health (polling)    | Polling      |
-| `pipe-transport.ps1`         | Named pipe messaging layer        | Event-driven |
 | `message-queue.ps1`          | Message queue functions           | Event-driven |
-| `message-state-manager.ps1`  | Message state tracking            | Event-driven |
 | `ralph-config.ps1`           | Shared configuration              | All          |
 | `test-handoff-detection.ps1` | Debug handoff signals             | Sequential   |
 
@@ -33,10 +21,8 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 │                     ORCHESTRATION MODE DECISION                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│  Need parallel execution?                                            │
-│     ├── YES → Need message history/debugging?                        │
-│     │          ├── YES → Event-Driven (ralph-event-session.ps1)     │
-│     │          └── NO  → Polling (ralph-multi-session.ps1)          │
+│  Need on-demand parallelism?                                         │
+│     ├── YES → Event-Driven (ralph-event-session.ps1)                │
 │     │                                                                │
 │     └── NO  → Minimize token usage?                                  │
 │               ├── YES → Sequential (ralph-single-session.ps1)       │
@@ -64,15 +50,27 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 
 # Disable dashboard
 .\.claude\scripts\ralph-single-session.ps1 -NoDashboard
+
+# Custom settings
+.\.claude\scripts\ralph-single-session.ps1 `
+    -InitialAgent pm `
+    -GracefulShutdownSeconds 30 `
+    -MaxRestarts 3
 ```
 
 **Parameters:**
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `-InitialAgent` | `"pm"` | Which agent starts first (pm, developer, techartist, qa, gamedesigner) |
+| `-InitialAgent` | `"pm"` | Which agent starts first (pm, developer, qa) |
 | `-GracefulShutdownSeconds` | `30` | Seconds to wait for agent graceful shutdown |
-| `-MaxRestarts` | `3` | Retries before longer wait (never gives up) |
+| `-MaxRestarts` | `3` | Retries before waiting longer (never gives up) |
 | `-NoDashboard` | `$false` | Disable live dashboard output |
+
+**What it does:**
+
+1. Creates session directory structure
+2. Initializes `coordinator-state.json`
+3. Starts `watchdog-single.ps1`
 
 ---
 
@@ -87,6 +85,44 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 - Gracefully stops current agent before starting next
 - Passes context via `pending-handoff.json`
 - Displays live dashboard with current status
+
+**Handoff Detection:**
+
+The watchdog checks two sources for handoff requests:
+
+1. **Primary: Signal File** (`.claude/session/handoff-signal.json`)
+
+   ```json
+   {
+     "targetAgent": "developer",
+     "context": "Implement feat-001",
+     "timestamp": "2024-01-20T12:00:00Z"
+   }
+   ```
+
+2. **Fallback: Log Pattern** (agent terminal output)
+   ```
+   HANDOFF:developer:Implement feat-001
+   ```
+
+**Handoff Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Agent writes handoff-signal.json                             │
+│ 2. Watchdog detects signal file                                 │
+│ 3. Watchdog stops current agent (graceful 30s timeout)          │
+│ 4. Watchdog writes pending-handoff.json with context            │
+│ 5. Watchdog starts target agent                                 │
+│ 6. New agent reads pending-handoff.json on startup              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Exit Conditions:**
+
+- `Ctrl+C` pressed
+- Agent signals `<promise>RALPH_COMPLETE</promise>`
+- Complete signal in `handoff-signal.json`: `{"type": "complete"}`
 
 ---
 
@@ -104,13 +140,20 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 .\.claude\scripts\test-handoff-detection.ps1 -CreateTestSignal
 ```
 
+**What it tests:**
+
+- Signal file detection (`handoff-signal.json`)
+- Log pattern matching (`HANDOFF:agent:context`)
+- Completion pattern detection
+- Actual agent log files
+
 ---
 
 ## 📨 Event-Driven Mode ⭐ Recommended
 
 ### ralph-event-session.ps1
 
-**Purpose:** Launch the event-driven multi-agent system. All agents run in parallel with message-based communication (no polling).
+**Purpose:** Launch the event-driven multi-agent system. PM starts first and workers are launched on demand with message delivery (no polling).
 
 **Usage:**
 
@@ -125,14 +168,20 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 .\.claude\scripts\ralph-event-session.ps1 -NoDashboard
 ```
 
+**Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-NoDashboard` | `$false` | Disable live dashboard output |
+| `-Debug` | `$false` | Enable verbose debug output |
+| `-ProjectRoot` | auto | Custom project root path |
+
 **Key Features:**
 
-- **Parallel Execution** - All 5 agents run simultaneously
-- **Named Pipe Messaging** - < 10ms message delivery
-- **Message Queue** - Agents communicate via file-based messages with pipe transport
-- **No Polling** - Agents work until done, check messages when idle
+- **Adaptive Parallelism** - PM runs continuously, workers start when needed
+- **Message Queue** - Agents communicate via file-based messages
+- **No Polling** - Watchdog delivers messages by restarting workers
 - **PM Prioritization** - Bug reports go to PM for priority decisions
-- **Git Worktrees** - Developer and Tech Artist can work on multiple tasks in parallel
+- **Git Worktrees** - Developer can work on multiple tasks in parallel
 
 ---
 
@@ -142,25 +191,24 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 
 **Key Features:**
 
-- Creates named pipes for each agent on startup
 - Routes messages via `.claude/session/messages/` directories
 - Each agent has an inbox folder
 - Monitors agent processes, restarts if crashed
 - Displays dashboard with agent statuses and message counts
-- Automatic fallback to file queue if pipes fail
 
----
+**Message Flow:**
 
-### pipe-transport.ps1
-
-**Purpose:** Named pipe messaging layer for ultra-fast message delivery.
-
-**Benefits:**
-
-- **< 10ms** message delivery (vs 2-5 seconds with file queue)
-- No process restarts needed
-- True event-driven behavior
-- Automatic fallback to file queue
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    WATCHDOG (Message Broker)                     │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+   ┌─────────┐        ┌───────────┐       ┌─────────┐
+   │   PM    │◄──────►│ Developer │◄─────►│   QA    │
+   └─────────┘        └───────────┘       └─────────┘
+```
 
 ---
 
@@ -184,18 +232,53 @@ Get-PendingMessages -Agent "developer"
 Invoke-AcknowledgeMessage -MessageId "msg-xxx"
 ```
 
----
+**Message Types:**
 
-### message-state-manager.ps1
-
-**Purpose:** Tracks message idempotency and prevents duplicate processing.
-
-**Features:**
-
-- Message ID generation
-- Duplicate detection
-- State persistence
-- Automatic cleanup of old state
+| Type                      | Description                      |
+| ------------------------- | -------------------------------- |
+| `task_assign`             | PM assigns task to developer     |
+| `validation_request`      | Developer requests QA validation |
+| `bug_report`              | QA reports bugs (goes to PM)     |
+| `task_complete`           | QA confirms task passed          |
+| `question`                | Ask a question                   |
+| `answer`                  | Answer a question                |
+| `research_update`         | Share research findings          |
+| `regression_request`      | Request regression testing       |
+| `prd_update`              | Update PRD/spec details          |
+| `status_update`           | Update agent work status         |
+| `priority_review`         | Request priority review          |
+| `agent_ready`             | Agent startup signal             |
+| `work_complete`           | Signal work completion           |
+| `error`                   | Report an error                  |
+| `shutdown`                | Graceful shutdown request        |
+| `implementation_complete` | Implementation finished          |
+| `work_blocked`            | Work is blocked                  |
+| `task_abandoned`          | Task abandoned                   |
+| `quality_concern`         | Quality concern raised           |
+| `retrospective_initiate`  | Start retrospective              |
+| `retrospective_contribution` | Retrospective input           |
+| `research_request`        | Request research                 |
+| `research_response`       | Respond to research request      |
+| `prd_reorganized`         | PRD reorganized                  |
+| `skill_improvements`      | Share skill improvements         |
+| `priority_response`       | Priority review response         |
+| `skill_request`           | Request skill update             |
+| `gdd_ready`               | GDD is ready                     |
+| `gdd_update`              | GDD has been updated             |
+| `design_question`         | Ask design question              |
+| `design_answer`           | Answer design question           |
+| `playtest_request`        | Request playtest                 |
+| `playtest_report`         | Playtest results                 |
+| `mechanic_proposal`       | Propose a mechanic               |
+| `design_guidance`         | Provide design guidance          |
+| `design_guidance_request` | Request design guidance          |
+| `test_plan_request`       | Request test plan                |
+| `test_plan_contribution`  | Provide test plan input          |
+| `asset_assign`            | Assign visual task               |
+| `asset_ready`             | Assets ready for validation      |
+| `asset_question`          | Clarification request            |
+| `shader_request`          | Propose shader work              |
+| `reference_request`       | Request artistic references      |
 
 ---
 
@@ -205,39 +288,46 @@ Invoke-AcknowledgeMessage -MessageId "msg-xxx"
 
 **Purpose:** Shared configuration and utility functions used by all scripts.
 
-**Agent Configuration:**
+**Key Functions:**
 
 ```powershell
-$Script:AgentConfig = @{
-    "pm" = @{
-        Type = "coordinator"
-        Command = "/ralph-coordinator-event"
-        DisplayName = "PM (Coordinator)"
-        Color = "Magenta"
-    }
-    "developer" = @{
-        Type = "worker"
-        Command = "/ralph-worker-event --agent developer"
-        DisplayName = "Developer"
-        Color = "Cyan"
-    }
-    "techartist" = @{
-        Type = "worker"
-        Command = "/ralph-worker-event --agent techartist"
-        DisplayName = "Tech Artist"
-        Color = "Green"
-    }
-    "qa" = @{
-        Type = "worker"
-        Command = "/ralph-worker-event --agent qa"
-        DisplayName = "QA"
-        Color = "Yellow"
-    }
-    "gamedesigner" = @{
-        Type = "worker"
-        Command = "/ralph-worker-event --agent gamedesigner"
-        DisplayName = "Game Designer"
-        Color = "Blue"
+# Get Ralph configuration
+$config = Get-RalphConfig
+# Returns: @{
+#     IdleTimeoutSeconds = 120
+#     StartupGraceSeconds = 60
+#     CheckIntervalMs = 2000
+#     MaxRestarts = 5
+#     Agents = @("pm", "developer", "qa")
+# }
+
+# Get file paths
+$paths = Get-RalphPaths -ProjectRoot "C:\MyProject"
+# Returns: @{
+#     SessionDir = "C:\MyProject\.claude\session"
+#     CoordinatorState = "C:\MyProject\.claude\session\coordinator-state.json"
+#     CurrentTask = "C:\MyProject\.claude\session\current-task.json"
+#     LogDir = "C:\MyProject\.claude\session\logs"
+# }
+```
+
+**Extending Configuration:**
+
+Add custom paths or settings by modifying `ralph-config.ps1`:
+
+```powershell
+function Get-RalphPaths {
+    param([string]$ProjectRoot)
+
+    $sessionDir = Join-Path $ProjectRoot ".claude\session"
+
+    return @{
+        SessionDir = $sessionDir
+        CoordinatorState = Join-Path $sessionDir "coordinator-state.json"
+        CurrentTask = Join-Path $sessionDir "current-task.json"
+        LogDir = Join-Path $sessionDir "logs"
+        # Add custom paths:
+        CustomConfig = Join-Path $sessionDir "my-custom-config.json"
     }
 }
 ```
@@ -248,147 +338,172 @@ $Script:AgentConfig = @{
 
 ```
 .claude/session/
-├── state/                   # Split state files (Phase 2)
-│   ├── agents.json          # Agent statuses (watchdog primary writer)
-│   ├── prd.json             # PRD state (PM primary writer)
-│   ├── current-task.json    # Active task (shared)
-│   └── metrics.json         # Performance metrics (watchdog)
-├── pipes/                   # Named pipe endpoints
 ├── coordinator-state.json   # Main coordination state
 ├── current-task.json        # Active task details
 ├── handoff-signal.json      # Agent switch signal (sequential)
 ├── pending-handoff.json     # Context for next agent (sequential)
 ├── handoff-log.json         # History of handoffs
 ├── progress.txt             # Human-readable progress log
+├── message-state.json        # Processed message IDs
 ├── messages/                # Event-driven message queues
-│   ├── pm/                  # PM inbox
-│   ├── developer/           # Developer inbox
-│   ├── techartist/          # Tech Artist inbox
-│   ├── qa/                  # QA inbox
-│   ├── gamedesigner/        # Game Designer inbox
-│   └── watchdog/            # Watchdog inbox
+│   ├── pm/
+│   ├── developer/
+│   ├── qa/
+│   ├── gamedesigner/
+│   ├── techartist/
+│   └── watchdog/
 └── logs/
     ├── pm.log               # PM agent output
+    ├── pm-runner.ps1        # PM runner script
     ├── developer.log        # Developer agent output
-    ├── techartist.log       # Tech Artist agent output
+    ├── developer-runner.ps1 # Developer runner script
     ├── qa.log               # QA agent output
-    ├── gamedesigner.log     # Game Designer agent output
+    ├── qa-runner.ps1        # QA runner script
     └── watchdog-summary.log # Session summary
 ```
 
 ---
 
-## 🔗 Related Files
+## 🔍 Debugging
 
-- [Main README](../../README.md) - Project overview
-- [CLAUDE.md](../../CLAUDE.md) - Claude context documentation
-- [Commands](../commands/) - Slash command definitions
-- [Skills](../skills/) - Orchestration skills (YAML frontmatter)
-- [Agent Definitions](../../agents/) - Per-agent behavior docs
+### Common Issues
+
+**Agent window closes immediately:**
+
+```powershell
+# Check the runner script for errors
+cat .\.claude\session\logs\pm-runner.ps1
+
+# Check if Claude CLI is installed
+claude --version
+```
+
+**Handoffs not working:**
+
+```powershell
+# Test handoff detection
+.\.claude\scripts\test-handoff-detection.ps1
+
+# Check signal file
+cat .\.claude\session\handoff-signal.json
+```
+
+**Watchdog exits unexpectedly:**
+
+```powershell
+# Check the summary log
+cat .\.claude\session\logs\watchdog-summary.log
+
+# Run with no dashboard for clearer error output
+.\.claude\scripts\ralph-single-session.ps1 -NoDashboard
+```
+
+### Verbose Logging
+
+Add debug output to watchdog:
+
+```powershell
+# In watchdog-single.ps1, find the main loop and add:
+Write-Host "[DEBUG] Iteration $($Script:TotalIterations)" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Active: $($Script:ActiveAgent)" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Process: $($Script:AgentProcess.Id)" -ForegroundColor DarkGray
+```
 
 ---
 
-## 🏗️ Architecture Modules
+## 🧩 Extending Scripts
 
-The `v2-architecture/` directory contains the next-generation orchestration infrastructure with event sourcing, Actor Model, and true parallel execution.
+### Adding a New Agent
 
-### Module Overview
+1. **Update watchdog-single.ps1:**
 
-| Module | Purpose | Status |
-|--------|---------|--------|
-| `concurrency.ps1` | Thread-safe primitives (Mutex, Event, AtomicCounter, ReadWriteLock) | ✅ PS 5.1 Compatible |
-| `serialization.ps1` | Fast JSON message serialization | ✅ PS 5.1 Compatible |
-| `metrics.ps1` | Performance tracking (p50/p95/p99 latencies) | ✅ PS 5.1 Compatible |
-| `eventlog.ps1` | Event sourcing foundation with mutex-protected writes | ✅ PS 5.1 Compatible |
-| `event-bus.ps1` | Bidirectional named pipe transport | ✅ PS 5.1 Compatible |
-| `supervisor.ps1` | Actor lifecycle management (Erlang/OTP-style) | ✅ PS 5.1 Compatible |
-| `actor.ps1` | Actor Model with mailboxes and selective receive | ✅ Experimental |
-| `supervision-tree.ps1` | Hierarchical supervision with restart strategies | ✅ Experimental |
-| `event-store.ps1` | Production event store with snapshots/compaction | ✅ Experimental |
-| `event-versioning.ps1` | Event versioning and migration | ⚠️ PS 7+ Only |
-| `projections.ps1` | CQRS read models (materialized views) | ⚠️ PS 7+ Only |
-| `async-pipes.ps1` | Event-driven pipe I/O for sub-10ms latency | ✅ Experimental |
-| `message-protocol.ps1` | Message format and routing | ✅ Stable |
-| `agent-runtime.ps1` | Agent process lifecycle management | ✅ Stable |
-| `cleanup-stale-ps.ps1` | Cleanup stale PowerShell processes | ✅ Stable |
+   ```powershell
+   # In Start-SingleAgent function
+   $slashCommand = switch ($AgentName) {
+       "pm" { "/ralph-coordinator-single" }
+       "developer" { "/ralph-worker-single --agent developer" }
+       "qa" { "/ralph-worker-single --agent qa" }
+       "designer" { "/ralph-designer-single" }  # Add new agent
+   }
+   ```
 
-### Key V2 Features
+2. **Update ralph-config.ps1:**
 
-**Event Sourcing:**
-- Append-only JSONL event log (`eventlog.jsonl`)
-- Mutex-protected sequence numbers (prevents duplicates)
-- Materialized views for fast queries (`agent-status.json`)
-- Crash recovery via log replay
+   ```powershell
+   function Get-RalphConfig {
+       return @{
+           Agents = @("pm", "developer", "qa", "designer")  # Add here
+           # ...
+       }
+   }
+   ```
 
-**Actor Model:**
-- Named pipes as actor addresses
-- Per-actor mailboxes with priority queues
-- Selective receive (filter messages before processing)
-- Supervision trees with restart strategies
+3. **Create command file:**
+   ```
+   .claude/commands/ralph-designer-single.md
+   ```
 
-**Performance:**
-- < 10ms message delivery via named pipes
-- Metrics tracking (p50, p95, p99 latencies)
-- Throughput counters (ops/sec)
-- Error rate tracking by type
+### Custom Handoff Logic
 
-**PowerShell 5.1 Compatibility:**
-- All core modules use PS 5.1 compatible syntax
-- `Monitor.Enter/Exit` instead of `lock()`
-- `if ($null -ne $x)` instead of `$x?.Method()`
-- ConvertTo-Json instead of System.Text.Json
+Override the `Invoke-Handoff` function in watchdog-single.ps1:
 
-### Testing
-
-V2 modules are tested with Pester:
-
-| Test File | Purpose | Pass Rate |
-|-----------|---------|-----------|
-| `Test-Concurrency.ps1` | Concurrency primitives and thread safety | 15/15 (100%) |
-| `Test-Performance.ps1` | Performance benchmarks and targets | 14/14 (100%) |
-| `Test-Reliability.ps1` | Integration and reliability tests | ⚠️ Requires PS 7+ |
-
-Run tests:
 ```powershell
-cd .claude\tests
-Invoke-Pester Test-Concurrency.ps1
-Invoke-Pester Test-Performance.ps1
+function Invoke-Handoff {
+    param(
+        [string]$FromAgent,
+        [string]$ToAgent,
+        [string]$Context
+    )
+
+    # Custom pre-handoff logic
+    if ($FromAgent -eq "developer" -and $ToAgent -eq "qa") {
+        # Run tests before QA takes over
+        Write-Host "Running pre-QA tests..." -ForegroundColor Cyan
+        & npm run test
+    }
+
+    # Standard handoff logic
+    Stop-SingleAgent -Graceful -Reason "handoff_to_$ToAgent"
+    Start-Sleep -Seconds 2
+    Start-SingleAgent -AgentName $ToAgent -HandoffContext $Context
+}
 ```
 
-### V2 Architecture Diagram
+### Custom Health Checks
 
+Add to the main loop in watchdog-single.ps1:
+
+```powershell
+# After handoff check, before process exit check
+if ($Script:ActiveAgent -eq "developer") {
+    # Custom check: verify no TypeScript errors
+    $tsErrors = & npx tsc --noEmit 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WATCHDOG] TypeScript errors detected!" -ForegroundColor Yellow
+        # Could trigger a handoff back to developer
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    V2 EVENT-DRIVEN ARCHITECTURE                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│   ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐  │
-│   │   Concurrency│    │ Serialization│    │      Metrics        │  │
-│   │   Primitives │    │   Module     │    │      Tracking      │  │
-│   └──────┬──────┘    └──────┬───────┘    └──────────┬──────────┘  │
-│          │                  │                        │              │
-│          └──────────────────┼────────────────────────┘              │
-│                             │                                       │
-│                    ┌────────▼─────────┐                            │
-│                    │  Event Log (JSONL)│                           │
-│                    │  - Sequence Numbers │                          │
-│                    │  - Mutex Protection │                          │
-│                    │  - Crash Recovery    │                          │
-│                    └────────┬─────────┘                            │
-│                             │                                       │
-│          ┌──────────────────┼──────────────────┐                    │
-│          │                  │                  │                    │
-│    ┌─────▼─────┐     ┌──────▼──────┐   ┌─────▼──────┐             │
-│    │ Event Bus │     │ Supervisor  │   │Event Store │             │
-│    │ (Pipes)   │     │ (Actor Mgmt)│   │(Snapshots) │             │
-│    └─────┬─────┘     └──────┬──────┘   └───────────┘             │
-│          │                  │                                       │
-│          └──────────────────┼──────────────────┐                    │
-│                             │                  │                    │
-│                    ┌────────▼─────────┐  ┌───▼──────┐             │
-│                    │   Named Pipes    │  │Projections│             │
-│                    │   PM/Dev/QA/etc  │  │(CQRS)    │             │
-│                    └──────────────────┘  └──────────┘             │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+
+---
+
+## 📊 Metrics
+
+The watchdog tracks several metrics:
+
+```powershell
+$Script:TotalIterations   # Number of check cycles
+$Script:TotalHandoffs     # Number of agent switches
+$Script:HandoffLog        # Array of handoff history
+$Script:WatchdogStartTime # Session start time
 ```
+
+Access these in the dashboard or summary:
+
+```powershell
+# In Show-SingleAgentDashboard
+Write-Host "Handoffs: $Script:TotalHandoffs"
+Write-Host "Uptime: $([DateTime]::UtcNow - $Script:WatchdogStartTime)"
+```
+
+---

@@ -19,7 +19,7 @@ Use at:
 ## Quick Start
 
 ```javascript
-// Determine project scale (reads both PRD files since v3.1.0)
+// Determine project scale (reads both PRD files)
 const prd = readJson("prd.json");
 const backlog = readJson(prd.backlogFile || "prd_backlog.json");
 const allItems = [...prd.items, ...backlog.backlogItems];
@@ -32,7 +32,7 @@ const scale =
 const config = SCALE_CONFIG[scale];
 ```
 
-**Note:** Since v3.1.0, tasks are split between `prd.json` (active queue: 5 tasks) and `prd_backlog.json` (backlog: ~70 tasks). PM must read both files to get accurate task counts for scale detection.
+**Note:** Tasks are split between `prd.json` (active queue: 5 tasks) and `prd_backlog.json` (backlog: ~70 tasks). PM must read both files to get accurate task counts for scale detection.
 
 ## Decision Framework
 
@@ -155,7 +155,7 @@ Full methodology for large projects:
 
 ```javascript
 function detectScale(prd, backlog) {
-  // Read both files for complete task picture (v3.1.0+)
+  // Read both files for complete task picture
   const prd = readJson("prd.json");
   const backlog = readJson(prd.backlogFile || "prd_backlog.json");
   const allItems = [...prd.items, ...backlog.backlogItems];

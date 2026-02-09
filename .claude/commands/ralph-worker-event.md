@@ -1,66 +1,75 @@
 ---
 name: ralph-worker-event
-description: Worker agent (developer/qa/techartist/gamedesigner) in event-driven multi-agent mode with watchdog orchestrator. Loads shared skills and processes tasks via file-based message queues.
+description: Worker (Developer/QA) in event-driven multi-agent mode
 arguments:
-  agent: developer qa techartist gamedesigner
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__gitkraken
+  agent: developer, qa, techartist, gamedesigner
+  message: JSON payload
+tools:
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - WebSearch
+  - mcp__web-search-prime__webSearchPrime
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_take_screenshot
+  - mcp__playwright__browser_type
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_press_key
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_evaluate
+  - mcp__zai-mcp-server__analyze_image
 ---
 
-# EVENT-DRIVEN MODE - $arguments.agent Worker (Watchdog Architecture)
+# EVENT-DRIVEN MODE - $arguments.agent Worker
 
 You are the **$arguments.agent** in **EVENT-DRIVEN MULTI-AGENT** mode.
-Always prefer to run skills, sub-agents, and Task() in parallel for improved efficiency.
+All agents run in parallel. You communicate via message queue.
 
-## Architecture
+**CRITICAL: Follow the Communication Protocols in `shared-core` skill.**
+All messages must use the ID format, Atomic Write pattern, and proper JSON structure defined there.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        WATCHDOG (Orchestrator)                       │
-│  - Spawns workers when messages exist in their queues               │
-│  - Routes messages via file queues                                 │
-│  - Monitors worker health                                           │
-└─────────────────────────────────────────────────────────────────────┘
-        ▲
-        │ (spawns when messages exist)
-        │
-┌───────────────┐
-│ $arguments.agent Worker
-│  (You/Claude) │
-└───────────────┘
-```
-
-**You communicate via file-based message queues.**
-
----
 
 ## Startup Sequence
 
-Execute in order:
+**CRITICAL: Load and follow the protocols in `{$arguments.agent}-workflow` skill.**
+You must follow the defined guidelines and rules for your role during the development cycle.
 
-1. **`Skill("shared-core")`** - Load session structure, status values, heartbeat protocol
-2. **`Skill("shared-messaging")`** - Load message queues, acknowledgment protocol
-3. **`Skill("shared-lifecycle")`** - Load process cleanup procedures
-4. **`Skill("shared-worktree")`** - Load detailed information about worktree and branch work
-5. **`Read("agents/{agent}/AGENT.md")`** - Load role definition and decision framework
-6. **`Skill("{agent}-workflow")`** - Load detailed workflow procedures
-7. **Check for messages** - Use `Glob` on `.claude/session/messages/{agent}/msg-*.json`
-8. **Send status_update** - Update PM and watchdog when ready
+### Step 1: Parse $arguments.message payload
+
+Read, reason, understand, and act over the incoming request from the payload.
+
+### Step 2: Process the message
+
+Parse `$arguments.message` and process based on `message.type` and reason about your next steps based on your workflow definition. Delete the messages at the `.claude/session/messages/{$arguments.agent}/*.json` after process it.
+
+### Step 3: Update status to Watchdog
+
+Based on your next action, notify the watchdog about your status and necessary state files.
+
+**Valid state values:**
+
+- `starting` - Agent just spawned
+- `working` - Actively processing
+- `ready` - Finished, waiting for work
+- `awaiting_pm` - Waiting for PM response
+- `awaiting_gd` - Waiting for Game Designer response
+
+### Step 4: Reason and perform the designed task
+
+Follow your workflow directions to complete the designed task.
+
+### Update status to Watchdog
+
+**IMPORTANT**: When you finish processing messages and are ready for more, signal the watchdog. This tells the watchdog you're ready for more work. Without this signal, the watchdog will assume you're still working and won't deliver new messages.
 
 ---
 
-## Exit Conditions
+**Before exiting checklist:**
 
-Exit after each work cycle. Watchdog will restart you when:
-
-1. New messages arrive in your queue
-2. PM assigns a new task
-3. Heartbeat timeout requires check-in
-
-**Before exiting:**
-
-- [ ] Update prd.json.agents.{agent}.status and lastSeen
-- [ ] Send status_update message to PM
-- [ ] Send status_update message to watchdog - MAKE SURE TO SET TO `idle` to not block the pending messages
-- [ ] Cleanup all background processes (see `shared-lifecycle`)
-
----
+- [ ] Update your task status
+- [ ] Cleanup all background processes you initiated: dev servers, scripts, test suits, etc. (use skill `shared-lifecycle`)
+- [ ] Commit your changes
+- [ ] Invoke the next agent via message system
+- [ ] Update status file to `"state": "ready"` to notify watchdog

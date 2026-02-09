@@ -1,140 +1,54 @@
 ---
 name: developer-workflow
 description: Complete Developer workflow orchestration - task research sequence, implementation flow, validation gates, PRD synchronization, exit conditions.
-category: workflow
 ---
 
 # Developer Workflow
 
 > "This skill orchestrates the development workflow sequence. For detailed implementation guidance."
 
----
+## Core Responsibilities
 
-## Startup Workflow
+- **Load the proper skills and tools** - Always ensure you have the right skills loaded for each task. Run tasks and subagents in parallel when possible to optimize time.
+- **Task Research** - Research and plan implementation before coding. Read PRD, ask questions, research solutions, and create a clear implementation plan.
+- **Implementation** - Write code to implement assigned tasks. Follow best practices, maintain code quality, and ensure functionality.
+- **Validation** - Run validation steps and fix issues until passing. Use `qa-validation-workflow` skill for guidance.
+- **PRD Synchronization** - Update PRD with implementation details, blockers, and observations. Keep PM informed of progress and issues.
+- **Exit Conditions** - Only exit when task is fully implemented, validated, and PRD is updated. Never exit prematurely or leave tasks in an incomplete state.
 
-1. Load `Skill("dev-router")` to understand your skill set
+## Agent Startup Protocol 
 
-2. Load `Skill("threejs-builder")` to understand your Three.js skill set
+On each Developer agent spawn:
 
-3. Load `Skill("shared-validation-feedback-loops")` to understand validation loops
+1. **Read --message argument** (task assignment from watchdog)
+2. **Read task state file** read and understand current task details and status
+3. **Research task requirements** Understand the requirements, read the specifications, use MCP tools (WebSearch, Fetch) to clarify implementation details, best practices, and potential blockers
 
-4. **Process pending messages** - **IMPORTANT**: Messages are in the master branch, accessed via relative path like `../agentic-threejs/.claude/session/messages/developer/`. Consolidate all the .json messages requests and delete the files before continue. Update watchdog status.
+**PRE-REQUISITE: You should already have loaded the `shared-worktree` skill and be in the correct worktree directory before starting this step!**
 
-5. **Read current-task-developer.json** - **IMPORTANT**: State file is in the master branch, accessed via relative path like `../agentic-threejs/.claude/session/current-task-developer.json`. Reason about the message request and define your next action
+4. **Create a implementation plan** document your approach in an implementation plan. Create steps and a checklist, update the task comments, and update PRD if needed
+5. **Update task state** to "in_progress" in task state file (atomic write)
+6. **Process and implement the task** following your plan and best practices, using the appropriate skills, subagents, and tools as needed
+8. **Run validation** using `qa-validation-workflow` skill and fix any issues until passing
+9. **Update PRD and commit changes** with implementation details, blockers, and observations (atomic write). Commit the changes following the default commit message pattern.
+10. **Notify the next agent** wake up the next agent that needs to act after your actions via message system
+11. **Exit** Update your status to "ready" to watchdog and wake up the next agent before exiting, so watchdog can track availability for next task assignment
 
----
+**IF BLOCKED**
+- Update state: `state.status = "awaiting_pm"`, `state.lastSeen = "{ISO_TIMESTAMP}"`
+- Document blocker in task prd.json
+- Send message to PM with details
+- Send message to watchdog to update status
+- Exit and wait
 
-## Dashboard Status Update - **CRITICAL: Before starting ANY work action, update your status in current-task-developer.json:**
+## State Transitions
 
-| Action                      | Update State File Like This                                                           | Send Status Update to Watchdog                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Starting work on task**   | `state.status = "working"` + `id = "{taskId}"` + `state.lastSeen = "{ISO_TIMESTAMP}"` | `Send-StatusUpdate -From "developer" -Status "working" -CurrentTask "{taskId}"` |
-| **Blocked by question**     | `state.status = "awaiting_pm"` + `state.lastSeen = "{ISO_TIMESTAMP}"`                 | `Send-StatusUpdate -From "developer" -Status "waiting"`                         |
-| **Sending to QA**           | `state.status = "idle"` + `id = null` + `state.lastSeen = "{ISO_TIMESTAMP}"`          | `Send-StatusUpdate -From "developer" -Status "idle"`                            |
-| **Self-reporting progress** | `state.lastSeen = "{ISO_TIMESTAMP}"`                                                  | -                                                                               |
-
----
-
-## Implementation Workflow
-
-**PRE-REQUISITE: You should already be in your worktree directory (`../developer-worktree`) before starting this workflow!**
-
-1. **UPDATE STATE FILE** (MANDATORY - First step)
-   - Edit `current-task-developer.json`:
-     - `state.status = "working"`
-     - `state.currentTaskId = "{taskId}"`
-     - `state.lastSeen = "{ISO_TIMESTAMP}"`
-   - Send status update to watchdog: `Send-StatusUpdate -From "developer" -Status "working" -CurrentTask "{taskId}"`
-
-2. **Task Research** (MANDATORY Before Coding new tasks)
-   - Step 1: GDD Reading (Bugs can skip it)
-
-     ```
-     Skill("dev-research-gdd-reading")
-     ```
-
-     - Read `docs/design/gdd/index.md` for overview
-     - Read feature-specific GDD files
-     - Check decision log and open questions
-
-   - Step 2: Codebase Exploration
-
-     ```
-     Task({
-     subagent_type: "developer-code-research",
-     description: "Research patterns for {feature}",
-     prompt: "Research existing codebase patterns for implementing {feature}",
-     timeout: 300000
-     })
-     ```
-
-3. **IMPLEMENTATION**
-   - Create/modify files following researched patterns
-
-4. **TEST COVERAGE CHECK** (MANDATORY - CANNOT SKIP)
-   - `Skill("qa-test-creation")` - Check if tests exist for modified files
-   - If tests missing: MUST invoke `test-creator` sub-agent before proceeding
-   - Files changed without tests = BLOCKING - cannot proceed to step 8
-
-   **⚠️ NON-BYPASSABLE GATE:**
-   - NO exceptions for "bug fixes", "refactorings", or "non-visual changes"
-   - Even trivial changes need test coverage (unit test minimum)
-   - ONLY PM can approve skipping tests via explicit message
-
-5. **IF BLOCKED**
-   - Update state: `state.status = "awaiting_pm"`
-   - Send question to PM using the **Write tool**:
-
-   ```
-   Write to: .claude/session/messages/pm/msg-pm-{timestamp}-001.json
-   Content:
-   {
-     "id": "msg-pm-{timestamp}-001",
-     "from": "developer",
-     "to": "pm",
-     "type": "question",
-     "priority": "high",
-     "payload": {
-       "question": "How should I handle X?",
-       "context": "Current situation..."
-     },
-     "timestamp": "{ISO-8601-timestamp}",
-     "status": "pending"
-   }
-   ```
-
-   - Document blocker in task memory
-   - Exit and wait
-
-6. **FEEDBACK LOOPS**
-
-7. **COMMIT** - At the end of the task, commit all changes to your branch
-
-8. **SEND TO QA**
-
-- Update state: `state.status = "idle"`, `id = null`
-- Send status update to watchdog: `Send-StatusUpdate -From "developer" -Status "idle"`
-- Send completion using the **Write tool**:
-
-  ```
-  Write to: .claude/session/messages/pm/msg-pm-{timestamp}-001.json
-  Content:
-  {
-    "id": "msg-pm-{timestamp}-001",
-    "from": "developer",
-    "to": "pm",
-    "type": "task_complete",
-    "priority": "normal",
-    "payload": {
-      "taskId": "{taskId}",
-      "success": true,
-      "summary": "Implementation complete"
-    },
-    "timestamp": "{ISO-8601-timestamp}",
-    "status": "pending"
-  }
-  ```
-
-9. **EXIT**
-
----
+| Current State  | Trigger                  | Action                  | Next State     |
+| -------------- | ------------------------ | ----------------------- | -------------- |
+| `idle`         | Task assigned            | Load workflow, work     | `working`      |
+| `working`      | Need PM guidance         | Ask PM                  | `awaiting_pm`  |
+| `working`      | Need GD input            | Ask GD                  | `awaiting_gd`  |
+| `working`      | Work complete            | Send to next agent      | `idle`         |
+| `awaiting_pm`  | PM provides guidance     | Resume work             | `working`      |
+| `awaiting_gd`  | GD provides answer       | Resume work             | `working`      |
+| `error`        | Error occurred           | Log error, await help   | `awaiting_pm`  |

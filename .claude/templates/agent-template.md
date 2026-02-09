@@ -8,27 +8,13 @@
     now: datetime object for current time
 -#}
 ---
-role: {{ agent.name }}
 name: {{ agent.display_name }}
-icon: |
-{% for line in agent.icon.split('\n') %}{{ line }}
-{% endfor %}
-orchestration: {{ project.orchestration_mode.value }}
-version: 3.0
+description: {{agent.description}}
 ---
 
 # {{ agent.display_name }} - Quick Reference
 
 > "{{ agent.primary_responsibility }}"
-
-## Role Card
-
-| Aspect      | Description                                   |
-| ----------- | --------------------------------------------- |
-| **Primary** | {{ agent.primary_responsibility }}             |
-| **Cannot**  | {{ agent.cannot_do | join('; ') if agent.cannot_do else 'N/A' }} |
-| **Works With** | {{ agent.works_with | join(', ') if agent.works_with else 'All agents' }} |
-| **Startup**  | `/ralph-worker-event --agent {{ agent.name }}`     |
 
 ## Core Responsibilities
 

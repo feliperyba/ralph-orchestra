@@ -9,7 +9,7 @@
 #   RALPH_MAX_ITERATIONS - Maximum iterations before forced exit (default: 50)
 #
 # Session State:
-#   prd.json.session - Main session state (was coordinator-state.json)
+#   .claude/session/coordinator-state.json - Main session state
 #   .claude/session/last-output.txt - Last Claude output for completion detection
 #   .claude/session/context-reset-count.txt - Track number of context resets
 
@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 
 # Configuration
 $SESSION_DIR = ".claude\session"
-$PRD_FILE = "prd.json"
+$STATE_FILE = "$SESSION_DIR\coordinator-state.json"
 $LAST_OUTPUT = "$SESSION_DIR\last-output.txt"
 $RESET_COUNT_FILE = "$SESSION_DIR\context-reset-count.txt"
 $CONTINUE_FLAG = "$SESSION_DIR\continue-loop.flag"
@@ -35,75 +35,43 @@ if (-not (Test-Path $SESSION_DIR)) {
     New-Item -ItemType Directory -Path $SESSION_DIR -Force | Out-Null
 }
 
-# Helper function to update prd.json.session
-function Update-PrdSessionState {
-    param(
-        [hashtable]$Updates
-    )
+# Initialize state if doesn't exist
+if (-not (Test-Path $STATE_FILE)) {
+    $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $sessionId = "ralph-" + (Get-Date).ToString("yyyyMMdd-HHmmss")
 
-    $prdPath = $PRD_FILE
-    if (-not (Test-Path $prdPath)) {
-        return $false
-    }
-
-    try {
-        $prdContent = Get-Content $prdPath -Raw | ConvertFrom-Json
-
-        # Ensure session object exists
-        if (-not $prdContent.session) {
-            $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-            $prdContent.session = @{
-                sessionId = "ralph-" + (Get-Date).ToString("yyyyMMdd-HHmmss")
-                startedAt = $timestamp
-                maxIterations = $MAX_ITERATIONS
-                iteration = 1
-                completionPromise = $COMPLETION_PROMISE
-                status = "running"
-                currentTask = $null
-                agents = @{
-                    pm = @{ status = "idle"; lastSeen = $null }
-                    developer = @{ status = "idle"; lastSeen = $null }
-                    qa = @{ status = "idle"; lastSeen = $null }
-                }
-                stats = @{
-                    totalTasks = 0
-                    completed = 0
-                    failed = 0
-                    commits = 0
-                }
-            }
+    @{
+        sessionId = $sessionId
+        startedAt = $timestamp
+        maxIterations = $MAX_ITERATIONS
+        iteration = 1
+        completionPromise = $COMPLETION_PROMISE
+        status = "running"
+        currentTask = $null
+        agents = @{
+            pm = @{ status = "idle"; lastSeen = $null }
+            developer = @{ status = "idle"; lastSeen = $null }
+            qa = @{ status = "idle"; lastSeen = $null }
         }
-
-        # Apply updates
-        foreach ($key in $Updates.Keys) {
-            $prdContent.session[$key] = $Updates[$key]
+        stats = @{
+            totalTasks = 0
+            completed = 0
+            failed = 0
+            commits = 0
         }
-
-        # Write back to file
-        $prdContent | ConvertTo-Json -Depth 32 | Out-File -FilePath "$prdPath.tmp" -Encoding utf8
-        Move-Item -Path "$prdPath.tmp" -Destination $prdPath -Force
-        return $true
-    } catch {
-        return $false
-    }
+    } | ConvertTo-Json -Depth 10 | Out-File -FilePath $STATE_FILE -Encoding utf8
 }
 
-# Read current state from prd.json.session
-$STATUS = "running"
-$ITERATION = 1
-$MAX = $MAX_ITERATIONS
-
-if (Test-Path $PRD_FILE) {
-    try {
-        $prdContent = Get-Content $PRD_FILE -Raw | ConvertFrom-Json
-        if ($prdContent.session) {
-            $STATUS = $prdContent.session.status
-            $ITERATION = $prdContent.session.iteration
-            $MAX = if ($prdContent.session.maxIterations) { $prdContent.session.maxIterations } else { $MAX_ITERATIONS }
-        }
-    } catch {
-        # Use defaults
-    }
+# Read current state
+if (Test-Path $STATE_FILE) {
+    $stateContent = Get-Content $STATE_FILE -Raw | ConvertFrom-Json
+    $STATUS = $stateContent.status
+    $ITERATION = $stateContent.iteration
+    $MAX = $stateContent.maxIterations
+} else {
+    $STATUS = "running"
+    $ITERATION = 1
+    $MAX = $MAX_ITERATIONS
 }
 
 # ============================================================================
@@ -118,8 +86,13 @@ if (Test-Path $PRD_FILE) {
 if ($ITERATION -gt $MAX) {
     Write-Host "=== Max iterations reached ($ITERATION/$MAX) ===" -ForegroundColor Yellow
     Write-Host "Ralph loop stopping..."
-    # Update status in prd.json.session
-    Update-PrdSessionState -Updates @{ status = "max_iterations_reached" }
+    # Update status
+    if (Test-Path $STATE_FILE) {
+        $stateContent = Get-Content $STATE_FILE -Raw | ConvertFrom-Json
+        $stateContent.status = "max_iterations_reached"
+        $stateContent | ConvertTo-Json -Depth 10 | Out-File -FilePath "$STATE_FILE.tmp" -Encoding utf8
+        Move-Item -Path "$STATE_FILE.tmp" -Destination $STATE_FILE -Force
+    }
     exit 0
 }
 
@@ -154,13 +127,23 @@ if (Test-Path $LAST_OUTPUT) {
 
     if ($lastOutputContent -match [regex]::Escape($completionPattern)) {
         Write-Host "--- Completion promise detected, updating status ---" -ForegroundColor Green
-        Update-PrdSessionState -Updates @{ status = "completed" }
+        if (Test-Path $STATE_FILE) {
+            $stateContent = Get-Content $STATE_FILE -Raw | ConvertFrom-Json
+            $stateContent.status = "completed"
+            $stateContent | ConvertTo-Json -Depth 10 | Out-File -FilePath "$STATE_FILE.tmp" -Encoding utf8
+            Move-Item -Path "$STATE_FILE.tmp" -Destination $STATE_FILE -Force
+        }
         # Note: We still continue - external loop will detect "completed" status
     }
 }
 
 # Increment iteration counter
-Update-PrdSessionState -Updates @{ iteration = $ITERATION + 1 }
+if (Test-Path $STATE_FILE) {
+    $stateContent = Get-Content $STATE_FILE -Raw | ConvertFrom-Json
+    $stateContent.iteration++
+    $stateContent | ConvertTo-Json -Depth 10 | Out-File -FilePath "$STATE_FILE.tmp" -Encoding utf8
+    Move-Item -Path "$STATE_FILE.tmp" -Destination $STATE_FILE -Force
+}
 
 # ALWAYS signal restart - create continue flag file
 # The external loop script (agent-loop.ps1) checks for this flag

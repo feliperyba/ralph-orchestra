@@ -9,8 +9,6 @@
 ---
 name: {{ skill.name }}
 description: {{ skill.description }}
-category: {{ skill.category | default('user') }}
-depends-on: {{ skill.depends_on | default([]) }}
 ---
 
 # {{ skill.display_name | default(skill.name | title) }}

@@ -500,7 +500,7 @@ Deploy the application:
 ### Use `user-invocable: false` for:
 
 - Background knowledge users shouldn't invoke directly
-- Context-only information (e.g., `legacy-system-context`)
+- Context-only information (e.g., `project-architecture-context`)
 
 ---
 
@@ -696,25 +696,17 @@ Don't include information that will become outdated.
 
 **Bad example (time-sensitive):**
 ```markdown
-If you're doing this before August 2025, use the old API.
-After August 2025, use the new API.
+If you're doing this before August 2025, use method A.
+After August 2025, use method B.
 ```
 
-**Good example (use "old patterns" section):**
+**Good example (focus on current best practice):**
 ```markdown
-## Current method
+## API Endpoint
 
-Use the v2 API endpoint: `api.example.com/v2/messages`
+Use the messages API endpoint: `api.example.com/v1/messages`
 
-## Old patterns
-
-<details>
-<summary>Legacy v1 API (deprecated 2025-08)</summary>
-
-The v1 API used: `api.example.com/v1/messages`
-
-This endpoint is no longer supported.
-</details>
+This endpoint accepts POST requests with JSON payloads containing the message content and recipient information.
 ```
 
 ### Use Consistent Terminology
@@ -1183,22 +1175,6 @@ See [api-reference.md](api-reference.md) for complete endpoint documentation.
 
 ---
 
-## Commands vs Skills
-
-**Historical Note:** Custom slash commands (`.claude/commands/`) have been merged into skills. Both work the same way now.
-
-| Aspect | Commands | Skills |
-|--------|----------|--------|
-| Location | `.claude/commands/review.md` | `.claude/skills/review/SKILL.md` |
-| Slash command | `/review` | `/review` |
-| Supporting files | No | Yes (directory structure) |
-| Frontmatter | Yes | Yes (with additional fields) |
-| Priority | Lower | Higher (skills take precedence) |
-
-**Recommendation:** Use skills for new work. Existing command files keep working.
-
----
-
 ## Checklist for Effective Skills
 
 Before sharing a Skill, verify:
@@ -1210,7 +1186,7 @@ Before sharing a Skill, verify:
 - [ ] Description is written in third person
 - [ ] SKILL.md body is under 500 lines
 - [ ] Additional details are in separate files (if needed)
-- [ ] No time-sensitive information (or in "old patterns" section)
+- [ ] No time-sensitive information
 - [ ] Consistent terminology throughout
 - [ ] Examples are concrete, not abstract
 - [ ] File references are one level deep

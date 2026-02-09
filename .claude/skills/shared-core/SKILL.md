@@ -1,235 +1,252 @@
 ---
 name: shared-core
-description: Core orchestration concepts - session structure, status values, heartbeat, commit format. Single source of truth for all Ralph agents.
-category: orchestration
+description: Base instructions and guidelines for all agents in the system. This skill provides foundational behaviors and communication protocols that all agents should follow.
+allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Bash Command, Computer, mcp__gitkraken, Fetch, WebSearch
 ---
 
-# Shared Core
+# Shared Core Skill
 
-> "This is the canonical reference for shared Ralph behavior. Agent-specific docs should reference these rules, not duplicate them."
+> "You are an agent utilizing the **Shared Core Skill**, which provides essential instructions and guidelines for all agents in the system."
 
----
+## IMPORTANT: Use Claude Tools, Not Shell Commands
 
-## Single Source of Truth
-
-Workers read lightweight state files, PM syncs with prd.json
-
-### State File Architecture
-
-| File                             | Who Reads         | Who Writes  | Size  | Purpose                            |
-| -------------------------------- | ----------------- | ----------- | ----- | ---------------------------------- |
-| `current-task-developer.json`    | Developer, PM     | Developer   | ~1KB  | Developer's current task state     |
-| `current-task-qa.json`           | QA, PM            | QA          | ~1KB  | QA's current task state            |
-| `current-task-techartist.json`   | Tech Artist, PM   | Tech Artist | ~1KB  | Tech Artist's current task state   |
-| `current-task-gamedesigner.json` | Game Designer, PM | Game Design | ~1KB  | Game Designer's current task state |
-| `current-task-pm.json`           | PM                | PM          | ~2KB  | PM coordinator state               |
-| `prd.json`                       | **PM only**       | PM only     | 110KB | Full PRD with all tasks            |
-
-**Key Principle:** Workers NEVER read prd.json. They read only their own state file.
-
-### prd.json Role
-
-**prd.json is now PM-ONLY.** It serves as:
-
-1. **PM's task database** - All tasks, dependencies, priorities
-2. **Session state record** - Iteration, max iterations, completion
-3. **Sync source** - PM syncs between agent files and PRD
-
-**Workers do NOT read prd.json** because:
-
-- 110KB file bloats context windows
-- Workers only need their current task info
-- PM handles all coordination decisions
-
-**PM reads both:**
-
-- All agent state files (for worker status)
-- prd.json (for task database)
+Instead, use Claude's built-in tools:
+- **Read tool** - to read session files, state, messages
+- **Write tool** - to write message files, update state
+- **Grep tool** - to search code
+- **Bash tool** - only for git commands, running tests, builds
+- **Fetch tool** - to make HTTP requests
+- **MCP Servers** - to interact with MCP services like GitKraken, Playwright, Web search, Vision, etc.
 
 ---
 
-## prd.json Schema (PM Reference Only)
+## Communication Protocols
 
-### prd.json Schema
+There are 2 layers of communication: The **Watchdog** and **Agents Direct Messaging**. 
+
+### FIRST: Check for Pending Messages
+
+The watchdog delivers messages in two ways:
+
+1. **PRIMARY**: Via `--message` CLI argument as a JSON array (`$arguments.message`)
+2. **FALLBACK**: Via context file.
+
+**Always check `$arguments.message` first on startup:**
+- If `$arguments.message` is present and non-empty, parse it as JSON array of messages
+- If `$arguments.message` is empty/missing, read the fallback file:
+    Read `.claude/session/pending-messages-$arguments.agent.json` or `.claude/session/messages/$arguments.agent/*.json` to check for pending messages. If the file exists, read and parse it as JSON array of messages. Delete it after processing.
+
+### SECOND: NEVER FORGET TO UPDATE A TASK STATUS AND WAKE UP THE NEEDED AGENTS
+
+You are the glue that keep the development cycle running. You **must update a task status to the next agent** and send a message to watchdog wake them up.
+
+---
+
+## How Message Delivery Works
+
+1. Read `pending-messages-$arguments.agent.json`
+2. For each message in the array:
+   a. Check if `message.id` exists in `message-state.json` → `processedMessages`
+   b. If yes → Skip (already processed)
+   c. If no → Process the message
+   d. Delete the messages
+   e. After processing, the watchdog will automatically mark it as processed
+
+---
+
+## Sending Messages (The Atomic Write Protocol)
+
+To send a message, you must use an **Atomic Write Pattern** to prevent partial reads by the watchdog.
+
+**Protocol:**
+1. Generate ID: `msg-{yyyyMMdd-HHmmss}-{random8chars}`
+2. Write content to: `.claude/session/messages/{recipient}/{id}.json.tmp`
+3. Rename file to: `.claude/session/messages/{recipient}/{id}.json`
+
+**Use the Bash tool for the rename to ensure atomicity.**
+
+### Message Structure
 
 ```json
 {
-  "session": {
-    "sessionId": "string",
-    "startedAt": "ISO-8601",
-    "maxIterations": 200,
-    "iteration": 0,
-    "status": "running|completed|terminated|max_iterations_reached",
-    "currentTask": { "id": "string", "status": "string" } | null,
-    "stats": { "totalTasks": 0, "completed": 0, "failed": 0, "commits": 0 }
-  },
-  "agents": {
-    "pm": { "status": "idle", "lastSeen": "ISO-8601", "currentTaskId": "string|null" },
-    "developer": { "status": "idle", "lastSeen": "ISO-8601", "currentTaskId": "string|null" },
-    "qa": { "status": "idle", "lastSeen": "ISO-8601", "currentTaskId": "string|null" },
-    "techartist": { "status": "idle", "lastSeen": "ISO-8601", "currentTaskId": "string|null" },
-    "gamedesigner": { "status": "idle", "lastSeen": "ISO-8601", "currentTaskId": "string|null" }
-  },
-  "items": [
-    {
-      "id": "string",
-      "title": "string",
-      "category": "architectural|integration|functional|visual|shader|polish",
-      "priority": "high|medium|low",
-      "status": "pending|assigned|in_progress|awaiting_qa|passed|needs_fixes|blocked|in_retrospective|retrospective_synthesized|playtest_phase|playtest_complete|prd_refinement|task_ready|skill_research|completed",
-      "passes": false,
-      "agent": "developer|qa|techartist|gamedesigner",
-      "dependencies": ["taskId1", "taskId2"],
-      "acceptanceCriteria": [],
-      "verificationSteps": [],
-      "retryCount": 0,
-      "bugs": []
-    }
-  ],
-  "backlogFile": "prd_backlog.json"
+  "id": "msg-20260208-140000-a1b2c3d4",
+  "from": "$arguments.agent",
+  "to": "{recipient}",
+  "type": "{message_type}",
+  "priority": "normal",
+  "payload": { ... },
+  "timestamp": "2026-02-08T14:00:00Z",
+  "status": "pending"
 }
 ```
 
-### Session Directory
+### Example: Sending a Status Update
 
+1. Create the content (using Write tool):
+   **File:** `.claude/session/messages/watchdog/msg-status-123.json.tmp`
+   ```json
+   {
+     "id": "msg-status-20260208-120000-x9y8z7",
+     "from": "developer",
+     "to": "watchdog",
+     "type": "status_update",
+     "priority": "low",
+     "payload": {
+       "status": "working",
+       "currentTask": "feat-001",
+       "details": "Implementing feature"
+     },
+     "timestamp": "2026-02-08T12:00:00Z",
+     "status": "pending"
+   }
+   ```
+
+2. Atomic Rename (using Bash tool):
+   ```bash
+   mv .claude/session/messages/watchdog/msg-status-123.json.tmp .claude/session/messages/watchdog/msg-status-123.json
+   ```
+
+---
+
+## Task Status Updates
+
+**IMPORTANT**: Always send status updates when starting and finishing work. This ensures the dashboard shows accurate agent status.
+
+### When You START Working on a Task
+
+Send `status: "working"` immediately when you begin processing:
+
+**Payload:**
+```json
+{
+  "status": "working",
+  "currentTask": "{taskId}",
+  "details": "{brief description}"
+}
 ```
-.claude/session/
-├── current-task-developer.json   # Developer state (read by dev, PM)
-├── current-task-qa.json          # QA state (read by qa, PM)
-├── current-task-techartist.json  # Tech Artist state (read by ta, PM)
-├── current-task-gamedesigner.json # Game Designer state (read by gd, PM)
-├── current-task-pm.json          # PM coordinator state
-├── handoff-log.json             # Task handoff history
-├── continue-loop.flag           # Restart signal
-├── work-in-progress.json        # Saved state for resume
-├── coordinator-progress.txt     # Human-readable log
-└── messages/                    # Message queues (event-driven)
-    ├── pm/
-    ├── developer/
-    ├── qa/
-    ├── techartist/
-    └── gamedesigner/
+
+### When You FINISH a Task
+
+Send `status: "ready"` when complete and ready for next assignment:
+
+**Payload:**
+```json
+{
+  "status": "ready",
+  "currentTask": null,
+  "details": "Task complete, ready for next assignment"
+}
+```
+
+### Standard Message Types
+
+#### 1. Validation Request (Dev -> QA)
+**Type:** `validation_request`
+**Payload:**
+```json
+{
+  "taskId": "{taskId}",
+  "description": "Implementation complete",
+  "branch": "main"
+}
+```
+
+#### 2. Task Complete (QA -> PM)
+**Type:** `task_complete`
+**Payload:**
+```json
+{
+  "taskId": "{taskId}",
+  "summary": "All tests pass",
+  "validationPassed": true
+}
+```
+
+#### 3. Bug Report (QA -> PM)
+**Type:** `bug_report`
+**Priority:** `high`
+**Payload:**
+```json
+{
+  "taskId": "{taskId}",
+  "bugs": ["List of bugs found"],
+  "severity": "high"
+}
+```
+
+#### 4. Research Request (Any -> PM)
+**Type:** `research_request`
+**Payload:**
+```json
+{
+  "topic": "Topic to research",
+  "context": "Why I need this",
+  "needCodeExamples": true
+}
+```
+
+#### 5. General Request (Any -> Any)
+**Type:** `task_request`
+**Payload:**
+```json
+{
+  "topic": "Topic to research",
+  "context": "Why I need this",
+  "needCodeExamples": true
+}
 ```
 
 ---
 
-## Unified Status Values (Single Source of Truth)
+### Asking Questions
 
-**This is the authoritative reference for ALL status values in Ralph.**
-
-### Task Status Values (`prd.json.items[{taskId}].status`)
-
-| Status                      | Used By              | Meaning                                   | passes |
-| --------------------------- | -------------------- | ----------------------------------------- | ------ |
-| `pending`                   | PM                   | Task not yet started                      | false  |
-| `assigned`                  | PM                   | Task assigned to worker, waiting to start | false  |
-| `in_progress`               | Worker (self-report) | Worker actively working                   | false  |
-| `awaiting_qa`               | PM                   | Worker finished, waiting for QA           | false  |
-| `passed`                    | QA (set), PM (reads) | **QA PASSED** - triggers retrospective    | true   |
-| `needs_fixes`               | PM (after QA fail)   | QA found bugs, reassign                   | false  |
-| `blocked`                   | PM                   | Max attempts, manual escalation           | false  |
-| `in_retrospective`          | PM                   | Worker retrospective active               | true   |
-| `retrospective_synthesized` | PM                   | Retrospective complete, committed         | true   |
-| `playtest_phase`            | PM                   | Game Designer playtest active             | true   |
-| `playtest_complete`         | PM                   | Playtest findings reviewed                | true   |
-| `prd_refinement`            | PM                   | PRD reorganization in progress            | true   |
-| `task_ready`                | PM                   | Ready for skill research                  | true   |
-| `skill_research`            | PM                   | PM improving ALL skills                   | true   |
-| `completed`                 | PM                   | All phases complete, archived             | true   |
-
-### Agent Status Values (`prd.json.agents.{agent}.status`)
-
-| Status                     | Meaning                       | Who Sets |
-| -------------------------- | ----------------------------- | -------- |
-| `idle`                     | Agent not working             | Self/PM  |
-| `working`                  | Agent actively working        | Self     |
-| `working_on_retrospective` | Contributing to retrospective | Self     |
-| `awaiting_pm`              | Waiting for PM response       | Self     |
-| `awaiting_gd`              | Waiting for Game Designer     | Self     |
-| `waiting`                  | General waiting state         | Self     |
-
-### Status Transition Rules
-
-1. **Only PM sets task status** (except `in_progress` - workers self-report)
-2. **Only QA sets `passed`** (PM then transitions to `in_retrospective`)
-3. **Only PM transitions to `completed`** (after skill_research)
-
----
-
-## Task Status Flow Diagrams
-
-### Core Task Flow (Implementation)
-
-```
-pending → assigned → in_progress → awaiting_qa → passed
-                                        ↓
-                                   needs_fixes
-                                        ↓
-                                   blocked (after max attempts)
+**Type:** `question`
+**Payload:**
+```json
+{
+  "question": "What is the requirement for X?",
+  "context": "Implementing feat-Y",
+  "taskId": "{taskId}"
+}
 ```
 
-### Post-Validation Phased Workflow
+## Signaling Work Complete
+
+**IMPORTANT**: When you finish processing a message and are ready for more work, signal the watchdog:
 
 ```
-passed
-  → prd_refinement (PM reorganizes PRD and PRD Backlog)
-  → task_ready
-  → skill_research (PM improves skills IF needed)
-  → completed (archived)
+File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+Content:
+{
+  "id": "msg-status-{timestamp}",
+  "from": "$arguments.agent",
+  "to": "watchdog",
+  "type": "status_update",
+  "priority": "low",
+  "payload": {
+    "status": "ready",
+    "lastTask": "{taskId}"
+  },
+  "timestamp": "{UTC-timestamp}",
+  "status": "pending"
+}
 ```
 
 ---
 
-### For PM Coordinator
+## Universal Commit Rule
 
-**PM reads both agent state files AND prd.json.**
+**CRITICAL: Every agent MUST commit their file changes.**
 
-**After processing each message:**
+Any time an agent makes file changes, those changes MUST be committed with the Ralph format.
 
-1. Read all agent state files to update Worker Status Summary
-2. Sync changes to prd.json.agents section
-3. Update prd.json if task status changes
+**When to Commit:**
+- After any file modifications (source files, configs, PRD, docs, session files)
+- Before sending completion messages
+- After any skill file updates
+- After any documentation changes
 
-**PM heartbeat pattern:**
-
-- Update current-task-pm.md with coordinator status
-- Sync to prd.json.agents.pm
-- Update lastSeen timestamp
-
-### Event-Driven Mode Exit Sequence
-
-In event-driven mode, agents exit after work:
-
-```
-1. Complete your work
-2. Determine exit status:
-   - "idle" - Done
-   - "awaiting_pm" - Sent question to PM
-   - "awaiting_gd" - Sent question to Game Designer
-3. Send status_update message
-4. Exit
-```
-
-**The status_update message is critical** - tells supervisor your actual state.
-
----
-
-## Exit Conditions
-
-**Workers MUST check coordinator status every poll and exit when:**
-
-| Condition                                                                          | Action          |
-| ---------------------------------------------------------------------------------- | --------------- |
-| `current-task-{agent}.json` shows `session.state.status: "completed"`              | Exit gracefully |
-| `current-task-{agent}.json` shows `session.state.status: "terminated"`             | Exit gracefully |
-| `current-task-{agent}.json` shows `session.state.status: "max_iterations_reached"` | Exit gracefully |
-| Detected `<promise>RALPH_COMPLETE</promise>`                                       | Exit gracefully |
-
-**For PM Coordinator:** Read `current-task-pm.json` for session status, or prd.json.session.
-
----
-
-## Commit Format (Universal)
+### Commit Format
 
 ```
 [ralph] [{{AGENT}}] {{PRD_ID}}: {{Brief description}}
@@ -239,31 +256,5 @@ In event-driven mode, agents exit after work:
 
 PRD: {{PRD_ID}} | Agent: {{AGENT}} | Iteration: {{N}}
 ```
-
-### Universal Commit Rule
-
-**CRITICAL: Every agent MUST commit their file changes.**
-
-### When to Commit
-
-| When                              | Must Commit? |
-| --------------------------------- | ------------ |
-| Source file modifications         | ✅ Yes       |
-| Configuration changes             | ✅ Yes       |
-| PRD updates                       | ✅ Yes       |
-| Documentation changes             | ✅ Yes       |
-| Skill file updates                | ✅ Yes       |
-| Heartbeat updates (lastSeen only) | ❌ No        |
-| Temporary message files           | ❌ No        |
-
-### Each Agent's Commit Scope
-
-| Agent             | Must Commit These Files                                                             |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| **PM**            | `prd.json`, `.claude/session/coordinator-progress.txt`, skill files, retrospectives |
-| **Developer**     | Source files, tests, own progress files                                             |
-| **Tech Artist**   | Assets, shaders, visual components, own progress files                              |
-| **QA**            | `prd.json` (validation fields), bug reports, own progress files                     |
-| **Game Designer** | `docs/design/`, GDD, own progress files                                             |
 
 ---

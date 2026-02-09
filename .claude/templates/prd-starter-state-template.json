@@ -68,7 +68,7 @@
   },
 
   "orchestration": {
-    "mode": "event-driven | sequential | polling | hitl",
+    "mode": "event-driven | sequential | hitl",
     "maxIterations": 200,
     "contextResetThreshold": 70,
     "heartbeatInterval": 30

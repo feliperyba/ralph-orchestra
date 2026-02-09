@@ -136,7 +136,7 @@ const next = unblocked.sort(priorityComparator)[0];
 
 ## PRD Backlog Architecture
 
-**Since v3.1.0**, tasks are split between two files:
+Tasks are split between two files:
 
 | File               | Contains           | Size      |
 | ------------------ | ------------------ | --------- |

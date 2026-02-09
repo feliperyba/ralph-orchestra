@@ -27,29 +27,28 @@ cat .claude/session/pending-handoff.json 2>/dev/null || echo "No pending handoff
 ### Step 2: Read task details
 
 ```bash
-# All state is in prd.json (single source of truth)
-cat prd.json
+cat .claude/session/current-task.json
+cat .claude/session/coordinator-state.json
 ```
 
 ### Step 3: Do your work
 
 **If you are DEVELOPER:**
 
-1. Read the task specifications from prd.json.items[{taskId}]
+1. Read the task specifications from current-task.json
 2. Implement the feature/fix
 3. Run feedback loops: `npx tsc --noEmit`, `npm run lint`
 4. Commit your changes: `git add -A && git commit -m "feat: ..."`
-5. Update prd.json.items[{taskId}].status to "ready_for_qa"
-6. Update prd.json.agents.developer status to "idle"
-7. HANDOFF to QA
+5. Update current-task.json with status "ready_for_qa"
+6. HANDOFF to QA
 
 **If you are QA:**
 
-1. Read what was implemented from prd.json.items[{taskId}]
+1. Read what was implemented from current-task.json
 2. Run validation: `npm run build`, `npm run test`
 3. Check code quality and acceptance criteria
-4. If PASS → Update prd.json.items[{taskId}].status to "passed", HANDOFF to PM
-5. If FAIL → Document bugs in prd.json.items[{taskId}].notes, HANDOFF to Developer
+4. If PASS → Update status to "passed", HANDOFF to PM
+5. If FAIL → Document bugs in current-task.json, HANDOFF to Developer
 
 ### Step 4: HANDOFF (MANDATORY - Do this when work is complete)
 
@@ -58,7 +57,7 @@ cat prd.json
 **Developer → QA (after implementation):**
 
 ```bash
-echo '{"targetAgent": "qa", "context": "Validate TASK_ID - Implementation complete. See prd.json.items[{taskId}].", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "qa", "context": "Validate TASK_ID - Implementation complete. See current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:qa:Ready for validation`
@@ -74,7 +73,7 @@ Then output: `HANDOFF:pm:Validation passed`
 **QA → Developer (if bugs found):**
 
 ```bash
-echo '{"targetAgent": "developer", "context": "Fix bugs in TASK_ID - See prd.json.items[{taskId}].notes.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "developer", "context": "Fix bugs in TASK_ID - See bugs array in current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:developer:Bugs found - fix needed`
@@ -109,54 +108,11 @@ HANDOFF:qa:Ready for validation
 
 ---
 
-## ⚠️ CRITICAL: Background Process Cleanup
-
-**ALWAYS kill background processes BEFORE handoff!**
-
-When using the Bash tool with `run_in_background=true`:
-
-1. **Capture the shell_id** returned when starting the process
-2. **Use KillShell tool** with that shell_id BEFORE writing handoff
-3. **NEVER handoff with background processes still running**
-
-### Example Pattern
-
-```bash
-# Start background process for testing
-Bash tool -> command: "npm run server:dev" -> run_in_background: true
-# Returns: shell_id: abc123
-
-# ... run your tests ...
-
-# ALWAYS cleanup BEFORE handoff:
-KillShell -> shell_id: abc123
-
-# NOW you can handoff safely
-```
-
-### Cleanup Checklist (Before Handoff)
-
-- [ ] **Kill ALL background processes** using `KillShell` tool
-- [ ] All processes you started are stopped
-- [ ] Ports are released (verify with `Test-Port.ps1` if needed)
-- [ ] No orphaned node/npm processes remain
-
-### Common Requiring Cleanup
-
-- Dev server: `npm run dev:all:sh`
-- Colyseus server: `npm run server:dev`
-- Build watcher: `npm run build -- --watch`
-- Test runner: `npm run test -- --watch`
-
-**Reference**: See `shared-lifecycle` skill for complete procedures.
-
----
-
 ## REMEMBER
 
 1. **Write handoff-signal.json** - this is how agents switch
 2. **Also print HANDOFF:agent:context** - backup detection
-3. **Update prd.json** with your changes before handoff (items[{taskId}] and agents.{your-agent})
+3. **Update current-task.json** with your changes before handoff
 4. **Commit code changes** (Developer) before handoff
 
 **BEGIN NOW** - Read pending-handoff.json, do your work, then HANDOFF!

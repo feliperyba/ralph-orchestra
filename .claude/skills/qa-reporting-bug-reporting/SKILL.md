@@ -209,7 +209,7 @@ Code Review:
 - Issue: CORS error in browser console - server CORS config missing
 ```
 
-## Bug Report Message (v2.0)
+## Bug Report Message
 
 When reporting a bug, send a `bug_report` message to PM with full bug details:
 
@@ -237,7 +237,7 @@ When reporting a bug, send a `bug_report` message to PM with full bug details:
 }
 ````
 
-**⚠️ V2.0:** QA does NOT update prd.json directly. PM syncs bug information from bug_report message.
+**⚠️ IMPORTANT:** QA does NOT update prd.json directly. PM syncs bug information from bug_report message.
 
 **Note:** Commit format templates for failed validations are in `qa-workflow` skill.
 

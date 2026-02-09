@@ -4,7 +4,6 @@
   "lastUpdated": "{{DATE}}",
   "quality": "production",
   "description": "{{TECH_STACK_DESCRIPTION}}",
-  "feedbackLoops": {{FEEDBACK_LOOPS_CONFIG}},
   "session": {
     "sessionId": "",
     "startedAt": "",
@@ -19,13 +18,6 @@
       "failed": 0,
       "commits": 0
     }
-  },
-  "qualityStandards": {
-    "typeSafety": "{{TYPE_SAFETY_STANDARD}}",
-    "testCoverage": "{{TEST_COVERAGE_TARGET}}",
-    "documentation": "Required for complex logic, game logic, and public APIs",
-    "commitStyle": "Conventional commits with Ralph prefix",
-    "codeReview": "All code must pass feedback loops before QA"
   },
   "agents": {
     "pm": {

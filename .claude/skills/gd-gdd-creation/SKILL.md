@@ -215,10 +215,6 @@ A 30-second pitch that hooks the listener.
 
 ### References
 [Inspiration games, documents]
-
-### Version History
-| Version | Date | Changes |
-|---------|------|---------|
 ```
 
 ---
@@ -305,7 +301,7 @@ Before marking GDD as ready:
 ### Usability
 - [ ] Table of contents for navigation
 - [ ] Cross-references between sections
-- [ ] Version history maintained
+- [ ] Change log maintained
 - [ ] Glossary for game-specific terms
 
 ---
@@ -321,24 +317,17 @@ Update GDD when:
 - New features are planned
 - Team requests clarification
 
-### Version Control
-
-- Use semantic versioning (X.Y.Z)
-- Major version: Complete overhauls
-- Minor version: Feature additions
-- Patch version: Clarifications, small fixes
-
 ### Change Log
 
 Maintain a change log in the GDD:
 
 ```markdown
-## Version History
+## Change Log
 
-| Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 0.1.0 | 2025-01-21 | Game Designer | Initial draft |
-| 0.2.0 | 2025-01-22 | Game Designer | Added combat section |
+| Date | Author | Changes |
+|------|--------|---------|
+| 2025-01-21 | Game Designer | Initial draft |
+| 2025-01-22 | Game Designer | Added combat section |
 ```
 
 ---

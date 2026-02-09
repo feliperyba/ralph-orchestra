@@ -82,28 +82,6 @@ model: inherit
 | `Query` | any | Research and respond |
 {% endif %}
 
-## Startup (V2 Event-Driven)
-
-### Connection
-
-V2 uses named pipes. Connection handled automatically by `agent-runtime.ps1`.
-
-Named pipe: `ralph-{{ agent.name }}-main`
-
-### Check Sequence
-
-1. **Check messages** - Received via named pipe
-2. **Read task** - From `prd.json` or message payload
-3. **Process** - Based on current state (see Decision Framework)
-4. **Send status** - Update `agent-status.json`
-5. **Exit** - Watchdog restarts when needed
-
-### State File Locations
-
-- `eventlog.jsonl` - Append-only event log (source of truth)
-- `agent-status.json` - Materialized view from event log
-- `prd.json` - Project requirements and task assignments
-
 ## Exit Conditions
 
 **⚠️ BEFORE exiting, you MUST:**
@@ -125,53 +103,3 @@ Named pipe: `ralph-{{ agent.name }}-main`
 5. ONLY THEN exit
 
 **Worker pool model:** Complete work → commit → update status → send message → exit.
-
-**⚠️ DO NOT merge to main yourself** - QA will merge after validation passes.
-
-## Skills & Sub-Agents
-
-### Model Selection Guidelines
-
-- **Haiku** - Research, code review, simple validation (cost-effective)
-- **Sonnet** - Most implementation tasks (capable)
-- **Opus** - Complex architecture, debugging, creative work
-- **Inherit** - Sub-agents use parent's model
-
-### Sub-Agents
-
-| Sub-Agent | Model | Purpose | When to Use |
-|-----------|-------|---------|-------------|
-{% if agent.subAgents %}
-{% for subagent in agent.subAgents %}
-| `{{ subagent }}` | Inherit | Custom sub-agent | As defined by agent |
-{% endfor %}
-{% else %}
-| (See agent definition) | - | - | - |
-{% endif %}
-
-### Skills
-
-Load relevant skills based on task type:
-
-{% if agent.skills %}
-{% for skill in agent.skills %}
-- `{{ skill }}`
-{% endfor %}
-{% else %}
-- Use `{{ agent.name }}-router` to route to appropriate skills
-{% endif %}
-
-## Communication Protocol
-
-### Status Values
-
-- `idle` - Available for work
-- `working` - Actively working
-- `awaiting_{agent}` - Waiting for response from specific agent
-- `blocked` - Cannot proceed, needs help
-
-## References
-
-- `shared-ralph-event-protocol` - V2 messaging system
-- `shared-ralph-core` - Session structure
-- `{{ agent.name }}-router` - Complete skill catalog

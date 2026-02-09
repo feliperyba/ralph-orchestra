@@ -1,66 +1,78 @@
 {
-  "_comment": "Template for gamedesigner-thermite-facilitator sub-agent output format",
-  "version": "1.0.0",
+  "_comment": "Template for gamedesigner-thermite-facilitator sub-agent output format v2.0",
+  "version": "2.0.0",
   "agent": "gamedesigner-thermite-facilitator",
-  "skill": "gamedesigner-thermite-integration",
-  "thermiteSessionType": "boardroom-retreat | deep-dive",
+  "skill": "thermite-design",
+  "thermiteSessionType": "boardroom-retreat",
   "generatedAt": "YYYY-MM-DDTHH:mm:ss.sssZ",
 
   "gddData": {
     "sessionInfo": {
+      "sessionNumber": 1,
       "type": "boardroom-retreat",
-      "topic": "Design session topic",
-      "duration": "Session duration",
+      "topic": "Core gameplay systems and design pillars",
+      "duration": "Approximate session duration",
+      "date": "YYYY-MM-DD",
       "participants": [
-        "Persona 1 (e.g., Shinji Tanaka)",
-        "Persona 2 (e.g., Viktor Volkov)"
+        "Shinji Tanaka - Classic Arcade Design",
+        "Viktor Volkov - Extraction/Economy",
+        "Elena Vasquez - Map Architecture",
+        "Marcus Chen - Combat Balance",
+        "Sarah Okonkwo - Economy Systems",
+        "Dr. Maya Reyes - Player Psychology",
+        "Wei Zhang - Technical Architecture",
+        "Jordan Ellis - UX/Accessibility"
       ]
     },
 
     "designDecisions": [
       {
         "id": "DEC-001",
-        "title": "Short decision title",
-        "status": "Decided | Tentative | Revisit After Playtest",
+        "title": "Short descriptive decision title",
+        "status": "Decided",
         "session": 1,
         "date": "YYYY-MM-DD",
         "pillars": ["Meaningful Risk", "Readable Chaos"],
-        "context": "Why this decision came up",
-        "decision": "What was chosen",
+        "context": "Why this decision arose and why it matters (1-2 paragraphs)",
+        "decision": "Clear statement of what was decided",
         "rationale": "Why this decision was made",
         "alternativesConsidered": [
           {
-            "option": "Alternative option",
-            "pros": ["Pro 1", "Pro 2"],
-            "cons": ["Con 1", "Con 2"],
-            "whyRejected": "Reason for rejection"
+            "option": "Alternative approach",
+            "pros": ["Advantage 1", "Advantage 2"],
+            "cons": ["Disadvantage 1", "Disadvantage 2"],
+            "whyRejected": "Reason this option was not chosen"
           }
         ],
         "dissent": {
-          "persona": "Persona name (if any dissent)",
-          "concern": "Their concern about the decision",
-          "resolution": "How the concern was addressed"
+          "persona": "Persona name (if dissent occurred)",
+          "concern": "Their specific concern about the decision",
+          "resolution": "How the concern was addressed or acknowledged"
         },
         "validationNeeded": [
-          "What to test to confirm this decision",
+          "What needs to be tested/prototyped to confirm this works",
           "Success criteria for validation"
-        ]
+        ],
+        "dependencies": {
+          "blocks": ["What this decision enables (e.g., DEC-002, feat-001)"],
+          "blockedBy": ["What must be decided first"]
+        }
       }
     ],
 
     "openQuestions": [
       {
         "id": "OQ-001",
-        "question": "Unresolved design question",
-        "priority": "high | medium | low",
+        "question": "Unresolved design question requiring further exploration",
+        "priority": "high",
         "raisedInSession": 1,
-        "owner": "Persona responsible for this domain",
+        "owner": "Persona name responsible for this domain",
         "blockerFor": [
-          "What this question blocks",
-          "Feature or system affected"
+          "What this question blocks (features, decisions, systems)",
+          "Specific item IDs if known"
         ],
-        "tags": ["gameplay", "economy", "combat"],
-        "suggestedInvestigation": "How to approach answering this"
+        "tags": ["gameplay", "economy", "combat", "ui", "technical"],
+        "suggestedInvestigation": "Recommended approach to answering this question"
       }
     ],
 
@@ -73,64 +85,79 @@
           "No pay-to-skip-risk monetization",
           "Death must sting, but not devastate progression"
         ],
-        "kpi": "How we measure if this pillar is being met"
+        "kpi": "Metric or observation to measure if pillar is being met"
       }
     ],
 
     "coreMechanics": [
       {
-        "name": "Mechanic Name",
-        "description": "How the mechanic works",
-        "pillars": ["Which pillars this serves"],
-        "interactions": ["Related mechanics it combines with"],
-        "riskFactors": ["Potential issues to watch"]
+        "name": "Grid-Based Movement",
+        "description": "How the mechanic works in detail",
+        "pillars": ["Readable Chaos", "Earned Mastery"],
+        "interactions": ["Bomb Placement", "Power-ups"],
+        "riskFactors": ["Potential exploits or balance issues to watch"],
+        "skillExpression": {
+          "floor": "Minimum effectiveness for new players",
+          "ceiling": "Maximum effectiveness for experts"
+        }
       }
     ],
 
     "tensionsExplored": [
       {
         "axis": "Complexity vs Simplicity",
-        "positionA": "Detailed systems (Viktor's view)",
-        "positionB": "Simple, readable systems (Shinji's view)",
-        "resolution": "How the tension was resolved",
-        "decision": "DEC-001"
+        "positionA": "Detailed interconnected systems (Viktor's perspective)",
+        "positionB": "Clear, readable mechanics (Shinji's perspective)",
+        "resolution": "How the team resolved or balanced this tension",
+        "relatedDecisions": ["DEC-001", "DEC-003"]
       }
     ],
 
     "keyInsights": [
-      "Insight 1 from the session",
-      "Insight 2 from the session",
-      "Insight 3 from the session"
+      "Major learning or realization from the design session",
+      "Important pattern or principle discovered",
+      "Strategic insight about the project direction"
     ],
 
     "actionItems": [
       {
-        "task": "Action to take",
-        "owner": "Which role owns this",
-        "priority": "high | medium | low",
-        "dependencies": ["Other actions or decisions"]
+        "task": "Specific action to take based on session",
+        "owner": "Persona or role responsible",
+        "priority": "high",
+        "dependencies": ["Other tasks or decisions this depends on"],
+        "dueBy": "Target completion (e.g., 'Before prototype', 'Next session')"
       }
     ]
   },
 
   "artifactsToCreate": {
-    "docs/design/decision_log.md": "All design decisions with full details",
-    "docs/design/open_questions.md": "Unresolved questions with tags",
-    "docs/design/gdd.md": "Main game design document",
-    "docs/design/core_loop.md": "Minute-by-minute gameplay loop",
-    "docs/design/mechanics/": "Individual mechanic specifications"
+    "docs/design/session_001_topic.md": "Detailed session notes with discussion flow and decisions",
+    "docs/design/decision_log.md": "Chronological log of all design decisions with full context",
+    "docs/design/open_questions.md": "Tracked unresolved questions requiring answers",
+    "docs/design/gdd.md": "Main GDD summary indexing all design work",
+    "docs/design/core_loop.md": "Minute-by-minute core gameplay loop specification",
+    "docs/design/economy_model.md": "Currency faucets/sinks, progression curves, exploit analysis",
+    "docs/design/map_templates.md": "Map layouts, zones, loot distribution, flow analysis",
+    "docs/design/gear_registry.md": "All items with stats, counterplay, skill expression",
+    "docs/design/visual_language.md": "Visual design principles, color coding, audio cues",
+    "docs/design/tech_spec.md": "Technical architecture, netcode approach, performance targets",
+    "docs/design/mvd_checklist.md": "Minimum Viable Design checklist for prototype readiness"
   },
 
   "nextSession": {
-    "topic": "Suggested topic for next thermite session",
-    "reason": "Why this should be explored next",
-    "participants": ["Which personas should be involved"]
+    "topic": "Recommended focus for next Thermite session",
+    "reason": "Why this topic should be explored next",
+    "participants": ["Which personas should be involved"],
+    "preparationNeeded": ["Research or prototyping needed before session"]
   },
 
   "metadata": {
     "projectName": "From prd-starter state",
-    "features": "From prd-starter state",
+    "projectCategory": "game-development",
+    "techStack": "From prd-starter state",
+    "features": ["From prd-starter state features array"],
     "researchDataUsed": true,
-    "userAnswersUsed": true
+    "userAnswersUsed": true,
+    "thermiteSkillVersion": "As defined in .claude/skills/thermite-design/SKILL.md"
   }
 }

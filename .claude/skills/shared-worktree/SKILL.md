@@ -84,12 +84,12 @@ Remember to always run the tests in the target worktree branches for validation
 
 1. Developer in worktree:
    ├── Reads PRD from master (Get-MasterPrdPath)
-   ├── Reads messages from master (Get-MasterMessageQueuePath)
+   ├── Reads messages from CLI --message argument
    ├── Updates PRD status in master (atomic write)
-   ├── Sends messages to master queue
-   ├── Writes code in worktree (src/)
+   ├── Writes response file for next agent
+   ├── Writes code in worktree
    ├── Commits code to worktree branch
-   └── Sends validation_request via master queue
+   └── Sends validation_request via response file
 
 2. PM in master:
    ├── Reads PRD (sees worker status updates)

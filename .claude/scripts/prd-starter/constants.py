@@ -131,33 +131,35 @@ AGENT_DESCRIPTIONS = {
 # Files and directories that MUST be copied to the new project
 RALPH_ORCHESTRA_ESSENTIALS = {
     "directories": [
-        # Core orchestration scripts
-        ".claude/scripts/core",
-        # Session launchers
-        ".claude/scripts/sessions",
-        # Watchdog scripts
-        ".claude/scripts/watchdog",
-        # V2 event-driven architecture
-        ".claude/scripts/v2-architecture",
-        # Dashboard
-        ".claude/scripts/dashboard",
-        # Process management
-        ".claude/scripts/process",
-        # Config files for agents
-        ".claude/scripts/config",
-        # Hooks and commands
+        # Core directories
         ".claude/hooks",
         ".claude/commands",
-        # Orchestration and protocols
-        ".claude/orchestration",
-        ".claude/protocols",
-        # Skills and sub-agents (selective copy based on enabled agents)
         ".claude/skills",
         ".claude/agents",
-        # Session directory structure (empty)
-        ".claude/session",
+        ".claude/templates",
     ],
     "files": [
+        # PowerShell orchestration scripts (flat structure)
+        ".claude/scripts/agent-loop.ps1",
+        ".claude/scripts/context-manager.ps1",
+        ".claude/scripts/Consolidation-Mode.ps1",
+        ".claude/scripts/Dashboard-Common.ps1",
+        ".claude/scripts/file-lock.ps1",
+        ".claude/scripts/Get-ManagedProcess.ps1",
+        ".claude/scripts/message-queue.ps1",
+        ".claude/scripts/message-state-manager.ps1",
+        ".claude/scripts/ralph-config.ps1",
+        ".claude/scripts/ralph-event-session.ps1",
+        ".claude/scripts/ralph-single-session.ps1",
+       ".claude/scripts/safe-file-io.ps1",
+        ".claude/scripts/Stop-ManagedProcess.ps1",
+        ".claude/scripts/test-handoff-detection.ps1",
+        ".claude/scripts/Test-Port.ps1",
+        ".claude/scripts/Watchdog-Common.ps1",
+        ".claude/scripts/watchdog-event.ps1",
+        ".claude/scripts/watchdog-single.ps1",
+        ".claude/scripts/README.md",
+        # Config files
         ".claude/ralph-config.json",
         ".claude/settings.developer.json",
         ".claude/settings.gamedesigner.json",
@@ -167,6 +169,9 @@ RALPH_ORCHESTRA_ESSENTIALS = {
         ".claude/settings.local.json",
     ],
     "create_empty": [
+        ".claude/session",
+        ".claude/session/messages",
+        ".claude/session/archive",
         "agents/developer",
         "agents/gamedesigner",
         "agents/pm",
