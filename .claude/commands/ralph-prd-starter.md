@@ -32,21 +32,25 @@ The `ralph-prd-starter` command launches an interactive setup wizard that guides
 **CRITICAL: Invoke and follow the protocols in `ralph-prd-starter` skill. Must follow this skill for detailed information over how to behave on each phase.**
 **CRITICAL: Must Invoke the  `prd-starter-project-analyzer` subagent for NLP-based project analyzer once collected enough information about the project scope**
 
-The wizard guides you through 11 phases:
+## 11-Phase Overview
 
-| Phase | Description | Output |
-|-------|-------------|--------|
-| 1 | Entry Point | Quick Start, Standard, or Expert mode |
-| 2 | Preset Selection (Quick only) | Pre-configured agent templates |
+| Phase | Purpose | Output |
+|-------|---------|--------|
+| 1 | Entry Point | Wizard mode selection |
+| 2 | Preset Selection | Quick Start templates (optional) |
 | 3 | Project Identity | Name, description, category, tech stack |
 | 3.3 | Run subagent `prd-starter-project-analyzer` for context polish.
-| 4-7 | Configuration | Agents, orchestration, quality standards |
-| 8 | Initial Features | Natural language feature descriptions |
-| 8b | Deep Research | Research findings + clarifying questions |
-| 8c | GDD Creation (Games only) | Thermite session + design documents |
-| 8d | PRD Creation | PM-generated prd.json with review |
-| 9 | Review & Confirm | Final summary before generation |
-| 10-11 | Project Init + Workflows | Initialization scripts and docs |
+| 4 | Agent Configuration | Agent definitions (names, roles, skills) |
+| 5 | Orchestration Mode | Event-driven, Sequential, or HITL |
+| 6 | MCP Servers | Server selection and configuration |
+| 7 | Quality Standards | Code review, tests, docs requirements |
+| 8 | Initial Features | Feature descriptions (natural language) |
+| 8b | Deep Research | pm-research-specialist subagent |
+| 8c | GDD Creation | gamedesigner-thermite-facilitator (games only) |
+| 8d | PRD Creation | pm-prd-creator subagent |
+| 9 | Review & Confirm | Display summary, await approval |
+| 10 | Project Generation | Invoke Python generator |
+| 11 | Completion | Display next steps |
 
 ## Generated Files
 
@@ -62,7 +66,8 @@ After confirmation, the following files are generated:
 - `docs/design/` - GDD documents for game projects (created in Phase 8c)
   - `decision_log.md` - Design decisions
   - `open_questions.md` - Unresolved questions
-  - `gdd.md` - GDD summary
+  - `specs.md` - Project specifications (for non-games)
+  - `gdd.md` - GDD summary (for games)
 
 ### Updated Scripts
 - `watchdog-event.ps1` - Adds agents to ValidateSet

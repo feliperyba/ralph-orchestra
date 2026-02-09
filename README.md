@@ -24,7 +24,7 @@ Ralph Orchestra enables **autonomous software development** by coordinating spec
 
 - [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) installed and authenticated
 - PowerShell 5.1+ (Windows) or Bash (Linux/macOS)
-- Python 3+
+- Python 3.8+
 
 ### PRD Starter Wizard
 

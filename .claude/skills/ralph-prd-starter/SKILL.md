@@ -34,6 +34,7 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 | 1 | Entry Point | Wizard mode selection |
 | 2 | Preset Selection | Quick Start templates (optional) |
 | 3 | Project Identity | Name, description, category, tech stack |
+| 3.3 | Run subagent `prd-starter-project-analyzer` for context polish.
 | 4 | Agent Configuration | Agent definitions (names, roles, skills) |
 | 5 | Orchestration Mode | Event-driven, Sequential, or HITL |
 | 6 | MCP Servers | Server selection and configuration |
