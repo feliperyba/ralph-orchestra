@@ -72,13 +72,13 @@ specific, actionable feedback on quality, security, and best practices.
 | Location | Scope | Priority | Use Case |
 |----------|-------|----------|----------|
 | `--agents` CLI flag | Current session | 1 (highest) | Quick testing, automation |
-| `.claude/agents/` | Current project | 2 | Project-specific agents (version control) |
-| `~/.claude/agents/` | All your projects | 3 | Personal reusable agents |
+| `./.claude/agents/` | Current project | 2 | Project-specific agents (version control) |
+| `~/./.claude/agents/` | All your projects | 3 | Personal reusable agents |
 | Plugin's `agents/` | Where plugin enabled | 4 (lowest) | Distributed via plugins |
 
 **Best Practice:**
-- Use `.claude/agents/` for project-specific subagents (team collaboration)
-- Use `~/.claude/agents/` for personal reusable subagents
+- Use `./.claude/agents/` for project-specific subagents (team collaboration)
+- Use `~/./.claude/agents/` for personal reusable subagents
 
 ---
 
@@ -471,4 +471,4 @@ Focus on fixing the underlying issue, not the symptoms.
 - [Official Claude Code Subagents Documentation](https://code.claude.com/docs/en/sub-agents)
 - [Claude Code Skills Documentation](https://code.claude.com/docs/en/skills)
 - [Ralph Orchestra Architecture](../core/architecture.md)
-- [Agent Configuration](../../.claude/agents/)
+- [Agent Configuration](../.././.claude/agents/)

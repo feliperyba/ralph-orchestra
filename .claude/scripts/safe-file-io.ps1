@@ -198,7 +198,7 @@ function Get-ChildItemWithTimeout {
     Array to return if timeout occurs (default: @()).
 
     .EXAMPLE
-    $files = Get-ChildItemWithTimeout -Path ".claude/session/messages/pm" -Filter "*.json"
+    $files = Get-ChildItemWithTimeout -Path "./.claude/session/messages/pm" -Filter "*.json"
     # Returns file list or empty array if timeout
     #>
     param(
@@ -290,7 +290,7 @@ function Get-FileCountWithTimeout {
     Value to return if timeout occurs (default: 0).
 
     .EXAMPLE
-    $count = Get-FileCountWithTimeout -Path ".claude/session/messages/pm" -Filter "*.json"
+    $count = Get-FileCountWithTimeout -Path "./.claude/session/messages/pm" -Filter "*.json"
     # Returns file count or 0 if timeout
     #>
     param(

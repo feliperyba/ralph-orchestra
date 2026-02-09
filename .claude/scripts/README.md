@@ -90,7 +90,7 @@ This directory contains all orchestration scripts for the Ralph multi-agent syst
 
 The watchdog checks two sources for handoff requests:
 
-1. **Primary: Signal File** (`.claude/session/handoff-signal.json`)
+1. **Primary: Signal File** (`./.claude/session/handoff-signal.json`)
 
    ```json
    {
@@ -191,7 +191,7 @@ The watchdog checks two sources for handoff requests:
 
 **Key Features:**
 
-- Routes messages via `.claude/session/messages/` directories
+- Routes messages via `./.claude/session/messages/` directories
 - Each agent has an inbox folder
 - Monitors agent processes, restarts if crashed
 - Displays dashboard with agent statuses and message counts
@@ -220,7 +220,7 @@ The watchdog checks two sources for handoff requests:
 
 ```powershell
 # Initialize the queue
-Initialize-MessageQueue -SessionDir ".claude/session"
+Initialize-MessageQueue -SessionDir "./.claude/session"
 
 # Send a message
 Send-AgentMessage -From "pm" -To "developer" -Type "task_assign" -Payload @{...}
@@ -304,10 +304,10 @@ $config = Get-RalphConfig
 # Get file paths
 $paths = Get-RalphPaths -ProjectRoot "C:\MyProject"
 # Returns: @{
-#     SessionDir = "C:\MyProject\.claude\session"
-#     CoordinatorState = "C:\MyProject\.claude\session\coordinator-state.json"
-#     CurrentTask = "C:\MyProject\.claude\session\current-task.json"
-#     LogDir = "C:\MyProject\.claude\session\logs"
+#     SessionDir = "C:\MyProject\.\.claude\session"
+#     CoordinatorState = "C:\MyProject\.\.claude\session\coordinator-state.json"
+#     CurrentTask = "C:\MyProject\.\.claude\session\current-task.json"
+#     LogDir = "C:\MyProject\.\.claude\session\logs"
 # }
 ```
 
@@ -319,7 +319,7 @@ Add custom paths or settings by modifying `ralph-config.ps1`:
 function Get-RalphPaths {
     param([string]$ProjectRoot)
 
-    $sessionDir = Join-Path $ProjectRoot ".claude\session"
+    $sessionDir = Join-Path $ProjectRoot ".\.claude\session"
 
     return @{
         SessionDir = $sessionDir
@@ -337,7 +337,7 @@ function Get-RalphPaths {
 ## 📁 Session Directory Structure
 
 ```
-.claude/session/
+./.claude/session/
 ├── coordinator-state.json   # Main coordination state
 ├── current-task.json        # Active task details
 ├── handoff-signal.json      # Agent switch signal (sequential)
@@ -440,7 +440,7 @@ Write-Host "[DEBUG] Process: $($Script:AgentProcess.Id)" -ForegroundColor DarkGr
 
 3. **Create command file:**
    ```
-   .claude/commands/ralph-designer-single.md
+   ./.claude/commands/ralph-designer-single.md
    ```
 
 ### Custom Handoff Logic

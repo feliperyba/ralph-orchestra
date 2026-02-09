@@ -9,14 +9,14 @@
 #   RALPH_MAX_ITERATIONS - Maximum iterations before forced exit (default: 50)
 #
 # Session State:
-#   .claude/session/coordinator-state.json - Main session state
-#   .claude/session/last-output.txt - Last Claude output for completion detection
-#   .claude/session/context-reset-count.txt - Track number of context resets
+#   ./.claude/session/coordinator-state.json - Main session state
+#   ./.claude/session/last-output.txt - Last Claude output for completion detection
+#   ./.claude/session/context-reset-count.txt - Track number of context resets
 
 $ErrorActionPreference = "Stop"
 
 # Configuration
-$SESSION_DIR = ".claude\session"
+$SESSION_DIR = ".\.claude\session"
 $STATE_FILE = "$SESSION_DIR\coordinator-state.json"
 $LAST_OUTPUT = "$SESSION_DIR\last-output.txt"
 $RESET_COUNT_FILE = "$SESSION_DIR\context-reset-count.txt"

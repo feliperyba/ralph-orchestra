@@ -34,7 +34,7 @@ The watchdog delivers messages in two ways:
 **Always check `$arguments.message` first on startup:**
 - If `$arguments.message` is present and non-empty, parse it as JSON array of messages
 - If `$arguments.message` is empty/missing, read the fallback file:
-    Read `.claude/session/pending-messages-$arguments.agent.json` or `.claude/session/messages/$arguments.agent/*.json` to check for pending messages. If the file exists, read and parse it as JSON array of messages. Delete it after processing.
+    Read `./.claude/session/pending-messages-$arguments.agent.json` or `./.claude/session/messages/$arguments.agent/*.json` to check for pending messages. If the file exists, read and parse it as JSON array of messages. Delete it after processing.
 
 ### SECOND: NEVER FORGET TO UPDATE A TASK STATUS AND WAKE UP THE NEEDED AGENTS
 
@@ -60,8 +60,8 @@ To send a message, you must use an **Atomic Write Pattern** to prevent partial r
 
 **Protocol:**
 1. Generate ID: `msg-{yyyyMMdd-HHmmss}-{random8chars}`
-2. Write content to: `.claude/session/messages/{recipient}/{id}.json.tmp`
-3. Rename file to: `.claude/session/messages/{recipient}/{id}.json`
+2. Write content to: `./.claude/session/messages/{recipient}/{id}.json.tmp`
+3. Rename file to: `./.claude/session/messages/{recipient}/{id}.json`
 
 **Use the Bash tool for the rename to ensure atomicity.**
 
@@ -83,7 +83,7 @@ To send a message, you must use an **Atomic Write Pattern** to prevent partial r
 ### Example: Sending a Status Update
 
 1. Create the content (using Write tool):
-   **File:** `.claude/session/messages/watchdog/msg-status-123.json.tmp`
+   **File:** `./.claude/session/messages/watchdog/msg-status-123.json.tmp`
    ```json
    {
      "id": "msg-status-20260208-120000-x9y8z7",
@@ -103,7 +103,7 @@ To send a message, you must use an **Atomic Write Pattern** to prevent partial r
 
 2. Atomic Rename (using Bash tool):
    ```bash
-   mv .claude/session/messages/watchdog/msg-status-123.json.tmp .claude/session/messages/watchdog/msg-status-123.json
+   mv ./.claude/session/messages/watchdog/msg-status-123.json.tmp ./.claude/session/messages/watchdog/msg-status-123.json
    ```
 
 ---
@@ -215,7 +215,7 @@ Send `status: "ready"` when complete and ready for next assignment:
 **IMPORTANT**: When you finish processing a message and are ready for more work, signal the watchdog:
 
 ```
-File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+File: ./.claude/session/messages/watchdog/msg-status-{timestamp}.json
 Content:
 {
   "id": "msg-status-{timestamp}",

@@ -101,7 +101,7 @@ class ReadmeGenerator:
 ├── src/           # Source code
 ├── tests/         # Test files
 ├── docs/          # Documentation
-├── .claude/        # Claude Code configuration
+├── ./.claude/        # Claude Code configuration
 ├── prd.json       # Project requirements
 └── {config_filename}  # Project config
 ```
@@ -118,10 +118,10 @@ This project uses Ralph Orchestra with the following agents:
 
 ```bash
 # Start event-driven mode (recommended)
-.\\.claude\\scripts\\ralph-event-session.ps1
+.\\.\.claude\\scripts\\ralph-event-session.ps1
 
 # Start sequential mode (token-efficient)
-.\\.claude\\scripts\\ralph-single-session.ps1
+.\\.\.claude\\scripts\\ralph-single-session.ps1
 
 # Start HITL mode (learning)
 /ralph-hitl
@@ -213,7 +213,7 @@ MIT
 | `src/` | Main source code |
 | `tests/` | Test files |
 | `docs/` | Project documentation |
-| `.claude/` | Claude Code configuration |
+| `./.claude/` | Claude Code configuration |
 
 ## Development Guidelines
 

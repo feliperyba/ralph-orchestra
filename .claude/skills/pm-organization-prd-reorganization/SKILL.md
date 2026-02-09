@@ -156,7 +156,7 @@ For each actionable finding, create a PRD task:
   "passes": false,
   "agent": "developer",
   "dependencies": [],
-  "retrospectiveReference": ".claude/session/retrospective.txt#L15-L25",
+  "retrospectiveReference": "./.claude/session/retrospective.txt#L15-L25",
   "acceptanceCriteria": [
     "Physics bodies spawn at correct positions",
     "Collision events fire consistently",
@@ -186,7 +186,7 @@ Based on retrospective findings, you may need to:
 # During prd_analysis phase:
 
 1. READ docs/design/gdd.md (if GDD updated)
-2. READ .claude/session/retrospective.txt
+2. READ ./.claude/session/retrospective.txt
 3. READ prd.json
 4. READ prd.backlogFile (or "prd_backlog.json")
 

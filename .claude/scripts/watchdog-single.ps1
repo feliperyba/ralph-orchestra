@@ -289,7 +289,7 @@ function Start-SingleAgent {
     "" | Out-File -FilePath $logFile -Encoding utf8
     
     # Determine slash command - using single-agent versions
-    # Format: /command-name for commands in .claude/commands/
+    # Format: /command-name for commands in ./.claude/commands/
     $slashCommand = switch ($AgentName) {
         "pm" { "/ralph-coordinator-single" }
         "developer" { "/ralph-worker-single --agent developer" }
@@ -349,7 +349,7 @@ if (Test-Path `$handoffFile) {
     Write-Host ""
 }
 
-Write-Host "IMPORTANT: When done, write to .claude/session/handoff-signal.json" -ForegroundColor Magenta
+Write-Host "IMPORTANT: When done, write to ./.claude/session/handoff-signal.json" -ForegroundColor Magenta
 Write-Host ""
 Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
 Write-Host ""

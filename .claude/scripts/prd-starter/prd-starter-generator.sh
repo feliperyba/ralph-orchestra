@@ -7,8 +7,8 @@
 # with all passed arguments.
 #
 # Usage:
-#   ./prd-starter-generator.sh --action generate --state .claude/session/prd-starter-state.json
-#   ./prd-starter-generator.sh --action validate --config .claude/session/agent-config.json
+#   ./prd-starter-generator.sh --action generate --state ./.claude/session/prd-starter-state.json
+#   ./prd-starter-generator.sh --action validate --config ./.claude/session/agent-config.json
 #   ./prd-starter-generator.sh --action reset
 #
 # Or make executable and run directly:

@@ -2,7 +2,7 @@
 name: pm-research-specialist
 description: Research specialist for PRD starter wizard. Researches similar projects, identifies best practices, and generates clarifying questions. Use proactively during Phase 8b of PRD starter wizard when analyzing project context for research insights.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: haiku
 ---
 
 # PM Research Specialist
@@ -125,7 +125,7 @@ Create 5-10 targeted questions to help refine the project scope and requirements
 
 ## Output Format
 
-**Use template:** `.claude/templates/research-output-template.json`
+**Use template:** `./.claude/templates/research-output-template.json`
 
 Generate output matching this structure:
 
@@ -170,7 +170,7 @@ Generate output matching this structure:
 }
 ```
 
-**Write output to:** `.claude/session/research-findings.json`
+**Write output to:** `./.claude/session/research-findings.json`
 
 ## Success Criteria
 

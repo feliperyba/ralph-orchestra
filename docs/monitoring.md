@@ -39,7 +39,7 @@ The watchdog displays a live dashboard during operation:
 
 ## Log Files
 
-All agent output is logged to `.claude/session/logs/`:
+All agent output is logged to `./.claude/session/logs/`:
 
 | File | Contents |
 |------|-----------|
@@ -61,10 +61,10 @@ Get-Content .\.claude\session\logs\watchdog-summary.log
 
 ## Message Queue (Event-Driven Mode)
 
-Messages are stored in per-agent folders under `.claude/session/messages/` and are removed after delivery. Processed message IDs are tracked in `.claude/session/message-state.json`.
+Messages are stored in per-agent folders under `./.claude/session/messages/` and are removed after delivery. Processed message IDs are tracked in `./.claude/session/message-state.json`.
 
 ```
-.claude/session/messages/
+./.claude/session/messages/
 ├── pm/
 ├── developer/
 ├── qa/
@@ -205,7 +205,7 @@ claude auth login
 
 **Solutions:**
 
-1. **Check `.claude/settings.{agent}.json`** has correct project paths
+1. **Check `./.claude/settings.{agent}.json`** has correct project paths
 
 2. **Paths should be absolute** and point to current project:
    ```json
@@ -250,7 +250,7 @@ If you encounter issues not covered here:
 
 1. Check the [main README](../README.md) for additional resources
 2. Review [agent documentation](../agents/) for agent-specific issues
-3. Check [script reference](../.claude/scripts/README.md) for script details
+3. Check [script reference](.././.claude/scripts/README.md) for script details
 4. Open an issue on [GitHub](https://github.com/feliperyba/ralph-orchestra/issues)
 
 ## Further Reading

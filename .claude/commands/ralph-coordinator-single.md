@@ -19,14 +19,14 @@ When you need Developer or QA to do work, you MUST write a handoff signal file.
 ### Step 1: Check for pending handoff
 
 ```bash
-cat .claude/session/pending-handoff.json 2>/dev/null || echo "No pending handoff"
+cat ./.claude/session/pending-handoff.json 2>/dev/null || echo "No pending handoff"
 ```
 
 ### Step 2: Read current state
 
 ```bash
-cat .claude/session/coordinator-state.json 2>/dev/null
-cat .claude/session/current-task.json 2>/dev/null
+cat ./.claude/session/coordinator-state.json 2>/dev/null
+cat ./.claude/session/current-task.json 2>/dev/null
 ```
 
 ### Step 3: Read PRD to find next task
@@ -59,7 +59,7 @@ cat prd.json
 3. **WRITE THE HANDOFF SIGNAL FILE** (this triggers agent switch):
 
 ```bash
-echo '{"targetAgent": "developer", "context": "Implement TASK_ID - TASK_TITLE. See current-task.json for specs.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "developer", "context": "Implement TASK_ID - TASK_TITLE. See current-task.json for specs.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > ./.claude/session/handoff-signal.json
 ```
 
 4. **Output confirmation** so watchdog sees it:
@@ -72,7 +72,7 @@ HANDOFF:developer:Task assigned - see handoff-signal.json
 
 ## HANDOFF FORMAT (CRITICAL)
 
-**Write to file**: `.claude/session/handoff-signal.json`
+**Write to file**: `./.claude/session/handoff-signal.json`
 
 ```json
 {
@@ -101,7 +101,7 @@ Examples:
 If all PRD items have `passes: true`:
 
 ```bash
-echo '{"type": "complete", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"type": "complete", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > ./.claude/session/handoff-signal.json
 ```
 
 Then output:

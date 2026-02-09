@@ -10,7 +10,7 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 
 ## Quick Reference
 
-- **State file**: `.claude/session/prd-starter-state.json`
+- **State file**: `./.claude/session/prd-starter-state.json`
 - **Phase details**: See [PHASES.md](PHASES.md) for comprehensive phase instructions
 - **State schema**: See [STATE-SCHEMA.md](STATE-SCHEMA.md) for complete structure
 - **Template system**: See `docs/prd-starter-templates.md` for template architecture
@@ -19,7 +19,7 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 ## Core Workflow
 
 **On every invocation:**
-1. Check for existing state: `cat .claude/session/prd-starter-state.json 2>/dev/null`
+1. Check for existing state: `cat ./.claude/session/prd-starter-state.json 2>/dev/null`
 2. If state exists, offer to resume from `currentPhase` or restart
 3. If no state, start from Phase 1
 
@@ -51,17 +51,17 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 
 ## State Management
 
-**State File**:  `.claude/session/prd-starter-state.json`
+**State File**:  `./.claude/session/prd-starter-state.json`
 
 **State schema version**: 4.0.0 (see [STATE-SCHEMA.md](STATE-SCHEMA.md) for complete structure)
 
 **Atomic write pattern**:
 ```bash
 # Write to temp file, then rename atomically
-cat > .claude/session/prd-starter-state.json.tmp << 'EOF'
+cat > ./.claude/session/prd-starter-state.json.tmp << 'EOF'
 {json_content}
 EOF
-mv .claude/session/prd-starter-state.json.tmp .claude/session/prd-starter-state.json
+mv ./.claude/session/prd-starter-state.json.tmp ./.claude/session/prd-starter-state.json
 ```
 
 ## Phase Execution Pattern
@@ -85,10 +85,10 @@ Three specialized subagents assist during the wizard. Each outputs **structured 
 Use pm-research-specialist subagent to research {category} projects using {techStack}
 ```
 
-**Subagent outputs:** `.claude/session/research-findings.json` (follows `research-output-template.json`)
+**Subagent outputs:** `./.claude/session/research-findings.json` (follows `research-output-template.json`)
 
 **Wizard action after subagent returns:**
-1. Read `.claude/session/research-findings.json`
+1. Read `./.claude/session/research-findings.json`
 2. Extract `questionsAsked` array
 3. Present questions to user, collect answers
 4. Update `researchData` in state with full findings + answers
@@ -100,7 +100,7 @@ Use gamedesigner-thermite-facilitator subagent to run Thermite design session
 ```
 
 **Subagent outputs:** 
-- `.claude/session/gdd-findings.json` (complete structured data - follows `gdd-output-template.json`)
+- `./.claude/session/gdd-findings.json` (complete structured data - follows `gdd-output-template.json`)
 - `docs/design/session_001_[topic].md` (session summary)
 - `docs/design/decision_log.md` (all design decisions)
 - `docs/design/open_questions.md` (unresolved questions)
@@ -114,7 +114,7 @@ Use gamedesigner-thermite-facilitator subagent to run Thermite design session
 - `docs/design/mvd_checklist.md` (prototype readiness checklist)
 
 **Wizard action after subagent returns:**
-1. Read `.claude/session/gdd-findings.json` (complete structured data)
+1. Read `./.claude/session/gdd-findings.json` (complete structured data)
 2. Extract key metrics: decision count, open question count, pillar names
 3. **State update strategy:**
    - Store **minimal subset** in `gddData` for orchestration (decisions, questions, pillars as strings/IDs)
@@ -157,13 +157,13 @@ User Input (Phase 1-8)
       → Structured JSON Output (research/gdd/prd)
         → State Enrichment
           → Python Generator (Phase 10)
-            → Jinja2 Templates (.claude/templates/)
+            → Jinja2 Templates (./.claude/templates/)
               → Final Artifacts (agents, scripts, docs)
 ```
 
 **Templates used by generator:**
 - `agent-template.md` → `agents/{name}/AGENT.md`
-- `settings-template.json` → `.claude/settings.{name}.json`
+- `settings-template.json` → `./.claude/settings.{name}.json`
 - `README-project-template.md` → `README.md`
 - `CLAUDE-project-template.md` → `CLAUDE.md`
 
@@ -177,13 +177,13 @@ User Input (Phase 1-8)
 
 **Invoke Python generator:**
 ```bash
-cd .claude/scripts/prd-starter
-python cli.py --action generate --state ../../../.claude/session/prd-starter-state.json
+cd ./.claude/scripts/prd-starter
+python cli.py --action generate --state ../../.././.claude/session/prd-starter-state.json
 ```
 
 **Generator creates:**
 - Agent files (AGENT.md, SKILLS.md) for each agent
-- MCP settings files (.claude/settings.{agent}.json)
+- MCP settings files (./.claude/settings.{agent}.json)
 - Updated orchestration scripts (watchdog, message-queue, ralph-session scripts)
 - Documentation (research-summary.md, GDD docs if game)
 - PRD file (prd.json)

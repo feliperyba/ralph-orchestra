@@ -342,7 +342,7 @@ After creating the PRD:
 
 ## Output Format
 
-**Use template:** `.claude/templates/prd-template.json`
+**Use template:** `./.claude/templates/prd-template.json`
 
 Generate PRD matching this base structure, then extend with full sections:
 

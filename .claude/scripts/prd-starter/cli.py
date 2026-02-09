@@ -70,9 +70,9 @@ def main() -> int:
     args = parse_args()
 
     # Detect ralph-orchestra root directory
-    # Use the directory containing .claude/scripts/prd-starter as ralph root
+    # Use the directory containing ./.claude/scripts/prd-starter as ralph root
     script_dir = Path(__file__).parent.resolve()
-    ralph_root = script_dir.parent.parent.parent  # Go up from .claude/scripts/prd-starter to root
+    ralph_root = script_dir.parent.parent.parent  # Go up from ./.claude/scripts/prd-starter to root
 
     # For the generate action, resolve project location from state
     if args.action == "generate":

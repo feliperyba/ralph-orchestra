@@ -34,6 +34,8 @@ The `ralph-prd-starter` command launches an interactive setup wizard that guides
 
 ## 11-Phase Overview
 
+**CRITICAL:** Always prefer to use the `AskUserQuestion` tool whenever need user confirmation in between the steps.
+
 | Phase | Purpose | Output |
 |-------|---------|--------|
 | 1 | Entry Point | Wizard mode selection |
@@ -57,8 +59,8 @@ The `ralph-prd-starter` command launches an interactive setup wizard that guides
 After confirmation, the following files are generated:
 
 ### For Each Agent
-- `.claude/skills/{name}-workflow/SKILL.md` - Agent behavior definition
-- `.claude/settings.{name}.json` - MCP configuration
+- `./.claude/skills/{name}-workflow/SKILL.md` - Agent behavior definition
+- `./.claude/settings.{name}.json` - MCP configuration
 
 ### Project Files
 - `prd.json` - Initial PRD with features (created by PM agent in Phase 8d)
@@ -78,7 +80,7 @@ After confirmation, the following files are generated:
 
 ## State Persistence
 
-Progress is saved in `.claude/session/prd-starter-state.json`:
+Progress is saved in `./.claude/session/prd-starter-state.json`:
 
 ```json
 {
@@ -100,12 +102,12 @@ After the state file is complete, you can manually invoke the generator:
 
 ### Windows (PowerShell)
 ```powershell
-.\.claude\scripts\prd-starter-generator.ps1 -Action generate -StateFile .claude\session\prd-starter-state.json -Verbose
+.\.claude\scripts\prd-starter-generator.ps1 -Action generate -StateFile .\.claude\session\prd-starter-state.json -Verbose
 ```
 
 ### Mac/Linux (Bash)
 ```bash
-python3 .claude/scripts/prd-starter-generator.py --action generate --state .claude/session/prd-starter-state.json --verbose
+python3 ./.claude/scripts/prd-starter-generator.py --action generate --state ./.claude/session/prd-starter-state.json --verbose
 ```
 
 ### Reset State
@@ -114,7 +116,7 @@ python3 .claude/scripts/prd-starter-generator.py --action generate --state .clau
 .\.claude\scripts\prd-starter-generator.ps1 -Action reset
 
 # Mac/Linux
-python3 .claude/scripts/prd-starter-generator.py --action reset
+python3 ./.claude/scripts/prd-starter-generator.py --action reset
 ```
 
 ## Requirements
@@ -126,9 +128,9 @@ python3 .claude/scripts/prd-starter-generator.py --action reset
 
 Or install all dependencies:
 ```bash
-pip install -r .claude/scripts/prd-starter-requirements.txt
+pip install -r ./.claude/scripts/prd-starter-requirements.txt
 ```
 
 ## See Also
-- [.claude/skills/ralph-prd-starter/SKILL.md](../skills/ralph-prd-starter/SKILL.md) - Skill implementation
-- [.claude/scripts/prd-starter-generator.py](../scripts/prd-starter-generator.py) - Generator code
+- [./.claude/skills/ralph-prd-starter/SKILL.md](../skills/ralph-prd-starter/SKILL.md) - Skill implementation
+- [./.claude/scripts/prd-starter-generator.py](../scripts/prd-starter-generator.py) - Generator code

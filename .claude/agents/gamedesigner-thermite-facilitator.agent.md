@@ -60,7 +60,7 @@ Simulate a multi-persona design session using the **thermite-design** skill.
 
 Create numbered design decisions from the Boardroom Retreat.
 
-**Decision format:** (follows `.claude/skills/thermite-design/references/artifact_templates.md`)
+**Decision format:** (follows `./.claude/skills/thermite-design/references/artifact_templates.md`)
 ```markdown
 ## Decision: [Short Descriptive Title]
 **ID:** DEC-[NNN]
@@ -157,7 +157,7 @@ Create **11 artifact files** in `docs/design/` following thermite-design standar
 **10. tech_spec.md** - Technical architecture, netcode, performance targets
 **11. mvd_checklist.md** - Minimum Viable Design checklist for prototype readiness
 
-See `.claude/skills/thermite-design/references/artifact_templates.md` for complete templates for each artifact type.
+See `./.claude/skills/thermite-design/references/artifact_templates.md` for complete templates for each artifact type.
 
 ## Thermite Session Process
 
@@ -176,14 +176,14 @@ See `.claude/skills/thermite-design/references/artifact_templates.md` for comple
 ✅ Generated 5-10 open questions (OQ-NNN) with priority/owner/blockers/tags  
 ✅ Created all 4 core documents (session, decision_log, open_questions, gdd)  
 ✅ Created relevant Thermite artifacts (core_loop, economy_model, etc.) based on session content  
-✅ Written gdd-findings.json to .claude/session/ with complete structured data  
+✅ Written gdd-findings.json to ./.claude/session/ with complete structured data  
 ✅ Design aligns with project context and research  
 ✅ All decisions reference specific personas for attribution  
 ✅ MVD checklist identifies prototype-blocking items  
 
 ## Output Format
 
-**Use template:** `.claude/templates/gdd-output-template.json`
+**Use template:** `./.claude/templates/gdd-output-template.json`
 
 Generate output matching this structure (see template for full schema):
 
@@ -253,7 +253,7 @@ Generate output matching this structure (see template for full schema):
 }
 ```
 
-**Write output to:** `.claude/session/gdd-findings.json`
+**Write output to:** `./.claude/session/gdd-findings.json`
 
 **Then generate all markdown artifacts** as listed in `artifactsToCreate`:
 - Core documents: session summary, decision_log, open_questions, gdd

@@ -233,7 +233,7 @@ function Invoke-TempScriptCleanup {
     Removes temporary scripts from the session directory that are older than the configured threshold.
     #>
     param(
-        [string]$SessionDir = (Join-Path (Get-Location).Path ".claude/session"),
+        [string]$SessionDir = (Join-Path (Get-Location).Path "./.claude/session"),
         [int]$MaxAgeHours = 0
     )
 
@@ -273,29 +273,29 @@ function Get-RalphPaths {
     )
     
     return @{
-        SessionDir           = Join-Path $ProjectRoot ".claude/session"
-        ScriptsDir           = Join-Path $ProjectRoot ".claude/scripts"
-        HooksDir             = Join-Path $ProjectRoot ".claude/hooks"
-        SkillsDir            = Join-Path $ProjectRoot ".claude/skills"
+        SessionDir           = Join-Path $ProjectRoot "./.claude/session"
+        ScriptsDir           = Join-Path $ProjectRoot "./.claude/scripts"
+        HooksDir             = Join-Path $ProjectRoot "./.claude/hooks"
+        SkillsDir            = Join-Path $ProjectRoot "./.claude/skills"
         
         # State files
-        CoordinatorState     = Join-Path $ProjectRoot ".claude/session/coordinator-state.json"
-        CurrentTask          = Join-Path $ProjectRoot ".claude/session/current-task.json"
-        HandoffLog           = Join-Path $ProjectRoot ".claude/session/handoff-log.json"
-        ContinueFlag         = Join-Path $ProjectRoot ".claude/session/continue-loop.flag"
+        CoordinatorState     = Join-Path $ProjectRoot "./.claude/session/coordinator-state.json"
+        CurrentTask          = Join-Path $ProjectRoot "./.claude/session/current-task.json"
+        HandoffLog           = Join-Path $ProjectRoot "./.claude/session/handoff-log.json"
+        ContinueFlag         = Join-Path $ProjectRoot "./.claude/session/continue-loop.flag"
         
         # Per-agent state files (Phase 2 - separated for reduced contention)
-        AgentStatePM         = Join-Path $ProjectRoot ".claude/session/agent-pm.json"
-        AgentStateDeveloper  = Join-Path $ProjectRoot ".claude/session/agent-developer.json"
-        AgentStateQA         = Join-Path $ProjectRoot ".claude/session/agent-qa.json"
+        AgentStatePM         = Join-Path $ProjectRoot "./.claude/session/agent-pm.json"
+        AgentStateDeveloper  = Join-Path $ProjectRoot "./.claude/session/agent-developer.json"
+        AgentStateQA         = Join-Path $ProjectRoot "./.claude/session/agent-qa.json"
         
         # Progress files
-        ProgressLog          = Join-Path $ProjectRoot ".claude/session/progress.txt"
-        EventsLog            = Join-Path $ProjectRoot ".claude/session/events.jsonl"
-        MetricsFile          = Join-Path $ProjectRoot ".claude/session/metrics.json"
+        ProgressLog          = Join-Path $ProjectRoot "./.claude/session/progress.txt"
+        EventsLog            = Join-Path $ProjectRoot "./.claude/session/events.jsonl"
+        MetricsFile          = Join-Path $ProjectRoot "./.claude/session/metrics.json"
         
         # Work-in-progress (for graceful restart)
-        WorkInProgress       = Join-Path $ProjectRoot ".claude/session/work-in-progress.json"
+        WorkInProgress       = Join-Path $ProjectRoot "./.claude/session/work-in-progress.json"
         
         # PRD
         PrdFile              = Join-Path $ProjectRoot "prd.json"

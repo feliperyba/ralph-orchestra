@@ -41,7 +41,7 @@ Full orchestration with automatic session management, health monitoring, and gra
 ```
 
 **What happens:**
-1. Watchdog process starts and creates `.claude/session/`
+1. Watchdog process starts and creates `./.claude/session/`
 2. PM launches first, workers start on demand
 3. Watchdog monitors health and delivers messages
 4. Real-time dashboard shows agent status

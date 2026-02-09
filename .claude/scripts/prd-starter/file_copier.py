@@ -64,13 +64,13 @@ class RalphFileCopier:
                 continue
 
             try:
-                if dir_path == ".claude/skills":
+                if dir_path == "./.claude/skills":
                     # Selective skill copying based on enabled agents
                     self._copy_agent_skills(source_dir, target_dir, enabled_set, results)
-                elif dir_path == ".claude/agents":
+                elif dir_path == "./.claude/agents":
                     # Selective sub-agent copying based on enabled agents
                     self._copy_sub_agents(source_dir, target_dir, enabled_set, results)
-                elif dir_path == ".claude/session":
+                elif dir_path == "./.claude/session":
                     # Create empty directory structure only
                     target_dir.mkdir(parents=True, exist_ok=True)
                     results["copied"].append(f"Created directory structure: {dir_path}")
@@ -121,8 +121,8 @@ class RalphFileCopier:
         - Skills in enabled agents' skill lists
 
         Args:
-            source_dir: Source .claude/skills directory
-            target_dir: Target .claude/skills directory
+            source_dir: Source ./.claude/skills directory
+            target_dir: Target ./.claude/skills directory
             enabled_agents: Set of enabled agent names
             results: Results dict to update
         """
@@ -164,8 +164,8 @@ class RalphFileCopier:
         - Sub-agents whose parent agent is enabled
 
         Args:
-            source_dir: Source .claude/agents directory
-            target_dir: Target .claude/agents directory
+            source_dir: Source ./.claude/agents directory
+            target_dir: Target ./.claude/agents directory
             enabled_agents: Set of enabled agent names
             results: Results dict to update
         """

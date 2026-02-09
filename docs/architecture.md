@@ -138,7 +138,7 @@ This prevents over-planning for small projects while ensuring proper coordinatio
 
 ```
 ralph-orchestra/
-├── .claude/
+├── ./.claude/
 │   ├── commands/           # Slash commands for agents
 │   │   ├── ralph-coordinator-event.md  # PM event-driven mode
 │   │   ├── ralph-coordinator-single.md # PM sequential mode
@@ -182,12 +182,12 @@ ralph-orchestra/
 | File                                     | Purpose                                  |
 |------------------------------------------|------------------------------------------|
 | `prd.json`                               | Project requirements with `passes` field |
-| `.claude/session/coordinator-state.json` | Shared coordination state                |
-| `.claude/session/current-task.json`      | Active task details                      |
-| `.claude/session/handoff-signal.json`    | Agent switching signals (sequential)     |
-| `.claude/session/messages/`              | Message queues (event-driven)            |
-| `.claude/session/message-state.json`     | Message processing state (deduplication) |
-| `.claude/session/logs/`                  | Agent output logs                        |
+| `./.claude/session/coordinator-state.json` | Shared coordination state                |
+| `./.claude/session/current-task.json`      | Active task details                      |
+| `./.claude/session/handoff-signal.json`    | Agent switching signals (sequential)     |
+| `./.claude/session/messages/`              | Message queues (event-driven)            |
+| `./.claude/session/message-state.json`     | Message processing state (deduplication) |
+| `./.claude/session/logs/`                  | Agent output logs                        |
 
 ## Message Flow (Event-Driven)
 
@@ -201,7 +201,7 @@ QA validates → sends result (bug report OR pass) to PM
 PM updates PRD, marks task passed or assigns back to worker
 ```
 
-Processed message IDs are recorded in `.claude/session/message-state.json`, and message files are removed from the queue after delivery.
+Processed message IDs are recorded in `./.claude/session/message-state.json`, and message files are removed from the queue after delivery.
 
 For design questions, any agent can message the Game Designer, who responds with design answers. Tech Artist can request artistic references from Game Designer.
 

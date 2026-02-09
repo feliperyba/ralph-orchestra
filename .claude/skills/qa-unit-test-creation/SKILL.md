@@ -613,4 +613,4 @@ npm run test -- --grep "ShootingService"
 - [Vitest Documentation](https://vitest.dev/)
 - [Testing Library](https://testing-library.com/)
 - [server/vitest.config.ts](server/vitest.config.ts) - Vitest configuration
-- [qa-e2e-test-creation](.claude/skills/qa-e2e-test-creation/SKILL.md) - E2E test patterns
+- [qa-e2e-test-creation](./.claude/skills/qa-e2e-test-creation/SKILL.md) - E2E test patterns

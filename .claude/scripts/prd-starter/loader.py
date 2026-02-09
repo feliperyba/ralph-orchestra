@@ -53,7 +53,7 @@ def load_config_file(config_path: Path) -> dict | None:
 
 
 def load_preset(preset_name: str, project_root: Path) -> dict | None:
-    """Load preset configuration from .claude/presets/.
+    """Load preset configuration from ./.claude/presets/.
 
     Args:
         preset_name: Name of the preset (e.g., "indie-game-dev")

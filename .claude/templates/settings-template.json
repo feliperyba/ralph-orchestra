@@ -1,6 +1,6 @@
 {#-
   Settings Template for PRD Starter
-  This template generates .claude/settings.{agent}.json files.
+  This template generates ./.claude/settings.{agent}.json files.
 
   Variables:
     agent_name: Name of the agent

@@ -203,7 +203,7 @@ description: {{agent.description}}
 - **{{ skill }}**
 {% endfor %}
 {% else %}
-See [.claude/skills/](../../.claude/skills/) for available skills.
+See [./.claude/skills/](../.././.claude/skills/) for available skills.
 {% endif %}
 
 ## Standard Workflows
@@ -247,7 +247,7 @@ See [.claude/skills/](../../.claude/skills/) for available skills.
 **MAY NOT write to:**
 {% for path in agent.may_not_write %}  {{ path }}
 {% else %}
-  .claude/session/
+  ./.claude/session/
 {% endfor %}
 
 > See `/shared-file-permissions` for full permissions matrix

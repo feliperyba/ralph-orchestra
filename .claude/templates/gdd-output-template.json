@@ -158,6 +158,6 @@
     "features": ["From prd-starter state features array"],
     "researchDataUsed": true,
     "userAnswersUsed": true,
-    "thermiteSkillVersion": "As defined in .claude/skills/thermite-design/SKILL.md"
+    "thermiteSkillVersion": "As defined in ./.claude/skills/thermite-design/SKILL.md"
   }
 }

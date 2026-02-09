@@ -84,7 +84,7 @@ version: 2.0
 
 ## Quick Start Checklist
 
-- [ ] Source message queue: `. .\\.claude\\scripts\\message-queue.ps1`
+- [ ] Source message queue: `. .\\.\.claude\\scripts\\message-queue.ps1`
 - [ ] Check for pending messages on startup
 - [ ] Read coordinator-state.json and current-task.json
 - [ ] Complete assigned work
@@ -126,7 +126,7 @@ Available subagents for {config.name}:
 {self._format_list(config.may_write) if config.may_write else '  (none specified)'}
 
 **MAY NOT write to:**
-{self._format_list(config.may_not_write) if config.may_not_write else '  .claude/session/'}
+{self._format_list(config.may_not_write) if config.may_not_write else '  ./.claude/session/'}
 
 ## Main Workflow
 
@@ -453,7 +453,7 @@ Named pipe: `ralph-{config.name}-main`
             },
             "projectInitialization": {
                 "status": "pending",
-                "scriptPath": ".claude/scripts/init-project.sh",
+                "scriptPath": "./.claude/scripts/init-project.sh",
                 "attempts": 0,
                 "maxAttempts": 3,
                 "autoInitialize": tech_stack.get("autoInitialize", True) if tech_stack else True,
@@ -496,7 +496,7 @@ Named pipe: `ralph-{config.name}-main`
     def _format_skill_list(self, skills: list[str]) -> str:
         """Format skill list for documentation."""
         if not skills:
-            return "  (none - see .claude/skills/)"
+            return "  (none - see ./.claude/skills/)"
         return '\n'.join(f"  - {skill}" for skill in skills)
 
     def _assign_agent_to_feature(self, feature: dict, project_config: ProjectConfig) -> str:
