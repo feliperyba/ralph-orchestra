@@ -25,7 +25,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 │ Phase 8b: pm-research-specialist Subagent                       │
 │   Input: projectData, featuresData                              │
 │   Reasoning: Research similar projects, best practices          │
-│   Output: .claude/session/research-findings.json                │
+│   Output: ./.claude/session/research-findings.json                │
 │   Template: research-output-template.json                       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
@@ -38,7 +38,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 │ Phase 8c: gamedesigner-thermite-facilitator Subagent (Games)    │
 │   Input: projectData, researchData                              │
 │   Reasoning: Multi-persona Boardroom Retreat design session     │
-│   Output: .claude/session/gdd-findings.json                     │
+│   Output: ./.claude/session/gdd-findings.json                     │
 │           docs/design/decision_log.md (human-readable)          │
 │           docs/design/open_questions.md (human-readable)        │
 │           docs/design/gdd.md (human-readable)                   │
@@ -85,8 +85,8 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### research-output-template.json
 **Used by:** pm-research-specialist subagent  
 **Purpose:** Structure research findings  
-**Location:** `.claude/templates/research-output-template.json`  
-**Output file:** `.claude/session/research-findings.json`
+**Location:** `./.claude/templates/research-output-template.json`  
+**Output file:** `./.claude/session/research-findings.json`
 
 **Key sections:**
 ```json
@@ -107,10 +107,10 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### gdd-output-template.json
 **Used by:** gamedesigner-thermite-facilitator subagent  
 **Purpose:** Structure complete game design session output  
-**Location:** `.claude/templates/gdd-output-template.json`  
+**Location:** `./.claude/templates/gdd-output-template.json`  
 **Version:** 2.0.0
 **Output files:** 
-- `.claude/session/gdd-findings.json` (complete structured data)
+- `./.claude/session/gdd-findings.json` (complete structured data)
 - `docs/design/session_001_[topic].md` (session summary)
 - `docs/design/decision_log.md` (all design decisions)
 - `docs/design/open_questions.md` (unresolved questions)
@@ -183,7 +183,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### prd-template.json
 **Used by:** pm-prd-creator subagent (extended), generator (fallback)  
 **Purpose:** Structure PRD with orchestration items  
-**Location:** `.claude/templates/prd-template.json`  
+**Location:** `./.claude/templates/prd-template.json`  
 **Output file:** `prd.json`
 
 **Base structure:**
@@ -232,7 +232,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### agent-template.md
 **Used by:** agent_generator.py  
 **Purpose:** Generate agent behavior definitions  
-**Location:** `.claude/templates/agent-template.md`  
+**Location:** `./.claude/templates/agent-template.md`  
 **Output files:** `agents/{name}/AGENT.md`
 
 **Template variables:**
@@ -258,8 +258,8 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### settings-template.json
 **Used by:** agent_generator.py  
 **Purpose:** Generate MCP server configurations  
-**Location:** `.claude/templates/settings-template.json`  
-**Output files:** `.claude/settings.{agent}.json`
+**Location:** `./.claude/templates/settings-template.json`  
+**Output files:** `./.claude/settings.{agent}.json`
 
 **Template variables:**
 ```jinja2
@@ -286,7 +286,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### README-project-template.md
 **Used by:** readme_generator.py  
 **Purpose:** Generate project README  
-**Location:** `.claude/templates/README-project-template.md`  
+**Location:** `./.claude/templates/README-project-template.md`  
 **Output file:** `README.md`
 
 **Template variables:**
@@ -308,7 +308,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 #### CLAUDE-project-template.md
 **Used by:** readme_generator.py  
 **Purpose:** Generate CLAUDE.md instructions  
-**Location:** `.claude/templates/CLAUDE-project-template.md`  
+**Location:** `./.claude/templates/CLAUDE-project-template.md`  
 **Output file:** `CLAUDE.md`
 
 **Template variables:**
@@ -389,7 +389,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 
 ### Modifying Templates
 
-**Location:** `.claude/templates/`
+**Location:** `./.claude/templates/`
 
 **Process:**
 1. Edit template file (Jinja2 syntax)
@@ -413,7 +413,7 @@ PRD Starter uses a **hybrid approach**: AI reasoning (subagents) generates struc
 **Use case:** Generate additional project artifacts
 
 **Steps:**
-1. Create template file in `.claude/templates/`
+1. Create template file in `./.claude/templates/`
 2. Add generation method to appropriate generator class:
    - `agent_generator.py` - Agent-related
    - `docs_generator.py` - Documentation
@@ -448,7 +448,7 @@ def generate_contributing_guide(self, project_config: ProjectConfig) -> bool:
 **Debug steps:**
 1. Check template syntax: Jinja2 requires `{{ var }}` for output, `{% for %}` for logic
 2. Verify variable exists: `print(project_config.__dict__)` before rendering
-3. Check template path: Generator looks in `.claude/templates/` relative to project root
+3. Check template path: Generator looks in `./.claude/templates/` relative to project root
 4. Test template alone:
    ```python
    from jinja2 import Template
@@ -461,7 +461,7 @@ def generate_contributing_guide(self, project_config: ProjectConfig) -> bool:
 **Symptom:** Generated file missing expected data
 
 **Debug steps:**
-1. Verify state file structure: `cat .claude/session/prd-starter-state.json | jq`
+1. Verify state file structure: `cat ./.claude/session/prd-starter-state.json | jq`
 2. Check loader conversion: `python -c "from loader import state_to_project_config; ..."`
 3. Print variables before template: Add debug logs to generator methods
 4. Compare with template expectations: Review template variables used
@@ -471,9 +471,9 @@ def generate_contributing_guide(self, project_config: ProjectConfig) -> bool:
 **Symptom:** Subagent doesn't produce expected JSON
 
 **Debug steps:**
-1. Check output file exists: `.claude/session/research-findings.json`
+1. Check output file exists: `./.claude/session/research-findings.json`
 2. Validate JSON structure: `python -m json.tool research-findings.json`
-3. Compare with template: `diff research-findings.json .claude/templates/research-output-template.json`
+3. Compare with template: `diff research-findings.json ./.claude/templates/research-output-template.json`
 4. Review subagent prompt: Ensure it references correct template
 
 ## Best Practices

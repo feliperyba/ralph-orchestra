@@ -454,7 +454,7 @@ This may take 2-3 minutes...
 ```
 Use pm-research-specialist subagent:
 - Pass: project metadata, tech stack, features
-- Subagent outputs: .claude/session/research-findings.json
+- Subagent outputs: ./.claude/session/research-findings.json
 ```
 
 **Subagent Output Structure:** (See `research-output-template.json`)
@@ -479,7 +479,7 @@ Use pm-research-specialist subagent:
 ```
 
 **After Subagent Completes:**
-1. Read `.claude/session/research-findings.json`
+1. Read `./.claude/session/research-findings.json`
 2. Extract `questionsAsked` array
 3. If questions exist, proceed to Phase 8b-user
 4. If no questions, skip to Phase 8c/8d
@@ -594,7 +594,7 @@ Use gamedesigner-thermite-facilitator subagent:
   9. visual_language.md - Visual/audio design
   10. tech_spec.md - Technical architecture
   11. mvd_checklist.md - Prototype readiness
-- Subagent writes: .claude/session/gdd-findings.json (complete structured output)
+- Subagent writes: ./.claude/session/gdd-findings.json (complete structured output)
 ```
 
 **Subagent Output Structure:** (See `gdd-output-template.json` v2.0)
@@ -642,7 +642,7 @@ Artifacts created in docs/design/:
   - tech_spec.md               (technical architecture)
   - mvd_checklist.md           (prototype readiness)
 
-Full structured data: .claude/session/gdd-findings.json
+Full structured data: ./.claude/session/gdd-findings.json
 
 Ready to proceed to PRD creation.
 ```
@@ -876,8 +876,8 @@ Generation complete! ✓
 
 **Generator Invocation:**
 ```bash
-cd .claude/scripts/prd-starter
-python cli.py generate --state ../../../.claude/session/prd-starter-state.json
+cd ./.claude/scripts/prd-starter
+python cli.py generate --state ../../.././.claude/session/prd-starter-state.json
 ```
 
 **Generator Process:**
@@ -911,7 +911,7 @@ Select option (1-4):
 To generate manually:
 
 1. Navigate to generator directory:
-   cd .claude/scripts/prd-starter
+   cd ./.claude/scripts/prd-starter
 
 2. Run generator:
    python cli.py generate
@@ -919,8 +919,8 @@ To generate manually:
 3. Check output for errors
 
 4. Verify files created in:
-   - .claude/agents/
-   - .claude/settings.*.json
+   - ./.claude/agents/
+   - ./.claude/settings.*.json
    - docs/
 ```
 
@@ -929,13 +929,13 @@ To generate manually:
 {
   "generationResults": {
     "filesCreated": [
-      ".claude/agents/pm/AGENT.md",
-      ".claude/agents/developer/AGENT.md",
-      ".claude/settings.pm.json",
+      "./.claude/agents/pm/AGENT.md",
+      "./.claude/agents/developer/AGENT.md",
+      "./.claude/settings.pm.json",
       // ... all generated files
     ],
     "filesModified": [
-      ".claude/scripts/watchdog/run.ps1",
+      "./.claude/scripts/watchdog/run.ps1",
       // ... modified files
     ],
     "errors": [],
@@ -968,8 +968,8 @@ Your project is ready!
 Next steps:
 
 1. Review generated files:
-   - .claude/agents/          (Agent definitions)
-   - .claude/settings.*.json  (MCP configurations)
+   - ./.claude/agents/          (Agent definitions)
+   - ./.claude/settings.*.json  (MCP configurations)
    - docs/                    (Documentation)
    - prd.json                 (Product requirements)
 
@@ -991,8 +991,8 @@ Next steps:
    /qa    - Call QA Engineer
 
 4. Monitor progress:
-   - Check .claude/session/prd-events.json for events
-   - View .claude/logs/ for agent logs
+   - Check ./.claude/session/prd-events.json for events
+   - View ./.claude/logs/ for agent logs
 
 5. Read the documentation:
    - README.md - Project overview
@@ -1048,19 +1048,19 @@ entry → presets? → project → agents → orchestration → mcp_config? → 
 **After Each Phase:**
 ```bash
 # Atomic write pattern
-cat > .claude/session/prd-starter-state.json.tmp << 'EOF'
+cat > ./.claude/session/prd-starter-state.json.tmp << 'EOF'
 {
   updated state JSON
 }
 EOF
-mv .claude/session/prd-starter-state.json.tmp .claude/session/prd-starter-state.json
+mv ./.claude/session/prd-starter-state.json.tmp ./.claude/session/prd-starter-state.json
 ```
 
 **Resume Logic:**
 ```bash
 # Check for existing state
-if [ -f .claude/session/prd-starter-state.json ]; then
-  current_phase=$(jq -r '.currentPhase' .claude/session/prd-starter-state.json)
+if [ -f ./.claude/session/prd-starter-state.json ]; then
+  current_phase=$(jq -r '.currentPhase' ./.claude/session/prd-starter-state.json)
   echo "Found session at phase: $current_phase"
   # Offer resume
 fi

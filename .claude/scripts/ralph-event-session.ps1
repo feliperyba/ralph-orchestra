@@ -24,10 +24,10 @@ if (-not $ProjectRoot) {
 Set-Location $ProjectRoot
 
 # Paths
-$sessionDir = Join-Path $ProjectRoot ".claude\session"
+$sessionDir = Join-Path $ProjectRoot ".\.claude\session"
 $messagesDir = Join-Path $sessionDir "messages"
 $logsDir = Join-Path $sessionDir "logs"
-$scriptsDir = Join-Path $ProjectRoot ".claude\scripts"
+$scriptsDir = Join-Path $ProjectRoot ".\.claude\scripts"
 
 # Create directories
 $directories = @($sessionDir, $messagesDir, $logsDir)

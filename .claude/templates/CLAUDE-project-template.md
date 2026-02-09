@@ -17,7 +17,7 @@
 | `src/` | Main source code |
 | `tests/` | Test files |
 | `docs/` | Project documentation |
-| `.claude/` | Claude Code configuration |
+| `./.claude/` | Claude Code configuration |
 
 ## Development Guidelines
 

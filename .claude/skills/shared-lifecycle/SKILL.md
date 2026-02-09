@@ -22,7 +22,7 @@ category: orchestration
 
 ## Process Registry
 
-**Location:** `.claude/session/process-registry.json`
+**Location:** `./.claude/session/process-registry.json`
 
 The registry tracks all running processes across all agents.
 
@@ -57,13 +57,13 @@ The registry tracks all running processes across all agents.
 **Check registry:**
 
 ```
-Read: .claude/session/process-registry.json
+Read: ./.claude/session/process-registry.json
 ```
 
 **Update registry:**
 
 ```
-Edit: .claude/session/process-registry.json
+Edit: ./.claude/session/process-registry.json
 ```
 
 ---
@@ -132,7 +132,7 @@ TaskStop(task_id="abc123")
 
 ## Auxiliary Scripts
 
-Scripts in `.claude/session/` help with automation and cleanup.
+Scripts in `./.claude/session/` help with automation and cleanup.
 
 ### Script Classification
 
@@ -155,7 +155,7 @@ If you create a helper script that provides value:
 
 ## Script Permissions
 
-- Scripts in `.claude/session/` executable by all agents
+- Scripts in `./.claude/session/` executable by all agents
 - Never create scripts that modify source code without explicit task
 - Scripts should only update session files or state files
 

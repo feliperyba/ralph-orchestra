@@ -21,14 +21,14 @@ You are the ONLY agent running right now.
 ### Step 1: Check for pending handoff (your assignment)
 
 ```bash
-cat .claude/session/pending-handoff.json 2>/dev/null || echo "No pending handoff"
+cat ./.claude/session/pending-handoff.json 2>/dev/null || echo "No pending handoff"
 ```
 
 ### Step 2: Read task details
 
 ```bash
-cat .claude/session/current-task.json
-cat .claude/session/coordinator-state.json
+cat ./.claude/session/current-task.json
+cat ./.claude/session/coordinator-state.json
 ```
 
 ### Step 3: Do your work
@@ -57,7 +57,7 @@ cat .claude/session/coordinator-state.json
 **Developer → QA (after implementation):**
 
 ```bash
-echo '{"targetAgent": "qa", "context": "Validate TASK_ID - Implementation complete. See current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "qa", "context": "Validate TASK_ID - Implementation complete. See current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > ./.claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:qa:Ready for validation`
@@ -65,7 +65,7 @@ Then output: `HANDOFF:qa:Ready for validation`
 **QA → PM (after validation passes):**
 
 ```bash
-echo '{"targetAgent": "pm", "context": "Task TASK_ID passed validation. Ready for next task.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "pm", "context": "Task TASK_ID passed validation. Ready for next task.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > ./.claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:pm:Validation passed`
@@ -73,7 +73,7 @@ Then output: `HANDOFF:pm:Validation passed`
 **QA → Developer (if bugs found):**
 
 ```bash
-echo '{"targetAgent": "developer", "context": "Fix bugs in TASK_ID - See bugs array in current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "developer", "context": "Fix bugs in TASK_ID - See bugs array in current-task.json.", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > ./.claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:developer:Bugs found - fix needed`
@@ -81,7 +81,7 @@ Then output: `HANDOFF:developer:Bugs found - fix needed`
 **Developer → PM (if need clarification):**
 
 ```bash
-echo '{"targetAgent": "pm", "context": "Need clarification on TASK_ID - QUESTION_HERE", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .claude/session/handoff-signal.json
+echo '{"targetAgent": "pm", "context": "Need clarification on TASK_ID - QUESTION_HERE", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > ./.claude/session/handoff-signal.json
 ```
 
 Then output: `HANDOFF:pm:Need clarification`
@@ -90,7 +90,7 @@ Then output: `HANDOFF:pm:Need clarification`
 
 ## HANDOFF FORMAT (CRITICAL)
 
-**Write to file**: `.claude/session/handoff-signal.json`
+**Write to file**: `./.claude/session/handoff-signal.json`
 
 ```json
 {

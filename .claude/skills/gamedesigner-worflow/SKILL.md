@@ -50,8 +50,8 @@ On each Game Designer agent spawn:
 
 1. CREATE TASK MEMORY (MANDATORY - on task start)
    - Extract taskId from message (e.g., P1-004)
-   - Create directory: .claude/session/agents/gamedesigner/
-   - Create file: .claude/session/agents/gamedesigner/task-{taskId}-memory.md
+   - Create directory: ./.claude/session/agents/gamedesigner/
+   - Create file: ./.claude/session/agents/gamedesigner/task-{taskId}-memory.md
    - Initialize with taskId, title, timestamp, empty sections
      → STATE UPDATE: state.status = "working", state.currentTaskId = "{taskId}", state.lastSeen = "{ISO_TIMESTAMP}"
 
@@ -101,7 +101,7 @@ On each Game Designer agent spawn:
 **MAY write to:**
 
 - `docs/design/`
-- `.claude/session/` files
+- `./.claude/session/` files
 
 **MAY NOT write to:** 
 

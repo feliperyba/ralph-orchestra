@@ -14,7 +14,7 @@ Stops the active Ralph Wiggum loop across all sessions.
 
 ## What Happens
 
-1. **Sets termination flag** in `.claude/session/coordinator-state.json`
+1. **Sets termination flag** in `./.claude/session/coordinator-state.json`
 2. **Current iteration completes** its current task
 3. **All sessions exit** gracefully after committing
 4. **Progress is preserved** in `progress.txt` and `prd.json`
@@ -48,7 +48,7 @@ If Ralph is not responding to normal cancellation:
 
 ```bash
 # Set termination flag manually
-echo '{"status":"terminated","reason":"emergency"}' > .claude/session/coordinator-state.json
+echo '{"status":"terminated","reason":"emergency"}' > ./.claude/session/coordinator-state.json
 ```
 
 ## Progress Preservation
@@ -81,4 +81,4 @@ To resume: /ralph --role coordinator --session threejs-sprint-1
 See Also
 
 - `/ralph` - Start autonomous loop
-- `.claude/session/coordinator-state.json` - Session state file
+- `./.claude/session/coordinator-state.json` - Session state file

@@ -1,6 +1,6 @@
 {
-  "stopHook": ".claude/hooks/stop-hook.sh",
-  "stopHookWindows": ".claude/hooks/stop-hook.ps1",
+  "stopHook": "./.claude/hooks/stop-hook.sh",
+  "stopHookWindows": "./.claude/hooks/stop-hook.ps1",
   "environment": {
     "RALPH_COMPLETION_PROMISE": "RALPH_COMPLETE",
     "RALPH_CONTEXT_RESET_PROMISE": "CONTEXT_RESET",

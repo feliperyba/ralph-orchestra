@@ -210,12 +210,12 @@ See @README.md for project overview and @package.json for available npm commands
 
 # Additional Instructions
 - Git workflow: @docs/git-instructions.md
-- Personal overrides: @~/.claude/my-project-instructions.md
+- Personal overrides: @~/./.claude/my-project-instructions.md
 ```
 
 **File Locations**
 
-- **Home folder** (`~/.claude/CLAUDE.md`): Applies to all Claude sessions
+- **Home folder** (`~/./.claude/CLAUDE.md`): Applies to all Claude sessions
 - **Project root** (`./CLAUDE.md`): Check into git to share with your team, or name it `CLAUDE.local.md` and `.gitignore` it
 - **Parent directories**: Useful for monorepos where both `root/CLAUDE.md` and `root/foo/CLAUDE.md` are pulled in automatically
 - **Child directories**: Claude pulls in child CLAUDE.md files on demand when working with files in those directories
@@ -254,10 +254,10 @@ Hooks run scripts automatically at specific points in Claude's workflow. Unlike 
 
 **Skills**
 
-Skills extend Claude's knowledge with information specific to your project, team, or domain. Create a skill by adding a directory with a `SKILL.md` to `.claude/skills/`:
+Skills extend Claude's knowledge with information specific to your project, team, or domain. Create a skill by adding a directory with a `SKILL.md` to `./.claude/skills/`:
 
 ```
-.claude/skills/api-conventions/SKILL.md
+./.claude/skills/api-conventions/SKILL.md
 
 ---
 name: api-conventions
@@ -275,7 +275,7 @@ description: REST API design conventions for our services
 Subagents run in their own context with their own set of allowed tools. They're useful for tasks that read many files or need specialized focus without cluttering your main conversation.
 
 ```
-.claude/agents/security-reviewer.md
+./.claude/agents/security-reviewer.md
 
 ---
 name: security-reviewer
@@ -376,7 +376,7 @@ claude --permission-mode plan -p "Analyze the authentication system and suggest 
 **Configure as Default**
 
 ```json
-// .claude/settings.json
+// ./.claude/settings.json
 {
   "permissions": {
     "defaultMode": "plan"

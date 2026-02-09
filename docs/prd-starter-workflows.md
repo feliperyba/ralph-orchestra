@@ -21,10 +21,10 @@ The wizard creates agent definitions that seamlessly integrate with Ralph Orches
 ```
 agents/{name}/
 ├── AGENT.md          # Agent behavior and responsibilities
-└── SKILLS.md         # Skills index (references to .claude/skills/)
+└── SKILLS.md         # Skills index (references to ./.claude/skills/)
 ```
 
-**.claude/settings.{name}.json** - MCP server configuration per agent
+**./.claude/settings.{name}.json** - MCP server configuration per agent
 
 ### Event-Driven Mode Integration
 
@@ -322,7 +322,7 @@ Implications: Affects UI, combat pacing, player progression"
 
 **Scenario:** Need to add new MCP server to existing agent
 
-**File:** `.claude/settings.developer.json`
+**File:** `./.claude/settings.developer.json`
 
 **Process:**
 ```json
@@ -387,7 +387,7 @@ $validAgents = @("developer", "pm", "qa", "dataengineer")  # Add dataengineer
 $agentDirs = @("developer", "pm", "qa", "dataengineer")  # Add dataengineer
 ```
 
-3. Create `.claude/settings.dataengineer.json`
+3. Create `./.claude/settings.dataengineer.json`
 4. Restart watchdog to pick up changes
 
 ## Common Workflow Patterns
@@ -471,7 +471,7 @@ Use pm-research-specialist subagent to research {framework} for {use_case}
 **After PRD Starter generation:**
 ```
 project-root/
-├── .claude/
+├── ./.claude/
 │   ├── agents/                    # Agent definitions
 │   ├── commands/                  # Copied from Ralph Orchestra
 │   ├── hooks/                     # Copied from Ralph Orchestra
@@ -502,17 +502,17 @@ project-root/
 - `docs/research-summary.md` - Research artifacts
 - `docs/design/*` - GDD files (games)
 - Agent files: `agents/*/AGENT.md`, `agents/*/SKILLS.md`
-- MCP settings: `.claude/settings.*.json`
+- MCP settings: `./.claude/settings.*.json`
 - `README.md` and `CLAUDE.md`
 
 **Never commit:**
-- `.claude/session/*` - Runtime state and messages
+- `./.claude/session/*` - Runtime state and messages
 - `agents/*/*.request` - Ephemeral task files
 - `agents/*/*.result` - Ephemeral result files
 
 **Consider .gitignore:**
 ```
-.claude/session/
+./.claude/session/
 agents/*/*.request
 agents/*/*.result
 agents/*/*.json.tmp
@@ -527,9 +527,9 @@ agents/*/*.json.tmp
 - `docs/design/decision_log.md` - When decisions made (games)
 
 **Rarely update:**
-- `.claude/scripts/*` - Only for new orchestration features
-- `.claude/commands/*` - Only for new slash commands
-- `.claude/settings.*.json` - Only for new MCP servers
+- `./.claude/scripts/*` - Only for new orchestration features
+- `./.claude/commands/*` - Only for new slash commands
+- `./.claude/settings.*.json` - Only for new MCP servers
 
 ### Syncing with Ralph Orchestra Updates
 
@@ -537,7 +537,7 @@ agents/*/*.json.tmp
 
 **Process:**
 1. Review changelog for breaking changes
-2. Backup current `.claude/scripts/`
+2. Backup current `./.claude/scripts/`
 3. Copy new scripts from Ralph Orchestra repo
 4. Re-apply any custom modifications
 5. Test orchestration still works
@@ -556,7 +556,7 @@ agents/*/*.json.tmp
 **Solution:**
 1. Verify `prd.json` exists in project root
 2. Update AGENT.md with PRD location: "PRD is located at `prd.json`"
-3. Or create `.claude/skills/prd-location.md`:
+3. Or create `./.claude/skills/prd-location.md`:
 ```markdown
 ---
 name: prd-location
@@ -572,7 +572,7 @@ The PRD is located at `prd.json` in the project root.
 **Cause:** MCP server not configured for that agent
 
 **Solution:**
-1. Check `.claude/settings.{agent}.json` has the server
+1. Check `./.claude/settings.{agent}.json` has the server
 2. Add server if missing
 3. Restart agent session
 
@@ -583,8 +583,8 @@ The PRD is located at `prd.json` in the project root.
 **Cause:** Agent not in ValidateSet in watchdog scripts
 
 **Solution:**
-1. Update `.claude/scripts/watchdog-event.ps1` ValidateSet
-2. Update `.claude/scripts/message-queue.ps1` validAgents array
+1. Update `./.claude/scripts/watchdog-event.ps1` ValidateSet
+2. Update `./.claude/scripts/message-queue.ps1` validAgents array
 3. Restart watchdog
 
 ### Research/GDD Files Not Generated

@@ -18,6 +18,10 @@
     "vision": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@thenomadinorbit/vision-mcp-server"]
+    },
+    "typescript": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "cclsp"]
     }
   }
 }

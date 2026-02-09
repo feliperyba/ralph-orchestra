@@ -7,7 +7,7 @@ Complete reference for the PRD Starter state file structure (v4.0).
 - [PHASES.md](PHASES.md) - Phase-by-phase instructions
 - [docs/prd-starter-templates.md](../../docs/prd-starter-templates.md) - Template system
 
-**State File Location:** `.claude/session/prd-starter-state.json`
+**State File Location:** `./.claude/session/prd-starter-state.json`
 
 ---
 
@@ -413,7 +413,7 @@ Output from pm-research-specialist subagent.
 }
 ```
 
-**See:** `.claude/templates/research-output-template.json` for complete structure
+**See:** `./.claude/templates/research-output-template.json` for complete structure
 
 ---
 
@@ -466,8 +466,8 @@ Output from gamedesigner-thermite-facilitator subagent.
 }
 ```
 
-**Rich Format (in .claude/session/gdd-findings.json):**
-See `.claude/templates/gdd-output-template.json` v2.0 for complete schema including:
+**Rich Format (in ./.claude/session/gdd-findings.json):**
+See `./.claude/templates/gdd-output-template.json` v2.0 for complete schema including:
 - Full decision context, rationale, alternatives, dissent, dependencies
 - Open questions with blockerFor, raisedInSession, suggestedInvestigation
 - Design pillars with descriptions, guardrails, KPIs
@@ -548,7 +548,7 @@ Output from pm-prd-creator subagent.
 }
 ```
 
-**See:** `.claude/templates/prd-template.json` for complete structure
+**See:** `./.claude/templates/prd-template.json` for complete structure
 
 **PRD File:** `prd.json` (written by pm-prd-creator)
 
@@ -562,18 +562,18 @@ Results from Python generator execution.
 {
   "generationResults": {
     "filesCreated": [
-      ".claude/agents/pm/AGENT.md",
-      ".claude/agents/pm/SKILLS.md",
-      ".claude/agents/developer/AGENT.md",
-      ".claude/settings.pm.json",
-      ".claude/settings.developer.json",
+      "./.claude/agents/pm/AGENT.md",
+      "./.claude/agents/pm/SKILLS.md",
+      "./.claude/agents/developer/AGENT.md",
+      "./.claude/settings.pm.json",
+      "./.claude/settings.developer.json",
       "docs/research-summary.md",
       "README.md",
       "CLAUDE.md"
     ],
     "filesModified": [
-      ".claude/scripts/watchdog/run.ps1",
-      ".claude/scripts/message-queue/queue-processor.ps1"
+      "./.claude/scripts/watchdog/run.ps1",
+      "./.claude/scripts/message-queue/queue-processor.ps1"
     ],
     "errors": [],
     "warnings": [
@@ -870,9 +870,9 @@ completed
 
 ```bash
 # Check for existing state
-if [ -f .claude/session/prd-starter-state.json ]; then
+if [ -f ./.claude/session/prd-starter-state.json ]; then
   # Read current phase
-  current_phase=$(jq -r '.currentPhase' .claude/session/prd-starter-state.json)
+  current_phase=$(jq -r '.currentPhase' ./.claude/session/prd-starter-state.json)
   
   if [ "$current_phase" != "completed" ]; then
     # Offer resume
@@ -920,19 +920,19 @@ if state.get("_version") == "3.0.0":
 ## Related Files
 
 **Templates:**
-- `.claude/templates/prd-starter-state-template.json` - State template
-- `.claude/templates/research-output-template.json` - Research structure
-- `.claude/templates/gdd-output-template.json` - GDD structure
-- `.claude/templates/prd-template.json` - PRD structure
+- `./.claude/templates/prd-starter-state-template.json` - State template
+- `./.claude/templates/research-output-template.json` - Research structure
+- `./.claude/templates/gdd-output-template.json` - GDD structure
+- `./.claude/templates/prd-template.json` - PRD structure
 
 **Generated From State:**
-- `.claude/agents/{name}/AGENT.md` - Agent definitions
-- `.claude/settings.{name}.json` - MCP settings
+- `./.claude/agents/{name}/AGENT.md` - Agent definitions
+- `./.claude/settings.{name}.json` - MCP settings
 - `docs/research-summary.md` - Research summary
 - `docs/design/*.md` - GDD documentation
 - `prd.json` - Product requirements
 
 **Scripts:**
-- `.claude/scripts/prd-starter/loader.py` - State loading
-- `.claude/scripts/prd-starter/validator.py` - State validation
-- `.claude/scripts/prd-starter/generator.py` - Generation orchestration
+- `./.claude/scripts/prd-starter/loader.py` - State loading
+- `./.claude/scripts/prd-starter/validator.py` - State validation
+- `./.claude/scripts/prd-starter/generator.py` - Generation orchestration

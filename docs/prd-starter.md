@@ -33,12 +33,12 @@ The PRD Starter Wizard automates Ralph Orchestra project initialization by:
 
 ```bash
 # Windows
-cd .claude/scripts/prd-starter
+cd ./.claude/scripts/prd-starter
 python cli.py --action generate --state ..\..\..\..\.claude\session\prd-starter-state.json
 
 # macOS/Linux
-cd .claude/scripts/prd-starter
-python cli.py --action generate --state ../../../.claude/session/prd-starter-state.json
+cd ./.claude/scripts/prd-starter
+python cli.py --action generate --state ../../.././.claude/session/prd-starter-state.json
 ```
 
 ## 11-Phase Workflow
@@ -243,7 +243,7 @@ Type "done" to finish.
 
 **Python generator invocation:**
 ```bash
-cd .claude/scripts/prd-starter
+cd ./.claude/scripts/prd-starter
 python cli.py --action generate --state {path_to_state.json}
 ```
 
@@ -252,7 +252,7 @@ python cli.py --action generate --state {path_to_state.json}
 | Category | Files |
 |----------|-------|
 | Agent configs | `agents/{name}/AGENT.md`, `agents/{name}/SKILLS.md` |
-| MCP settings | `.claude/settings.{name}.json` |
+| MCP settings | `./.claude/settings.{name}.json` |
 | Scripts | Updated orchestration scripts (watchdog, message-queue, ralph-session) |
 | Documentation | `docs/research-summary.md`, `docs/design/*` (games), `README.md`, `CLAUDE.md` |
 | PRD | `prd.json` |
@@ -277,13 +277,13 @@ python cli.py --action generate --state {path_to_state.json}
 - View generated files
 - Exit wizard
 
-**State cleanup:** Archive to `.claude/session/archive/` (optional)
+**State cleanup:** Archive to `./.claude/session/archive/` (optional)
 
 ## State Management
 
 ### State File
 
-**Location:** `.claude/session/prd-starter-state.json`
+**Location:** `./.claude/session/prd-starter-state.json`
 
 **Schema version:** 4.0.0
 
@@ -325,7 +325,7 @@ Select option (1-3):
 - Continues normal flow
 
 **Restart behavior:**
-- Backs up existing state to `.claude/session/archive/`
+- Backs up existing state to `./.claude/session/archive/`
 - Creates new empty state
 - Starts from Phase 1
 
@@ -376,7 +376,7 @@ You are the **{display_name}** for {project_name}.
 
 ### MCP Settings
 
-**Path:** `.claude/settings.{name}.json`
+**Path:** `./.claude/settings.{name}.json`
 
 **Structure:**
 ```json
@@ -425,20 +425,20 @@ If automatic generator invocation fails, use manual commands:
 
 ### Windows
 ```powershell
-cd .claude\scripts\prd-starter
+cd .\.claude\scripts\prd-starter
 python cli.py --action generate --state ..\..\..\..\claude\session\prd-starter-state.json
 ```
 
 ### macOS/Linux
 ```bash
-cd .claude/scripts/prd-starter
-python cli.py --action generate --state ../../../.claude/session/prd-starter-state.json
+cd ./.claude/scripts/prd-starter
+python cli.py --action generate --state ../../.././.claude/session/prd-starter-state.json
 ```
 
 ### Python Wrapper
 ```bash
 # From project root
-.claude/scripts/prd-starter/prd-starter-generator.py --state .claude/session/prd-starter-state.json
+./.claude/scripts/prd-starter/prd-starter-generator.py --state ./.claude/session/prd-starter-state.json
 ```
 
 ## Error Handling
@@ -455,7 +455,7 @@ python cli.py --action generate --state ../../../.claude/session/prd-starter-sta
 **Behavior:** Log error, offer retry or skip
 
 **Resolution:**
-- Check subagent definition exists in `.claude/agents/`
+- Check subagent definition exists in `./.claude/agents/`
 - Verify subagent has required tools
 - Review subagent error output for details
 
@@ -484,8 +484,8 @@ python cli.py --action generate --state ../../../.claude/session/prd-starter-sta
 **Behavior:** Offer to reset or repair, backup to archive/
 
 **Resolution:**
-- Validate JSON syntax: `python -m json.tool .claude/session/prd-starter-state.json`
-- Compare against template: `.claude/templates/prd-starter-state-template.json`
+- Validate JSON syntax: `python -m json.tool ./.claude/session/prd-starter-state.json`
+- Compare against template: `./.claude/templates/prd-starter-state-template.json`
 - Manually fix or restart wizard
 
 ## Best Practices

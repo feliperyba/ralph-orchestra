@@ -289,15 +289,33 @@ function Start-SingleAgent {
     "" | Out-File -FilePath $logFile -Encoding utf8
     
     # Determine slash command - using single-agent versions
-    # Format: /command-name for commands in .claude/commands/
+    # Format: /command-name for commands in ./.claude/commands/
     $slashCommand = switch ($AgentName) {
         "pm" { "/ralph-coordinator-single" }
         "developer" { "/ralph-worker-single --agent developer" }
         "qa" { "/ralph-worker-single --agent qa" }
     }
     
+    # Determine MCP config argument
+    $mcpConfigFile = Join-Path $ProjectRoot ".claude\settings.$AgentName.json"
+    $mainConfigFile = Join-Path $ProjectRoot ".claude\ralph-config.json"
+    $mcpArg = ""
+    if (Test-Path $mcpConfigFile) {
+        $mcpArg = " --mcp-config "".\.claude\settings.$AgentName.json"""
+    } elseif (Test-Path $mainConfigFile) {
+        $mcpArg = " --mcp-config "".\.claude\ralph-config.json"""
+    }
+    
+    # Prepare display string for generated script (cleanly checks variable)
+    $scriptMcpCheck = ""
+    if ($mcpArg -ne "") {
+       # Use single quotes for inner string to allow simple embedding and escape dollar signs
+       $safeDisplayArgs = ($mcpArg.Trim() -replace '"', '`"') -replace '\$', '`$'
+       $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
+    }
+
     Write-Host "[WATCHDOG] Starting $AgentName agent..." -ForegroundColor Cyan
-    Write-Host "[WATCHDOG]   Command: claude `"$slashCommand`" --dangerously-skip-permissions" -ForegroundColor DarkGray
+    Write-Host "[WATCHDOG]   Command: claude `"$slashCommand`"$mcpArg --dangerously-skip-permissions" -ForegroundColor DarkGray
     
     # Build runner script with handoff context
     $windowTitle = "Ralph Single-Agent: $AgentName"
@@ -339,6 +357,7 @@ Write-Host ""
 Write-Host "Mode: SINGLE-AGENT ORCHESTRATION"
 Write-Host "Slash Command: $slashCommand"
 Write-Host "Working Dir: $safeProjectRoot"
+$scriptMcpCheck
 Write-Host ""
 
 # Check for pending handoff context
@@ -349,7 +368,7 @@ if (Test-Path `$handoffFile) {
     Write-Host ""
 }
 
-Write-Host "IMPORTANT: When done, write to .claude/session/handoff-signal.json" -ForegroundColor Magenta
+Write-Host "IMPORTANT: When done, write to ./.claude/session/handoff-signal.json" -ForegroundColor Magenta
 Write-Host ""
 Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
 Write-Host ""
@@ -357,7 +376,8 @@ Write-Host ""
 # Run claude
 `$exitCode = 0
 try {
-    claude "$slashCommand" --dangerously-skip-permissions
+    # Flags first (including MCP), then prompt (slash command) as single arg
+    claude$mcpArg --dangerously-skip-permissions "$slashCommand"
     `$exitCode = `$LASTEXITCODE
 } catch {
     Write-Host "ERROR: `$_" -ForegroundColor Red

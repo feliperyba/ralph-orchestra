@@ -136,7 +136,7 @@ $env:RALPH_MAX_ITERATIONS = 100
 
 #### Method 3: Edit Configuration Default
 
-Edit `.claude/scripts/ralph-config.ps1`:
+Edit `./.claude/scripts/ralph-config.ps1`:
 
 ```powershell
 MaxIterations = Get-EnvInt -Name "RALPH_MAX_ITERATIONS" -Default 100
@@ -154,7 +154,7 @@ MaxIterations = Get-EnvInt -Name "RALPH_MAX_ITERATIONS" -Default 100
 ### Monitoring Iteration Progress
 
 ```powershell
-Get-Content .claude\session\coordinator-state.json | ConvertFrom-Json
+Get-Content .\.claude\session\coordinator-state.json | ConvertFrom-Json
 ```
 
 ```json
@@ -167,7 +167,7 @@ Get-Content .claude\session\coordinator-state.json | ConvertFrom-Json
 
 ## Agent Settings
 
-Each agent can have custom Claude CLI settings in `.claude/settings.{agent}.json`:
+Each agent can have custom Claude CLI settings in `./.claude/settings.{agent}.json`:
 
 ```json
 {
@@ -220,7 +220,7 @@ Each agent can have custom Claude CLI settings in `.claude/settings.{agent}.json
 
 ### Configuration File
 
-Edit `.claude/scripts/ralph-config.ps1` to change defaults:
+Edit `./.claude/scripts/ralph-config.ps1` to change defaults:
 
 ```powershell
 $Script:AgentConfig = @{

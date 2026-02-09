@@ -82,7 +82,7 @@ class PRDStarterGenerator:
     # ========================================================================
 
     def generate_agent_settings(self, agent_name: str, mcp_servers: list[str]) -> bool:
-        """Generate .claude/settings.{agent}.json.
+        """Generate ./.claude/settings.{agent}.json.
 
         Args:
             agent_name: Name of the agent

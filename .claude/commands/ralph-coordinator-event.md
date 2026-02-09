@@ -41,7 +41,7 @@ If in consolidation mode, review **all pending messages across all agents**:
 
 Use the **Read tool** and **Grep tool** to check all agent inboxes:
 
-- `.claude/session/messages/{agent}/*.json`
+- `./.claude/session/messages/{agent}/*.json`
 
 ### Priority 4: Consolidation Decision
 
@@ -61,13 +61,13 @@ When you've reviewed and decided on all pending messages, you must **CLEAN UP th
 Use the **Bash tool**:
 
 ```bash
-rm -f .claude/session/messages/{agent}/*.json
+rm -f ./.claude/session/messages/{agent}/*.json
 ```
 
 **STEP 2: Signal consolidation complete**
 
 ```
-File: .claude/session/consolidation-mode.json
+File: ./.claude/session/consolidation-mode.json
 Content:
 {
   "mode": "normal",
@@ -85,7 +85,7 @@ Content:
 Use the **Bash tool**:
 
 ```bash
-rm -f .claude/session/pending-messages-pm.json
+rm -f ./.claude/session/pending-messages-pm.json
 ```
 
 ### Normal Startup (No Consolidation)
@@ -102,8 +102,8 @@ If NOT in consolidation mode:
 
 Use **Read tool** to check:
 
-- `.claude/session/pending-messages-pm.json`
-- `.claude/session/coordinator-state.json`
+- `./.claude/session/pending-messages-pm.json`
+- `./.claude/session/coordinator-state.json`
 - `prd.json`
 
 ---
@@ -124,7 +124,7 @@ Before assigning ANY task, verify the work wasn't already done:
 
 ```
 # Read tool to check message-state.json for completed tasks
-Read: .claude/session/message-state.json
+Read: ./.claude/session/message-state.json
 
 # Look for the task in completedTasks. If found → SKIP assignment
 # Example: If message-state.json contains:
@@ -148,7 +148,7 @@ Then read PRD using the **Read tool**, select next task, send to developer using
 First, update coordinator-state.json:
 
 ```
-File: .claude/session/coordinator-state.json
+File: ./.claude/session/coordinator-state.json
 Content:
 {
   "currentPhase": "development",
@@ -212,7 +212,7 @@ When you receive a `question`, respond with `answer` message (see `shared-core` 
 1. **Exit consolidation mode** if still active:
 
 ```
-File: .claude/session/consolidation-mode.json
+File: ./.claude/session/consolidation-mode.json
 Content:
 {
   "mode": "normal",
@@ -233,7 +233,7 @@ Content:
 1. Clear current task with the next assigned one, wake up the next agent, and set status to idle:
 
 ```
-File: .claude/session/coordinator-state.json
+File: ./.claude/session/coordinator-state.json
 Content:
 {
   "currentTask": null,
@@ -246,7 +246,7 @@ Content:
 2. Signal ready to watchdog:
 
 ```
-File: .claude/session/messages/watchdog/msg-status-{timestamp}.json
+File: ./.claude/session/messages/watchdog/msg-status-{timestamp}.json
 Content:
 {
   "id": "msg-status-{timestamp}",
@@ -281,7 +281,7 @@ Content:
 When ALL tasks in PRD are complete (passes: true), signal completion:
 
 ```
-File: .claude/session/session-complete.flag
+File: ./.claude/session/session-complete.flag
 Content:
 SESSION_COMPLETE
 ```
@@ -298,8 +298,8 @@ Also output:
 
 **IMPORTANT**: When you finish processing messages and are ready for more, signal the watchdog using the **Atomic Write Pattern**:
 
-1. Write `.claude/session/messages/watchdog/msg-ready-123.json.tmp`
-2. Move to `.claude/session/messages/watchdog/msg-ready-123.json`
+1. Write `./.claude/session/messages/watchdog/msg-ready-123.json.tmp`
+2. Move to `./.claude/session/messages/watchdog/msg-ready-123.json`
 
 **Payload:**
 ```json
@@ -321,4 +321,4 @@ This tells the watchdog you're ready for more work. Without this signal, the wat
 - **PM keeps the PRD organized** - You keep the tasks and backlog well organized and with the necessary information and specification
 - **Parallel work** - Other agents might be working in parallel while you research
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
-- **ALWAYS delete pending file after processing** - Use Bash tool: `rm -f .claude/session/messages/{agent}/*.json`
+- **ALWAYS delete pending file after processing** - Use Bash tool: `rm -f ./.claude/session/messages/{agent}/*.json`

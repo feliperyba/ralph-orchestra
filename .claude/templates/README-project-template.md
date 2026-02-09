@@ -35,7 +35,7 @@
 ├── src/           # Source code
 ├── tests/         # Test files
 ├── docs/          # Documentation
-├── .claude/        # Claude Code configuration
+├── ./.claude/        # Claude Code configuration
 ├── prd.json       # Project requirements
 └── {config_file}  # Project config
 ```

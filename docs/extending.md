@@ -4,7 +4,7 @@ This guide covers how to extend Ralph Orchestra with custom agents, skills, and 
 
 ## Agent Configuration
 
-All agents are defined in `.claude/scripts/ralph-config.ps1`:
+All agents are defined in `./.claude/scripts/ralph-config.ps1`:
 
 ```powershell
 $Script:AgentConfig = @{
@@ -150,7 +150,7 @@ $Script:AgentConfig = @{
 
 ### Step 4: Update Watchdog Scripts
 
-**For Sequential Mode** (`.claude/scripts/watchdog-single.ps1`):
+**For Sequential Mode** (`./.claude/scripts/watchdog-single.ps1`):
 
 ```powershell
 # Add to valid agents array (around line 102)
@@ -168,7 +168,7 @@ $slashCommand = switch ($AgentName) {
 
 ### Step 5: Update ralph-worker Skill
 
-Modify `.claude/skills/ralph-worker.md` to include your new agent:
+Modify `./.claude/skills/ralph-worker.md` to include your new agent:
 
 ```markdown
 ## Determine Your Agent Type
@@ -202,7 +202,7 @@ Look for tasks where:
 
 ### Step 6: Create Agent-Specific Settings (Optional)
 
-Create `.claude/settings.techartist.json` (already included):
+Create `./.claude/settings.techartist.json` (already included):
 
 ```json
 {
@@ -250,7 +250,7 @@ Create `.claude/settings.techartist.json` (already included):
 
 ## Skill Routing
 
-The `.claude/skills/ralph-router.md` skill routes tasks to appropriate domain skills based on:
+The `./.claude/skills/ralph-router.md` skill routes tasks to appropriate domain skills based on:
 
 - **Agent type** - PM, Developer, Tech Artist, QA, Game Designer
 - **Task category** - architectural, functional, visual, integration, polish
@@ -258,7 +258,7 @@ The `.claude/skills/ralph-router.md` skill routes tasks to appropriate domain sk
 
 ### Adding Custom Routes
 
-Edit `.claude/skills/ralph-router.md`:
+Edit `./.claude/skills/ralph-router.md`:
 
 ```markdown
 ## Routing Table

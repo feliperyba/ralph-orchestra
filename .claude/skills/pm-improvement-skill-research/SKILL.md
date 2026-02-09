@@ -22,7 +22,7 @@ category: improvement
    - `agents/*/AGENT.md` (process improvement)
    - `agents/*/skills/*.md` (knowledge addition)
    - `agents/*/SKILLS.md` (core competencies)
-   - `.claude/settings.*.json` (MCP tool configuration)
+   - `./.claude/settings.*.json` (MCP tool configuration)
 4. **COMMIT** the improvements
 5. **ONLY THEN** set `currentTask = null` and assign next task
 
@@ -159,43 +159,43 @@ Create or update skill files based on research:
 **PM Agent** (MUST improve at least one):
 
 - `agents/pm/AGENT.md` — Core PM behavior
-- `.claude/skills/pm-organization-task-selection/` — Task assignment
-- `.claude/skills/pm-retrospective-facilitation/` — Retrospective process
-- `.claude/skills/pm-organization-prd-reorganization/` — GDD-to-PRD extraction
-- `.claude/skills/pm-improvement-self-improvement/` — PM self-improvement
+- `./.claude/skills/pm-organization-task-selection/` — Task assignment
+- `./.claude/skills/pm-retrospective-facilitation/` — Retrospective process
+- `./.claude/skills/pm-organization-prd-reorganization/` — GDD-to-PRD extraction
+- `./.claude/skills/pm-improvement-self-improvement/` — PM self-improvement
 
 **Developer Agent**:
 
 - `agents/developer/AGENT.md` — Core developer behavior
-- `.claude/skills/dev-r3f-r3f-fundamentals/` — R3F patterns
-- `.claude/skills/dev-typescript-basics/` — TypeScript best practices
-- `.claude/skills/dev-r3f-r3f-physics/` — Physics integration
+- `./.claude/skills/dev-r3f-r3f-fundamentals/` — R3F patterns
+- `./.claude/skills/dev-typescript-basics/` — TypeScript best practices
+- `./.claude/skills/dev-r3f-r3f-physics/` — Physics integration
 
 **QA Agent**:
 
 - `agents/qa/AGENT.md` — Core QA behavior
-- `.claude/skills/qa-validation-workflow/` — Testing process
-- `.claude/skills/qa-browser-testing/` — Browser validation
-- `.claude/skills/qa-reporting-bug-reporting/` — Bug documentation
+- `./.claude/skills/qa-validation-workflow/` — Testing process
+- `./.claude/skills/qa-browser-testing/` — Browser validation
+- `./.claude/skills/qa-reporting-bug-reporting/` — Bug documentation
 
 **Game Designer Agent**:
 
 - `agents/gamedesigner/AGENT.md` — Core Game Designer behavior
-- `.claude/skills/gd-gdd-creation/` — GDD writing
-- `.claude/skills/gd-thermite-integration/` — Thermite editor
-- `.claude/skills/gd-validation-playtest/` — Playtest process
+- `./.claude/skills/gd-gdd-creation/` — GDD writing
+- `./.claude/skills/gd-thermite-integration/` — Thermite editor
+- `./.claude/skills/gd-validation-playtest/` — Playtest process
 
 **Tech Artist Agent**:
 
 - `agents/techartist/AGENT.md` — Core Tech Artist behavior
-- `.claude/skills/ta-r3f-materials/` — R3F materials
-- `.claude/skills/ta-shader-development/` — Shader creation
-- `.claude/skills/ta-assets-workflow/` — Asset pipeline
-- `.claude/skills/ta-ui-polish/` — Visual polish
+- `./.claude/skills/ta-r3f-materials/` — R3F materials
+- `./.claude/skills/ta-shader-development/` — Shader creation
+- `./.claude/skills/ta-assets-workflow/` — Asset pipeline
+- `./.claude/skills/ta-ui-polish/` — Visual polish
 
 **Shared Skills**:
 
-- `.claude/skills/shared-*/` — Orchestration skills
+- `./.claude/skills/shared-*/` — Orchestration skills
 
 **Update Template:**
 
@@ -295,7 +295,7 @@ During `skill_research` phase, verify:
 
 ## Reference
 
-- [.claude/skills/pm-retrospective-facilitation/](pm-retrospective-facilitation/) — Retrospective process
-- [.claude/skills/pm-organization-prd-reorganization/](pm-organization-prd-reorganization/) — PRD reorganization
-- [.claude/skills/pm-improvement-self-improvement/](pm-improvement-self-improvement/) — PM self-improvement
-- [.claude/skills/pm-organization-scale-adaptive/](pm-organization-scale-adaptive/) — Scale-adaptive planning
+- [./.claude/skills/pm-retrospective-facilitation/](pm-retrospective-facilitation/) — Retrospective process
+- [./.claude/skills/pm-organization-prd-reorganization/](pm-organization-prd-reorganization/) — PRD reorganization
+- [./.claude/skills/pm-improvement-self-improvement/](pm-improvement-self-improvement/) — PM self-improvement
+- [./.claude/skills/pm-organization-scale-adaptive/](pm-organization-scale-adaptive/) — Scale-adaptive planning

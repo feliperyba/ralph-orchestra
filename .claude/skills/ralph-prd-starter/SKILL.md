@@ -10,7 +10,7 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 
 ## Quick Reference
 
-- **State file**: `.claude/session/prd-starter-state.json`
+- **State file**: `./.claude/session/prd-starter-state.json`
 - **Phase details**: See [PHASES.md](PHASES.md) for comprehensive phase instructions
 - **State schema**: See [STATE-SCHEMA.md](STATE-SCHEMA.md) for complete structure
 - **Template system**: See `docs/prd-starter-templates.md` for template architecture
@@ -19,7 +19,7 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 ## Core Workflow
 
 **On every invocation:**
-1. Check for existing state: `cat .claude/session/prd-starter-state.json 2>/dev/null`
+1. Check for existing state: `cat ./.claude/session/prd-starter-state.json 2>/dev/null`
 2. If state exists, offer to resume from `currentPhase` or restart
 3. If no state, start from Phase 1
 
@@ -27,41 +27,39 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 1. Update state file with new data and incremented `currentPhase`
 2. Use atomic write pattern (write to `.tmp`, then rename)
 
-## 11-Phase Overview
+## 11-Phase Overview (Optimized with Subagents)
 
-| Phase | Purpose | Output |
-|-------|---------|--------|
-| 1 | Entry Point | Wizard mode selection |
-| 2 | Preset Selection | Quick Start templates (optional) |
-| 3 | Project Identity | Name, description, category, tech stack |
-| 3.3 | Run subagent `prd-starter-project-analyzer` for context polish.
-| 4 | Agent Configuration | Agent definitions (names, roles, skills) |
-| 5 | Orchestration Mode | Event-driven, Sequential, or HITL |
-| 6 | MCP Servers | Server selection and configuration |
-| 7 | Quality Standards | Code review, tests, docs requirements |
-| 8 | Initial Features | Feature descriptions (natural language) |
-| 8b | Deep Research | pm-research-specialist subagent |
-| 8c | GDD Creation | gamedesigner-thermite-facilitator (games only) |
-| 8d | PRD Creation | pm-prd-creator subagent |
-| 9 | Review & Confirm | Display summary, await approval |
-| 10 | Project Generation | Invoke Python generator |
-| 11 | Completion | Display next steps |
+| Phase | Purpose | Output | Context Impact |
+|-------|---------|--------|----------------|
+| 1 | Entry Point | Wizard mode selection | Minimal |
+| 2 | Basic Project Info | Name, description | Minimal |
+| 3 | Project Analysis | NLP analysis via subagent | Offloaded |
+| 4-7 | **Configuration Interview** | **Via prd-starter-configurator subagent** | **Offloaded** |
+| 8 | Initial Features | Feature descriptions (natural language) | Moderate |
+| 8b | Deep Research | pm-research-specialist subagent | Offloaded |
+| 8c | GDD Creation | gamedesigner-thermite-facilitator (games only) | Offloaded |
+| 8d | PRD Creation | pm-prd-creator subagent | Offloaded |
+| 9 | Review & Confirm | Display summary, await approval | Minimal |
+| 10 | Project Generation | Invoke Python generator | Minimal |
+| 11 | Completion | Display next steps | Minimal |
 
-**Detailed phase instructions**: See [PHASES.md](PHASES.md)
+**Key Optimization:** Phases 4-7 (Agent Config, Orchestration, MCP, Quality) are delegated to a dedicated subagent, reducing main session context by ~40%.
+
+**Detailed phase instructions**: See [PHASES.md](PHASES.md) (Note: Phases 3-7 now handled by prd-starter-configurator subagent)
 
 ## State Management
 
-**State File**:  `.claude/session/prd-starter-state.json`
+**State File**:  `./.claude/session/prd-starter-state.json`
 
 **State schema version**: 4.0.0 (see [STATE-SCHEMA.md](STATE-SCHEMA.md) for complete structure)
 
 **Atomic write pattern**:
 ```bash
 # Write to temp file, then rename atomically
-cat > .claude/session/prd-starter-state.json.tmp << 'EOF'
+cat > ./.claude/session/prd-starter-state.json.tmp << 'EOF'
 {json_content}
 EOF
-mv .claude/session/prd-starter-state.json.tmp .claude/session/prd-starter-state.json
+mv ./.claude/session/prd-starter-state.json.tmp ./.claude/session/prd-starter-state.json
 ```
 
 ## Phase Execution Pattern
@@ -78,17 +76,71 @@ mv .claude/session/prd-starter-state.json.tmp .claude/session/prd-starter-state.
 
 ## Subagent Invocation
 
-Three specialized subagents assist during the wizard. Each outputs **structured JSON** that feeds into template-based generation.
+Four specialized subagents assist during the wizard. Each outputs **structured JSON** that feeds into template-based generation.
+
+### Phase 3: Project Analyzer
+```
+Use prd-starter-project-analyzer subagent to analyze project description
+```
+
+**Subagent outputs:** JSON with detected project type, tech stack, suggested agents (confidence score)
+
+**Wizard action after subagent returns:**
+1. Parse analyzer output
+2. Display detected configuration
+3. Proceed to Phase 4-7 (Configuration Interview)
+
+### Phase 4-7: Configuration Interview (NEW - Offloaded)
+```
+Use prd-starter-configurator subagent to collect all configuration
+```
+
+**Purpose:** Offload the interactive configuration phases to reduce context bloat in main session.
+
+**Input to subagent:**
+```json
+{
+  "wizardMode": "quick-start" | "standard" | "expert",
+  "projectName": "project-name",
+  "projectDescription": "Brief description",
+  "analyzerOutput": {
+    "projectType": "game",
+    "suggestedAgents": ["pm", "developer", "qa", "gamedesigner"],
+    "suggestedTechStack": "React Three Fiber + Phaser",
+    "confidence": 0.85
+  }
+}
+```
+
+**Subagent outputs:** Complete configuration JSON covering:
+- `project` (Phase 3: identity, scale, success factors)
+- `agents` (Phase 4: enabled agents, skills, subagents, MCP)
+- `orchestration` (Phase 5: mode, iterations, thresholds)
+- `mcpConfig` (Phase 6: server assignments - expert only)
+- `qualityStandards` (Phase 7: code review, testing, docs)
+
+**Wizard action after subagent returns:**
+1. Read subagent's JSON output
+2. Validate completeness
+3. Merge into state file
+4. Update `currentPhase` to "features"
+5. Continue to Phase 8
+
+**Benefits:**
+- ✅ Reduces main wizard context by ~40%
+- ✅ Specialized subagent can handle complex branching logic
+- ✅ User interaction isolated to dedicated agent
+- ✅ Main wizard stays focused on orchestration
 
 ### Phase 8b: Research
 ```
 Use pm-research-specialist subagent to research {category} projects using {techStack}
 ```
 
-**Subagent outputs:** `.claude/session/research-findings.json` (follows `research-output-template.json`)
+**Subagent outputs:** `./.claude/session/research-findings.json` (follows `research-output-template.json`)
 
 **Wizard action after subagent returns:**
-1. Read `.claude/session/research-findings.json`
+1. Read `./.claude/session/research-findings.json`
 2. Extract `questionsAsked` array
 3. Present questions to user, collect answers
 4. Update `researchData` in state with full findings + answers
@@ -100,7 +152,7 @@ Use gamedesigner-thermite-facilitator subagent to run Thermite design session
 ```
 
 **Subagent outputs:** 
-- `.claude/session/gdd-findings.json` (complete structured data - follows `gdd-output-template.json`)
+- `./.claude/session/gdd-findings.json` (complete structured data - follows `gdd-output-template.json`)
 - `docs/design/session_001_[topic].md` (session summary)
 - `docs/design/decision_log.md` (all design decisions)
 - `docs/design/open_questions.md` (unresolved questions)
@@ -114,7 +166,7 @@ Use gamedesigner-thermite-facilitator subagent to run Thermite design session
 - `docs/design/mvd_checklist.md` (prototype readiness checklist)
 
 **Wizard action after subagent returns:**
-1. Read `.claude/session/gdd-findings.json` (complete structured data)
+1. Read `./.claude/session/gdd-findings.json` (complete structured data)
 2. Extract key metrics: decision count, open question count, pillar names
 3. **State update strategy:**
    - Store **minimal subset** in `gddData` for orchestration (decisions, questions, pillars as strings/IDs)
@@ -157,13 +209,13 @@ User Input (Phase 1-8)
       → Structured JSON Output (research/gdd/prd)
         → State Enrichment
           → Python Generator (Phase 10)
-            → Jinja2 Templates (.claude/templates/)
+            → Jinja2 Templates (./.claude/templates/)
               → Final Artifacts (agents, scripts, docs)
 ```
 
 **Templates used by generator:**
 - `agent-template.md` → `agents/{name}/AGENT.md`
-- `settings-template.json` → `.claude/settings.{name}.json`
+- `settings-template.json` → `./.claude/settings.{name}.json`
 - `README-project-template.md` → `README.md`
 - `CLAUDE-project-template.md` → `CLAUDE.md`
 
@@ -177,13 +229,13 @@ User Input (Phase 1-8)
 
 **Invoke Python generator:**
 ```bash
-cd .claude/scripts/prd-starter
-python cli.py --action generate --state ../../../.claude/session/prd-starter-state.json
+cd ./.claude/scripts/prd-starter
+python cli.py --action generate --state ../../.././.claude/session/prd-starter-state.json
 ```
 
 **Generator creates:**
 - Agent files (AGENT.md, SKILLS.md) for each agent
-- MCP settings files (.claude/settings.{agent}.json)
+- MCP settings files (./.claude/settings.{agent}.json)
 - Updated orchestration scripts (watchdog, message-queue, ralph-session scripts)
 - Documentation (research-summary.md, GDD docs if game)
 - PRD file (prd.json)

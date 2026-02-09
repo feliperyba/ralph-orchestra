@@ -304,14 +304,41 @@ function Start-Agent {
     $safeLogFile = Get-SafeScriptString $logFile
     # Note: $slashCommand is from a trusted switch statement, not user input
     
-    # Build --message argument if we have pending messages
-    $messageArgPart = ""
+    # Build script logic for message handling
+    # Use Here-String for JSON to avoid complex escaping issues
+    $messageHandlingScript = ""
     if ($messageJsonArg) {
-        # Escape the JSON for PowerShell string embedding (double quotes and backticks)
-        $escapedJson = $messageJsonArg -replace '`', '``' -replace '"', '`"'
-        $messageArgPart = " --message `"$escapedJson`""
+        # Check against pure literal '@ to prevent here-string breakout (unlikely in JSON)
+        $safeJson = $messageJsonArg -replace "'@", "' @ " 
+        
+        $messageHandlingScript = @"
+`$jsonPayload = @'
+$safeJson
+'@
+`$messageArg = " --message '`$jsonPayload'"
+"@
+    } else {
+        $messageHandlingScript = "`$messageArg = `"`""
     }
     
+    # Determine MCP config argument
+    $mcpConfigFile = Join-Path $ProjectRoot ".claude\settings.$AgentName.json"
+    $mainConfigFile = Join-Path $ProjectRoot ".claude\ralph-config.json"
+    $mcpArg = ""
+    if (Test-Path $mcpConfigFile) {
+        $mcpArg = " --mcp-config "".\.claude\settings.$AgentName.json"""
+    } elseif (Test-Path $mainConfigFile) {
+        $mcpArg = " --mcp-config "".\.claude\ralph-config.json"""
+    }
+
+    # Prepare display string for generated script (cleanly checks variable)
+    $scriptMcpCheck = ""
+    if ($mcpArg -ne "") {
+       # Use single quotes for inner string to allow simple embedding and escape dollar signs
+       $safeDisplayArgs = ($mcpArg.Trim() -replace '"', '`"') -replace '\$', '`$'
+       $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
+    }
+
     $scriptContent = @"
 `$Host.UI.RawUI.WindowTitle = "$windowTitle"
 Set-Location "$safeProjectRoot"
@@ -322,6 +349,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Mode: EVENT-DRIVEN MULTI-AGENT"
 Write-Host "Working Dir: $safeProjectRoot"
+$scriptMcpCheck
 Write-Host ""
 
 # Check for pending messages delivered by watchdog (FALLBACK - primary is --message)
@@ -332,13 +360,23 @@ if (Test-Path `$pendingFile) {
     Write-Host ""
 }
 
+# Prepare JSON payload securely
+$messageHandlingScript
+
 Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
 Write-Host ""
 
 # Run claude with --message argument (primary delivery) + file fallback
 `$exitCode = 0
 try {
-    claude "$slashCommand"$messageArgPart --dangerously-skip-permissions
+    # Flags first (including MCP), then prompt (slash command + message) as single arg
+    # Use Invoke-Expression or direct variable expansion carefully
+    `$prompt = "$slashCommand" + `$messageArg
+    
+    # Debug output
+    # Write-Host "DEBUG Prompt: `$prompt" -ForegroundColor DarkGray
+    
+    claude$mcpArg --dangerously-skip-permissions "`$prompt"
     `$exitCode = `$LASTEXITCODE
 } catch {
     Write-Host "ERROR: `$_" -ForegroundColor Red

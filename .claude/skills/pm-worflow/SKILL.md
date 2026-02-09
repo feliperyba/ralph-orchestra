@@ -253,7 +253,7 @@ After QA passes a task, the PM must complete ALL post-completion phases in order
 **MAY write to:**
 
 - `prd.json` and `prd_backlog.json`- **FULL ACCESS**
-- `.claude/session/` files
+- `./.claude/session/` files
 - Agents and Subagents skill files for improvements
 
 **MAY NOT write to:** 

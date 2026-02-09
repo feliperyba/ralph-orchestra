@@ -453,8 +453,8 @@ tests/e2e/ui-suite.spec.ts                         ❌ MISSING
 
 ## References
 
-- [qa-unit-test-creation](.claude/skills/qa-unit-test-creation/SKILL.md) - Unit test patterns
-- [qa-e2e-test-creation](.claude/skills/qa-e2e-test-creation/SKILL.md) - E2E test patterns
-- [test-creator agent](.claude/agents/test-creator.md) - Test creation sub-agent
+- [qa-unit-test-creation](./.claude/skills/qa-unit-test-creation/SKILL.md) - Unit test patterns
+- [qa-e2e-test-creation](./.claude/skills/qa-e2e-test-creation/SKILL.md) - E2E test patterns
+- [test-creator agent](./.claude/agents/test-creator.md) - Test creation sub-agent
 - [playwright.config.ts](playwright.config.ts) - Playwright configuration
 - [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) - Example E2E tests

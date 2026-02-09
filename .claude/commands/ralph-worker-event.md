@@ -42,7 +42,7 @@ Read, reason, understand, and act over the incoming request from the payload.
 
 ### Step 2: Process the message
 
-Parse `$arguments.message` and process based on `message.type` and reason about your next steps based on your workflow definition. Delete the messages at the `.claude/session/messages/{$arguments.agent}/*.json` after process it.
+Parse `$arguments.message` and process based on `message.type` and reason about your next steps based on your workflow definition. Delete the messages at the `./.claude/session/messages/{$arguments.agent}/*.json` after process it.
 
 ### Step 3: Update status to Watchdog
 

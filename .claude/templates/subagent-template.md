@@ -68,7 +68,7 @@ Return structured data matching your output template:
 If your sub-agent needs to read state:
 
 ```markdown
-1. Read state file: `.claude/session/prd-starter-state.json`
+1. Read state file: `./.claude/session/prd-starter-state.json`
 2. Extract relevant fields for your task
 3. Process using your sub-agent expertise
 4. Return structured output
@@ -138,6 +138,6 @@ Available output templates for structured sub-agents:
 
 | Template | Purpose | Location |
 |----------|---------|----------|
-| research-output-template.json | pm-research-specialist output | `.claude/templates/research-output-template.json` |
-| gdd-output-template.json | thermite-facilitator output | `.claude/templates/gdd-output-template.json` |
-| prd-starter-state-template.json | State file structure | `.claude/templates/prd-starter-state-template.json` |
+| research-output-template.json | pm-research-specialist output | `./.claude/templates/research-output-template.json` |
+| gdd-output-template.json | thermite-facilitator output | `./.claude/templates/gdd-output-template.json` |
+| prd-starter-state-template.json | State file structure | `./.claude/templates/prd-starter-state-template.json` |

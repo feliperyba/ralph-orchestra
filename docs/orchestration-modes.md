@@ -110,7 +110,7 @@ PM starts first. The watchdog launches workers on demand when they have pending 
 
 - **Adaptive parallelism** - Workers only run when there is work
 - **No polling overhead** - Watchdog delivers messages by restarting workers
-- **Idempotent delivery** - Processed message IDs tracked in `.claude/session/message-state.json`
+- **Idempotent delivery** - Processed message IDs tracked in `./.claude/session/message-state.json`
 - **PM prioritization** - Bug reports go to PM for priority decisions
 
 ### When to Use

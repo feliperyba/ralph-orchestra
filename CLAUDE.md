@@ -74,7 +74,7 @@
 | [docs/configuration.md](docs/configuration.md)             | PRD format, agent settings, watchdog config    |
 | [docs/extending.md](docs/extending.md)                     | Adding custom agents, skills, routing          |
 | [docs/monitoring.md](docs/monitoring.md)                   | Dashboard, logs, troubleshooting               |
-| [.claude/scripts/README.md](.claude/scripts/README.md)     | Script reference                               |
-| [.claude/skills/](.claude/skills/)                         | Orchestration skills & routers                 |
+| [./.claude/scripts/README.md](./.claude/scripts/README.md)     | Script reference                               |
+| [./.claude/skills/](./.claude/skills/)                         | Orchestration skills & routers                 |
 
 ---

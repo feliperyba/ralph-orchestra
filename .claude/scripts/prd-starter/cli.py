@@ -67,12 +67,18 @@ Examples:
 
 def main() -> int:
     """Main entry point."""
+    # Configure UTF-8 output for Windows compatibility
+    if sys.platform == "win32":
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
     args = parse_args()
 
     # Detect ralph-orchestra root directory
-    # Use the directory containing .claude/scripts/prd-starter as ralph root
+    # Use the directory containing ./.claude/scripts/prd-starter as ralph root
     script_dir = Path(__file__).parent.resolve()
-    ralph_root = script_dir.parent.parent.parent  # Go up from .claude/scripts/prd-starter to root
+    ralph_root = script_dir.parent.parent.parent  # Go up from ./.claude/scripts/prd-starter to root
 
     # For the generate action, resolve project location from state
     if args.action == "generate":
@@ -98,7 +104,15 @@ def main() -> int:
 
         # Get list of enabled agents for selective copying
         enabled_agents = []
-        agents_dict = state.get("agents", {})
+        # Support both 'agents' dict format and 'agentData' list format
+        agents_value = state.get("agents", state.get("agentData", []))
+
+        # Handle list format (agentData)
+        if isinstance(agents_value, list):
+            agents_dict = {agent.get("id", agent.get("name", "")): agent for agent in agents_value}
+        else:
+            agents_dict = agents_value
+
         for agent_name, agent_data in agents_dict.items():
             if agent_data.get("enabled", False):
                 enabled_agents.append(agent_name)

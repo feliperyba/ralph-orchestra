@@ -1,12 +1,12 @@
 # Thermite Hookify Rules
 
-These rules enforce structured design sessions and artifact generation. Place in `.claude/` directory of your thermite project.
+These rules enforce structured design sessions and artifact generation. Place in `./.claude/` directory of your thermite project.
 
 ---
 
 ## Rule: Session Output Reminder
 
-**File:** `.claude/hookify.thermite-session-end.local.md`
+**File:** `./.claude/hookify.thermite-session-end.local.md`
 
 ```markdown
 ---
@@ -37,7 +37,7 @@ Run `/thermite export` to generate session summary artifact.
 
 ## Rule: Decision Format Enforcement
 
-**File:** `.claude/hookify.thermite-decision-format.local.md`
+**File:** `./.claude/hookify.thermite-decision-format.local.md`
 
 ```markdown
 ---
@@ -72,7 +72,7 @@ Use the decision template from `references/artifact_templates.md`
 
 ## Rule: Pillar Check Reminder
 
-**File:** `.claude/hookify.thermite-pillar-check.local.md`
+**File:** `./.claude/hookify.thermite-pillar-check.local.md`
 
 ```markdown
 ---
@@ -103,7 +103,7 @@ If ANY pillar is violated, discuss before proceeding.
 
 ## Rule: Gear Registry Format
 
-**File:** `.claude/hookify.thermite-gear-format.local.md`
+**File:** `./.claude/hookify.thermite-gear-format.local.md`
 
 ```markdown
 ---
@@ -134,7 +134,7 @@ No item ships without counterplay analysis. See Marcus Chen's design philosophy:
 
 ## Rule: Red Flag Detection
 
-**File:** `.claude/hookify.thermite-red-flags.local.md`
+**File:** `./.claude/hookify.thermite-red-flags.local.md`
 
 ```markdown
 ---
@@ -165,7 +165,7 @@ Pause and reconsider before proceeding.
 
 ## Rule: Persona Attribution
 
-**File:** `.claude/hookify.thermite-persona-attribution.local.md`
+**File:** `./.claude/hookify.thermite-persona-attribution.local.md`
 
 ```markdown
 ---
@@ -202,7 +202,7 @@ Attribute insights and dissent to specific personas for traceability.
 
 ## Rule: MVD Blocker Check
 
-**File:** `.claude/hookify.thermite-mvd-check.local.md`
+**File:** `./.claude/hookify.thermite-mvd-check.local.md`
 
 ```markdown
 ---
@@ -238,7 +238,7 @@ If items are incomplete, schedule design sessions to resolve them first.
 
 ## Installation
 
-1. Create `.claude/` directory in thermite project root
+1. Create `./.claude/` directory in thermite project root
 2. Copy each rule block above into its own file with the specified filename
 3. Verify rules are active: `/hookify list`
 

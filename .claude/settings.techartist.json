@@ -38,6 +38,10 @@
     "image-process": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@x007xyz/image-process-mcp-server"]
+    },
+    "typescript": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "cclsp"]
     }
   }
 }

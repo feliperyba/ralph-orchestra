@@ -109,9 +109,25 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     # Change to project root directory for claude command
     Push-Location $projectRoot
 
+    # Determine MCP config path
+    $mcpConfigPath = Join-Path $projectRoot ".claude\settings.$AgentType.json"
+    $mcpArg = ""
+    if (Test-Path $mcpConfigPath) {
+        # Use single quotes for path to avoid nesting issues in outer double quotes
+        $mcpArg = " --mcp-config '.\.claude\settings.$AgentType.json'"
+        Write-Host "Using MCP config: .\.claude\settings.$AgentType.json" -ForegroundColor Gray
+    } elseif (Test-Path (Join-Path $projectRoot ".claude\ralph-config.json")) {
+        # Fallback to main config
+        $mcpArg = " --mcp-config '.\.claude\ralph-config.json'"
+        Write-Host "Using MCP config: .\.claude\ralph-config.json (fallback)" -ForegroundColor Gray
+    }
+
     try {
         # Build the full command string
-        $fullCmd = "claude $Command --dangerously-skip-permissions"
+        # Flags first (including MCP), then prompt (command) explicitly quoted
+        # Using single quotes for the inner command avoids PowerShell expansion issues
+        $safeCommand = $Command -replace "'", "''"
+        $fullCmd = "claude$mcpArg --dangerously-skip-permissions '$safeCommand'"
 
         # Start the process WITH output capture so we can monitor when it's idle
         $psi = New-Object System.Diagnostics.ProcessStartInfo

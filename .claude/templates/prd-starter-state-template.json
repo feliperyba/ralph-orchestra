@@ -1,5 +1,5 @@
 {
-  "_comment": "PRD Starter State File Template v4.0 - File location: .claude/session/prd-starter-state.json",
+  "_comment": "PRD Starter State File Template v4.0 - File location: ./.claude/session/prd-starter-state.json",
   "_version": "4.0.0",
   "_template": "prd-starter-state",
 
@@ -239,7 +239,7 @@
       "10. completed - Generate agents and configs"
     ],
     "statePersistence": "State is saved after each phase to enable resuming",
-    "fileLocation": ".claude/session/prd-starter-state.json",
+    "fileLocation": "./.claude/session/prd-starter-state.json",
     "resumeCommand": "/ralph-prd-starter"
   }
 }

@@ -21,10 +21,10 @@ Skills extend Claude's capabilities through `SKILL.md` files with instructions. 
 
 ```bash
 # Personal skill (all projects)
-mkdir -p ~/.claude/skills/explain-code
+mkdir -p ~/./.claude/skills/explain-code
 
 # Project skill (current project only)
-mkdir -p .claude/skills/explain-code
+mkdir -p ./.claude/skills/explain-code
 ```
 
 ### Step 2: Write SKILL.md
@@ -199,15 +199,15 @@ my-skill/
 | Location | Path | Scope | Priority |
 |----------|------|-------|----------|
 | Enterprise | See managed settings | All users in organization | 1 (highest) |
-| Personal | `~/.claude/skills/<skill-name>/SKILL.md` | All your projects | 2 |
-| Project | `.claude/skills/<skill-name>/SKILL.md` | This project only | 3 |
+| Personal | `~/./.claude/skills/<skill-name>/SKILL.md` | All your projects | 2 |
+| Project | `./.claude/skills/<skill-name>/SKILL.md` | This project only | 3 |
 | Plugin | `<plugin>/skills/<skill-name>/SKILL.md` | Where plugin enabled | 4 (lowest) |
 
 **Priority:** Higher locations override lower ones when names match. Plugin skills use `plugin-name:skill-name` namespace.
 
 ### Automatic Discovery in Nested Directories
 
-When editing files in subdirectories (e.g., `packages/frontend/`), Claude Code automatically discovers skills from nested `.claude/skills/` directories. This supports monorepo setups where packages have their own skills.
+When editing files in subdirectories (e.g., `packages/frontend/`), Claude Code automatically discovers skills from nested `./.claude/skills/` directories. This supports monorepo setups where packages have their own skills.
 
 ### Frontmatter Reference
 
@@ -602,7 +602,7 @@ Research $ARGUMENTS thoroughly:
 - `Explore` - Read-only, optimized for codebase exploration (Haiku)
 - `Plan` - Read-only, for planning research
 - `general-purpose` - Full tools, capable (default)
-- Custom subagents from `.claude/agents/`
+- Custom subagents from `./.claude/agents/`
 
 ### Restrict Tool Access
 

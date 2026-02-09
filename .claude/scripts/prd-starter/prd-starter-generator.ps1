@@ -23,10 +23,10 @@
     Enable verbose output
 
 .EXAMPLE
-    .\prd-starter-generator.ps1 -Action generate -StateFile .claude\session\prd-starter-state.json
+    .\prd-starter-generator.ps1 -Action generate -StateFile .\.claude\session\prd-starter-state.json
 
 .EXAMPLE
-    .\prd-starter-generator.ps1 -Action validate -ConfigFile .claude\session\agent-config.json
+    .\prd-starter-generator.ps1 -Action validate -ConfigFile .\.claude\session\agent-config.json
 
 .EXAMPLE
     .\prd-starter-generator.ps1 -Action reset

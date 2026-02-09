@@ -126,7 +126,7 @@ Sub-agents should respond with:
 ### State File Location
 
 ```
-.claude/session/prd-starter-state.json
+./.claude/session/prd-starter-state.json
 ```
 
 ### State Update Protocol
@@ -228,16 +228,16 @@ writeState(state);
 
 ```javascript
 // Parent agent writes temp file
-writeFile('.claude/session/input.json', largeData);
+writeFile('./.claude/session/input.json', largeData);
 
 // Sub-agent reads temp file
-const input = readFile('.claude/session/input.json');
+const input = readFile('./.claude/session/input.json');
 
 // Sub-agent writes output file
-writeFile('.claude/session/output.json', result);
+writeFile('./.claude/session/output.json', result);
 
 // Parent agent reads output file
-const result = readFile('.claude/session/output.json');
+const result = readFile('./.claude/session/output.json');
 ```
 
 ## Output Templates
@@ -245,7 +245,7 @@ const result = readFile('.claude/session/output.json');
 ### Template Locations
 
 ```
-.claude/templates/
+./.claude/templates/
 ├── research-output-template.json      # pm-research-specialist output
 ├── gdd-output-template.json            # thermite-facilitator output
 ├── prd-starter-state-template.json    # State file structure
@@ -258,7 +258,7 @@ const result = readFile('.claude/session/output.json');
 ```yaml
 ---
 name: pm-research-specialist
-outputTemplate: .claude/templates/research-output-template.json
+outputTemplate: ./.claude/templates/research-output-template.json
 ---
 ```
 
@@ -267,7 +267,7 @@ outputTemplate: .claude/templates/research-output-template.json
 ## Output Format
 
 Your output MUST match the structure defined in:
-`.claude/templates/research-output-template.json`
+`./.claude/templates/research-output-template.json`
 
 Key fields to populate:
 - `researchData.similarProjects` - Array of similar projects found
@@ -312,7 +312,7 @@ Key fields to populate:
 After collecting initial features, launch research specialist.
 
 **Step 1: Prepare state**
-Read `.claude/session/prd-starter-state.json` and extract:
+Read `./.claude/session/prd-starter-state.json` and extract:
 - project.name, project.description, project.category
 - features array
 
@@ -369,7 +369,7 @@ Store answers in researchData.questionsAnswered.
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| Sub-agent not found | `.agent.md` file missing | Verify file exists at `.claude/agents/{name}.agent.md` |
+| Sub-agent not found | `.agent.md` file missing | Verify file exists at `./.claude/agents/{name}.agent.md` |
 | Invalid state file | JSON syntax error | Validate JSON, check for trailing commas |
 | Missing output | Sub-agent didn't return expected format | Check output template reference |
 | Phase not advancing | currentPhase not updated | Ensure parent agent updates state after each phase |
@@ -387,6 +387,6 @@ Store answers in researchData.questionsAnswered.
 
 ## See Also
 
-- [SUBAGENT_TEMPLATE.md](.claude/templates/SUBAGENT_TEMPLATE.md) - Sub-agent definition template
-- [prd-starter-state-template.json](.claude/templates/prd-starter-state-template.json) - State file structure
-- [prd-starter.agent.md](.claude/agents/prd-starter.agent.md) - Parent agent using sub-agents
+- [SUBAGENT_TEMPLATE.md](./.claude/templates/SUBAGENT_TEMPLATE.md) - Sub-agent definition template
+- [prd-starter-state-template.json](./.claude/templates/prd-starter-state-template.json) - State file structure
+- [prd-starter.agent.md](./.claude/agents/prd-starter.agent.md) - Parent agent using sub-agents

@@ -103,4 +103,4 @@ Once satisfied with HITL behavior:
 See Also
 
 - `/ralph` - Full autonomous multi-session mode
-- `.claude/orchestration/multi-session-coordinator.md` - Coordination protocol
+- `./.claude/orchestration/multi-session-coordinator.md` - Coordination protocol
