@@ -27,27 +27,25 @@ You facilitate an **interactive project setup wizard** for Ralph Orchestra. Guid
 1. Update state file with new data and incremented `currentPhase`
 2. Use atomic write pattern (write to `.tmp`, then rename)
 
-## 11-Phase Overview
+## 11-Phase Overview (Optimized with Subagents)
 
-| Phase | Purpose | Output |
-|-------|---------|--------|
-| 1 | Entry Point | Wizard mode selection |
-| 2 | Preset Selection | Quick Start templates (optional) |
-| 3 | Project Identity | Name, description, category, tech stack |
-| 3.3 | Run subagent `prd-starter-project-analyzer` for context polish.
-| 4 | Agent Configuration | Agent definitions (names, roles, skills) |
-| 5 | Orchestration Mode | Event-driven, Sequential, or HITL |
-| 6 | MCP Servers | Server selection and configuration |
-| 7 | Quality Standards | Code review, tests, docs requirements |
-| 8 | Initial Features | Feature descriptions (natural language) |
-| 8b | Deep Research | pm-research-specialist subagent |
-| 8c | GDD Creation | gamedesigner-thermite-facilitator (games only) |
-| 8d | PRD Creation | pm-prd-creator subagent |
-| 9 | Review & Confirm | Display summary, await approval |
-| 10 | Project Generation | Invoke Python generator |
-| 11 | Completion | Display next steps |
+| Phase | Purpose | Output | Context Impact |
+|-------|---------|--------|----------------|
+| 1 | Entry Point | Wizard mode selection | Minimal |
+| 2 | Basic Project Info | Name, description | Minimal |
+| 3 | Project Analysis | NLP analysis via subagent | Offloaded |
+| 4-7 | **Configuration Interview** | **Via prd-starter-configurator subagent** | **Offloaded** |
+| 8 | Initial Features | Feature descriptions (natural language) | Moderate |
+| 8b | Deep Research | pm-research-specialist subagent | Offloaded |
+| 8c | GDD Creation | gamedesigner-thermite-facilitator (games only) | Offloaded |
+| 8d | PRD Creation | pm-prd-creator subagent | Offloaded |
+| 9 | Review & Confirm | Display summary, await approval | Minimal |
+| 10 | Project Generation | Invoke Python generator | Minimal |
+| 11 | Completion | Display next steps | Minimal |
 
-**Detailed phase instructions**: See [PHASES.md](PHASES.md)
+**Key Optimization:** Phases 4-7 (Agent Config, Orchestration, MCP, Quality) are delegated to a dedicated subagent, reducing main session context by ~40%.
+
+**Detailed phase instructions**: See [PHASES.md](PHASES.md) (Note: Phases 3-7 now handled by prd-starter-configurator subagent)
 
 ## State Management
 
@@ -78,7 +76,61 @@ mv ./.claude/session/prd-starter-state.json.tmp ./.claude/session/prd-starter-st
 
 ## Subagent Invocation
 
-Three specialized subagents assist during the wizard. Each outputs **structured JSON** that feeds into template-based generation.
+Four specialized subagents assist during the wizard. Each outputs **structured JSON** that feeds into template-based generation.
+
+### Phase 3: Project Analyzer
+```
+Use prd-starter-project-analyzer subagent to analyze project description
+```
+
+**Subagent outputs:** JSON with detected project type, tech stack, suggested agents (confidence score)
+
+**Wizard action after subagent returns:**
+1. Parse analyzer output
+2. Display detected configuration
+3. Proceed to Phase 4-7 (Configuration Interview)
+
+### Phase 4-7: Configuration Interview (NEW - Offloaded)
+```
+Use prd-starter-configurator subagent to collect all configuration
+```
+
+**Purpose:** Offload the interactive configuration phases to reduce context bloat in main session.
+
+**Input to subagent:**
+```json
+{
+  "wizardMode": "quick-start" | "standard" | "expert",
+  "projectName": "project-name",
+  "projectDescription": "Brief description",
+  "analyzerOutput": {
+    "projectType": "game",
+    "suggestedAgents": ["pm", "developer", "qa", "gamedesigner"],
+    "suggestedTechStack": "React Three Fiber + Phaser",
+    "confidence": 0.85
+  }
+}
+```
+
+**Subagent outputs:** Complete configuration JSON covering:
+- `project` (Phase 3: identity, scale, success factors)
+- `agents` (Phase 4: enabled agents, skills, subagents, MCP)
+- `orchestration` (Phase 5: mode, iterations, thresholds)
+- `mcpConfig` (Phase 6: server assignments - expert only)
+- `qualityStandards` (Phase 7: code review, testing, docs)
+
+**Wizard action after subagent returns:**
+1. Read subagent's JSON output
+2. Validate completeness
+3. Merge into state file
+4. Update `currentPhase` to "features"
+5. Continue to Phase 8
+
+**Benefits:**
+- ✅ Reduces main wizard context by ~40%
+- ✅ Specialized subagent can handle complex branching logic
+- ✅ User interaction isolated to dedicated agent
+- ✅ Main wizard stays focused on orchestration
 
 ### Phase 8b: Research
 ```

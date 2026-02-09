@@ -30,36 +30,40 @@ The `ralph-prd-starter` command launches an interactive setup wizard that guides
 ## Workflow
 
 **CRITICAL: Invoke and follow the protocols in `ralph-prd-starter` skill. Must follow this skill for detailed information over how to behave on each phase.**
-**CRITICAL: Must Invoke the  `prd-starter-project-analyzer` subagent for NLP-based project analyzer once collected enough information about the project scope**
 
-## 11-Phase Overview
+**Context Optimization:** Phases 3-7 are delegated to the `prd-starter-configurator` subagent to reduce main session context bloat by ~40%.
+
+## 11-Phase Overview (Optimized with Subagents)
 
 **CRITICAL:** Always prefer to use the `AskUserQuestion` tool whenever need user confirmation in between the steps.
 
-| Phase | Purpose | Output |
-|-------|---------|--------|
-| 1 | Entry Point | Wizard mode selection |
-| 2 | Preset Selection | Quick Start templates (optional) |
-| 3 | Project Identity | Name, description, category, tech stack |
-| 3.3 | Run subagent `prd-starter-project-analyzer` for context polish.
-| 4 | Agent Configuration | Agent definitions (names, roles, skills) |
-| 5 | Orchestration Mode | Event-driven, Sequential, or HITL |
-| 6 | MCP Servers | Server selection and configuration |
-| 7 | Quality Standards | Code review, tests, docs requirements |
-| 8 | Initial Features | Feature descriptions (natural language) |
-| 8b | Deep Research | pm-research-specialist subagent |
-| 8c | GDD Creation | gamedesigner-thermite-facilitator (games only) |
-| 8d | PRD Creation | pm-prd-creator subagent |
-| 9 | Review & Confirm | Display summary, await approval |
-| 10 | Project Generation | Invoke Python generator |
-| 11 | Completion | Display next steps |
+| Phase | Purpose | Output | Context Impact |
+|-------|---------|--------|----------------|
+| 1 | Entry Point | Wizard mode selection | Minimal |
+| 2 | Basic Project Info | Name, description | Minimal |
+| 3 | Project Analysis | NLP analysis via `prd-starter-project-analyzer` | Offloaded |
+| 4-7 | **Configuration Interview** | **Via `prd-starter-configurator` subagent** | **Offloaded (~40% reduction)** |
+| 8 | Initial Features | Feature descriptions (natural language) | Moderate |
+| 8b | Deep Research | `pm-research-specialist` subagent | Offloaded |
+| 8c | GDD Creation | `gamedesigner-thermite-facilitator` (games) | Offloaded |
+| 8d | PRD Creation | `pm-prd-creator` subagent | Offloaded |
+| 9 | Review & Confirm | Display summary, await approval | Minimal |
+| 10 | Project Generation | Invoke Python generator | Minimal |
+| 11 | Completion | Display next steps | Minimal |
+
+**Optimization Details:**
+- **Phases 4-7** now handled by dedicated subagent (Project Identity, Agent Config, Orchestration, MCP, Quality)
+- Main wizard stays focused on high-level orchestration
+- Subagent returns complete configuration JSON for state merge
 
 ## Generated Files
 
 After confirmation, the following files are generated:
 
-### For Each Agent
-- `./.claude/skills/{name}-workflow/SKILL.md` - Agent behavior definition
+### For Each Agent and startup protocol
+- `./.claude/settings.{name}.json` - MCP configuration
+
+**Note:** The old `agents/{name}/AGENT.md` architecture has been replaced with the workflow skill pattern for better modularity and reduced context bloat.behavior definition
 - `./.claude/settings.{name}.json` - MCP configuration
 
 ### Project Files
