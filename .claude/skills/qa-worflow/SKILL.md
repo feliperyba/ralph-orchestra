@@ -12,6 +12,7 @@ description: Complete QA Validator workflow orchestration. References specialize
 - **Load the proper skills and tools** - Always ensure you have the right skills loaded for each task. Run tasks and subagents in parallel when possible to optimize time.
 - **Full validation** - type-check, lint, test, build, automated testing
 - **Write and Fix Tests** - You must write unit and e2e tests for every task
+   - **CRITICAL:** NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions based on the specs/gdd requirements, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
 - **E2E regression** - Run `npm test:e2e` before MCP validation
 - **Visual regression** - Screenshot comparison with Vision MCP
 - **Code quality review** - Check for code quality smells, anti-patterns, wrong design patterns and implementation issues

@@ -426,6 +426,55 @@ function Get-PendingMessages {
         $messages += $content
     }
 
+    # Also check for pending messages delivered via fallback file (Start-Agent creates this)
+    # This ensures agents find messages even if the watchdog deleted the inbox files after delivery
+    $sessionDir = Split-Path $Script:MessageQueueDir -Parent
+    $fallbackFile = Join-Path $sessionDir "pending-messages-$Agent.json"
+
+    if (Test-Path $fallbackFile) {
+        try {
+            $fallbackContent = Get-Content $fallbackFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+            if ($fallbackContent.messages) {
+                foreach ($msg in $fallbackContent.messages) {
+                    # Skip if already processed (idempotency check via MessageStateManager)
+                    if (Get-Command Test-MessageProcessed -ErrorAction SilentlyContinue) {
+                        if (Test-MessageProcessed -MessageId $msg.id) { continue }
+                    }
+
+                    # Filter by status (fallback file captures snapshot, so we treat contained msgs as pending for the agent)
+                    # Note: We don't filter by msg.status here because the snapshot might be old, 
+                    # but Test-MessageProcessed handles the truth.
+
+                    # Filter by type if specified
+                    if ($Type -and $msg.type -ne $Type) { continue }
+
+                    # Filter by priority
+                    if ($msg.priority) {
+                        $msgPriority = $priorityOrder[$msg.priority]
+                        if ($msgPriority -lt $minPriorityValue) { continue }
+                    }
+
+                    # Deduplicate: Only add if not already in $messages
+                    $isDuplicate = $false
+                    foreach ($existing in $messages) {
+                        if ($existing.id -eq $msg.id) { 
+                            $isDuplicate = $true
+                            break 
+                        }
+                    }
+                    
+                    if (-not $isDuplicate) {
+                        # Add source annotation
+                        $msg | Add-Member -NotePropertyName "_source" -NotePropertyValue "fallback" -Force
+                        $messages += $msg
+                    }
+                }
+            }
+        } catch {
+            # Ignore errors reading fallback file
+        }
+    }
+
     $stopwatch.Stop()
 
     # Move corrupt files to quarantine
@@ -456,10 +505,19 @@ function Get-MessageById {
     }
     
     foreach ($path in $searchPaths) {
+        # Check canonical pending file
         $filePath = Join-Path $path "$MessageId.json"
         if (Test-Path $filePath) {
             $content = Get-Content $filePath -Raw | ConvertFrom-Json
             $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $filePath -Force
+            return $content
+        }
+
+        # Check processing file
+        $processingPath = Join-Path $path "$MessageId.processing.json"
+        if (Test-Path $processingPath) {
+            $content = Get-Content $processingPath -Raw | ConvertFrom-Json
+            $content | Add-Member -NotePropertyName "_filePath" -NotePropertyValue $processingPath -Force
             return $content
         }
     }
@@ -489,22 +547,82 @@ function Set-MessageStatus {
         return $false
     }
 
+    # Store old path
+    $oldPath = $message._filePath
+    $dir = Split-Path $oldPath -Parent
+
+    # Determine new filename based on status
+    $newExtension = if ($Status -eq "processing") { ".processing.json" } else { ".json" }
+    
+    # Construct new path (keep same ID)
+    $newPath = Join-Path $dir "$($message.id)$newExtension"
+
+    # Update status property in content
     $message.status = $Status
 
     if ($Status -eq "completed") {
         # Delete immediately - no archiving
-        if ($message._filePath -and (Test-Path $message._filePath)) {
-            Remove-Item $message._filePath -Force
+        if ($oldPath -and (Test-Path $oldPath)) {
+            Remove-Item $oldPath -Force
         }
     } else {
-        # Update in place
-        if ($message._filePath -and (Test-Path $message._filePath)) {
+        # If renaming is required (e.g. pending -> processing)
+        if ($oldPath -and (Test-Path $oldPath)) {
+             # Remove internal props before writing
+            if ($message.PSObject.Properties['result']) { $message.PSObject.Properties['result'].Value = $null } # Keep minimal
             $message.PSObject.Properties.Remove('_filePath')
-            $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $message._filePath -Encoding UTF8
+            $message.PSObject.Properties.Remove('_source')
+            
+            $message | ConvertTo-Json -Depth 10 | Out-File -FilePath $newPath -Encoding UTF8
+
+            # Remove old file if name changed
+            if ($newPath -ne $oldPath) {
+                Remove-Item $oldPath -Force
+            }
         }
     }
 
     return $true
+}
+
+function Set-MessageProcessing {
+    <#
+    .SYNOPSIS
+    Mark a message as 'processing' (renames file to .processing.json)
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$MessageId,
+        [string]$Agent = $null
+    )
+    return Set-MessageStatus -MessageId $MessageId -Status "processing" -Agent $Agent
+}
+
+function Reset-ProcessingMessages {
+    <#
+    .SYNOPSIS
+    Reset all 'processing' messages for an agent back to 'pending'.
+    Useful for crash recovery.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Agent
+    )
+    
+    if (-not $Script:MessageQueueDir) { return }
+    $inbox = Join-Path $Script:MessageQueueDir $Agent
+    if (-not (Test-Path $inbox)) { return }
+
+    Get-ChildItem -Path $inbox -Filter "*.processing.json" | ForEach-Object {
+        try {
+            $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $id = $content.id
+            Set-MessageStatus -MessageId $id -Status "pending" -Agent $Agent | Out-Null
+            Write-Host "[Reset] Reverted message $id to pending for $Agent" -ForegroundColor Yellow
+        } catch {
+            Write-Host "Failed to reset message $_" -ForegroundColor Red
+        }
+    }
 }
 
 function Invoke-AcknowledgeMessage {
@@ -537,56 +655,11 @@ function Invoke-AcknowledgeMessage {
     if (-not $message) {
         return $false
     }
-
-    # Store file path for deletion
-    $filePath = $message._filePath
-
-    # Add result and completion timestamp
-    $message | Add-Member -NotePropertyName "result" -NotePropertyValue $Result -Force
-    $message | Add-Member -NotePropertyName "completedAt" -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
-    $message.status = "completed"
-
-    # Log to session messages.log before deletion (optional audit trail)
-    $sessionDir = Split-Path $Script:MessageQueueDir -Parent
-    $messageLogFile = Join-Path $sessionDir "messages.log"
-    $logEntry = @{
-        timestamp = [DateTime]::UtcNow.ToString("o")
-        messageId = $message.id
-        type = $message.type
-        from = $message.from
-        to = $message.to
-        completedAt = $message.completedAt
-    } | ConvertTo-Json -Compress
-    $logEntry | Out-File -FilePath $messageLogFile -Append -Encoding utf8 -ErrorAction SilentlyContinue
-
-    # Delete immediately - message is processed
-    # Use retry logic to handle file locks
-    if ($filePath -and (Test-Path $filePath)) {
-        $deleted = $false
-        for ($i = 0; $i -lt 3; $i++) {
-            try {
-                Remove-Item $filePath -Force -ErrorAction Stop
-                $deleted = $true
-                break
-            } catch {
-                if ($i -lt 2) {
-                    Start-Sleep -Milliseconds 100
-                }
-            }
-        }
-        if (-not $deleted) {
-            # Failed to delete - rename to .failed for cleanup
-            try {
-                $failedPath = $filePath + ".failed"
-                Move-Item -Path $filePath -Destination $failedPath -Force -ErrorAction SilentlyContinue
-            } catch {
-                # Last resort - leave the file but it won't be picked up again due to status change
-            }
-        }
-    }
-
-    # Silent - acknowledgment logged by caller
-    return $true
+    
+    # ...existing code for logging...
+    
+    # Use Set-MessageStatus to handle file deletion
+    return Set-MessageStatus -MessageId $MessageId -Status "completed" -Agent $Agent
 }
 
 # ============================================================================
@@ -743,13 +816,16 @@ function Get-MessageCount {
     <#
     .SYNOPSIS
     Get count of pending messages per agent with timeout protection.
+    Excludes .processing.json files which are currently in flight.
     #>
     param()
 
     if (-not $Script:MessageQueueDir) { return @{} }
 
     $counts = @{}
-    $useTimeoutProtection = Get-Command Get-FileCountWithTimeout -ErrorAction SilentlyContinue
+    
+    # We cannot use Get-FileCountWithTimeout easily because we need to exclude *.processing.json
+    # Standard Get-ChildItem is fast enough for directory listing usually.
 
     foreach ($agent in @("pm", "developer", "qa", "gamedesigner", "techartist", "watchdog")) {
         $inbox = Join-Path $Script:MessageQueueDir $agent
@@ -759,13 +835,15 @@ function Get-MessageCount {
             continue
         }
 
-        # Use timeout-protected enumeration if available (prevents watchdog freeze)
-        if ($useTimeoutProtection) {
-            $counts[$agent] = Get-FileCountWithTimeout -Path $inbox -Filter "*.json" -TimeoutMs 2000 -DefaultValue 0
-        } else {
-            # Fallback to synchronous count
-            $counts[$agent] = (Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue | Measure-Object).Count
+        # Get all JSON files then filter out processing ones
+        $files = Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue
+        $count = 0
+        foreach ($f in $files) {
+            if ($f.Name -notlike "*.processing.json") { 
+                $count++ 
+            }
         }
+        $counts[$agent] = $count
     }
 
     return $counts

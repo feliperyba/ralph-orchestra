@@ -1,7 +1,7 @@
 ---
 name: prd-starter-project-analyzer
 description: NLP-based project analyzer - detects project type, tech stack, platform, dimensionality, multiplayer from natural language description.
-model: haiku
+model: sonnet
 tools: Read, Write
 ---
 

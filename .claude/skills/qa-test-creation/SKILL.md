@@ -15,7 +15,7 @@ Use when:
 - PRD item has acceptance criteria but no tests exist
 - Source files are modified but corresponding test files are missing
   
-NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
+**CRITICAL:** NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions based on the specs/gdd requirements, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
 
 ## E2E Test Structure (Two-Test Requirement)
 

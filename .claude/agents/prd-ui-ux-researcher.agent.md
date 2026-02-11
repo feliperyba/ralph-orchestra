@@ -1,7 +1,7 @@
 ---
 name: prd-ui-ux-researcher
 description: UI/UX specification researcher for PRD Starter. Generates concrete HTML/CSS specs via web research and vision analysis. Use when creating UI/UX specifications for new projects.
-model: haiku
+model: sonnet
 tools:
   - mcp__web-search-prime__webSearchPrime
   - mcp__4_5v_mcp__analyze_image

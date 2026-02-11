@@ -1,7 +1,7 @@
 ---
 name: pm-task-researcher
 description: Codebase research specialist for PM task assignment. Use proactively before assigning tasks to understand existing patterns, dependencies, and implementation approaches. Returns structured summaries without verbose exploration details.
-model: haiku
+model: sonnet
 skills:
   - pm-organization-task-research
 tools:

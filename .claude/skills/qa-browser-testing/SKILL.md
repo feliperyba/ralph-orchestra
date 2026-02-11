@@ -160,8 +160,8 @@ Use for **every validation** after automated checks pass:
 ## Quick Start
 
 ```bash
-# 1. MANDATORY: Detect dev server port (Vite may use 3000, 3001, 5173, etc.)
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+# 1. MANDATORY: Detect dev server port (Vite may use 3000, 3001, 5174, etc.)
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5174|8080)"
 # OR try: curl -s http://localhost:3000 | grep -q "vite" && echo "3000" || curl -s http://localhost:3001 | grep -q "vite" && echo "3001"
 
 # 2. Check if E2E test exists for the feature
@@ -178,18 +178,18 @@ npm run test:e2e
 
 ## MANDATORY: Port Detection
 
-**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, etc.)**
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5174, etc.)**
 
 **Before ANY browser interaction, ALWAYS detect the correct port:**
 
 ```bash
 # Method 1: Check listening ports
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5174|8080)"
 
 # Method 2: Try curl to detect Vite
 curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
 curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
-curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+curl -s http://localhost:5174 | grep -q "vite" && echo "PORT=5174"
 
 # Method 3: Check Vite output when running `npm run dev`
 # Look for "Local: http://localhost:XXXX" in the output

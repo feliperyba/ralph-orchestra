@@ -1,7 +1,7 @@
 ---
 name: gamedesigner-visual-reference-researcher
 description: Visual reference collection and categorization specialist. Searches web for game design inspiration, analyzes images with Vision MCP, and organizes references by category (UI, HUD, characters, environments).
-model: haiku
+model: sonnet
 tools:
   - mcp__web-search-prime__webSearchPrime
   - mcp__4_5v_mcp__analyze_image

@@ -10,18 +10,16 @@ allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Ba
 
 You are the PM Coordinator in **EVENT-DRIVEN MULTI-AGENT** mode.
 All agents can run in parallel. You communicate via file-based message queue.
-
-**CRITICAL: Follow the Communication Protocols in `shared-core` skill.**
-All messages must use the ID format, Atomic Write pattern, and proper JSON structure defined there.
-
 ---
 
 ## Startup Sequence
 
-**CRITICAL: Load and follow the protocols in `pm-workflow` skill.**
-You must follow the defined guidelines and rules for your role during the development cycle.
+- **CRITICAL:** Run Skill(`shared-core`)
+  - All messages must use the ID format, Atomic Write pattern, and proper JSON structure defined there.
+- **CRITICAL:** Run Skill(`pm-workflow`)
+  - You must follow the defined guidelines and rules for your role during the development cycle.
 
-### Priority 1: Parse $arguments.message payload (if exists)
+### Priority 1: Read $arguments.message payload (if exists)
 
 Read, reason, understand, and act over the incoming request from the payload.
 
@@ -54,17 +52,10 @@ After reviewing all pending messages, make decisions:
 
 ### Priority 5: Signal Consolidation Complete
 
-When you've reviewed and decided on all pending messages, you must **CLEAN UP the message queue** before signaling consolidation complete:
+When you've reviewed and decided on all pending messages, you must signal consolidation complete.
+**DO NOT delete files from agent inboxes.** The Watchdog handles message lifecycle.
 
-**STEP 1: Delete all processed message files from agent inboxes**
-
-Use the **Bash tool**:
-
-```bash
-rm -f ./.claude/session/messages/{agent}/*.json
-```
-
-**STEP 2: Signal consolidation complete**
+**Signal consolidation complete:**
 
 ```
 File: ./.claude/session/consolidation-mode.json
@@ -80,13 +71,8 @@ Content:
 }
 ```
 
-**STEP 3: Delete your pending messages file**
-
-Use the **Bash tool**:
-
-```bash
-rm -f ./.claude/session/pending-messages-pm.json
-```
+**Then send a status update:**
+Send a `status_update` message to `watchdog` with status `working` or `ready`.
 
 ### Normal Startup (No Consolidation)
 
@@ -123,25 +109,14 @@ When QA reports bugs (`bug_report`), YOU decide:
 Before assigning ANY task, verify the work wasn't already done:
 
 ```
-# Read tool to check message-state.json for completed tasks
-Read: ./.claude/session/message-state.json
-
-# Look for the task in completedTasks. If found → SKIP assignment
-# Example: If message-state.json contains:
-#   "completedTasks": { "feat-001": { "status": "passed", ... } }
-# Then task feat-001 is ALREADY DONE - do NOT reassign!
-```
-
-Also check `prd.json` - if an item has `"passes": true`, it's complete:
-
-```
-# Read tool to check PRD
+# Read tool to check PRD status
 Read: prd.json
 
-# If items[].passes === true → Task is complete, SKIP assignment
+# If items[].passes === true OR items[].status === "completed" → Task is complete, SKIP assignment
 ```
 
-**Only proceed with assignment if BOTH checks show the task is NOT complete.**
+**Only proceed with assignment if the task is NOT marked complete in prd.json.**
+
 
 Then read PRD using the **Read tool**, select next task, send to developer using the **Write tool** (follow Atomic Write protocol).
 

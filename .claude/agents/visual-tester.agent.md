@@ -1,7 +1,7 @@
 ---
 name: techartist-visual-tester
 description: Automated visual testing specialist using Playwright. Captures screenshots, compares against baselines, and validates visual rendering of shaders, materials, and effects in browser.
-model: haiku
+model: sonnet
 tools:
   - mcp__playwright__browser_navigate
   - mcp__playwright__browser_take_screenshot

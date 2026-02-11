@@ -149,6 +149,83 @@ Central base with destinations:
 - Distinct themed areas
 - Return to hub mechanic
 
+## JSON Level Data Format
+
+### Standard Level JSON Structure
+
+When implementing levels in JSON format for Phaser 3 games:
+
+```json
+{
+  "id": "level001",
+  "name": "Tutorial - First Shot",
+  "description": "Learn the basics with an impossible-to-fail tutorial shot",
+  "birds": ["red", "red", "red"],
+  "starThresholds": {
+    "one": 5000,
+    "two": 32000,
+    "three": 72000
+  },
+  "pigs": [
+    { "x": 800, "y": 500, "type": "small" }
+  ],
+  "blocks": [
+    { "x": 750, "y": 500, "material": "glass", "rotation": 0 }
+  ],
+  "ground": { "y": 550 },
+  "slingshot": { "x": 200, "y": 450 }
+}
+```
+
+### Level Design Best Practices for JSON
+
+1. **Progressive Difficulty**
+   - Early levels: Tutorial patterns, single solution
+   - Mid levels: Multiple valid approaches
+   - Late levels: Complex structures requiring mastery
+
+2. **Star Threshold Formula**
+   ```javascript
+   2-star: 30,000 + (level × 2,000)
+   3-star: 60,000 + (level × 6,000)
+   ```
+
+3. **Bird Allocation**
+   - Tutorial levels: 3 birds (fail-proof)
+   - Practice levels: 3-4 birds
+   - Complexity levels: 4-5 birds
+   - Mastery levels: 5-7 birds
+
+4. **Validation Checklist**
+   - [ ] All x/y coordinates within world bounds
+   - [ ] All material types are valid (glass, wood, stone, explosive)
+   - [ ] All pig types are valid (small, medium, large)
+   - [ ] All bird types are valid (red, yellow, black, white, blue)
+   - [ ] Star thresholds follow progressive formula
+   - [ ] At least 2 valid solutions exist
+   - [ ] Level is solvable within bird count
+
+### Level Documentation Template
+
+```markdown
+## Level {N}: {Name}
+
+**Difficulty:** Tutorial | Practice | Complexity | Mastery | Challenge
+**Target Time:** 30-90 seconds
+**Birds:** {count} × {type}
+**Pigs:** {count}
+
+### Solution Paths
+1. **Brute Force (1-star):** {description}
+2. **Strategic (2-star):** {description}
+3. **Optimal (3-star):** {description}
+
+### Design Notes
+- {key mechanic introduction}
+- {difficulty considerations}
+- {fail-safes for tutorial levels}
+```
+
 ## Level Review Checklist
 
 Before marking a level complete:
@@ -162,3 +239,14 @@ Before marking a level complete:
 - [ ] Choke points have counterplay
 - [ ] Performance is acceptable
 - [ ] Art style is consistent
+- [ ] JSON format is valid
+- [ ] Coordinates are within bounds
+- [ ] Materials and types are valid
+- [ ] Star thresholds follow formula
+- [ ] Multiple solutions exist
+- [ ] Level is solvable
+
+## Reference
+
+- [JSON Schema Validation](https://ajv.js.org/) — Validate level data structure
+- [Phaser JSON Loading](https://photonstorm.github.io/phaser3-docs/Phaser.Cache.BaseCache.html) — Cache API for JSON

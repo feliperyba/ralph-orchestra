@@ -1,7 +1,7 @@
 ---
 name: gamedesigner-asset-analyst
 description: Read-only asset inventory specialist. Reviews existing assets in src/assets/ before requesting new ones from Tech Artist. Prevents duplicate asset requests and ensures design specifications reference available resources.
-model: haiku
+model: sonnet
 tools:
   - Read
   - Glob

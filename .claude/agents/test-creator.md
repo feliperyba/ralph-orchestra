@@ -2,7 +2,7 @@
 name: test-creator
 description: Test creation specialist. Creates unit tests (Vitest) and E2E tests (Playwright) following acceptance criteria and GDD specs. Use proactively when validating features without test coverage. Can be invoked directly with /test-creator for manual test creation.
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: haiku
+model: sonnet
 ---
 
 # Test Creator

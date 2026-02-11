@@ -1,7 +1,7 @@
 ---
 name: techartist-asset-researcher
 description: Asset discovery and reference analysis specialist. Researches existing assets, GDD specifications, and reference images before asset creation. Prevents duplicate work and ensures consistency with art direction. Read-only to prevent accidental asset creation.
-model: haiku
+model: sonnet
 tools:
   - Read
   - Grep

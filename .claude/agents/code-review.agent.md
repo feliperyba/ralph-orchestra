@@ -1,7 +1,7 @@
 ---
 name: qa-code-review
 description: Review code quality before validation. Checks for @ts-ignore, any types, anti-patterns, and potential issues.
-model: haiku
+model: sonnet
 skills:
   - qa-code-review
 tools:

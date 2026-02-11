@@ -1,7 +1,7 @@
 ---
 name: techartist-visual-validator
 description: Visual quality review specialist for Tech Artist work. Performs critical read-only reviews of shaders, materials, and effects against GDD specifications. Enforces visual standards without file modification.
-model: haiku
+model: sonnet
 tools:
   - Read
   - Grep

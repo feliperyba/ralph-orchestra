@@ -8,6 +8,8 @@ category: validation
 
 > "Trust but verify – automated tests catch regressions, browser tests catch reality."
 
+**CRITICAL:** NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions based on the specs/gdd requirements, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
+
 ## When to Use This Skill
 
 Use when:
@@ -144,6 +146,7 @@ For each acceptance criterion in `current-task-qa.json` (acceptanceCriteria arra
 - Assume automated tests are sufficient
 - Mark as passed without running E2E tests
 - Ignore console warnings/errors
+- Skip JSON schema validation for data files
 
 ✅ **DO:**
 
@@ -152,3 +155,75 @@ For each acceptance criterion in `current-task-qa.json` (acceptanceCriteria arra
 - Review test screenshots as evidence
 - Document any concerns in bug notes
 - Check console for errors in test output
+- Validate JSON data files match expected schema
+
+## JSON Data Validation
+
+For games that use JSON data files (levels, configurations, etc.):
+
+### Schema Validation Testing
+
+```typescript
+import Ajv from 'ajv';
+import levelSchema from '../src/schemas/level.schema.json';
+
+// Test that level JSON files match schema
+describe('Level Data Validation', () => {
+  const ajv = new Ajv();
+  const validate = ajv.compile(levelSchema);
+
+  it('level001.json should match schema', () => {
+    const levelData = require('../src/data/levels/level001.json');
+    const valid = validate(levelData);
+
+    if (!valid) {
+      console.error('Validation errors:', validate.errors);
+    }
+
+    expect(valid, 'Level data should match schema').toBe(true);
+  });
+
+  it('all levels should have valid coordinates', () => {
+    const levels = [
+      require('../src/data/levels/level001.json'),
+      require('../src/data/levels/level002.json'),
+      // ... more levels
+    ];
+
+    levels.forEach((level, idx) => {
+      level.pigs.forEach((pig: any) => {
+        expect(pig.x).toBeGreaterThanOrEqual(0);
+        expect(pig.x).toBeLessThanOrEqual(2000);
+        expect(pig.y).toBeGreaterThanOrEqual(0);
+        expect(pig.y).toBeLessThanOrEqual(2000);
+      });
+    });
+  });
+});
+```
+
+### E2E JSON Loading Tests
+
+```typescript
+test('game loads level data from JSON', async ({ page }) => {
+  // Navigate to game
+  await page.goto('/');
+
+  // Load level
+  await page.click('#level-1-button');
+
+  // Verify level loaded correctly
+  const pigCount = await page.evaluate(() => {
+    return window.game.scene.keys.game.pigs.length;
+  });
+
+  expect(pigCount).toBeGreaterThan(0);
+});
+```
+
+## Reference
+
+- [qa-test-creation](../qa-test-creation/) — Test creation workflow
+- [qa-e2e-test-creation](../qa-e2e-test-creation/) — E2E test patterns
+- [Ajv Documentation](https://ajv.js.org/) — JSON schema validation
+- [JSON Schema Reference](https://json-schema.org/) — Schema specification

@@ -250,6 +250,32 @@ function Start-Agent {
         
         [array]$PendingMessages = @()  # Messages to deliver to agent on startup
     )
+
+    # Check if agent is already running (e.g. recovering from watchdog restart)
+    if ($Script:Agents[$AgentName].ProcessState -eq "running" -and $Script:Agents[$AgentName].Process -and -not $Script:Agents[$AgentName].Process.HasExited) {
+        Write-WatchdogLog "$AgentName is already running (PID: $($Script:Agents[$AgentName].Process.Id)). Skipping startup." -Color Yellow
+        
+        # If we had pending messages, we ensure the pending file exists so the running agent can (hopefully) pick them up
+        if ($PendingMessages.Count -gt 0) {
+            $pendingFile = Join-Path $Script:SessionDir "pending-messages-$AgentName.json"
+            $pendingData = @{
+                agent = $AgentName
+                messageCount = $PendingMessages.Count
+                messages = $PendingMessages
+                timestamp = [DateTime]::UtcNow.ToString("o")
+            }
+            $pendingData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
+            Write-WatchdogLog "  Updated pending messages file for running agent $AgentName" -Color Magenta
+        }
+        
+        return $true
+    }
+    
+    # CLEANUP: If there is a lingering process object (dead/stopped), dispose it before starting new one
+    if ($Script:Agents[$AgentName].Process) {
+        try { $Script:Agents[$AgentName].Process.Dispose() } catch {}
+        $Script:Agents[$AgentName].Process = $null
+    }
     
     $logFile = Join-Path $Script:LogDir "$AgentName.log"
     
@@ -294,14 +320,29 @@ function Start-Agent {
         $pendingData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
         Write-WatchdogLog "Delivered $($PendingMessages.Count) messages to $AgentName (via --message + fallback file)" -Color Magenta
     } else {
-        # Clear any old pending file
-        if (Test-Path $pendingFile) { Remove-Item $pendingFile -Force }
+        # If no new messages provided, CHECK if there is an existing pending file.
+        # If so, we are likely restarting a crashed/stale agent effectively in "Recovery Mode" implicitly.
+        # We should PRESERVE the file so the agent can find it.
+        if (Test-Path $pendingFile) {
+             try {
+                $existingContent = Get-Content $pendingFile -Raw | ConvertFrom-Json
+                if ($existingContent.messages -and $existingContent.messages.Count -gt 0) {
+                     # Found existing work. Load it for the CLI argument!
+                     $messageJsonArg = $existingContent.messages | ConvertTo-Json -Depth 10 -Compress
+                     Write-WatchdogLog "Resumed $AgentName with existing pending file ($($existingContent.messages.Count) messages)" -Color DarkYellow
+                }
+             } catch {
+                 # File corrupt? Then we can delete it.
+                 Remove-Item $pendingFile -Force
+             }
+        }
     }
     
     # Create runner script with sanitized values to prevent command injection
     $safeProjectRoot = Get-SafeScriptString $ProjectRoot
     $safePendingFile = Get-SafeScriptString $pendingFileForScript
     $safeLogFile = Get-SafeScriptString $logFile
+    $safeSessionDir = Get-SafeScriptString $paths.SessionDir
     # Note: $slashCommand is from a trusted switch statement, not user input
     
     # Build script logic for message handling
@@ -315,7 +356,10 @@ function Start-Agent {
 `$jsonPayload = @'
 $safeJson
 '@
-`$messageArg = " --message '`$jsonPayload'"
+# Escape double quotes for Windows CMD/Batch compatibility
+# This prevents CMD from consuming the quotes when passing args to claude.cmd
+`$safePayload = `$jsonPayload -replace '"', '\"'
+`$messageArg = " --message '`$safePayload'"
 "@
     } else {
         $messageHandlingScript = "`$messageArg = `"`""
@@ -361,38 +405,78 @@ if (Test-Path `$pendingFile) {
 }
 
 # Prepare JSON payload securely
-$messageHandlingScript
+    $messageHandlingScript
 
-Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
-Write-Host ""
-
-# Run claude with --message argument (primary delivery) + file fallback
-`$exitCode = 0
-try {
-    # Flags first (including MCP), then prompt (slash command + message) as single arg
-    # Use Invoke-Expression or direct variable expansion carefully
-    `$prompt = "$slashCommand" + `$messageArg
+    Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
+    Write-Host ""
     
-    # Debug output
-    # Write-Host "DEBUG Prompt: `$prompt" -ForegroundColor DarkGray
+    # Run claude with --message argument (primary delivery) + file fallback
+    `$exitCode = 0
+    try {
+        # Flags first (including MCP), then prompt (slash command + message) as single arg
+        # Use Invoke-Expression or direct variable expansion carefully
+        `$prompt = "$slashCommand" + `$messageArg
+        
+        # Debug output
+        # Write-Host "DEBUG Prompt: `$prompt" -ForegroundColor DarkGray
+        
+        claude$mcpArg --dangerously-skip-permissions "`$prompt"
+        `$exitCode = `$LASTEXITCODE
+    } catch {
+        Write-Host "ERROR: `$_" -ForegroundColor Red
+        `$exitCode = 1
+    }
+
+    Write-Host ""
+    Write-Host "========================================"  -ForegroundColor Yellow
+    Write-Host "  Agent session ended (exit code: `$exitCode)" -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Yellow
     
-    claude$mcpArg --dangerously-skip-permissions "`$prompt"
-    `$exitCode = `$LASTEXITCODE
-} catch {
-    Write-Host "ERROR: `$_" -ForegroundColor Red
-    `$exitCode = 1
-}
+    # SUCCESSFUL COMPLETION HANDLER (The "Unlocking" Mechanism)
+    # The CLI Agent (LLM) often stops answering (finishes task) and the process exits.
+    # We must translate this process exit into a System State update.
+    
+    if (`$exitCode -eq 0) {
+        Write-Host "Task completed successfully." -ForegroundColor Green
+        
+        # 1. IMMEDIATE LOCAL UNLOCK (Safety Net)
+        # We remove the lock file immediately prevents the watchdog from thinking we crashed
+        # if it checks before the status message is processed.
+        if (Test-Path `$pendingFile) {
+            Write-Host "Cleaning up pending file lock..." -ForegroundColor Green
+            Remove-Item `$pendingFile -Force -ErrorAction SilentlyContinue
+        }
+        
+        # 2. SEND STATUS UPDATE TO WATCHDOG (Architectural Correctness)
+        # We ensure the Watchdog updates its in-memory status to 'idle'
+        `$timestamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+        `$statusFile = "$safeSessionDir\messages\watchdog\msg-status-${AgentName}-`$timestamp.json"
+        
+        `$statusPayload = @{
+            id = "status-${AgentName}-`$timestamp"
+            type = "status_update"
+            from = "$AgentName"
+            to = "watchdog"
+            priority = "high"
+            timestamp = (Get-Date).ToUniversalTime().ToString("o")
+            payload = @{
+                status = "idle"
+                lastActive = (Get-Date).ToUniversalTime().ToString("o")
+            }
+        }
+        
+        `$statusPayload | ConvertTo-Json -Depth 5 | Out-File -FilePath `$statusFile -Encoding UTF8
+        Write-Host "Sent status_update: idle to Watchdog." -Color Gray
+        
+    } else {
+        Write-Host "Task failed (Exit Code `$exitCode). Preserving pending file for recovery." -ForegroundColor Red
+    }
 
-Write-Host ""
-Write-Host "========================================"  -ForegroundColor Yellow
-Write-Host "  Agent session ended (exit code: `$exitCode)" -ForegroundColor Yellow
-Write-Host "========================================" -ForegroundColor Yellow
-
-# Write exit status
-`$exitCode | Out-File -FilePath "$safeLogFile.exit" -Encoding utf8
-
-# Keep window open briefly
-Start-Sleep -Seconds 5
+    # Write exit status
+    `$exitCode | Out-File -FilePath "$safeLogFile.exit" -Encoding utf8
+    
+    # Keep window open briefly
+    Start-Sleep -Seconds 5
 "@
 
     $scriptContent | Out-File -FilePath $scriptFile -Encoding utf8 -Force
@@ -410,6 +494,14 @@ Start-Sleep -Seconds 5
         $Script:Agents[$AgentName].WorkStatus = if ($PendingMessages.Count -gt 0) { "working" } else { "starting" }
         $Script:Agents[$AgentName].LastActivity = [DateTime]::UtcNow
         
+        # Write PID file for process tracking (persistence across watchdog restarts)
+        $agentPidFile = Join-Path $paths.SessionDir "$AgentName.pid"
+        try {
+            $process.Id | Out-File -FilePath $agentPidFile -Encoding utf8 -Force
+        } catch {
+            Write-WatchdogLog "Warning: Failed to write PID file for $AgentName" -Color Yellow
+        }
+
         Write-WatchdogLog "$AgentName started (PID: $($process.Id))" -Color Green
         
         # Send ready message to watchdog
@@ -469,12 +561,19 @@ function Stop-Agent {
         # Log but continue cleanup
         Write-WatchdogLog "Error stopping $AgentName process: $_" -Color Yellow
     } finally {
-        # Always dispose the process object to release handles
+        # always dispose
+                 # Always dispose the process object to release handles
         if ($agent.Process) {
             try { $agent.Process.Dispose() } catch {}
         }
     }
     
+    # Remove PID file
+    $agentPidFile = Join-Path $paths.SessionDir "$AgentName.pid"
+    if (Test-Path $agentPidFile) {
+        Remove-Item $agentPidFile -Force -ErrorAction SilentlyContinue
+    }
+
     $Script:Agents[$AgentName].Process = $null
     $Script:Agents[$AgentName].ProcessState = "stopped"
     $Script:Agents[$AgentName].WorkStatus = "idle"
@@ -523,7 +622,54 @@ function Test-AgentHealth {
     return "healthy"
 }
 
+function Restore-AgentState {
+    Write-WatchdogLog "Checking for running agents from previous session..." -Color Cyan
+    
+    foreach ($agentName in $Script:Agents.Keys) {
+        $pidFile = Join-Path $paths.SessionDir "$agentName.pid"
+        
+        if (Test-Path $pidFile) {
+            try {
+                $agentPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+                if ($agentPid) {
+                    $proc = Get-Process -Id $agentPid -ErrorAction SilentlyContinue
+                    
+                    if ($proc -and -not $proc.HasExited) {
+                        Write-WatchdogLog "  Found running agent: $agentName (PID: $agentPid)" -Color Green
+                        
+                        $Script:Agents[$agentName].Process = $proc
+                        $Script:Agents[$agentName].ProcessState = "running"
+                        $Script:Agents[$agentName].StartTime = $proc.StartTime
+                        $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
+                        
+                        # Check for pending transactional file
+                        $pendingFile = Join-Path $paths.SessionDir "pending-messages-$agentName.json"
+                        if (Test-Path $pendingFile) {
+                             $Script:Agents[$agentName].WorkStatus = "working"
+                             Write-WatchdogLog "  - Agent has pending task - marking as working" -Color DarkYellow
+                        } else {
+                             # Agent running but no pending file. 
+                             # It might have finished and is waiting, or is idle.
+                             # We'll mark it idle so it can receive new messages.
+                             $Script:Agents[$agentName].WorkStatus = "idle"
+                             Write-WatchdogLog "  - Agent has no pending task - marking as idle" -Color DarkGreen
+                        }
+                    } else {
+                        Write-WatchdogLog "  Found stale PID ($agentPid) for $agentName. Cleaning up." -Color DarkGray
+                        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } catch {
+                Write-WatchdogLog "  Error checking PID for $agentName : $_" -Color Red
+            }
+        }
+    }
+}
+
 function Start-AllAgents {
+    # Attempt to restore state from previous session first
+    Restore-AgentState
+
     Write-WatchdogLog "Starting agents in PM-first initialization mode..." -Color Cyan
 
     # PM-FIRST MODE: Always start PM agent first
@@ -557,7 +703,11 @@ function Invoke-MainLoop {
         # 3. Check agent health
         Invoke-HealthCheck
 
-        # 4. Check for session completion
+        # 4. Resource Cleanup (Garbage Collection)
+        # Prevents deadlocks from stale pending files (older than 30m)
+        Invoke-ResourceCleanup
+
+        # 5. Check for session completion
         if (Test-SessionComplete) {
             Write-WatchdogLog "Session complete - shutting down agents" -Color Green
             $Script:SessionComplete = $true
@@ -608,12 +758,23 @@ function Invoke-ProcessWatchdogMessages {
                 Write-WatchdogLog "Agent ready: $($msg.from)" -Color Green
             }
             "status_update" {
-                $agent = $msg.from
-                $Script:Agents[$agent].LastActivity = [DateTime]::UtcNow
-                $Script:Agents[$agent].WorkStatus = $msg.payload.status  # Update WorkStatus, not ProcessState
-                $Script:Agents[$agent].CurrentTask = $msg.payload.currentTask
+                $agentName = $msg.from
+                $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
+                $Script:Agents[$agentName].WorkStatus = $msg.payload.status  # Update WorkStatus, not ProcessState
+                $Script:Agents[$agentName].CurrentTask = $msg.payload.currentTask
                 
-                # Status updates are silent - shown in dashboard
+                # CRITICAL: When agent signals IDLE/COMPLETED, we clear the pending file.
+                # This completes the transaction and allows new messages to be delivered.
+                if ($msg.payload.status -in @("idle", "waiting", "ready")) {
+                    $pendingFile = Join-Path $paths.SessionDir "pending-messages-$agentName.json"
+                    if (Test-Path $pendingFile) {
+                        Remove-Item $pendingFile -Force -ErrorAction SilentlyContinue
+                        Write-WatchdogLog "Agent $agentName finished work. Cleared pending file." -Color Green
+                    }
+                    
+                    # Clear current message tracker
+                    $Script:Agents[$agentName].CurrentMessage = $null
+                }
             }
             "work_complete" {
                 # Session complete signal
@@ -656,55 +817,142 @@ function Invoke-DeliverPendingMessages {
                 continue  # Don't interrupt working/starting agents - let them finish booting
             }
             
-            # GRACE PERIOD CHECK: Don't re-deliver to an agent that just received messages
-            # This prevents restart loops when acknowledgment or status updates are slow
-            $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
-            if ($timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
-                # Still within grace period - skip this agent
-                continue
+            # DELIVERY BLOCKER CHECK:
+            # If the pending-messages file exists, it means the agent hasn't finished the PREVIOUS batch.
+            $pendingFile = Join-Path $paths.SessionDir "pending-messages-$agentName.json"
+            $isRecovery = $false
+            
+            if (Test-Path $pendingFile) {
+                 # Check if agent is actually dead/crashed, in which case we might need to restart with the SAME file
+                 $health = Test-AgentHealth -AgentName $agentName
+                 if ($health -eq "dead") {
+                     Write-WatchdogLog "$agentName is dead but has pending file. Restarting in RECOVERY mode." -Color Yellow
+                     $isRecovery = $true
+                 } else {
+                     # Agent is alive and file exists -> It is processing. Do not disturb.
+                     continue 
+                 }
+            }
+
+            # GRACE PERIOD CHECK (Skip if Recovery)
+            if (-not $isRecovery) {
+                $timeSinceLastDelivery = ([DateTime]::UtcNow - $agent.LastDeliveryTime).TotalSeconds
+                if ($timeSinceLastDelivery -lt $Script:DeliveryGraceSeconds) {
+                    continue
+                }
             }
             
-            # Get the pending messages
+            # Get pending messages (from INBOX)
             $pendingMessages = Get-PendingMessages -Agent $agentName
             
-            if ($pendingMessages.Count -eq 0) { continue }
+            # If NOT in recovery mode, we need items in inbox to proceed
+            if (-not $isRecovery -and $pendingMessages.Count -eq 0) { continue }
             
-            Write-WatchdogLog "${agentName}: delivering $count message(s)" -Color Magenta
+            # If we are in RECOVERY mode, $pendingMessages from inbox might be empty, and that's OK.
+            # We will rely on the file.
+            
+            if ($pendingMessages.Count -gt 0) {
+               Write-WatchdogLog "${agentName}: delivering $($pendingMessages.Count) new message(s)" -Color Magenta
+            }
             
             # Stop the current agent if running (but not working - we already checked above)
+            # In recovery mode, process is dead, so this is skipped mostly, but good for cleanup
             if ($processIsRunning) {
+                Write-WatchdogLog "Interrupting $agentName to deliver new priority messages" -Color Yellow
                 Stop-Agent -AgentName $agentName -Reason "message_delivery"
+                
+                # Update the pending list if any processing messages were reverted (unlikely in this flow)
+                $pendingMessages = Get-PendingMessages -Agent $agentName
                 Start-Sleep -Seconds 2
             }
             
             # Convert messages to simple format for agent
             $messageData = @()
             foreach ($msg in $pendingMessages) {
+                # Ensure we don't pass the _filePath internal property
+                $payload = if ($msg.psobject.Properties["payload"]) { $msg.payload } else { $null }
+                
                 $messageData += @{
                     id = $msg.id
                     from = $msg.from
                     type = $msg.type
                     priority = $msg.priority
-                    payload = $msg.payload
+                    payload = $payload
                     timestamp = $msg.timestamp
                 }
             }
 
             # Restart agent with the pending messages FIRST
-            # Only acknowledge messages if agent starts successfully
+            
+            # Setup mode variables
+            $mode = "new"
+            if ($isRecovery) { $mode = "recovery" }
+            
+            if ($mode -eq "recovery") {
+                 # Recovery mode: Pending file exists.
+                 # We must read from it because $pendingMessages (from inbox) is likely empty.
+                 try {
+                    $recoveryJson = Get-Content $pendingFile -Raw
+                    if ([string]::IsNullOrWhiteSpace($recoveryJson)) { throw "Empty file" }
+                    
+                    $recoveryData = $recoveryJson | ConvertFrom-Json
+                    
+                    # INFINITE LOOP PROTECTION
+                    # Check retry count in the file metadata
+                    if ($recoveryData.retryCount -ge 3) {
+                         Write-WatchdogLog "Agent $agentName stuck in restart loop (3 retries). Quarantining task." -Color Red
+                         
+                         $quarantineFile = Join-Path $paths.SessionDir "messages/quarantine/stuck-$agentName-$(Get-Date -Format 'yyyyMMdd-HHmmss').json"
+                         if (-not (Test-Path (Split-Path $quarantineFile))) { New-Item -ItemType Directory -Path (Split-Path $quarantineFile) -Force }
+                         
+                         Move-Item $pendingFile -Destination $quarantineFile -Force
+                         
+                         # Clear status and continue
+                         $Script:Agents[$agentName].WorkStatus = "crashed"
+                         continue
+                    }
+                    
+                    # Increment retry count
+                    if (-not $recoveryData.PSObject.Properties["retryCount"]) {
+                        $recoveryData | Add-Member -NotePropertyName "retryCount" -NotePropertyValue 0
+                    }
+                    $recoveryData.retryCount++
+                    $recoveryData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
+                    
+                    if ($recoveryData.messages) {
+                        $messageData = $recoveryData.messages
+                         Write-WatchdogLog "  Loaded $($messageData.Count) messages from recovery file (Retry #$($recoveryData.retryCount))" -Color DarkYellow
+                    }
+                } catch {
+                     Write-WatchdogLog "Failed to read pending file for recovery: $_" -Color Red
+                     # If file is corrupt, we can't recover. Delete it to unblock.
+                     Remove-Item $pendingFile -Force -ErrorAction SilentlyContinue
+                     continue
+                }
+            } else {
+                # New delivery mode: Write inbox messages to pending file, then clear inbox.
+                 $pendingData = @{
+                    agent = $agentName
+                    messageCount = $messageData.Count
+                    messages = $messageData
+                    timestamp = [DateTime]::UtcNow.ToString("o")
+                }
+                $pendingData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
+                
+                # CLEAR INBOX NOW - Source of truth has moved to pending-messages file
+                foreach ($msg in $pendingMessages) {
+                    if ($msg._filePath) { Remove-Item $msg._filePath -Force -ErrorAction SilentlyContinue }
+                }
+            }
+
             $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
 
             if ($agentStarted) {
-                # Agent started successfully - acknowledge messages (with state tracking)
-                foreach ($msg in $pendingMessages) {
-                    $null = Invoke-AcknowledgeMessageSafe -MessageId $msg.id -Agent $agentName
-                }
-
                 # Track delivery time to enforce grace period
                 $Script:Agents[$agentName].LastDeliveryTime = [DateTime]::UtcNow
             } else {
-                Write-WatchdogLog "Failed to start $agentName - messages preserved in queue" -Color Red
-                # Messages remain in queue for retry on next iteration
+                Write-WatchdogLog "Failed to start $agentName" -Color Red
+                # NOTE: We do NOT delete the pending file. It stays there for next retry.
                 continue
             }
             
@@ -713,7 +961,6 @@ function Invoke-DeliverPendingMessages {
                 $Script:Agents[$agentName].CurrentMessage = $messageData[0]
             }
             
-            $Script:TotalMessagesRouted += $count
             $Script:Agents[$agentName].LastActivity = [DateTime]::UtcNow
         }
     }
@@ -731,13 +978,26 @@ function Invoke-HealthCheck {
         
         switch ($health) {
             "dead" {
-                # Agent crashed - check if it has pending work
-                $counts = Get-MessageCount
-                if ($counts[$agentName] -gt 0) {
-                    Write-WatchdogLog "$agentName crashed with pending messages - restarting" -Color Yellow
-                    $null = Restart-Agent -AgentName $agentName -Reason "crashed_with_pending"
+                 # Agent process ended (Process.HasExited = True).
+                 # This might be normal (one-off script finished) or crash.
+                 
+                $pendingFile = Join-Path $paths.SessionDir "pending-messages-$agentName.json"
+                if (Test-Path $pendingFile) {
+                    # Agent died but pending file still exists -> CRASH / INCOMPLETE
+                    # We must restart the agent to re-process this file.
+                    Write-WatchdogLog "$agentName process ended but pending file remains. Restarting recovery." -Color Red
+                    
+                    # We call Stop-Agent just to clean up handles, then triggering DeliverPendingMessages
+                    # by resetting WorkStatus will catch it in next tick (via Recovery Mode)
+                    Stop-Agent -AgentName $agentName 
+                    $Script:Agents[$agentName].WorkStatus = "crashed" # Signal to loop
+                } else {
+                    # Agent died and pending file is GONE -> SUCCESS
+                    # Status update cleared it. Normal shutdown.
+                    if ($Script:Agents[$agentName].WorkStatus -ne "idle") {
+                         $Script:Agents[$agentName].WorkStatus = "idle"
+                    }
                 }
-                # Silent if no pending work
             }
             "stale" {
                 Write-WatchdogLog "$agentName appears stale" -Color Yellow
@@ -784,10 +1044,23 @@ function Invoke-ResourceCleanup {
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddHours(-1) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 
-        # Clean stale pending-messages files
+        # Clean stale pending-messages files (DEADLOCK PREVENTION)
         Get-ChildItem -Path $Script:SessionDir -Filter "pending-messages-*.json" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddMinutes(-30) } |
-            ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+            ForEach-Object { 
+                $file = $_
+                Remove-Item $file.FullName -Force -ErrorAction SilentlyContinue 
+                
+                # Extract agent name from filename to reset in-memory status
+                if ($file.Name -match "pending-messages-(.+)\.json") {
+                    $agentName = $matches[1]
+                    if ($Script:Agents.ContainsKey($agentName)) {
+                        $Script:Agents[$agentName].WorkStatus = "idle"
+                        $Script:Agents[$agentName].CurrentMessage = $null
+                        Write-WatchdogLog "CLEANUP: Removed stale lock for $agentName + reset status to IDLE" -Color Green
+                    }
+                }
+            }
 
     } catch {
         # Resource cleanup failure is non-critical

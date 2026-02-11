@@ -1,7 +1,7 @@
 ---
 name: template-researcher
 description: Research existing sub-agent and skill templates from online sources. Use when PRD Starter needs to find templates for custom agents/skills or when no local template exists.
-model: haiku
+model: sonnet
 skills:
   - pm-skill-research
 tools: Read, WebSearch, mcp__web-search-prime__webSearchPrime, mcp__web_reader__webReader

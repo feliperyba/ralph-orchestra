@@ -1,7 +1,7 @@
 ---
 name: developer-code-research
 description: Research existing codebase patterns before implementation. MANDATORY before all coding.
-model: haiku
+model: sonnet
 skills:
   - dev-research-pattern-finding
   - dev-research-codebase-exploration

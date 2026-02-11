@@ -600,3 +600,30 @@ writeJson('prd.json', prd);
 - [pm-organization-scale-adaptive](../pm-organization-scale-adaptive/SKILL.md) — Scale-adaptive planning
 - [pm-organization-task-research](../pm-organization-task-research/SKILL.md) — Codebase research before assignment
 - [shared-worktree](../shared-worktree/SKILL.md) — Git worktree coordination for parallel agents
+- [pm-improvement-skill-research](../pm-improvement-skill-research/SKILL.md) — Skill improvement research process
+
+## Data-Driven Task Selection
+
+### JSON-Based Level Design Tasks
+
+When assigning tasks related to JSON level data:
+
+**Verification Requirements:**
+- Level JSON files must have valid schema
+- Coordinates must be within world bounds
+- Material/pig/bird types must be valid enums
+- Star thresholds should follow progressive formula
+- Multiple solution paths must exist
+
+**Test Plan Considerations:**
+- Unit tests: Schema validation with Ajv
+- E2E tests: Load and verify level data
+- Manual tests: Play through each level
+
+### Priority Adjustment for Data Tasks
+
+| Task Type | Base Priority | Adjustment |
+|-----------|--------------|------------|
+| Level JSON creation | `functional` | +1 if blocks progression |
+| Schema validation | `architectural` | +2 (data integrity) |
+| Asset loading | `architectural` | +1 (blocks gameplay) |

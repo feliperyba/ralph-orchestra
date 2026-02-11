@@ -1,7 +1,7 @@
 ---
 name: prd-starter-skill-researcher
 description: Intelligent skill selection specialist for PRD Starter. Analyzes project type, tech stack, and features to determine minimal skill sets for each enabled agent. Use proactively in PHASE-04 to avoid copying all 196 skills indiscriminately.
-model: haiku
+model: sonnet
 tools: Read, Write, Edit, Task, Grep, Glob
 skills:
   - ralph-prd-starter

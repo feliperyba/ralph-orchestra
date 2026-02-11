@@ -111,6 +111,32 @@ TaskStop(task_id="abc123")
 
 ---
 
+## Message Transaction Lifecycle
+
+**Your work is transactional.** The Watchdog considers you "busy" until you explicitly say otherwise.
+
+### 1. Source of Truth
+*   **Inbox:** `./.claude/session/messages/{agent}/`
+*   **Transaction File:** `./.claude/session/pending-messages-{agent}.json`
+
+Messages move from Inbox -> Transaction File. Always check the Transaction File if your Inbox is empty.
+
+### 2. Do Not Delete Messages
+*   **Never** delete message files from `./.claude/session/messages/`.
+*   The Watchdog automatically clears them when handling the Transaction File.
+
+### 3. Closing the Transaction
+You must explicitly signal when you are done with the current batch of messages.
+
+**Send a `status_update` message:**
+*   **Type:** `status_update`
+*   **To:** `watchdog`
+*   **Status:** `idle`, `waiting`, or `ready`
+
+**Effect:** This tells the Watchdog to delete your Transaction File and deliver any new messages waiting in the queue.
+
+---
+
 ## Cleanup Pattern (Even on Failure)
 
 **Always cleanup in a finally pattern:**

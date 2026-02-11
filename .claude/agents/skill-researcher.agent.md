@@ -1,7 +1,7 @@
 ---
 name: skill-researcher
 description: Skill improvement research specialist. Uses web search to find best practices for agent skills. Proactively researches TypeScript, React Three Fiber, testing patterns, and game development practices for skill updates. IMPORTANT: Always check for existing similar skills before creating new ones. Prefer updating/refactoring existing skills over creating duplicates.
-model: haiku
+model: sonnet
 tools:
   - Read
   - Write

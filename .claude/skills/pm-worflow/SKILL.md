@@ -14,7 +14,7 @@ user-invocable: true
 - Progress and agents status monitoring via prd.json
 - QA result processing (pass → prd refinement → task assign , fail → reassign)
 - Project orchestration (invoke subagents, manage dependencies, ensure flow)
-- PRD management (update prd.json, prd_completed.json, prd_backlog.json, track decisions, maintain agent and task traceability)
+- **PRD lifecycle management** (prd.json, prd_completed.json, prd_backlog.json synchronization)
 
 ## Agent Startup Protocol
 
@@ -27,6 +27,65 @@ On each PM agent spawn:
 5. **Update prd.json** (atomic write if needed)
 6. **Write response file** Assign tasks, update status, conduct researches, polish the PRD,or request validation as needed
 7. **Exit** Update your status to "ready" before exiting, so watchdog can track availability for next task assignment
+
+## PRD Lifecycle Management (CRITICAL)
+
+**The PRD must follow a strict 3-file lifecycle to prevent context window bloat:**
+
+### File Structure
+
+| File | Purpose | Contents |
+|------|---------|----------|
+| `prd.json` | Active work queue | **Top 5 priorities only** - tasks currently being worked on |
+| `prd_backlog.json` | Pending tasks | All remaining tasks not yet in prd.json |
+| `prd_completed.json` | Archive | All completed tasks (removed from prd.json) |
+
+### Lifecycle Rules
+
+**1. prd.json - Active Work Queue (MAX 5 TASKS)**
+- Contains ONLY the top 5 priority tasks
+- Tasks are sorted by: priority (1=highest), then by dependencies
+- When a task is completed, it MUST be removed from prd.json
+- When task count drops below 5, refill from prd_backlog.json
+
+**2. Task Completion Flow**
+```
+Task completes → Remove from prd.json → Add to prd_completed.json → Review prd_backlog.json → Move next tasks to prd.json until count = 5
+```
+
+**3. Post-Completion PRD Update (Phase 7)**
+```markdown
+When a task passes validation:
+
+1. Remove completed task from prd.json items array
+2. Add completed task to prd_completed.json completedTasks array
+3. Update counts:
+   - prd.json: session.stats.completed += 1
+   - prd.json: session.stats.pending -= 1
+   - prd_completed.json: totalCompletedTasks += 1
+   - prd_backlog.json: totalBacklogTasks -= 1
+4. Read prd_backlog.json for next pending tasks
+5. Filter by: dependencies satisfied, priority order
+6. Move tasks from prd_backlog.json to prd.json until items count = 5
+7. Update all file timestamps
+```
+
+**4. Priority Order for Refill**
+```
+1. Priority 1 (architectural/integration)
+2. Priority 2 (integration/functional)
+3. Priority 3 (functional/audio)
+4. Priority 4 (UI/visual)
+5. Priority 5 (levels/testing)
+6. Priority 6 (polish/release)
+```
+
+**5. Session Complete Condition**
+```
+When prd_backlog.json is empty AND all tasks in prd.json are completed:
+→ Move all remaining to prd_completed.json
+→ Output <promise>RALPH_COMPLETE</promise>
+```
 
 ## Phase-by-Phase Workflow
 
@@ -153,13 +212,36 @@ After QA passes a task, the PM must complete ALL post-completion phases in order
 5. Update status to "prd_refinement"
 ```
 
-#### Phase 7: Cleanup Completed Tasks
+#### Phase 7: Cleanup Completed Tasks & PRD Lifecycle
 
 ```markdown
-1. Move passed tasks to prd_completed.json
-2. Archive task history
-3. Update session stats
-4. Update status to "cleanup_completed"
+1. Remove completed task from prd.json items array
+2. Add completed task to prd_completed.json completedTasks array
+3. Update all counts:
+   - prd.json: session.stats.completed += 1, pending -= 1
+   - prd_completed.json: totalCompletedTasks += 1
+   - prd_backlog.json: totalBacklogTasks -= 1 (if task was in backlog)
+4. CRITICAL: Review prd.json items count
+5. If items count < 5:
+   a. Read prd_backlog.json for next pending tasks
+   b. Filter by: dependencies satisfied, priority order
+   c. Move tasks from backlog to prd.json until items count = 5
+   d. Remove moved tasks from prd_backlog.json
+6. Update all file timestamps
+7. Update status to "cleanup_completed"
+```
+
+**Example PRD Lifecycle After Task Completion:**
+```json
+// Before: prd.json has 5 items
+prd.json items: [feat-021(completed), feat-022(completed), feat-025(pending), feat-020(pending), feat-013(pending)]
+
+// After Phase 7:
+prd.json items: [feat-023(pending), feat-020(pending), feat-013(pending), feat-024(pending), feat-025(pending)]
+                 ↑ moved from backlog    ↑ stayed                ↑ stayed       ↑ moved from backlog    ↑ stayed
+
+prd_completed.json: [feat-021, feat-022, ...] // +19 total
+prd_backlog.json: [feat-026, feat-027, ...] // -2 tasks moved to prd.json
 ```
 
 #### Phase 8: Skill Research (if needed)

@@ -125,8 +125,11 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     try {
         # Build the full command string
         # Flags first (including MCP), then prompt (command) explicitly quoted
+        # Escape double quotes for Windows CMD compatibility
+        $safeCommand = $Command -replace '"', '\"'
         # Using single quotes for the inner command avoids PowerShell expansion issues
-        $safeCommand = $Command -replace "'", "''"
+        $safeCommand = $safeCommand -replace "'", "''"
+        
         $fullCmd = "claude$mcpArg --dangerously-skip-permissions '$safeCommand'"
 
         # Start the process WITH output capture so we can monitor when it's idle

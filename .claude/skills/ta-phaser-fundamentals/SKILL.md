@@ -179,9 +179,54 @@ export class MainScene extends Phaser.Scene {
 - [ ] Parallax configured for layers
 - [ ] Asset atlases used instead of individual images
 - [ ] Pixel art mode enabled when needed
+- [ ] JSON level data loads correctly with schema validation
+
+## Visual Data Management
+
+### Loading Visual Assets from JSON
+
+When working with JSON level data that defines visual layouts:
+
+```typescript
+preload() {
+  // Load visual assets referenced in JSON
+  this.load.atlas('game-assets', 'assets/atlas.png', 'assets/atlas.json');
+
+  // Load level JSON with visual data
+  this.load.json('level001', 'data/levels/level001.json');
+}
+
+create() {
+  const levelData = this.cache.json.get('level001');
+
+  // Create visual elements from JSON data
+  levelData.blocks.forEach(block => {
+    const sprite = this.add.image(block.x, block.y, 'game-assets', block.material);
+    sprite.setRotation(block.rotation);
+    sprite.setDepth(block.y); // Depth sorting by Y position
+  });
+
+  // Create pigs
+  levelData.pigs.forEach(pig => {
+    const pigSprite = this.add.sprite(pig.x, pig.y, 'game-assets', `pig-${pig.type}`);
+    pigSprite.setScale(pig.type === 'small' ? 0.6 : pig.type === 'medium' ? 1.0 : 1.4);
+  });
+}
+```
+
+### Visual Validation
+
+When validating visual data from JSON:
+
+1. **Coordinate bounds checking** - Ensure all objects are within visible world
+2. **Material type validation** - Verify all materials have corresponding sprites
+3. **Scale validation** - Check object scales are within reasonable ranges
+4. **Overlap detection** - Warn about objects that are too close together
+5. **Depth sorting** - Verify Y-based depth sorting for proper layering
 
 ## Reference
 
 - [Phaser Scale Manager](https://photonstorm.github.io/phaser3-docs/Phaser.Scale.Manager.html) — Responsive scaling
 - [Phaser Cameras](https://photonstorm.github.io/phaser3-docs/Phaser.Cameras.Scene2D.Camera.html) — Camera API
 - [Phaser Renderer](https://photonstorm.github.io/phaser3-docs/Phaser.Renderer.Renderer.html) — Rendering settings
+- [Phaser Cache](https://photonstorm.github.io/phaser3-docs/Phaser.Cache.BaseCache.html) — JSON data loading

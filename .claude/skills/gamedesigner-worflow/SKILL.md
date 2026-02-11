@@ -30,11 +30,12 @@ On each Game Designer agent spawn:
 1. **Read --message argument** (task assignment from watchdog)
 2. **Read task state file** read and understand current task details and status
 3. **Research task requirements** Understand the requirements, read the specifications, use MCP tools (WebSearch, Fetch) to clarify implementation details, best practices, and potential blockers. Use Vision MCP for visual research and references. For UI/UX tasks, use CSS and HTML to generate prototypes and mockups to validate the visual design and interactions before coding.
-4. **Process and implement the task** following your plan and best practices, using the appropriate skills, subagents, and tools as needed
-5. **Create and Update the necessary files and references** for the design task, such as GDD sections, design documents, visual references, and prototypes. Use the appropriate tools and skills for each type of content (e.g., Vision MCP for visual references, Browser MCP for interactive prototypes).
-6. **Update PRD and commit changes** with implementation details, blockers, and observations (atomic write). Commit the changes following the default commit message pattern.
-7. **Notify the next agent** wake up the next agent that needs to act after your actions via message system
-8. **Exit** Update your status to "ready" to watchdog and wake up the next agent before exiting, so watchdog can track availability for next task assignment
+4. **Use your skills, tools, and subagents** After understand the task requirements, review the available skills, subagents and tools, and activate the ones to use for the implementation.
+5. **Process and implement the task** following your plan and best practices, using the appropriate skills, subagents, and tools as needed
+6. **Create and Update the necessary files and references** for the design task, such as GDD sections, design documents, visual references, and prototypes. Use the appropriate tools and skills for each type of content (e.g., Vision MCP for visual references, Browser MCP for interactive prototypes).
+7. **Update PRD and commit changes** with implementation details, blockers, and observations (atomic write). Commit the changes following the default commit message pattern.
+8. **Notify the next agent** wake up the next agent that needs to act after your actions via message system
+9. **Exit** Update your status to "ready" to watchdog and wake up the next agent before exiting, so watchdog can track availability for next task assignment
 
 **IF BLOCKED**
 - Update state: `state.status = "awaiting_pm"`, `state.lastSeen = "{ISO_TIMESTAMP}"`

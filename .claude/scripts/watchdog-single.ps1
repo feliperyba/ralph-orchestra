@@ -376,8 +376,12 @@ Write-Host ""
 # Run claude
 `$exitCode = 0
 try {
+    # Escape double quotes in slash command if present (unlikely but safe)
+    `$safeSlashCommand = "$slashCommand" -replace '"', '\"'
+    
     # Flags first (including MCP), then prompt (slash command) as single arg
-    claude$mcpArg --dangerously-skip-permissions "$slashCommand"
+    # Use single quotes to protect special chars from PowerShell, but escaped double quotes protect from CMD
+    claude$mcpArg --dangerously-skip-permissions "`$safeSlashCommand"
     `$exitCode = `$LASTEXITCODE
 } catch {
     Write-Host "ERROR: `$_" -ForegroundColor Red

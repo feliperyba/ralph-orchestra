@@ -21,18 +21,18 @@ Use for **every game feature validation** to create E2E tests for:
 
 ## MANDATORY: Port Detection Before Browser Testing
 
-**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5173, 8080, etc.)**
+**⚠️ CRITICAL: Vite dev server may run on different ports (3000, 3001, 5174, 8080, etc.)**
 
 **Before ANY browser interaction, ALWAYS detect the correct port:**
 
 ```bash
 # Method 1: Check listening ports
-netstat -an | grep LISTEN | grep -E ":(3000|3001|5173|8080)"
+netstat -an | grep LISTEN | grep -E ":(3000|3001|5174|8080)"
 
 # Method 2: Try curl to detect Vite
 curl -s http://localhost:3000 | grep -q "vite" && echo "PORT=3000" || \
 curl -s http://localhost:3001 | grep -q "vite" && echo "PORT=3001" || \
-curl -s http://localhost:5173 | grep -q "vite" && echo "PORT=5173"
+curl -s http://localhost:5174 | grep -q "vite" && echo "PORT=5174"
 ```
 
 **NOTE:** E2E tests configured in `playwright.config.ts` use `baseURL: 'http://localhost:3000'` which works for most cases. The `webServer` configuration automatically starts the dev server on the correct port.

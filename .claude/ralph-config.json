@@ -54,6 +54,16 @@
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@x007xyz/image-process-mcp-server"],
       "description": "Image processing capabilities (Tech Artist)"
+    },
+    "lsp-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "tritlo/lsp-mcp",
+        "<language-id>",
+        "<path-to-lsp>",
+        "<lsp-args>"
+      ]
     }
   },
   "agents": {

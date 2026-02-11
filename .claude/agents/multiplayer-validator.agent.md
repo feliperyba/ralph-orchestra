@@ -1,7 +1,7 @@
 ---
 name: qa-multiplayer-validator
 description: Multiplayer E2E testing specialist. Creates multiple browser contexts to test server-authoritative multiplayer, state synchronization, and anti-cheat patterns. Analyzes screenshots and monitors console for all clients.
-model: haiku
+model: sonnet
 skills:
   - qa-multiplayer-testing
 tools:

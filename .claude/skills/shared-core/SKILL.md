@@ -31,8 +31,8 @@ The watchdog delivers messages in two ways:
 1. **PRIMARY**: Via `--message` CLI argument as a JSON array (`$arguments.message`)
 2. **FALLBACK**: Via context file.
 
-**Always check `$arguments.message` first on startup:**
-- If `$arguments.message` is present and non-empty, parse it as JSON array of messages
+**Always check and read `$arguments.message` first on startup:**
+- If `$arguments.message` is present and non-empty, read it as JSON array of messages
 - If `$arguments.message` is empty/missing, read the fallback file:
     Read `./.claude/session/pending-messages-$arguments.agent.json` or `./.claude/session/messages/$arguments.agent/*.json` to check for pending messages. If the file exists, read and parse it as JSON array of messages. Delete it after processing.
 
@@ -44,13 +44,18 @@ You are the glue that keep the development cycle running. You **must update a ta
 
 ## How Message Delivery Works
 
-1. Read `pending-messages-$arguments.agent.json`
-2. For each message in the array:
-   a. Check if `message.id` exists in `message-state.json` → `processedMessages`
-   b. If yes → Skip (already processed)
-   c. If no → Process the message
-   d. Delete the messages
-   e. After processing, the watchdog will automatically mark it as processed
+1. **Receive Context:**
+   - **Primary**: Check `$arguments.message` (CLI Argument).
+   - **Fallback**: Check `pending-messages-$arguments.agent.json` (File Lock).
+
+2. **Process Messages:**
+   - Iterate through the messages in the array.
+   - Execute the requested task (implementation, testing, analysis).
+   - **Do not check** `message-state.json`. The Watchdog guarantees unique delivery.
+
+3. **Complete Transaction:**
+   - When finished, send a `status_update` message with status "idle".
+   - The system will automatically clear the pending file lock.
 
 ---
 
@@ -111,6 +116,7 @@ To send a message, you must use an **Atomic Write Pattern** to prevent partial r
 ## Task Status Updates
 
 **IMPORTANT**: Always send status updates when starting and finishing work. This ensures the dashboard shows accurate agent status.
+
 
 ### When You START Working on a Task
 
@@ -232,6 +238,24 @@ Content:
 }
 ```
 
+### Valid message types for the watchdog message system
+
+You MUST use the message system to communicate with the watchdog and other agents. Valid message types include:
+```json
+  {
+    "messageTypes": ["task_assign", "validation_request", "bug_report", "task_complete",
+            "question", "answer", "research_update", "regression_request",
+            "prd_update", "status_update", "priority_review", "agent_ready",
+            "work_complete", "error", "shutdown",
+            "implementation_complete", "work_blocked", "task_abandoned", "quality_concern",
+            "retrospective_initiate", "retrospective_contribution", "research_request", "research_response",
+            "prd_reorganized", "skill_improvements", "priority_response", "skill_request",
+            "gdd_ready", "gdd_update", "design_question", "design_answer",
+            "playtest_request", "playtest_report", "mechanic_proposal", "design_guidance",
+            "design_guidance_request", "test_plan_request", "test_plan_contribution",
+            "asset_assign", "asset_ready", "asset_question", "shader_request", "reference_request"]
+  }
+```
 ---
 
 ## Universal Commit Rule

@@ -42,6 +42,16 @@
     "typescript": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "cclsp"]
+    },
+    "lsp-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "tritlo/lsp-mcp",
+        "<language-id>",
+        "<path-to-lsp>",
+        "<lsp-args>"
+      ]
     }
   }
 }

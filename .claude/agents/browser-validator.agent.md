@@ -1,7 +1,7 @@
 ---
 name: qa-browser-validator
 description: Browser testing specialist using Playwright MCP. Validates web applications by navigating, interacting, monitoring console errors, and analyzing screenshots with AI vision. Use proactively for ALL validation tasks.
-model: haiku
+model: sonnet
 skills:
   - qa-browser-testing
 tools:

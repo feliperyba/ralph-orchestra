@@ -1,7 +1,7 @@
 ---
 name: prd-starter-subagent-researcher
 description: Research and select project-specific subagents for runtime. Analyzes project requirements to determine which subagents each enabled agent needs at runtime.
-model: haiku
+model: sonnet
 tools:
   - Read
   - Write
