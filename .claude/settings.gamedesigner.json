@@ -1,27 +1,8 @@
 {
   "mcpServers": {
-    "github": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"]
-    },
-    "filesystem": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
-      "env": {
-        "PATH": "${PATH}"
-      }
-    },
     "web-search": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-web-search"]
-    },
-    "brave-search": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-brave-search"]
-    },
-    "playwright": {
-      "command": "cmd",
-      "args": ["/c", "npx", "@playwright/mcp@latest"]
     },
     "vision": {
       "command": "cmd",

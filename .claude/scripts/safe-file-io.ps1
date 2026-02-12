@@ -58,8 +58,12 @@ function Get-FileContentWithTimeout {
 
     # Try direct read first with error handling (faster than job for normal case)
     try {
-        # Use a quick read attempt - if it fails, fall back to job-based approach
-        $null = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        # Check accessibility by opening and IMMEDIATELY closing/disposing the handle
+        # This prevents handle leaks which can lock the file and cause deletion failures
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $fs.Close()
+        $fs.Dispose()
+        
         # File is accessible, try reading
         $content = Get-Content $Path -Raw -ErrorAction Stop
         if (-not [string]::IsNullOrWhiteSpace($content)) {

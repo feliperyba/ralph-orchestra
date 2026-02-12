@@ -17,13 +17,24 @@ description: Complete Developer workflow orchestration - task research sequence,
 - **PRD Synchronization** - Update PRD with implementation details, blockers, and observations. Keep PM informed of progress and issues.
 - **Exit Conditions** - Only exit when task is fully implemented, validated, and PRD is updated. Never exit prematurely or leave tasks in an incomplete state.
 
+## Standard Message Pipeline
+
+- Read message input in this order: `--message` -> `pending-messages-developer.json` -> inbox diagnostics
+- Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
+- Watchdog owns delivery and cleanup lifecycle
+- Signal lifecycle using `status_update`:
+  - `working` when execution starts
+  - `awaiting_pm` / `awaiting_gd` when blocked
+  - `ready` / `waiting` / `idle` when available for next delivery
+
 ## Agent Startup Protocol 
 
 On each Developer agent spawn:
 
 1. **Read Task Assignment** 
    - Check CLI `--message` argument.
-   - **CRITICAL:** Also check `./.claude/session/pending-messages-developer.json` as the authoritative source of pending work.
+  - If CLI payload is empty, check `./.claude/session/pending-messages-developer.json`.
+  - If both are missing, inspect `./.claude/session/messages/developer/*.json` for diagnostics only.
 2. **Read task state file** read and understand current task details and status
 3. **Research task requirements** Understand the requirements, read the specifications, use MCP tools (WebSearch, Fetch) to clarify implementation details, best practices, and potential blockers
 4. **Use your skills, tools, and subagents** After understand the task requirements, review the available skills, subagents and tools, and activate the ones to use for the implementation.
@@ -34,13 +45,13 @@ On each Developer agent spawn:
 9. **Run code base clean up subagent** After any non-bug task completion, is mandatory to run the `code-refactor` subagent parallel task with the implemented context, to ensure code quality and maintainability
 10. **Update PRD and commit changes** with implementation details, blockers, and observations (atomic write). Commit the changes following the default commit message pattern.
 11. **Notify the next agent** wake up the next agent that needs to act after your actions via message system
-12. **Exit** Update your status to "ready" to watchdog and wake up the next agent before exiting, so watchdog can track availability for next task assignment
+12. **Exit** Send `status_update` (`ready`, `waiting`, or `idle`) to watchdog and wake up the next agent before exiting
 
 **IF BLOCKED**
 - Update state: `state.status = "awaiting_pm"`, `state.lastSeen = "{ISO_TIMESTAMP}"`
 - Document blocker in task prd.json
 - Send message to PM with details
-- Send message to watchdog to update status
+- Send `status_update` to watchdog with `status: "awaiting_pm"`
 - Exit and wait
 
 ## State Transitions

@@ -1,6 +1,6 @@
 ---
 name: qa-test-creation
-description: Test coverage check and creation workflow. Ensures tests exist for all features. Creates unit and E2E tests when missing following acceptance criteria. Use during validation before code review.
+description: Test coverage check and creation workflow. Ensures tests exist for all features. Creates unit tests when missing following acceptance criteria. Use during validation before code review.
 category: workflow
 ---
 
@@ -17,65 +17,28 @@ Use when:
   
 **CRITICAL:** NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions based on the specs/gdd requirements, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
 
-## E2E Test Structure (Two-Test Requirement)
+## Test Coverage Guidelines
 
-**⚠️ CRITICAL: Each feature requires TWO E2E tests:**
+**⚠️ CRITICAL: Focus on unit tests for code quality verification.**
 
-### 1. Isolated Scene Test
+QA validates implementation through:
+- Code review for quality, anti-patterns, and maintainability
+- Unit tests for component behavior, services, and utilities
+- Specification validation against acceptance criteria
 
-Tests the feature in complete isolation from other game systems.
+**Avoid browser/E2E testing** - AI agents do not reliably handle browser automation, which delays validation. QA must be smart enough to validate code quality through static analysis and unit testing.
 
-**Purpose:** Verify the feature works standalone without dependencies.
+### Unit Test Focus
 
-**Pattern:**
-```typescript
-test.describe('FeatureName - Isolated', () => {
-  test('should render feature in isolation', async ({ page }) => {
-    // Navigate to isolated test scene
-    await page.goto('http://localhost:3000/test/feature-name');
+| Component Type | Unit Test Coverage | Spec Validation |
+| --------------- | ------------------- | ----------------- |
+| Gameplay mechanic | YES (systems, components) | YES |
+| UI Component | YES (rendering, behavior) | YES |
+| Visual effect | YES (shader/material params) | YES |
+| Service/Utility | YES (pure functions) | MAYBE |
+| Asset (model/texture) | N/A | YES (visual inspection) |
 
-    // Verify feature renders
-    // Verify no console errors
-    // Capture screenshot
-  });
-});
-```
-
-**Test Routes:** Use dedicated test routes if available:
-- `/test/{feature-name}` - For feature-specific isolation
-- `/dev/scenes/{scene-name}` - For scene-based testing
-
-### 2. Integration Test
-
-Tests the feature within full game context alongside other features.
-
-**Purpose:** Verify feature works correctly with other game systems.
-
-**Pattern:**
-```typescript
-test.describe('FeatureName - Integration', () => {
-  test('should work in full game context', async ({ page }) => {
-    // Navigate to main game
-    await page.goto('http://localhost:3000');
-
-    // Navigate through game to feature
-    // Verify interactions with related systems
-    // Ensure no regressions in existing features
-  });
-});
-```
-
-### Test Coverage Matrix
-
-| Feature Type | Isolated Test? | Integration Test? |
-| ------------ | -------------- | ----------------- |
-| Gameplay mechanic | YES | YES |
-| UI Component | YES | YES |
-| Visual effect | YES | YES |
-| Service/Utility | YES (unit) | YES |
-| Asset (model/texture) | YES | YES |
-
-NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
+**CRITICAL:** NEVER CREATE FAKE OR TRIVIAL TESTS. If a meaningful unit test cannot be created based on implementation specs, report the gap to PM and document as observation in task comments.
 
 ## Quick Start
 
@@ -92,11 +55,6 @@ NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful 
 - **Pattern**: Mirror `src/` structure in `src/tests/`
 - **Example**: `src/components/game/player/index.ts` → `src/tests/components/game/player/index.test.ts`
 - **Check**: For each source file, check if corresponding `src/tests/.../{name}.test.ts` exists
-
-### E2E Tests (Playwright)
-- **Pattern**: Flat structure in `tests/e2e/`
-- **Example**: `tests/e2e/gameplay-suite.spec.ts`, `tests/e2e/auth-suite.spec.ts`
-- **Check**: For each feature, check if corresponding `tests/e2e/{feature}-suite.spec.ts` exists
 
 ## Coverage Check Procedure
 
@@ -144,33 +102,18 @@ else
 fi
 ```
 
-### Step 4: Check E2E Test Coverage
+### Step 4: Determine Required Tests
 
-```bash
-# List existing E2E tests
-ls tests/e2e/*.spec.ts
-
-# Expected tests for features:
-# - auth-suite.spec.ts       (character selection, lobby)
-# - gameplay-suite.spec.ts   (movement, shooting, paint)
-# - multiplayer-suite.spec.ts (state sync, multi-client)
-# - ui-suite.spec.ts         (UI components)
-```
-
-### Step 5: Determine Required Tests
-
-| Source File Pattern | Requires Unit Test? | Requires E2E Test? |
-| ------------------- | ------------------- | ------------------ |
-| `src/components/**/*.tsx` | Yes | Maybe* |
-| `src/services/**/*.ts` | Yes | If network-related |
-| `src/stores/**/*.ts` | Yes | Maybe* |
-| `src/utils/**/*.ts` | Yes | No |
-| `src/ecs/**/*.ts` | Yes | If gameplay-related |
-| `src/audio/**/*.ts` | Yes | No |
-| `src/materials/**/*.ts` | No | Yes (visual) |
-| `src/shaders/**/*.ts` | No | Yes (visual) |
-
-*_E2E test needed if component has user interaction or visual output_
+| Source File Pattern | Requires Unit Test? |
+| ------------------- | ------------------- |
+| `src/components/**/*.tsx` | Yes |
+| `src/services/**/*.ts` | Yes |
+| `src/stores/**/*.ts` | Yes |
+| `src/utils/**/*.ts` | Yes |
+| `src/ecs/**/*.ts` | Yes |
+| `src/audio/**/*.ts` | Yes |
+| `src/materials/**/*.ts` | No (visual asset) |
+| `src/shaders/**/*.ts` | No (visual asset) |
 
 ### Step 6: Invoke Test Creator
 
@@ -203,18 +146,15 @@ Ensure all acceptance criteria have test coverage.
 })
 ```
 
-### Step 7: Execute Tests and Verify
+### Step 6: Execute Tests and Verify
 
 After tests are created (or if they already existed):
 
 ```bash
-# 1. Run unit tests
+# Run unit tests
 npm run test
 
-# 2. Run E2E tests with Playwright API
-npm run test:e2e
-
-# 3. Capture results
+# Verify tests pass
 # Check exit codes and output
 ```
 
@@ -224,22 +164,22 @@ When tests fail, determine the root cause.
 
 > **See `qa-workflow` skill for the Test Failure Decision Tree and how to distinguish test vs game code issues.**
 
-### Step 9: Fix Test Code (If Applicable)
+### Step 8: Fix Test Code (If Applicable)
 
 If issue is in test code, QA may fix:
 
 ```bash
 # Edit test file directly (QA has permission for test files)
-Edit tests/e2e/{feature}-suite.spec.ts
+Edit src/tests/{path}/{feature}.test.ts
 
 # Re-run specific test
-npm run test:e2e -- tests/e2e/{feature}-suite.spec.ts
+npm run test -- src/tests/{path}/{feature}.test.ts
 
 # Verify fix
-git diff tests/e2e/{feature}-suite.spec.ts
+git diff src/tests/{path}/{feature}.test.ts
 ```
 
-### Step 10: Create Bug Report (If Game Code Issue)
+### Step 9: Create Bug Report (If Game Code Issue)
 
 If issue is in game code, use `qa-bug-reporting` skill:
 
@@ -250,10 +190,10 @@ If issue is in game code, use `qa-bug-reporting` skill:
 **Category**: Test / Runtime
 
 ### Summary
-E2E test "{test_name}" failed due to game code not meeting acceptance criteria.
+Unit test "{test_name}" failed due to game code not meeting acceptance criteria.
 
 ### Test That Failed
-- File: tests/e2e/{feature}-suite.spec.ts
+- File: src/tests/{path}/{feature}.test.ts
 - Test: "{test_name}"
 - Error: {error_message}
 
@@ -266,7 +206,7 @@ E2E test "{test_name}" failed due to game code not meeting acceptance criteria.
 
 ### Test Output
 \`\`\`
-{npm run test:e2e output}
+{npm run test output}
 \`\`\`
 ```
 
@@ -283,15 +223,8 @@ After checking coverage, create a report:
 | src/components/game/player/index.ts | src/tests/components/game/player/index.test.ts | ✅ EXISTS / ❌ MISSING |
 | src/services/ShootingService.ts | src/tests/services/ShootingService.test.ts | ✅ EXISTS / ❌ MISSING |
 
-### E2E Tests
-| Feature | Test File | Status |
-| ------- | --------- | ------ |
-| Authentication | tests/e2e/auth-suite.spec.ts | ✅ EXISTS / ❌ MISSING |
-| Gameplay | tests/e2e/gameplay-suite.spec.ts | ✅ EXISTS / ❌ MISSING |
-
 ### Coverage Summary
 - Unit test coverage: X%
-- E2E test coverage: X/Y features
 - Action required: CREATE TESTS / NO ACTION
 ```
 
@@ -313,8 +246,8 @@ After checking coverage, create a report:
                 ▼                         ▼
          ┌──────────┐          ┌──────────────────┐
          │ SKIP     │          │ Check each source │
-         │ (E2E     │          │ file for test     │
-         │  only)   │          └─────────┬────────┘
+         │ (assets   │          │ file for test     │
+         │  only)    │          └─────────┬────────┘
          └──────────┘                    │
                              ┌────────────┴────────────┐
                              │                         │
@@ -336,10 +269,9 @@ After checking coverage, create a report:
    ↓
 7. TEST COVERAGE CHECK (NEW)
    - Check unit test coverage
-   - Check E2E test coverage
    - Create missing tests via test-creator
    ↓
-8. Run validation: code review → type-check → lint → test → build → E2E
+8. Run validation: code review → type-check → lint → test → build
 ```
 
 ## Test Creation Triggers
@@ -348,8 +280,7 @@ After checking coverage, create a report:
 
 1. **New feature implementation** - No tests exist for new code
 2. **Missing unit tests** - Source file exists but no `.test.ts` in `src/tests/`
-3. **Missing E2E tests** - Feature has user-facing behavior but no `.spec.ts`
-4. **Acceptance criteria untested** - Criterion has no corresponding test case
+3. **Acceptance criteria untested** - Criterion has no corresponding test case
 
 **Do NOT invoke test-creator when:**
 
@@ -370,13 +301,10 @@ git diff --cached
 # 2. Run unit tests
 npm run test
 
-# 3. Run E2E tests
-npm run test:e2e
-
-# 4. Verify coverage
+# 3. Verify coverage
 npm run test -- --coverage
 
-# 5. Proceed with validation workflow
+# 4. Proceed with validation workflow
 ```
 
 ## Examples
@@ -406,9 +334,6 @@ npm run test -- --coverage
 # Unit tests
 src/tests/components/game/player/index.test.ts     ❌ MISSING
 src/tests/ecs/systems/MovementSystem.test.ts       ❌ MISSING
-
-# E2E tests
-tests/e2e/gameplay-suite.spec.ts                   ✅ EXISTS (add tests)
 ```
 
 **Action:** Invoke test-creator to create missing tests
@@ -435,18 +360,15 @@ tests/e2e/gameplay-suite.spec.ts                   ✅ EXISTS (add tests)
 ```bash
 # Unit tests
 src/tests/components/ui/HealthBar.test.ts          ❌ MISSING
-
-# E2E tests
-tests/e2e/ui-suite.spec.ts                         ❌ MISSING
 ```
 
-**Action:** Invoke test-creator for both unit and E2E tests
+**Action:** Invoke test-creator to create missing unit tests
 
 ## Best Practices
 
 1. **Be thorough** - Every acceptance criterion needs test coverage
 2. **Test behavior, not implementation** - Focus on what the feature does
-3. **Use proper test structure** - AAA for unit, user flows for E2E
+3. **Use proper test structure** - AAA pattern for unit tests
 4. **Ensure tests are independent** - No test dependencies
 5. **Make tests fast** - Unit tests should run in milliseconds
 6. **Use descriptive names** - Test names should explain what is being tested
@@ -454,7 +376,4 @@ tests/e2e/ui-suite.spec.ts                         ❌ MISSING
 ## References
 
 - [qa-unit-test-creation](./.claude/skills/qa-unit-test-creation/SKILL.md) - Unit test patterns
-- [qa-e2e-test-creation](./.claude/skills/qa-e2e-test-creation/SKILL.md) - E2E test patterns
 - [test-creator agent](./.claude/agents/test-creator.md) - Test creation sub-agent
-- [playwright.config.ts](playwright.config.ts) - Playwright configuration
-- [tests/e2e/multiplayer-suite.spec.ts](tests/e2e/multiplayer-suite.spec.ts) - Example E2E tests

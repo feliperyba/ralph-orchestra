@@ -1,7 +1,6 @@
 ---
 name: shared-lifecycle
 description: Process lifecycle management and auxiliary script rules for Ralph agents
-category: orchestration
 ---
 
 # Shared Lifecycle
@@ -119,11 +118,12 @@ TaskStop(task_id="abc123")
 *   **Inbox:** `./.claude/session/messages/{agent}/`
 *   **Transaction File:** `./.claude/session/pending-messages-{agent}.json`
 
-Messages move from Inbox -> Transaction File. Always check the Transaction File if your Inbox is empty.
+Messages move from Inbox -> Transaction File. Once delivered, transaction file is the active batch lock.
 
 ### 2. Do Not Delete Messages
 *   **Never** delete message files from `./.claude/session/messages/`.
-*   The Watchdog automatically clears them when handling the Transaction File.
+*   **Never** delete `pending-messages-{agent}.json`.
+*   The Watchdog exclusively handles queue and pending cleanup.
 
 ### 3. Closing the Transaction
 You must explicitly signal when you are done with the current batch of messages.
@@ -133,7 +133,7 @@ You must explicitly signal when you are done with the current batch of messages.
 *   **To:** `watchdog`
 *   **Status:** `idle`, `waiting`, or `ready`
 
-**Effect:** This tells the Watchdog to delete your Transaction File and deliver any new messages waiting in the queue.
+**Effect:** This marks the batch as complete/available so Watchdog can safely unlock and deliver next queued batch.
 
 ---
 

@@ -29,7 +29,7 @@ All agents run in parallel. You communicate via message queue.
 
 ## Startup Sequence
 - **CRITICAL:** Run Skill(`shared-core`)
-  - All messages must use the ID format, Atomic Write pattern, and proper JSON structure defined there.
+  - All messages must use the ID format, pattern, and proper JSON structure defined there.
 - **CRITICAL:** Run Skill(`{$arguments.agent}-workflow`)
   - You must follow the defined guidelines and rules for your role during the development cycle.
 
@@ -39,7 +39,8 @@ Read, reason, understand, and act over the incoming request from the payload.
 
 ### Step 2: Process the message
 
-Read `$arguments.message` and process based on `message.type`.
+Read `$arguments.message` as a **JSON array** and process **all messages in the batch**.
+Do not stop after the first message; consolidate the full batch context before deciding next actions.
 
 **Source of Truth:**
 You may also find your pending work in `./.claude/session/pending-messages-{$arguments.agent}.json`.
@@ -58,9 +59,12 @@ Based on your next action, notify the watchdog about your status and necessary s
 
 - `starting` - Agent just spawned
 - `working` - Actively processing
+- `waiting` - Waiting for dependency/event
 - `ready` - Finished, waiting for work
+- `idle` - No active task
 - `awaiting_pm` - Waiting for PM response
 - `awaiting_gd` - Waiting for Game Designer response
+- `error` - Error state reported to watchdog
 
 ### Step 4: Reason and perform the designed task
 
@@ -79,9 +83,12 @@ Update the current status over the assigned task in the prd.json. It must reflec
 Send a message of type `status_update` to `watchdog` with payload:
 ```json
 {
-  "status": "ready" // or "idle", "waiting"
+  "status": "ready", // or "idle", "waiting"
+  "processedMessageIds": ["msg-...", "msg-..."],
+  "processedMessageCount": 2
 }
 ```
+You must include all processed message IDs from the current batch. Without this, watchdog keeps the batch pending.
 **This is CRITICAL.** The Watchdog will **NOT** deliver new messages until you signal that you are done with the current batch by sending this specific status.
 
 **Call Next Agent:**
@@ -95,4 +102,4 @@ If needed, send a message to the next agent (PM, QA, Developer, etc.) with the n
 - [ ] Cleanup all background processes you initiated: dev servers, scripts, test suits, etc. (use skill `shared-lifecycle`)
 - [ ] Commit your changes
 - [ ] Invoke the next agent via message system
-- [ ] Update status file to `"state": "ready"` to notify watchdog
+- [ ] Send `status_update` message to watchdog with final status (`ready`/`waiting`/`idle`)

@@ -353,6 +353,10 @@ function Get-PendingMessages {
     .PARAMETER TimeoutMs
     Maximum time to spend processing messages (default: 300ms).
     After timeout, returns whatever messages were processed.
+
+    .PARAMETER ReadAll
+    When set, reads all discoverable pending messages in the inbox snapshot
+    without early timeout truncation.
     #>
     param(
         [Parameter(Mandatory=$true)]
@@ -364,7 +368,9 @@ function Get-PendingMessages {
         [ValidateSet("low", "normal", "high", "urgent")]
         [string]$MinPriority = "low",
 
-        [int]$TimeoutMs = 300
+        [int]$TimeoutMs = 300,
+
+        [switch]$ReadAll
     )
 
     if (-not $Script:MessageQueueDir) {
@@ -380,6 +386,7 @@ function Get-PendingMessages {
     } else {
         $allFiles = Get-ChildItem -Path $inbox -Filter "*.json" -ErrorAction SilentlyContinue
     }
+    $allFiles = @($allFiles | Sort-Object -Property Name)
 
     # Cleanup orphaned temp files occasionally
     if ($Agent -eq "pm" -or (Get-Random -Maximum 10) -eq 0) {
@@ -395,7 +402,7 @@ function Get-PendingMessages {
     # Process files with timeout protection
     foreach ($fileInfo in $allFiles) {
         # Timeout check
-        if ($stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
+        if (-not $ReadAll -and $stopwatch.ElapsedMilliseconds -gt $TimeoutMs) {
             break
         }
 
@@ -403,7 +410,7 @@ function Get-PendingMessages {
         if ($fileInfo.Name -match '\.tmp$') { continue }
 
         # Read message file with retry
-        $remainingTimeout = $TimeoutMs - $stopwatch.ElapsedMilliseconds
+        $remainingTimeout = if ($ReadAll) { 1000 } else { [Math]::Max(1, ($TimeoutMs - $stopwatch.ElapsedMilliseconds)) }
         $content = Read-MessageFileWithRetry -FilePath $fileInfo.FullName -TimeoutMs $remainingTimeout
 
         if (-not $content) {
@@ -413,6 +420,11 @@ function Get-PendingMessages {
 
         # Filter by status
         if ($content.status -ne "pending") { continue }
+
+        # Skip if already processed (idempotency guard)
+        if (Get-Command Test-MessageProcessed -ErrorAction SilentlyContinue) {
+            if (Test-MessageProcessed -MessageId $content.id) { continue }
+        }
 
         # Filter by type if specified
         if ($Type -and $content.type -ne $Type) { continue }
@@ -1018,7 +1030,7 @@ function Send-StatusUpdate {
         [string]$From,
 
         [Parameter(Mandatory=$true)]
-        [ValidateSet("idle", "working", "waiting", "error", "completed")]
+        [ValidateSet("starting", "working", "awaiting_pm", "awaiting_gd", "waiting", "ready", "idle", "error", "completed")]
         [string]$Status,
 
         [string]$CurrentTask = $null,

@@ -15,13 +15,14 @@ All agents can run in parallel. You communicate via file-based message queue.
 ## Startup Sequence
 
 - **CRITICAL:** Run Skill(`shared-core`)
-  - All messages must use the ID format, Atomic Write pattern, and proper JSON structure defined there.
+  - All messages must use the ID format pattern, and proper JSON structure defined there.
 - **CRITICAL:** Run Skill(`pm-workflow`)
   - You must follow the defined guidelines and rules for your role during the development cycle.
 
 ### Priority 1: Read $arguments.message payload (if exists)
 
 Read, reason, understand, and act over the incoming request from the payload.
+If provided, treat `$arguments.message` as a JSON array and consolidate **all** items before choosing actions.
 
 ### Priority 2: Check for Consolidation Mode
 
@@ -73,6 +74,15 @@ Content:
 
 **Then send a status update:**
 Send a `status_update` message to `watchdog` with status `working` or `ready`.
+When signaling completion/availability (`ready`/`waiting`/`idle`), include:
+
+```json
+{
+  "status": "ready",
+  "processedMessageIds": ["msg-...", "msg-..."],
+  "processedMessageCount": 2
+}
+```
 
 ### Normal Startup (No Consolidation)
 
@@ -118,7 +128,7 @@ Read: prd.json
 **Only proceed with assignment if the task is NOT marked complete in prd.json.**
 
 
-Then read PRD using the **Read tool**, select next task, send to developer using the **Write tool** (follow Atomic Write protocol).
+Then read PRD using the **Read tool**, select next task, send to developer using the **Write tool**.
 
 First, update coordinator-state.json:
 
@@ -271,10 +281,9 @@ Also output:
 
 ## Signaling Work Complete
 
-**IMPORTANT**: When you finish processing messages and are ready for more, signal the watchdog using the **Atomic Write Pattern**:
+**IMPORTANT**: When you finish processing messages and are ready for more, signal the watchdog using the **Write Pattern**:
 
-1. Write `./.claude/session/messages/watchdog/msg-ready-123.json.tmp`
-2. Move to `./.claude/session/messages/watchdog/msg-ready-123.json`
+1. Write `./.claude/session/messages/watchdog/msg-ready-123.json`
 
 **Payload:**
 ```json
@@ -291,9 +300,8 @@ This tells the watchdog you're ready for more work. Without this signal, the wat
 ## Remember
 
 - **Watchdog delivers messages** - You receive them on restart via pending-messages file
-- **Atomic Writes** - Always write `.tmp` then rename to `.json`
 - **PM decides priorities** - Bug reports come to you first
 - **PM keeps the PRD organized** - You keep the tasks and backlog well organized and with the necessary information and specification
 - **Parallel work** - Other agents might be working in parallel while you research
 - **Write messages to inbox folders** - Watchdog will detect and deliver them
-- **ALWAYS delete pending file after processing** - Use Bash tool: `rm -f ./.claude/session/messages/{agent}/*.json`
+- **NEVER delete inbox/pending files manually** - Watchdog owns queue and pending lifecycle

@@ -1,5 +1,5 @@
 ---
-name: gamedesigner-workflow
+name: gamedesigner-worflow
 description: Complete Game Designer workflow - skill invocation protocol, GDD creation, playtest flow with GDD review, design sessions. MUST load before starting assignments.
 ---
 
@@ -23,11 +23,23 @@ description: Complete Game Designer workflow - skill invocation protocol, GDD cr
 - **PRD Synchronization** - Update PRD with implementation details, blockers, and observations. Keep PM informed of progress and issues.
 - **Exit Conditions** - Only exit when task is fully implemented, validated, and PRD is updated. Never exit prematurely or leave tasks in an incomplete state.
 
+## Standard Message Pipeline
+
+- Read message input in this order: `--message` -> `pending-messages-gamedesigner.json` -> inbox diagnostics
+- Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
+- Watchdog owns delivery and cleanup lifecycle
+- Signal lifecycle using `status_update`:
+   - `working` when design execution starts
+   - `awaiting_pm` / `awaiting_gd` when blocked
+   - `ready` / `waiting` / `idle` when available for next delivery
+
 ## Agent Startup Protocol
 
 On each Game Designer agent spawn:
 
 1. **Read --message argument** (task assignment from watchdog)
+   - If empty/missing, read `./.claude/session/pending-messages-gamedesigner.json`
+   - If both are missing, inspect `./.claude/session/messages/gamedesigner/*.json` for diagnostics only
 2. **Read task state file** read and understand current task details and status
 3. **Research task requirements** Understand the requirements, read the specifications, use MCP tools (WebSearch, Fetch) to clarify implementation details, best practices, and potential blockers. Use Vision MCP for visual research and references. For UI/UX tasks, use CSS and HTML to generate prototypes and mockups to validate the visual design and interactions before coding.
 4. **Use your skills, tools, and subagents** After understand the task requirements, review the available skills, subagents and tools, and activate the ones to use for the implementation.
@@ -35,14 +47,27 @@ On each Game Designer agent spawn:
 6. **Create and Update the necessary files and references** for the design task, such as GDD sections, design documents, visual references, and prototypes. Use the appropriate tools and skills for each type of content (e.g., Vision MCP for visual references, Browser MCP for interactive prototypes).
 7. **Update PRD and commit changes** with implementation details, blockers, and observations (atomic write). Commit the changes following the default commit message pattern.
 8. **Notify the next agent** wake up the next agent that needs to act after your actions via message system
-9. **Exit** Update your status to "ready" to watchdog and wake up the next agent before exiting, so watchdog can track availability for next task assignment
+9. **Exit** Send `status_update` (`ready`, `waiting`, or `idle`) to watchdog and wake up next agent before exiting
 
-**IF BLOCKED**
+## If Blocked
+
 - Update state: `state.status = "awaiting_pm"`, `state.lastSeen = "{ISO_TIMESTAMP}"`
 - Document blocker in task prd.json
 - Send message to PM/Game Designer with details
-- Send message to watchdog to update status
+- Send `status_update` to watchdog with `status: "awaiting_pm"`
 - Exit and wait
+
+## State Transitions
+
+| Current State | Trigger | Action | Next State |
+| --- | --- | --- | --- |
+| `idle` | Task assigned | Load workflow and begin design work | `working` |
+| `working` | Need PM guidance | Send question/blocker to PM | `awaiting_pm` |
+| `working` | Need design clarification from GD flow | Send/await design follow-up | `awaiting_gd` |
+| `working` | Work complete | Send handoff message and availability status | `ready` |
+| `awaiting_pm` | PM guidance received | Resume work | `working` |
+| `awaiting_gd` | Design answer received | Resume work | `working` |
+| `error` | Recoverable issue | Report and wait for guidance | `awaiting_pm` |
 
 ## GDD Creation Flow
 

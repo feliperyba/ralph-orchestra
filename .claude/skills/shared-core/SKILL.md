@@ -1,7 +1,6 @@
 ---
 name: shared-core
 description: Base instructions and guidelines for all agents in the system. This skill provides foundational behaviors and communication protocols that all agents should follow.
-allowed-tools: Read File, Write File, Edit File, List Directory, Grep Search, Bash Command, Computer, mcp__gitkraken, Fetch, WebSearch
 ---
 
 # Shared Core Skill
@@ -29,12 +28,13 @@ There are 2 layers of communication: The **Watchdog** and **Agents Direct Messag
 The watchdog delivers messages in two ways:
 
 1. **PRIMARY**: Via `--message` CLI argument as a JSON array (`$arguments.message`)
-2. **FALLBACK**: Via context file.
+2. **FALLBACK**: Via context file `./.claude/session/pending-messages-$arguments.agent.json`
 
 **Always check and read `$arguments.message` first on startup:**
 - If `$arguments.message` is present and non-empty, read it as JSON array of messages
-- If `$arguments.message` is empty/missing, read the fallback file:
-    Read `./.claude/session/pending-messages-$arguments.agent.json` or `./.claude/session/messages/$arguments.agent/*.json` to check for pending messages. If the file exists, read and parse it as JSON array of messages. Delete it after processing.
+- If `$arguments.message` is empty/missing, read fallback file `./.claude/session/pending-messages-$arguments.agent.json`
+- If fallback file is missing, inspect inbox `./.claude/session/messages/$arguments.agent/*.json` for diagnostics only
+- **NEVER delete inbox or pending files manually**. Watchdog owns lifecycle cleanup.
 
 ### SECOND: NEVER FORGET TO UPDATE A TASK STATUS AND WAKE UP THE NEEDED AGENTS
 
@@ -54,21 +54,20 @@ You are the glue that keep the development cycle running. You **must update a ta
    - **Do not check** `message-state.json`. The Watchdog guarantees unique delivery.
 
 3. **Complete Transaction:**
-   - When finished, send a `status_update` message with status "idle".
-   - The system will automatically clear the pending file lock.
+  - When batch work is done, send a `status_update` message with explicit processed IDs.
+  - Include `processedMessageIds` (all processed message IDs) and `processedMessageCount`.
+  - Use `ready`, `waiting`, or `idle` only when you are available for next delivery.
+  - Watchdog clears pending lock only after batch acknowledgement is validated.
 
 ---
 
-## Sending Messages (The Atomic Write Protocol)
+## Sending Messages
 
-To send a message, you must use an **Atomic Write Pattern** to prevent partial reads by the watchdog.
+To send a message, you must use an **Pattern** to prevent partial reads by the watchdog.
 
 **Protocol:**
 1. Generate ID: `msg-{yyyyMMdd-HHmmss}-{random8chars}`
-2. Write content to: `./.claude/session/messages/{recipient}/{id}.json.tmp`
-3. Rename file to: `./.claude/session/messages/{recipient}/{id}.json`
-
-**Use the Bash tool for the rename to ensure atomicity.**
+2. Write content to: `./.claude/session/messages/{recipient}/{id}.json`
 
 ### Message Structure
 
@@ -88,7 +87,7 @@ To send a message, you must use an **Atomic Write Pattern** to prevent partial r
 ### Example: Sending a Status Update
 
 1. Create the content (using Write tool):
-   **File:** `./.claude/session/messages/watchdog/msg-status-123.json.tmp`
+   **File:** `./.claude/session/messages/watchdog/msg-status-123.json`
    ```json
    {
      "id": "msg-status-20260208-120000-x9y8z7",
@@ -106,16 +105,22 @@ To send a message, you must use an **Atomic Write Pattern** to prevent partial r
    }
    ```
 
-2. Atomic Rename (using Bash tool):
-   ```bash
-   mv ./.claude/session/messages/watchdog/msg-status-123.json.tmp ./.claude/session/messages/watchdog/msg-status-123.json
-   ```
-
 ---
 
 ## Task Status Updates
 
 **IMPORTANT**: Always send status updates when starting and finishing work. This ensures the dashboard shows accurate agent status.
+
+### Canonical Status Values
+
+- `starting` - Agent spawned and initializing
+- `working` - Active execution
+- `awaiting_pm` - Blocked waiting PM input
+- `awaiting_gd` - Blocked waiting Game Designer input
+- `waiting` - Waiting for dependency/event but safe for watchdog queue control
+- `ready` - Finished current batch and available for new work
+- `idle` - No active task
+- `error` - Error state reported to watchdog
 
 
 ### When You START Working on a Task
@@ -139,6 +144,8 @@ Send `status: "ready"` when complete and ready for next assignment:
 ```json
 {
   "status": "ready",
+  "processedMessageIds": ["msg-20260208-120000-x9y8z7"],
+  "processedMessageCount": 1,
   "currentTask": null,
   "details": "Task complete, ready for next assignment"
 }
@@ -231,6 +238,8 @@ Content:
   "priority": "low",
   "payload": {
     "status": "ready",
+    "processedMessageIds": ["msg-{processed-id-1}", "msg-{processed-id-2}"],
+    "processedMessageCount": 2,
     "lastTask": "{taskId}"
   },
   "timestamp": "{UTC-timestamp}",

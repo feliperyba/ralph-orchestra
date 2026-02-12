@@ -1,37 +1,4 @@
 {
   "mcpServers": {
-    "playwright": {
-      "command": "cmd",
-      "args": ["/c", "npx", "@playwright/mcp@latest"]
-    },
-    "filesystem": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
-      "env": {
-        "PATH": "${PATH}"
-      }
-    },
-    "github": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"]
-    },
-    "vision": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@thenomadinorbit/vision-mcp-server"]
-    },
-    "typescript": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "cclsp"]
-    },
-    "lsp-mcp": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "tritlo/lsp-mcp",
-        "<language-id>",
-        "<path-to-lsp>",
-        "<lsp-args>"
-      ]
-    }
   }
 }

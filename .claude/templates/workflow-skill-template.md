@@ -69,24 +69,24 @@ On each {{ agent.display_name }} agent spawn:
 7. **Run validation** - Use `qa-validation-workflow` skill{% if agent.role == 'techartist' %} and `qa-visual-testing` skill with Vision MCP{% endif %} and fix any issues until passing
 8. **Update PRD and commit changes** - With implementation details, blockers, and observations (atomic write). Commit the changes following the default commit message pattern
 9. **Notify the next agent** - Wake up the next agent that needs to act after your actions via message system
-10. **Exit** - Update your status to "ready" to watchdog and wake up the next agent before exiting
+10. **Exit** - Send `status_update` (`ready`/`waiting`/`idle`) to watchdog and wake up the next agent before exiting
 {% elif agent.role == 'qa' %}
-3. **Update status file** (MANDATORY - First step)
+3. **Send status_update** (MANDATORY - First step) with `status: "working"`
 4. **Run validation feedback loops** - Follow the guidelines of `qa-validation-workflow` and proceed with steps
 5. **Test coverage check** - Use `qa-test-creation` skill. If tests missing: MUST invoke `test-creator` sub-agent before proceeding
-6. **IF BLOCKED** - Update state, document blocker in prd.json
+6. **IF BLOCKED** - Update state, document blocker in prd.json, send `status_update` with `status: "awaiting_pm"`
 7. **Test pass** - Commit everything and merge it to the `master` branch
 8. **Test do not pass** - Check your skills and decision tree
 9. **Commit** - At the end of the task, commit all changes to the current branch
 10. **Send to PM** - Report results via message system
-11. **Exit** - Update status and cleanup background processes
+11. **Exit** - Send final `status_update` (`ready`/`waiting`/`idle`) and cleanup background processes
 {% elif agent.role == 'pm' %}
 3. **Read prd.json** for current task state
 4. **Read all agent status** on `prd.json` to understand current progress and pending messages
 5. **Process work and make decisions** - Agents can work in parallel if tasks are not dependent or conflicting
 6. **Update prd.json** (atomic write if needed)
 7. **Write response file** - Assign tasks, update status, conduct research, polish the PRD, or request validation as needed
-8. **Exit** - Update your status to "ready" before exiting
+8. **Exit** - Send `status_update` (`ready`/`waiting`/`idle`) before exiting
 {% elif agent.role == 'gamedesigner' %}
 3. **Research task requirements** - Understand the requirements, read specifications, use MCP tools (WebSearch, Fetch) for research. Use Vision MCP for visual research and references. For UI/UX tasks, use CSS and HTML to generate prototypes
 4. **Process and implement the task** - Following your plan and best practices, using the appropriate skills, subagents, and tools as needed

@@ -1,19 +1,8 @@
 {
   "mcpServers": {
-    "github": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"]
-    },
     "web-search": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-web-search"]
-    },
-    "filesystem": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem"],
-      "env": {
-        "PATH": "${PATH}"
-      }
     }
   }
 }

@@ -18,7 +18,7 @@ Use when validation fails and `status` must be set to `needs_fixes`.
 ## Bug Report: {{TASK_ID}}
 
 **Severity**: Critical / High / Medium / Low
-**Found in**: Automated tests / Browser testing
+**Found in**: Automated tests / Code review / Console inspection
 
 ### Summary
 
@@ -62,10 +62,9 @@ What actually happens.
 
 ## Environment
 
-- **Browser**: {{Chrome 120 / Firefox / Safari}}
 - **OS**: {{Windows / macOS / Linux}}
 - **Node Version**: {{v20.x.x}}
-- **Screen Resolution**: {{1920x1080}}
+- **Context**: {{Development server / Production / Browser console}}
 
 ## Steps to Reproduce
 
@@ -141,8 +140,8 @@ What actually happens.
 | **TypeScript**  | Type errors            | `npm run type-check`  |
 | **Lint**        | Code style issues      | `npm run lint`        |
 | **Test**        | Unit test failure      | `npm run test`        |
-| **Runtime**     | Error during execution | Browser console       |
-| **Visual**      | Incorrect appearance   | Browser testing       |
+| **Runtime**     | Error during execution | Console inspection     |
+| **Visual**      | Incorrect appearance   | Visual inspection       |
 | **Performance** | FPS drops, lag, memory | Performance profiling |
 
 ## Anti-Patterns
@@ -179,35 +178,12 @@ What actually happens.
 3. **Verify the actual behavior** - Run the app and observe what actually happens
 4. **Compare expected vs. actual** - Be specific about what should happen vs. what does happen
 
-### Example: False Positive Prevention
+### Example: Common Pitfall
 
-**BAD Bug Report (False Positive)**:
-
-```
-Bug: Lobby.tsx lines 44-47 contain DEV mode bypass
-Issue: Code appears to skip connection
-Severity: Critical
-```
-
-This report was WRONG because the reporter didn't trace the actual code flow. Those lines were the `initializeConnection` function which PROPERLY calls `networkManager.connect()` and `networkManager.joinRoom()`.
-
-**GOOD Bug Report (After Thorough Review)**:
-
-```
-Bug: Server connection not established
-Steps to Reproduce:
-1. Start server: npm run server (verified running on port 2567)
-2. Start client: npm run dev
-3. Browser console shows: "Failed to connect to Colyseus server"
-4. Expected: Console shows "Connected to Colyseus server"
-5. Actual: Connection timeout despite server running
-
-Code Review:
-- Reviewed Lobby.tsx: initializeConnection properly calls networkManager.connect()
-- Reviewed NetworkManager.ts: Colyseus client initialized correctly
-- Reviewed server logs: Server shows "listening on ws://localhost:2567"
-- Issue: CORS error in browser console - server CORS config missing
-```
+A report claimed "code appears to skip connection" but tracing actual flow showed proper initialization:
+- `initializeConnection` PROPERLY calls `networkManager.connect()` and `joinRoom()`
+- Server logs showed "listening" and client connected successfully
+- Root cause was a different issue (CORS configuration, not the suspected code)
 
 ## Bug Report Message
 
@@ -259,7 +235,7 @@ Before submitting bug report:
 - [ ] Environment specified
 - [ ] bug_report message sent to PM
 
-## Reference
+## References
 
-- [agents/qa/AGENT.md](../../AGENT.md) — Full QA instructions
-- [agents/qa/skills/validation-workflow.md](validation-workflow.md) — Full workflow
+- [../../agents/qa/AGENT.md](../../AGENT.md) — Full QA instructions
+- [../qa-validation-workflow/SKILL.md](../qa-validation-workflow/SKILL.md) — Full workflow

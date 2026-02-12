@@ -467,3 +467,138 @@ test('should create pig', () => {
 ---
 
 **LESSON LEARNED FROM BUG-011:** The MockScene pattern is essential for testing Phaser objects. Always create comprehensive mocks for all Phaser Scene properties used by your code. This prevents test failures caused by missing Phaser Game instances.
+
+---
+
+## UI Component Testing Patterns (feat-027)
+
+**Lesson from feat-027 (Star Rating Preview):** UI components with animations require specific testing patterns.
+
+### Testing UI Update Methods
+
+```typescript
+// tests/unit/ui/HUD.test.ts
+import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { MockScene } from '../helpers/MockScene';
+import { HUD } from '@/ui/HUD';
+
+describe('HUD Star Rating Preview', () => {
+  let scene: MockScene;
+  let hud: HUD;
+
+  beforeEach(() => {
+    scene = new MockScene();
+    hud = new HUD(scene);
+  });
+
+  describe('star threshold calculation', () => {
+    test('should calculate 2-star threshold correctly per level', () => {
+      // Level 1: 32,000 + (1 × 2,000) = 34,000
+      expect(hud.getTwoStarThreshold(1)).toBe(34000);
+      // Level 5: 32,000 + (5 × 2,000) = 42,000
+      expect(hud.getTwoStarThreshold(5)).toBe(42000);
+    });
+
+    test('should calculate 3-star threshold correctly per level', () => {
+      // Level 1: 66,000 + (1 × 6,000) = 72,000
+      expect(hud.getThreeStarThreshold(1)).toBe(72000);
+      // Level 10: 66,000 + (10 × 6,000) = 126,000
+      expect(hud.getThreeStarThreshold(10)).toBe(126000);
+    });
+  });
+
+  describe('star fill state updates', () => {
+    test('should show first star filled when score exceeds first threshold', () => {
+      hud.updateStarRating(10000, 1); // Below 34,000
+
+      // Verify star 0 is empty (gray, low alpha)
+      expect(hud.stars[0].tintTopLeft).toBe(0xcccccc);
+      expect(hud.stars[0].alpha).toBeLessThan(0.5);
+    });
+
+    test('should show second star filled when score exceeds threshold', () => {
+      hud.updateStarRating(35000, 1); // Above 34,000
+
+      // Verify star 0 is filled (yellow, full alpha)
+      expect(hud.stars[0].tintTopLeft).toBe(0xffcc00);
+      expect(hud.stars[0].alpha).toBe(1.0);
+    });
+  });
+
+  describe('animation behavior', () => {
+    test('should create tween when star state changes', () => {
+      const tweenSpy = vi.fn();
+      scene.tweens.add = tweenSpy;
+
+      hud.updateStarRating(0, 1); // Zero score
+      hud.updateStarRating(35000, 1); // Above first threshold
+
+      // Should have created tweens for animation
+      expect(tweenSpy).toHaveBeenCalled();
+    });
+
+    test('should kill existing tweens before creating new ones', () => {
+      const killSpy = vi.fn();
+      scene.tweens.killTweensOf = killSpy;
+
+      // Update twice to trigger tween cleanup
+      hud.updateStarRating(10000, 1);
+      hud.updateStarRating(35000, 1);
+
+      // Should kill old tweens to prevent accumulation
+      expect(killSpy).toHaveBeenCalled();
+    });
+  });
+});
+```
+
+### Testing Real-time Updates
+
+```typescript
+describe('real-time score updates', () => {
+  test('should update star display as score increases', () => {
+    const updateSpy = vi.fn();
+    hud.on('star-updated', updateSpy);
+
+    // Simulate score increases over time
+    hud.updateStarRating(10000, 1);
+    hud.updateStarRating(20000, 1);
+    hud.updateStarRating(34000, 1); // Should trigger star fill
+
+    expect(updateSpy).toHaveBeenCalledTimes(3);
+  });
+
+  test('should handle rapid score updates efficiently', () => {
+    const startTime = performance.now();
+
+    // Simulate 60 updates per second
+    for (let i = 0; i < 60; i++) {
+      hud.updateStarRating(i * 100, 1);
+    }
+
+    const duration = performance.now() - startTime;
+    // Should complete in under 16ms (one frame)
+    expect(duration).toBeLessThan(16);
+  });
+});
+```
+
+### Test Coverage Checklist for UI Components
+
+- [ ] **Threshold calculations** - Verify all level formulas correct
+- [ ] **State transitions** - Test empty → partial → full states
+- [ ] **Tween creation** - Verify animations fire on state changes
+- [ ] **Tween cleanup** - Ensure old tweens are killed
+- [ ] **Performance** - Rapid updates don't cause frame drops
+- [ ] **Boundary conditions** - Zero score, max score, negative values
+- [ ] **Color interpolation** - Verify correct tint values
+- [ ] **Alpha changes** - Check transparency states
+
+### Common UI Testing Issues
+
+| Issue | Symptoms | Solution |
+|--------|------------|----------|
+| Tweens accumulate | Frame drops over time | Kill existing tweens before creating new ones |
+| State not updating | Visuals don't change | Verify event listeners are attached |
+| Thresholds wrong | Stars fill at wrong scores | Test calculation with multiple level values |
+| Performance drops | Laggy UI | Don't tween on every frame, only on state change |

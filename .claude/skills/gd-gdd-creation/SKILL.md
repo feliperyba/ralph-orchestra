@@ -332,6 +332,96 @@ Maintain a change log in the GDD:
 
 ---
 
+## UI/UX Feature Documentation (feat-027)
+
+**Lesson from feat-027 (Star Rating Preview):** UI features require specific visual and behavior documentation.
+
+### UI Feature Section Template
+
+When documenting UI features in GDD, use this structure:
+
+```markdown
+### 8. UI/UX System
+
+#### 8.1 HUD Elements
+
+**Star Rating Preview**
+- **Purpose**: Show player progress toward star ratings in real-time
+- **Position**: Center-top of screen (y: 80 from top)
+- **Elements**: 3 star icons displayed horizontally
+
+**Behavior Specification**:
+1. **Initial State**: All stars shown as outline (gray, 30% alpha)
+2. **Fill Progression**: Stars fill sequentially as score increases
+3. **Visual Feedback**: Smooth color transition (gray → yellow)
+4. **Animation Timing**: 300ms tween duration with Quadratic.Out easing
+5. **Completed State**: Filled stars pulse subtly (scale 1.1)
+
+**Threshold Formula** (from DEC-004):
+- 2-star: 32,000 + (level × 2,000)
+- 3-star: 66,000 + (level × 6,000)
+
+**Technical Notes**:
+- Score updates trigger immediate star state recalculation
+- Tweens killed before creating new ones (prevent accumulation)
+- Event-driven: Listens to `totalScoreUpdate` events
+```
+
+### UI Animation Documentation
+
+When UI elements have animations:
+
+| Element | Animation | Duration | Easing | Purpose |
+|---------|------------|----------|---------|---------|
+| Star fill | Color interpolation | 300ms | Quadratic.Out | Smooth status transition |
+| Star pulse | Scale +1.1 | 200ms | Sine.InOut | Highlight effect |
+| Queue bounce | Y offset ±5 | 1000ms | Sine.InOut | Idle animation |
+
+### Interactive UI Elements
+
+For buttons and interactive UI:
+
+```markdown
+#### Retry Button (feat-028)
+- **Position**: Top-right corner, semi-transparent
+- **Behavior**: Instant level reset on click
+- **States**: Normal, Hover (brighten), Active (scale 0.95)
+- **Accessibility**: 48×48px minimum touch target
+
+#### Settings Button (feat-028)
+- **Position**: Top-right, below retry button
+- **Opens**: Settings overlay with:
+  - Master volume slider (0-100%)
+  - SFX volume slider (0-100%)
+  - Music volume slider (0-100%)
+  - Mute toggle checkbox
+  - Quality toggle (Low/Medium/High)
+- **Persistence**: All settings saved to localStorage
+```
+
+### Visual Design Language
+
+When specifying UI appearance:
+
+```markdown
+**Color System**:
+- Star Empty: #CCCCCC (RGB: 204, 204, 204)
+- Star Full: #FFCC00 (RGB: 255, 204, 0)
+- Background: Semi-transparent black
+
+**Typography**:
+- Font: Rajdhani or similar gaming font
+- Sizes: 18px body, 24px headers
+- Weights: 500 (regular), 600 (semibold), 700 (bold)
+
+**Spacing System**:
+- Star spacing: 8px gap between stars
+- Button padding: 12px vertical, 24px horizontal
+- Section margins: 16px between UI groups
+```
+
+---
+
 ## Common Mistakes to Avoid
 
 | Mistake | Why It's Bad | Fix |

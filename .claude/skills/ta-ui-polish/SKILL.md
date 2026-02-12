@@ -418,6 +418,104 @@ Before considering visual polish complete:
 
 For post-processing polish: `Skill("ta-vfx-postfx")`
 
+## Phaser UI Animation Patterns (feat-027)
+
+**Lesson from feat-027 (Star Rating Preview):** Phaser UI animations use tweens with real-time data updates.
+
+### Real-time UI Updates Pattern
+
+```typescript
+// src/ui/HUD.ts - Star rating preview with live score tracking
+export class HUD extends Phaser.GameObjects.Container {
+  private stars: Phaser.GameObjects.Image[] = [];
+  private currentScore: number = 0;
+
+  updateStarRating(score: number, level: number): void {
+    // Calculate thresholds per DEC-004: 2-star = 32,000 + (level × 2,000)
+    const twoStarThreshold = 32000 + (level * 2000);
+    const threeStarThreshold = 66000 + (level * 6000);
+
+    // Determine star count from current score
+    const starCount = this.calculateStarCount(score, twoStarThreshold, threeStarThreshold);
+
+    // Update each star's visual state
+    for (let i = 0; i < 3; i++) {
+      const shouldFill = i < starCount;
+      this.updateStarFill(this.stars[i], shouldFill);
+    }
+  }
+
+  private updateStarFill(star: Phaser.GameObjects.Image, shouldFill: boolean): void {
+    const targetColor = shouldFill ? 0xffcc00 : 0xcccccc; // Yellow or gray
+    const targetAlpha = shouldFill ? 1.0 : 0.3;
+
+    // Smooth tween for color interpolation
+    this.scene.tweens.add({
+      targets: star,
+      duration: 300,
+      ease: Phaser.Math.Easing.Quadratic.Out,
+      props: {
+        tint: targetColor,
+        alpha: targetAlpha,
+        scale: shouldFill ? 1.1 : 1.0 // Subtle pulse on fill
+      },
+      yoyo: false,
+      repeat: 0
+    });
+  }
+}
+```
+
+### Key Animation Best Practices
+
+| Technique | When to Use | Duration | Easing |
+|------------|---------------|----------|---------|
+| Color interpolation | Status changes (filled/empty) | 300ms | Quadratic.Out |
+| Scale pulse | Highlight/attention effect | 200ms | Sine.easeInOut |
+| Fade in/out | Element reveal | 400ms | Cubic.Out |
+| Slide | Position transitions | 250ms | Back.Out |
+
+### Performance Considerations
+
+1. **Batch tween updates** - Don't create tweens on every frame
+   ```typescript
+   // WRONG - Tweens on every update call
+   update() {
+     this.star.setFillStyle(this.getColor(score)); // Creates new tween each frame
+   }
+
+   // RIGHT - Only tween on state change
+   private lastStarCount: number = -1;
+   update() {
+     const newCount = this.calculateStars(score);
+     if (newCount !== this.lastStarCount) {
+       this.animateStarChange(newCount); // Only tween when changed
+       this.lastStarCount = newCount;
+     }
+   }
+   ```
+
+2. **Reuse tween targets** - Destroy old tweens before creating new ones
+   ```typescript
+   // Prevent tween accumulation
+   updateStarFill(star: Phaser.GameObjects.Image): void {
+     // Kill existing tweens on this object
+     this.scene.tweens.killTweensOf(star);
+
+     // Create new tween
+     this.scene.tweens.add({
+       targets: star,
+       // ... config
+     });
+   }
+   ```
+
+3. **Use appropriate easing for UI**
+   - `Quadratic.Out` - Fast start, smooth end (good for fills)
+   - `Cubic.Out` - Smooth throughout (good for transitions)
+   - `Sine.easeInOut` - Gentle in/out (good for pulses)
+   - `Back.Out` - Subtle overshoot (good for button clicks)
+
 ## External References
 
 - [WCAG Color Contrast](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html)

@@ -326,10 +326,11 @@ function Start-Agent {
         if (Test-Path $pendingFile) {
              try {
                 $existingContent = Get-Content $pendingFile -Raw | ConvertFrom-Json
-                if ($existingContent.messages -and $existingContent.messages.Count -gt 0) {
+                 $existingMessages = @($existingContent.messages)
+                 if ($existingMessages.Count -gt 0) {
                      # Found existing work. Load it for the CLI argument!
-                     $messageJsonArg = $existingContent.messages | ConvertTo-Json -Depth 10 -Compress
-                     Write-WatchdogLog "Resumed $AgentName with existing pending file ($($existingContent.messages.Count) messages)" -Color DarkYellow
+                     $messageJsonArg = $existingMessages | ConvertTo-Json -Depth 10 -Compress
+                     Write-WatchdogLog "Resumed $AgentName with existing pending file ($($existingMessages.Count) messages)" -Color DarkYellow
                 }
              } catch {
                  # File corrupt? Then we can delete it.
@@ -432,42 +433,13 @@ if (Test-Path `$pendingFile) {
     Write-Host "  Agent session ended (exit code: `$exitCode)" -ForegroundColor Yellow
     Write-Host "========================================" -ForegroundColor Yellow
     
-    # SUCCESSFUL COMPLETION HANDLER (The "Unlocking" Mechanism)
-    # The CLI Agent (LLM) often stops answering (finishes task) and the process exits.
-    # We must translate this process exit into a System State update.
+    # PROCESS EXIT HANDLER (Telemetry only)
+    # IMPORTANT: Process exit does NOT mean message batch completion.
+    # Completion is authoritative only when watchdog receives explicit status_update
+    # with an unlock state (idle|waiting|ready).
     
     if (`$exitCode -eq 0) {
-        Write-Host "Task completed successfully." -ForegroundColor Green
-        
-        # 1. IMMEDIATE LOCAL UNLOCK (Safety Net)
-        # We remove the lock file immediately prevents the watchdog from thinking we crashed
-        # if it checks before the status message is processed.
-        if (Test-Path `$pendingFile) {
-            Write-Host "Cleaning up pending file lock..." -ForegroundColor Green
-            Remove-Item `$pendingFile -Force -ErrorAction SilentlyContinue
-        }
-        
-        # 2. SEND STATUS UPDATE TO WATCHDOG (Architectural Correctness)
-        # We ensure the Watchdog updates its in-memory status to 'idle'
-        `$timestamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
-        `$statusFile = "$safeSessionDir\messages\watchdog\msg-status-${AgentName}-`$timestamp.json"
-        
-        `$statusPayload = @{
-            id = "status-${AgentName}-`$timestamp"
-            type = "status_update"
-            from = "$AgentName"
-            to = "watchdog"
-            priority = "high"
-            timestamp = (Get-Date).ToUniversalTime().ToString("o")
-            payload = @{
-                status = "idle"
-                lastActive = (Get-Date).ToUniversalTime().ToString("o")
-            }
-        }
-        
-        `$statusPayload | ConvertTo-Json -Depth 5 | Out-File -FilePath `$statusFile -Encoding UTF8
-        Write-Host "Sent status_update: idle to Watchdog." -Color Gray
-        
+        Write-Host "Agent process exited cleanly. Waiting for explicit watchdog status updates to unlock queue." -ForegroundColor Green
     } else {
         Write-Host "Task failed (Exit Code `$exitCode). Preserving pending file for recovery." -ForegroundColor Red
     }
@@ -748,9 +720,86 @@ function Stop-AllAgents {
 # MESSAGE ROUTING
 # ============================================================================
 
+function Get-PendingBatchData {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$AgentName,
+
+        [Parameter(Mandatory=$true)]
+        [string]$PendingFilePath
+    )
+
+    if (-not (Test-Path $PendingFilePath)) {
+        return $null
+    }
+
+    try {
+        $raw = Get-Content $PendingFilePath -Raw -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            return $null
+        }
+
+        $pendingData = $raw | ConvertFrom-Json -ErrorAction Stop
+        if (-not $pendingData.messages) {
+            return $null
+        }
+
+        return $pendingData
+    } catch {
+        Write-WatchdogLog "Failed reading pending batch for $AgentName: $_" -Color Red
+        return $null
+    }
+}
+
+function Get-StatusAckMessageIds {
+    param(
+        [Parameter(Mandatory=$true)]
+        [object]$StatusPayload,
+
+        [object[]]$PendingMessages = @(),
+
+        [object]$CurrentMessage = $null
+    )
+
+    $ackMap = @{}
+    $pendingIds = @($PendingMessages | ForEach-Object { [string]$_.id } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+    if ($StatusPayload -and $StatusPayload.PSObject.Properties["processedMessageIds"]) {
+        foreach ($id in @($StatusPayload.processedMessageIds)) {
+            $idStr = [string]$id
+            if (-not [string]::IsNullOrWhiteSpace($idStr)) {
+                $ackMap[$idStr] = $true
+            }
+        }
+    }
+
+    if ($StatusPayload -and $StatusPayload.PSObject.Properties["processedMessageId"]) {
+        $singleId = [string]$StatusPayload.processedMessageId
+        if (-not [string]::IsNullOrWhiteSpace($singleId)) {
+            $ackMap[$singleId] = $true
+        }
+    }
+
+    if ($ackMap.Count -eq 0 -and $StatusPayload -and $StatusPayload.PSObject.Properties["processedMessageCount"]) {
+        $processedCount = [int]$StatusPayload.processedMessageCount
+        if ($processedCount -ge $pendingIds.Count -and $pendingIds.Count -gt 0) {
+            foreach ($id in $pendingIds) {
+                $ackMap[$id] = $true
+            }
+        }
+    }
+
+    # Backward compatibility for legacy single-message status updates.
+    if ($ackMap.Count -eq 0 -and $pendingIds.Count -eq 1 -and $CurrentMessage -and $CurrentMessage.id) {
+        $ackMap[[string]$CurrentMessage.id] = $true
+    }
+
+    return @($ackMap.Keys)
+}
+
 function Invoke-ProcessWatchdogMessages {
     # Process messages sent to watchdog (status updates, etc.)
-    $messages = Get-PendingMessages -Agent "watchdog"
+    $messages = Get-PendingMessages -Agent "watchdog" -TimeoutMs $config.MessageProcessingTimeoutMs -ReadAll
     
     foreach ($msg in $messages) {
         switch ($msg.type) {
@@ -763,17 +812,78 @@ function Invoke-ProcessWatchdogMessages {
                 $Script:Agents[$agentName].WorkStatus = $msg.payload.status  # Update WorkStatus, not ProcessState
                 $Script:Agents[$agentName].CurrentTask = $msg.payload.currentTask
                 
-                # CRITICAL: When agent signals IDLE/COMPLETED, we clear the pending file.
-                # This completes the transaction and allows new messages to be delivered.
-                if ($msg.payload.status -in @("idle", "waiting", "ready")) {
+                # CRITICAL: Unlock only after explicit message-level acknowledgement.
+                if ($msg.payload.status -in @("idle", "waiting", "ready", "awaiting_pm", "awaiting_gd")) {
                     $pendingFile = Join-Path $paths.SessionDir "pending-messages-$agentName.json"
+
                     if (Test-Path $pendingFile) {
-                        Remove-Item $pendingFile -Force -ErrorAction SilentlyContinue
-                        Write-WatchdogLog "Agent $agentName finished work. Cleared pending file." -Color Green
+                        $pendingData = Get-PendingBatchData -AgentName $agentName -PendingFilePath $pendingFile
+
+                        if ($pendingData -and $pendingData.messages) {
+                            $pendingMessages = @($pendingData.messages)
+                            if ($pendingMessages.Count -eq 0) {
+                                Write-WatchdogLog "Pending file for $agentName has no messages; preserving for recovery." -Color Yellow
+                                continue
+                            }
+
+                            $pendingIds = @($pendingMessages | ForEach-Object { [string]$_.id } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                            $ackIdsFromStatus = Get-StatusAckMessageIds -StatusPayload $msg.payload -PendingMessages $pendingMessages -CurrentMessage $Script:Agents[$agentName].CurrentMessage
+                            $ackSet = @{}
+                            foreach ($id in $ackIdsFromStatus) { $ackSet[[string]$id] = $true }
+
+                            $ackableIds = @($pendingIds | Where-Object { $ackSet.ContainsKey($_) })
+                            if ($ackableIds.Count -eq 0) {
+                                Write-WatchdogLog "Agent $agentName signaled '$($msg.payload.status)' without explicit processed IDs/count. Preserving pending batch." -Color Yellow
+                            }
+
+                            foreach ($processedId in $ackableIds) {
+                                $null = Invoke-AcknowledgeMessageSafe -MessageId $processedId -Agent $agentName -Result @{
+                                    acknowledgedByStatusMessageId = $msg.id
+                                    unlockedStatus = $msg.payload.status
+                                    acknowledgedAt = [DateTime]::UtcNow.ToString("o")
+                                }
+                            }
+
+                            $remainingMessages = @($pendingMessages | Where-Object {
+                                $msgId = [string]$_.id
+                                -not $ackSet.ContainsKey($msgId)
+                            })
+
+                            if ($remainingMessages.Count -eq 0) {
+                                Remove-Item $pendingFile -Force -ErrorAction SilentlyContinue
+                                Write-WatchdogLog "Agent $agentName acknowledged complete batch ($($pendingIds.Count) message(s)). Cleared pending file." -Color Green
+                                $Script:Agents[$agentName].CurrentMessage = $null
+                            } else {
+                                $ackedHistory = @()
+                                if ($pendingData.PSObject.Properties["ackedMessageIds"] -and $pendingData.ackedMessageIds) {
+                                    $ackedHistory = @($pendingData.ackedMessageIds)
+                                }
+
+                                $ackedMap = @{}
+                                foreach ($id in $ackedHistory) {
+                                    $idStr = [string]$id
+                                    if (-not [string]::IsNullOrWhiteSpace($idStr)) { $ackedMap[$idStr] = $true }
+                                }
+                                foreach ($id in $ackableIds) {
+                                    $idStr = [string]$id
+                                    if (-not [string]::IsNullOrWhiteSpace($idStr)) { $ackedMap[$idStr] = $true }
+                                }
+
+                                $pendingData.messages = @($remainingMessages)
+                                $pendingData.messageCount = $remainingMessages.Count
+                                $pendingData.ackedMessageIds = @($ackedMap.Keys)
+                                $pendingData.lastAckAt = [DateTime]::UtcNow.ToString("o")
+                                $pendingData | ConvertTo-Json -Depth 12 | Out-File -FilePath $pendingFile -Encoding UTF8
+
+                                $Script:Agents[$agentName].CurrentMessage = if ($remainingMessages.Count -gt 0) { $remainingMessages[0] } else { $null }
+                                Write-WatchdogLog "Agent $agentName acknowledged $($ackableIds.Count)/$($pendingIds.Count). Preserved $($remainingMessages.Count) pending message(s)." -Color Yellow
+                            }
+                        } else {
+                            Write-WatchdogLog "Pending file for $agentName is unreadable or empty; preserving for recovery." -Color Yellow
+                        }
+                    } else {
+                        $Script:Agents[$agentName].CurrentMessage = $null
                     }
-                    
-                    # Clear current message tracker
-                    $Script:Agents[$agentName].CurrentMessage = $null
                 }
             }
             "work_complete" {
@@ -843,7 +953,7 @@ function Invoke-DeliverPendingMessages {
             }
             
             # Get pending messages (from INBOX)
-            $pendingMessages = Get-PendingMessages -Agent $agentName
+            $pendingMessages = Get-PendingMessages -Agent $agentName -TimeoutMs $config.MessageProcessingTimeoutMs -ReadAll
             
             # If NOT in recovery mode, we need items in inbox to proceed
             if (-not $isRecovery -and $pendingMessages.Count -eq 0) { continue }
@@ -862,7 +972,7 @@ function Invoke-DeliverPendingMessages {
                 Stop-Agent -AgentName $agentName -Reason "message_delivery"
                 
                 # Update the pending list if any processing messages were reverted (unlikely in this flow)
-                $pendingMessages = Get-PendingMessages -Agent $agentName
+                $pendingMessages = Get-PendingMessages -Agent $agentName -TimeoutMs $config.MessageProcessingTimeoutMs -ReadAll
                 Start-Sleep -Seconds 2
             }
             
@@ -920,7 +1030,7 @@ function Invoke-DeliverPendingMessages {
                     $recoveryData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
                     
                     if ($recoveryData.messages) {
-                        $messageData = $recoveryData.messages
+                        $messageData = @($recoveryData.messages)
                          Write-WatchdogLog "  Loaded $($messageData.Count) messages from recovery file (Retry #$($recoveryData.retryCount))" -Color DarkYellow
                     }
                 } catch {
@@ -930,19 +1040,20 @@ function Invoke-DeliverPendingMessages {
                      continue
                 }
             } else {
-                # New delivery mode: Write inbox messages to pending file, then clear inbox.
+                # New delivery mode: Write inbox snapshot to pending file.
+                # Inbox files are acknowledged/deleted only after explicit completion proof.
+                $batchId = "batch-$agentName-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$([guid]::NewGuid().ToString().Substring(0,8))"
+                $messageIds = @($messageData | ForEach-Object { $_.id })
                  $pendingData = @{
+                    batchId = $batchId
                     agent = $agentName
                     messageCount = $messageData.Count
+                    messageIds = $messageIds
+                    ackedMessageIds = @()
                     messages = $messageData
                     timestamp = [DateTime]::UtcNow.ToString("o")
                 }
                 $pendingData | ConvertTo-Json -Depth 10 | Out-File -FilePath $pendingFile -Encoding UTF8
-                
-                # CLEAR INBOX NOW - Source of truth has moved to pending-messages file
-                foreach ($msg in $pendingMessages) {
-                    if ($msg._filePath) { Remove-Item $msg._filePath -Force -ErrorAction SilentlyContinue }
-                }
             }
 
             $agentStarted = Start-Agent -AgentName $agentName -PendingMessages $messageData
@@ -1044,22 +1155,13 @@ function Invoke-ResourceCleanup {
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddHours(-1) } |
             ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 
-        # Clean stale pending-messages files (DEADLOCK PREVENTION)
+        # Detect stale pending-messages files (NO AUTO-DELETE)
+        # We never delete pending batches here to avoid silent message loss.
         Get-ChildItem -Path $Script:SessionDir -Filter "pending-messages-*.json" -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddMinutes(-30) } |
-            ForEach-Object { 
+            ForEach-Object {
                 $file = $_
-                Remove-Item $file.FullName -Force -ErrorAction SilentlyContinue 
-                
-                # Extract agent name from filename to reset in-memory status
-                if ($file.Name -match "pending-messages-(.+)\.json") {
-                    $agentName = $matches[1]
-                    if ($Script:Agents.ContainsKey($agentName)) {
-                        $Script:Agents[$agentName].WorkStatus = "idle"
-                        $Script:Agents[$agentName].CurrentMessage = $null
-                        Write-WatchdogLog "CLEANUP: Removed stale lock for $agentName + reset status to IDLE" -Color Green
-                    }
-                }
+                Write-WatchdogLog "STALE PENDING DETECTED: $($file.Name). Preserving for recovery and retry." -Color Yellow
             }
 
     } catch {

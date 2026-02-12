@@ -1,229 +1,216 @@
 ---
 name: qa-validation-workflow
-description: Full validation workflow for QA agent. Runs automated checks (type-check, lint, test, build) and browser testing with E2E tests. Use when validating implementation after code review.
+description: Full validation workflow for QA agent. Runs automated checks (type-check, lint, test, build) and code quality review with enforced checkpoints. Use when validating implementation after code review.
 category: validation
 ---
 
 # Validation Workflow Skill
 
-> "Trust but verify – automated tests catch regressions, browser tests catch reality."
+> "Trust but verify – automated tests catch regressions, code review catches quality issues."
 
-**CRITICAL:** NEVER CREATE FAKE OR TRIVIAL TESTS. If a test cannot be created with meaningful assertions based on the specs/gdd requirements, DO NOT CREATE A TEST. Instead, report the issue to PM and document the gap in test coverage in the task comments and close the task as completed with observations.
+### Validation State Tracking
 
-## When to Use This Skill
+**CRITICAL:** This workflow uses a checkpoint system to ensure ALL validation steps are completed before proceeding.
 
-Use when:
+**State File:** `.claude/session/validation-state.json`
 
-- `currentTask.status === "ready_for_qa"`
-- Developer has committed changes
-- Ready to validate implementation
-
----
-
-## MANDATORY: Worktree Verification (CRITICAL - FIRST STEP)
-
-**⚠️ CRITICAL: You MUST validate from the CORRECT worktree where the code was implemented!**
-
-### Step 1: Determine Which Worktree to Validate
-
-**Check the task's `agent` field to know which worktree contains the code:**
-
-| Task Agent | Worktree Path            | Branch Name           | Command to Navigate         |
-| ---------- | ------------------------ | --------------------- | --------------------------- |
-| {agent}  | `../{agent}-worktree`  | `{agent}-worktree`  | `cd ../{agent}-worktree`  |
-
-**⚠️ NEVER validate from main if the task was implemented in a worktree!**
-
-### Step 2: If You Ran Tests in Wrong Worktree
-
-**Stop immediately and report the error:**
-
-1. The validation results are INVALID
-2. Send message to PM: "ERROR: Validated wrong worktree. Re-running..."
-3. Navigate to correct worktree
-4. Re-run ALL validation steps
-
-**Remember: QA validates the agent's worktree, NOT main (unless task.agent = "qa")**
-
----
-
-
-## Validation Pipeline
-
-```
-      [GATE: E2E tests MUST exist - CREATE if missing]
-                  │
-                  ▼
-┌─────────────┐    ┌──────────┐    ┌──────────────┐    ┌──────────┐
-│ Type Check  │───▶│   Lint   │───▶│ TEST CHECK   │───▶│  Build   │
-│    (tsc)    │    │ (eslint) │    │  (Coverage)  │    │  (vite)  │
-└─────────────┘    └──────────┘    └──────────────┘    └──────────┘
-       │                │                   │                  │
-       ▼                ▼                   ▼                  ▼
-   Pass/Fail       Pass/Fail          Tests Missing?      Pass/Fail
-       │                │                   │                  │
-       │                │            ┌──────┴──────┐          │
-       │                │            │             │          │
-       │                │         Create Tests   CANNOT PASS  │
-       │                │            │          WITHOUT TEST  │
-       │                │            │             │          │
-       │                └────────────┴─────────────┘          │
-       │                                                      │
-       └──────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-                              ┌─────────────────────┐
-                              │  E2E TEST EXECUTION │ ◄── MANDATORY GATE
-                              │  (npm run test:e2e)  │     NO EXCEPTIONS
-                              └─────────────────────┘
-                                          │
-                              ┌──────────┴──────────┐
-                              │                     │
-                         PASS                   FAIL
-                          │                        │
-                          ▼                        ▼
-                    Update PRD            Fix either the code or the test, following test plan.
+```json
+{
+  "taskId": "feat-XXX",
+  "startedAt": "ISO-8601-timestamp",
+  "checkpoints": {
+    "codeReview": null,
+    "typeCheck": null,
+    "lint": null,
+    "test": null,
+    "build": null,
+    "codeRefactor": false
+  }
+}
 ```
 
-**⚠️ MANDATORY RULE: If Unit/E2E tests don't exist, CREATE THEM before validation can pass.**
-
-## **DO NOT mark validation as PASSED without Unit/ E2E tests covering the task acceptance criteria.**
-
-## Progressive Guide
-
-### Test Coverage Check (BEFORE Automated Checks)
-
-1. **Load qa-test-creation skill**
-
-   ```bash
-   Skill("qa-test-creation")
-   ```
-
-2. **Identify modified source files**
-
-   ```bash
-   # Get files changed in this task
-   git diff --name-only HEAD~5 | grep '^src/'
-   # Or read from task context
-   ```
-
-3. **For EACH modified source file, check test coverage:**
-
-   **Unit Test Check:**
-   - Source: `src/components/game/player/index.ts`
-   - Test must exist: `src/tests/components/game/player/index.test.ts`
-   - If missing: **BLOCK** - invoke test-creator
-
-   **E2E Test Check:**
-   - Check if `tests/e2e/{feature}-suite.spec.ts` exists
-   - Example: `tests/e2e/gameplay-suite.spec.ts`, `tests/e2e/ui-suite.spec.ts`
-   - If missing: **BLOCK** - invoke test-creator
+**Checkpoint Values:**
+- `null` - Not yet started
+- `"PASS"` - Check completed successfully
+- `"FAIL"` - Check failed, validation aborted
+- `false` / `true` - Boolean for code-refactor gate
 
 ### Acceptance Criteria Verification
 
-For each acceptance criterion in `current-task-qa.json` (acceptanceCriteria array):
+For each acceptance criterion in `prd.json` for the target task (acceptanceCriteria array):
+- Read GDD specifications for the feature
+- Verify code logic implements the criteria
+- Cross-reference implementation against design docs
 
-```markdown
-## Acceptance Criteria Verification
+### Validation Flow with Enforced Checkpoints
 
-### Criterion 1: "Vehicle responds to WASD input"
+**PREREQUISITE:** Initialize validation-state.json before starting.
 
-- **Test**: Pressed W, A, S, D keys
-- **Result**: ✅ PASS / ❌ FAIL
-- **Notes**: Vehicle moves forward, left, backward, right correctly
+```
+STEP 0: INITIALIZE STATE
+  → Create .claude/session/validation-state.json
+  → Set taskId, startedAt, initialize all checkpoints
 
-### Criterion 2: "Physics simulation runs at 60Hz"
+STEP 1: CODE QUALITY PRE-CHECK (MANDATORY)
+  → Load skill: qa-code-review
+  → Run quality checks on changed files
+  → Update checkpoint: checkpoints.codeReview = "PASS"/"FAIL"
+  → IF FAIL: STOP validation, report bug
 
-- **Test**: Checked physics debug panel
-- **Result**: ✅ PASS / ❌ FAIL
-- **Notes**: Physics running at target rate
+STEP 2: TYPE CHECK
+  → Run: npm run type-check
+  → Checkpoint: checkpoints.typeCheck = "PASS"/"FAIL"
+  → IF FAIL: STOP validation, report bug
+
+STEP 3: LINT
+  → Run: npm run lint
+  → Checkpoint: checkpoints.lint = "PASS"/"FAIL"
+  → IF FAIL: STOP validation, report bug
+
+STEP 4: TEST
+  → Run: npm run test
+  → Checkpoint: checkpoints.test = "PASS"/"FAIL"
+  → IF FAIL: STOP validation, report bug
+
+STEP 5: BUILD
+  → Run: npm run build
+  → Checkpoint: checkpoints.build = "PASS"/"FAIL"
+  → IF FAIL: STOP validation, report bug
+
+STEP 6: CODE REFACTOR GATE (MANDATORY - Enforced)
+  → VERIFY: checkpoints.codeRefactor == true
+  → IF false: EXECUTE code-refactor subagent
+    - Task: "Review files using codebase-cleanup-refactor-clean skill"
+    - Files: Read from validation_request.payload.files
+    - Context: QA validation for task {taskId}
+  → WAIT for code-refactor completion
+  → IF changes were made: RE-EXECUTE steps 2-5 (re-validation loop)
+  → Update checkpoint: checkpoints.codeRefactor = true
+  → IF re-validation FAILS: Report bug, DO NOT proceed
+
+STEP 7: SPECIFICATION VALIDATION
+  → Read prd.json acceptanceCriteria for taskId
+  → Read relevant GDD documents
+  → Verify each criterion met in implementation
+  → Document results: passed criteria, any gaps found
+
+STEP 8: FINAL DECISION
+  → READ all checkpoints from validation-state.json
+  → IF any checkpoint = "FAIL": status = "FAILED", create bug_report
+  → IF all checkpoints = "PASS": status = "PASSED", proceed
+  → NEVER proceed without completing steps 0-7
 ```
 
-## Anti-Patterns
+### Re-Validation Loop After Refactor
 
-❌ **DON'T:**
+**CRITICAL:** If code-refactor makes changes, you MUST re-run automated checks:
 
-- Assume automated tests are sufficient
-- Mark as passed without running E2E tests
-- Ignore console warnings/errors
-- Skip JSON schema validation for data files
+1. **Reset relevant checkpoints:** typeCheck, lint, test, build → `null`
+2. **Re-run steps 2-5** in sequence
+3. **If any fail:** Report bug to PM, DO NOT merge
+4. **If all pass:** Continue to step 7 (spec validation)
 
-✅ **DO:**
+### Code Refactor Subagent Invocation
 
-- Always run E2E tests for validation
-- Verify each acceptance criterion via test output
-- Review test screenshots as evidence
-- Document any concerns in bug notes
-- Check console for errors in test output
-- Validate JSON data files match expected schema
+**MANDATORY GATE:** Before spec validation (step 7), you MUST run code-refactor.
 
-## JSON Data Validation
+**When to invoke:**
+- After all automated checks pass (steps 1-5)
+- Before specification validation (step 7)
+- Verify checkpoint: `checkpoints.codeRefactor == false`
 
-For games that use JSON data files (levels, configurations, etc.):
+**Invocation pattern:**
+```xml
+<task>
+Use the Task tool with:
+- subagent_type: "code-refactor"
+- model: "sonnet" (for capable refactoring work)
+- prompt: "Review and refactor these files using the codebase-cleanup-refactor-clean skill:
+  Files: ${validation_request.payload.files.create + validation_request.payload.files.modify}
+  Context: QA validation for task ${taskId}
 
-### Schema Validation Testing
-
-```typescript
-import Ajv from 'ajv';
-import levelSchema from '../src/schemas/level.schema.json';
-
-// Test that level JSON files match schema
-describe('Level Data Validation', () => {
-  const ajv = new Ajv();
-  const validate = ajv.compile(levelSchema);
-
-  it('level001.json should match schema', () => {
-    const levelData = require('../src/data/levels/level001.json');
-    const valid = validate(levelData);
-
-    if (!valid) {
-      console.error('Validation errors:', validate.errors);
-    }
-
-    expect(valid, 'Level data should match schema').toBe(true);
-  });
-
-  it('all levels should have valid coordinates', () => {
-    const levels = [
-      require('../src/data/levels/level001.json'),
-      require('../src/data/levels/level002.json'),
-      // ... more levels
-    ];
-
-    levels.forEach((level, idx) => {
-      level.pigs.forEach((pig: any) => {
-        expect(pig.x).toBeGreaterThanOrEqual(0);
-        expect(pig.x).toBeLessThanOrEqual(2000);
-        expect(pig.y).toBeGreaterThanOrEqual(0);
-        expect(pig.y).toBeLessThanOrEqual(2000);
-      });
-    });
-  });
-});
+  Focus on: code quality, clean code principles, SOLID patterns, maintainability"
+</task>
 ```
 
-### E2E JSON Loading Tests
+**After code-refactor completes:**
+1. Read the subagent's output/recommendations
+2. Update `checkpoints.codeRefactor = true`
+3. **If changes were made:** Re-run automated checks (steps 2-5)
+4. Only proceed to spec validation after re-validation passes
 
-```typescript
-test('game loads level data from JSON', async ({ page }) => {
-  // Navigate to game
-  await page.goto('/');
+### Fail-Stop Protocol
 
-  // Load level
-  await page.click('#level-1-button');
+**If any step fails:**
 
-  // Verify level loaded correctly
-  const pigCount = await page.evaluate(() => {
-    return window.game.scene.keys.game.pigs.length;
-  });
+1. **Update checkpoint** with `"FAIL"`
+2. **STOP validation immediately** - do not proceed to next step
+3. **Investigate the failure** - capture error output
+4. **Create bug report** using qa-reporting-bug-reporting skill
+5. **Send bug_report to PM** with status `"FAILED"`
+6. **DO NOT merge** to main
 
-  expect(pigCount).toBeGreaterThan(0);
-});
+### Automated Check Commands
+
+| Check | Command | Expected Output |
+|--------|----------|----------------|
+| Type Check | `npm run type-check` | No TypeScript errors |
+| Lint | `npm run lint` | No lint warnings or errors |
+| Test | `npm run test` | All tests pass |
+| Build | `npm run build` | Build succeeds |
+
+### Validation State File Format
+
+**File:** `.claude/session/validation-state.json`
+
+```json
+{
+  "taskId": "feat-028",
+  "startedAt": "2026-02-12T10:30:00Z",
+  "completedAt": null,
+  "checkpoints": {
+    "codeReview": "PASS",
+    "typeCheck": "PASS",
+    "lint": "PASS",
+    "test": "PASS",
+    "build": "PASS",
+    "codeRefactor": true
+  },
+  "finalStatus": null
+}
 ```
 
-## Reference
+### Exit Conditions
 
-- [qa-test-creation](../qa-test-creation/) — Test creation workflow
-- [qa-e2e-test-creation](../qa-e2e-test-creation/) — E2E test patterns
-- [Ajv Documentation](https://ajv.js.org/) — JSON schema validation
-- [JSON Schema Reference](https://json-schema.org/) — Schema specification
+**Before completing validation, you MUST:**
+
+1. **Verify all checkpoints completed:**
+   - codeReview: "PASS"
+   - typeCheck: "PASS"
+   - lint: "PASS"
+   - test: "PASS"
+   - build: "PASS"
+   - codeRefactor: true
+
+2. **If ANY checkpoint is "FAIL":**
+   - Create bug_report with details
+   - Send to PM with status "FAILED"
+   - DO NOT merge to main
+
+3. **If ALL checkpoints are "PASS" or true:**
+   - Complete specification validation
+   - Send to PM with status "PASSED"
+   - Update validation-state.json finalStatus
+
+### Important
+
+- **NEVER skip the code-refactor gate** - checkpoint must be true before spec validation
+- **ALWAYS re-validate after refactor changes** - steps 2-5 must pass again
+- **UPDATE checkpoints after each step** - validation-state.json is source of truth
+- **STOP immediately on FAIL** - do not continue validation if any check fails
+
+### See Also
+
+- [qa-workflow](../qa-workflow/SKILL.md) — Main orchestration
+- [qa-code-review](../qa-code-review/SKILL.md) — Code quality pre-check
+- [qa-reporting-bug-reporting](../qa-reporting-bug-reporting/SKILL.md) — Bug report format
