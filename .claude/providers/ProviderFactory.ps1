@@ -2,7 +2,7 @@
 # Creates and manages CLI provider instances
 # Source: . "$PSScriptRoot\ProviderFactory.ps1"
 
-. "$PSScriptRoot\CliProvider-Interface.ps1"
+using module .\CliProvider.psm1
 . "$PSScriptRoot\ClaudeProvider.ps1"
 . "$PSScriptRoot\OpenCodeProvider.ps1"
 
@@ -20,34 +20,15 @@ $Script:ProviderRegistry = @{
 # ============================================================================
 
 function Get-AvailableProviders {
-    <#
-    .SYNOPSIS
-    Get list of available CLI providers.
-    
-    .RETURNS
-    Array of provider names that are registered.
-    #>
     return @($Script:ProviderRegistry.Keys)
 }
 
 function Get-DefaultProvider {
-    <#
-    .SYNOPSIS
-    Get the default provider name.
-    
-    .DESCRIPTION
-    Returns 'claude' as the default provider for backwards compatibility.
-    #>
     return "claude"
 }
 
 function Test-ProviderRegistered {
-    <#
-    .SYNOPSIS
-    Check if a provider name is registered.
-    #>
     param([string]$ProviderName)
-    
     return $Script:ProviderRegistry.ContainsKey($ProviderName.ToLower())
 }
 
@@ -71,12 +52,6 @@ function Get-CliProvider {
     
     .PARAMETER Config
     Optional hashtable with provider-specific configuration
-    
-    .RETURNS
-    CliProvider instance
-    
-    .EXAMPLE
-    $provider = Get-CliProvider -ProviderName "opencode"
     #>
     param(
         [string]$ProviderName = "",
@@ -93,10 +68,7 @@ function Get-CliProvider {
     
     # 2. Check environment variable
     if ([string]::IsNullOrWhiteSpace($selectedProvider)) {
-        $envProvider = Get-ProviderFromEnv
-        if (-not [string]::IsNullOrWhiteSpace($envProvider)) {
-            $selectedProvider = $envProvider
-        }
+        $selectedProvider = Get-ProviderFromEnv
     }
     
     # 3. Check config file
@@ -108,7 +80,7 @@ function Get-CliProvider {
                 if ($configContent.provider) {
                     $selectedProvider = $configContent.provider.ToLower().Trim()
                 }
-                # Merge file config with passed config
+                # Merge file config
                 if ($configContent.providers -and $configContent.providers.$selectedProvider) {
                     $fileConfig = $configContent.providers.$selectedProvider
                     foreach ($key in $fileConfig.PSObject.Properties.Name) {
@@ -146,17 +118,30 @@ function Get-CliProvider {
     return $provider
 }
 
+function Test-ProviderInterface {
+    param([object]$Provider)
+    
+    $requiredMembers = @('Name', 'Executable', 'TestAvailable', 'BuildAgentCommand')
+    foreach ($member in $requiredMembers) {
+        if (-not ($Provider.PSObject.Properties.Name -contains $member -or 
+                  $Provider.PSObject.Methods.Name -contains $member)) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Initialize-ProviderSession {
-    <#
-    .SYNOPSIS
-    Initialize a session for the given provider.
-    #>
     param(
         [Parameter(Mandatory=$true)]
-        [CliProvider]$Provider,
+        [object]$Provider,
         
         [string]$ProjectRoot = (Get-Location).Path
     )
+    
+    if (-not (Test-ProviderInterface -Provider $Provider)) {
+        throw "Invalid provider: missing required interface members"
+    }
     
     $Provider.InitializeSession($ProjectRoot)
 }
@@ -165,15 +150,6 @@ function Register-Provider {
     <#
     .SYNOPSIS
     Register a new provider type.
-    
-    .DESCRIPTION
-    Allows extending Ralph with custom CLI providers.
-    
-    .PARAMETER Name
-    Unique provider name (lowercase, alphanumeric with hyphens)
-    
-    .PARAMETER FactoryFunction
-    Name of the function that creates provider instances
     #>
     param(
         [Parameter(Mandatory=$true)]
@@ -183,27 +159,15 @@ function Register-Provider {
         [string]$FactoryFunction
     )
     
-    $normalizedName = $Name.ToLower().Trim()
-    $Script:ProviderRegistry[$normalizedName] = $FactoryFunction
-    
-    Write-Host "Registered CLI provider: $normalizedName" -ForegroundColor Green
+    $Script:ProviderRegistry[$Name.ToLower()] = $FactoryFunction
+    Write-Host "Registered CLI provider: $Name" -ForegroundColor Green
 }
 
 # ============================================================================
-# CONFIGURATION HELPERS
+# CONVENIENCE FUNCTIONS
 # ============================================================================
 
 function New-CliProviderConfig {
-    <#
-    .SYNOPSIS
-    Create a default cli-provider.json configuration file.
-    
-    .PARAMETER Path
-    Where to create the config file (default: project root)
-    
-    .PARAMETER Provider
-    Default provider to set
-    #>
     param(
         [string]$Path = (Join-Path (Get-Location).Path "cli-provider.json"),
         [string]$Provider = "claude"
@@ -221,77 +185,50 @@ function New-CliProviderConfig {
             }
             opencode = @{
                 executable = "opencode"
-                defaultArgs = @("run")
-                supportsMessages = $true
+                defaultArgs = @()
+                supportsMessages = $false
                 serverMode = "standalone"
             }
         }
     }
     
     $config | ConvertTo-Json -Depth 5 | Out-File -FilePath $Path -Encoding utf8
-    
     Write-Host "Created cli-provider.json at: $Path" -ForegroundColor Green
-    Write-Host "Default provider: $Provider" -ForegroundColor Cyan
-}
-
-function Get-ProviderInfo {
-    <#
-    .SYNOPSIS
-    Get information about available providers and current selection.
-    #>
-    param([string]$ProjectRoot = (Get-Location).Path)
-    
-    $info = @{
-        AvailableProviders = @(Get-AvailableProviders)
-        DefaultProvider = Get-DefaultProvider
-        EnvProvider = Get-ProviderFromEnv
-        ConfigPath = Get-ProviderConfigPath -ProjectRoot $ProjectRoot
-    }
-    
-    # Try to get selected provider
-    $provider = Get-CliProvider -ProjectRoot $ProjectRoot
-    $info.SelectedProvider = $provider.Name
-    $info.ProviderAvailable = $provider.TestAvailable()
-    $info.ProviderExecutable = $provider.Executable
-    
-    return $info
 }
 
 function Show-ProviderStatus {
-    <#
-    .SYNOPSIS
-    Display current provider configuration status.
-    #>
     param([string]$ProjectRoot = (Get-Location).Path)
-    
-    $info = Get-ProviderInfo -ProjectRoot $ProjectRoot
     
     Write-Host ""
     Write-Host "=== Ralph CLI Provider Status ===" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Available Providers: " -NoNewline
-    Write-Host ($info.AvailableProviders -join ", ") -ForegroundColor Yellow
+    Write-Host ((Get-AvailableProviders) -join ", ") -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Selection Priority:" -ForegroundColor White
     Write-Host "  1. RALPH_CLI_PROVIDER env: " -NoNewline
-    if ($info.EnvProvider) {
-        Write-Host $info.EnvProvider -ForegroundColor Green
+    $envProvider = Get-ProviderFromEnv
+    if ($envProvider) {
+        Write-Host $envProvider -ForegroundColor Green
     } else {
         Write-Host "(not set)" -ForegroundColor DarkGray
     }
     Write-Host "  2. Config file: " -NoNewline
-    if ($info.ConfigPath) {
-        Write-Host $info.ConfigPath -ForegroundColor Green
+    $configPath = Get-ProviderConfigPath -ProjectRoot $ProjectRoot
+    if ($configPath) {
+        Write-Host $configPath -ForegroundColor Green
     } else {
         Write-Host "(not found)" -ForegroundColor DarkGray
     }
     Write-Host ""
+    
+    $provider = Get-CliProvider -ProjectRoot $ProjectRoot
     Write-Host "Selected Provider: " -NoNewline
-    Write-Host $info.SelectedProvider -ForegroundColor Magenta
+    Write-Host $provider.Name -ForegroundColor Magenta
     Write-Host "Executable: " -NoNewline
-    Write-Host $info.ProviderExecutable -ForegroundColor White
+    Write-Host $provider.Executable -ForegroundColor White
     Write-Host "Available: " -NoNewline
-    if ($info.ProviderAvailable) {
+    if ($provider.TestAvailable()) {
         Write-Host "YES" -ForegroundColor Green
     } else {
         Write-Host "NO (not installed)" -ForegroundColor Red

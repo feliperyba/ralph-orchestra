@@ -1,6 +1,187 @@
 # Extending Ralph Orchestra
 
-This guide covers how to extend Ralph Orchestra with custom agents, skills, and routing.
+This guide covers how to extend Ralph Orchestra with custom agents, skills, CLI providers, and routing.
+
+## CLI Provider System
+
+Ralph Orchestra supports multiple AI CLIs through a provider abstraction. Each provider implements a common interface that handles CLI-specific invocation patterns.
+
+### Provider Architecture
+
+```
+.claude/providers/
+├── CliProvider.psm1            # Module with base class + helpers
+├── ClaudeProvider.ps1          # Claude CLI implementation
+├── OpenCodeProvider.ps1        # OpenCode CLI implementation
+└── ProviderFactory.ps1         # Factory + registration
+```
+
+**Important**: Providers use PowerShell modules (`.psm1`) with `using module` for proper class inheritance. This avoids TypeNotFound parse errors that occur with dot-sourced scripts.
+
+### Provider Interface
+
+All providers inherit from the `CliProvider` base class:
+
+```powershell
+class CliProvider {
+    [string] $Name
+    [string] $Executable
+    [string[]] $DefaultArgs
+    [bool] $SupportsMessages
+    
+    # Required methods
+    [bool] TestAvailable()
+    [string[]] BuildAgentCommand($SlashCommand, $MessagePayload, $ProjectRoot, $AgentName, $Options)
+    [string[]] GetMcpConfigArgs($AgentName, $ProjectRoot)
+    
+    # Optional methods
+    [hashtable] GetCapabilities()
+    [string] GetDisplayName()
+    [void] InitializeSession($ProjectRoot)
+}
+```
+
+### Provider Differences
+
+| Aspect | Claude Provider | OpenCode Provider |
+|--------|-----------------|-------------------|
+| **Executable** | `claude` | `opencode` |
+| **Agent Selection** | `--agent` in slash command | `--agent ralph-developer` flag |
+| **Message Delivery** | `--message '{json}'` CLI arg | File-based (`pending-messages-{agent}.json`) |
+| **MCP Config** | `--mcp-config` CLI arg | Auto-loaded from `opencode.json` |
+| **Skills** | `.claude/skills/` | `.claude/skills/` (native support) |
+
+### Adding a New CLI Provider
+
+#### Step 1: Create the Provider Class
+
+Create `.claude/providers/MyProvider.ps1`:
+
+```powershell
+# IMPORTANT: Use 'using module' for proper class inheritance
+using module .\CliProvider.psm1
+
+class MyProvider : CliProvider {
+    MyProvider() : base() {
+        $this.Name = "myprovider"
+        $this.Executable = "myprovider-cli"
+        $this.DefaultArgs = @("--non-interactive")
+        $this.SupportsMessages = $true  # or $false if file-based
+    }
+    
+    MyProvider([hashtable]$Config) : base($Config) {
+        $this.Name = "myprovider"
+        if (-not $this.Executable) { $this.Executable = "myprovider-cli" }
+    }
+    
+    [bool] TestAvailable() {
+        return Test-ProviderAvailable -Executable $this.Executable
+    }
+    
+    [string[]] BuildAgentCommand(
+        [string]$SlashCommand,
+        [string]$MessagePayload,
+        [string]$ProjectRoot,
+        [string]$AgentName,
+        [hashtable]$Options
+    ) {
+        $args = @()
+        $args += $this.DefaultArgs
+        
+        # Build command based on how your CLI accepts input
+        if ($this.SupportsMessages -and $MessagePayload) {
+            $args += "--message"
+            $args += $MessagePayload
+        }
+        
+        $args += $SlashCommand
+        return $args
+    }
+    
+    [string[]] GetMcpConfigArgs([string]$AgentName, [string]$ProjectRoot) {
+        # Return MCP config args if your CLI supports them
+        return @()
+    }
+    
+    [hashtable] GetCapabilities() {
+        return @{
+            SupportsMessages = $this.SupportsMessages
+            ServerMode = "standalone"
+            UsesFileBasedMessages = -not $this.SupportsMessages
+        }
+    }
+    
+    [string] GetDisplayName() {
+        return "My Provider CLI"
+    }
+}
+
+function New-MyProvider {
+    param([hashtable]$Config = @{})
+    return [MyProvider]::new($Config)
+}
+```
+
+#### Step 2: Register the Provider
+
+Edit `.claude/providers/ProviderFactory.ps1`:
+
+```powershell
+. "$PSScriptRoot\MyProvider.ps1"
+
+$Script:ProviderRegistry = @{
+    "claude" = "New-ClaudeProvider"
+    "opencode" = "New-OpenCodeProvider"
+    "myprovider" = "New-MyProvider"  # Add this line
+}
+```
+
+#### Step 3: Add Configuration
+
+Update `cli-provider.json`:
+
+```json
+{
+  "provider": "myprovider",
+  "providers": {
+    "myprovider": {
+      "executable": "myprovider-cli",
+      "defaultArgs": ["--non-interactive"],
+      "supportsMessages": true
+    }
+  }
+}
+```
+
+### Provider Selection Priority
+
+1. **Command Line**: `ralph-event-session.ps1 -Provider opencode`
+2. **Environment Variable**: `$env:RALPH_CLI_PROVIDER = "opencode"`
+3. **Config File**: `cli-provider.json` → `"provider": "opencode"`
+4. **Default**: `claude`
+
+### Using Providers
+
+```powershell
+# Get provider instance
+$provider = Get-CliProvider -ProviderName "opencode"
+
+# Check availability
+if ($provider.TestAvailable()) {
+    # Build command for an agent
+    $args = $provider.BuildAgentCommand(
+        "/ralph-worker-event --agent developer",
+        $messagePayload,
+        $projectRoot,
+        "developer",
+        @{}
+    )
+    
+    # Execute: $provider.Executable $args
+}
+```
+
+---
 
 ## Agent Configuration
 
@@ -41,285 +222,98 @@ $Script:AgentConfig = @{
 }
 ```
 
-## Understanding the Skill Variant System
-
-Ralph uses a **skill variant pattern** where a single skill handles multiple agent types via arguments.
-
-### How ralph-worker Works
-
-**Skill Definition:**
-```yaml
----
-name: ralph-worker
-description: Worker loop - execute tasks assigned by coordinator
-category: orchestration
-arguments:
-  --agent: "developer" or "qa" or "gamedesigner"
----
-```
-
-**Invocation:**
-```bash
-/ralph-worker-event --agent developer   # Runs as Developer (event-driven)
-/ralph-worker-single --agent developer  # Runs as Developer (sequential)
-/ralph-worker-event --agent qa          # Runs as QA (event-driven)
-/ralph-worker-single --agent gamedesigner  # Runs as Game Designer
-```
-
-**Inside the skill**, the agent checks `$arguments.agent` to determine:
-- Which skills directory to load (`agents/developer/skills/` vs `agents/qa/skills/`)
-- What behavior to follow (coding vs validation)
-- What state files to update
-
-## Worker vs Coordinator Pattern
-
-| Aspect | Coordinator (PM) | Workers (Dev/QA/GameDesigner) |
-|--------|-------------------|-------------------------------|
-| **Type** | `Type = "coordinator"` | `Type = "worker"` |
-| **Instances** | Single instance | Multiple can run in parallel |
-| **Command** | No `--agent` argument | Requires `--agent` argument |
-| **State File** | Owns `coordinator-state.json` | Polls for tasks assigned to them |
-
 ## Adding Custom Agents
 
 ### Step 1: Create Agent Directory Structure
 
-For example, to add a Tech Artist agent (already included):
-
 ```
-agents/techartist/
+agents/myagent/
 ├── AGENT.md              # Core behavior instructions
 ├── SKILLS.md             # Skills index
 ├── skills/               # Modular skills
-│   ├── r3f-fundamentals.md
-│   ├── r3f-materials.md
-│   ├── shader-sdf.md
-│   ├── postfx-effects.md
-│   ├── particles-gpu.md
-│   ├── asset-workflow.md
-│   ├── shader-development.md
-│   └── visual-polish.md
+│   └── myagent-skill.md
 ├── checklists/
-│   ├── asset-quality.md
-│   ├── shader-review.md
-│   └── visual-consistency.md
+│   └── review.md
 └── references/
-    ├── material-presets.md
-    └── shader-patterns.md
+    └── patterns.md
 ```
 
 ### Step 2: Create AGENT.md
 
 ```markdown
-# YOU ARE THE TECH ARTIST AGENT
-
-# Your job: CREATE 3D/2D ASSETS, SHADERS, AND VISUAL EFFECTS
+# YOU ARE THE MY AGENT
 
 ## When to Use This Agent
-
-- Task category contains "visual", "shader", "effects", "ui-polish"
-- PM assigns tasks with agent=techartist
-- Asset creation is needed after Developer completes logic
+- Task category contains "mydomain"
+- PM assigns tasks with agent=myagent
 
 ## Your Workflow
-
-1. Read asset requirements from current-task.json
-2. Read GDD for artistic references
-3. Create assets/shaders using R3F patterns
-4. Test in browser via Playwright
-5. Run feedback loops (type-check, lint, build)
-6. Commit work with [ralph] [techartist] prefix
-7. Send asset_ready to QA
+1. Read task requirements
+2. Perform work
+3. Run feedback loops
+4. Commit with [ralph] [myagent] prefix
+5. Send status_update to watchdog
 ```
 
 ### Step 3: Update ralph-config.ps1
 
-Add your new agent to the `AgentConfig` hashtable (already done for techartist):
-
 ```powershell
 $Script:AgentConfig = @{
     # ... existing agents ...
-    "techartist" = @{
+    "myagent" = @{
         Type = "worker"
-        Command = "/ralph-worker-event --agent techartist"
-        DisplayName = "Tech Artist"
-        Color = "Green"
+        Command = "/ralph-worker-event --agent myagent"
+        DisplayName = "My Agent"
+        Color = "White"
     }
 }
 ```
 
 ### Step 4: Update Watchdog Scripts
 
-**For Sequential Mode** (`./.claude/scripts/watchdog-single.ps1`):
+In `watchdog-event.ps1`, add to the switch statement:
 
 ```powershell
-# Add to valid agents array (around line 102)
-$validAgents = @("pm", "developer", "techartist", "qa", "gamedesigner")
-
-# Add to switch statement (around line 293)
 $slashCommand = switch ($AgentName) {
-    "pm" { "/ralph-coordinator-single" }
-    "developer" { "/ralph-worker-single --agent developer" }
-    "techartist" { "/ralph-worker-single --agent techartist" }
-    "qa" { "/ralph-worker-single --agent qa" }
-    "gamedesigner" { "/ralph-worker-single --agent gamedesigner" }
+    "pm" { "/ralph-coordinator-event" }
+    "developer" { "/ralph-worker-event --agent developer" }
+    "qa" { "/ralph-worker-event --agent qa" }
+    "techartist" { "/ralph-worker-event --agent techartist" }
+    "gamedesigner" { "/ralph-worker-event --agent gamedesigner" }
+    "myagent" { "/ralph-worker-event --agent myagent" }  # Add this
 }
 ```
 
-### Step 5: Update ralph-worker Skill
+### Step 5: For OpenCode - Add Agent Configuration
 
-Modify `./.claude/skills/ralph-worker.md` to include your new agent:
-
-```markdown
-## Determine Your Agent Type
-
-Check the `--agent` argument:
-
-- **"developer"**: Implement features and run feedback loops
-- **"techartist"**: Create visual assets, shaders, and effects
-- **"qa"**: Validate implementations with tests and browser checks
-- **"gamedesigner"**: Create GDDs and answer design questions
-
-## Tech Artist Agent Path
-
-**IF `--agent == "techartist"`**:
-
-Look for tasks where:
-- `currentTask.assignedAgent == "techartist"`
-- `currentTask.status` is "assigned" or "needs_fixes"
-
-**When you find work**:
-1. Update your status to "working"
-2. Read task specs from `current-task.json`
-3. Read GDD for artistic references
-4. Create assets/shaders using R3F patterns
-5. Test in browser via Playwright
-6. Run feedback loops (type-check, lint, build)
-7. Commit work with [ralph] [techartist] prefix
-8. Update task status to "ready_for_qa"
-9. Wait for the next message or handoff
-```
-
-### Step 6: Create Agent-Specific Settings (Optional)
-
-Create `./.claude/settings.techartist.json` (already included):
+In `opencode.json`:
 
 ```json
 {
-  "mcpServers": {
-    "filesystem": { ... },
-    "github": { ... },
-    "web-search": { ... },
-    "playwright": { ... },
-    "vision": { ... },
-    "blender": {
-      "command": "npx",
-      "args": ["-y", "blender-mcp"]
-    },
-    "shadertoy": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-shadertoy"]
-    },
-    "image-process": {
-      "command": "npx",
-      "args": ["-y", "@x007xyz/image-process-mcp-server"]
+  "agent": {
+    "ralph-myagent": {
+      "description": "My custom agent",
+      "mode": "primary",
+      "prompt": "Load skill 'shared-core' then skill 'myagent-workflow'. You are My Agent in Ralph Orchestra."
     }
   }
 }
 ```
 
-### Step 7: Test Your New Agent
-
-```bash
-# Manual testing (event-driven)
-/ralph-worker-event --agent techartist
-
-# Sequential mode
-.\.claude\scripts\ralph-single-session.ps1 -InitialAgent techartist
-
-# Add test task to prd.json
-{
-  "id": "vis-001",
-  "title": "Create vehicle materials",
-  "category": "visual",
-  "agent": "techartist",
-  "status": "pending",
-  "passes": false
-}
-```
-
-## Skill Routing
-
-The `./.claude/skills/ralph-router.md` skill routes tasks to appropriate domain skills based on:
-
-- **Agent type** - PM, Developer, Tech Artist, QA, Game Designer
-- **Task category** - architectural, functional, visual, integration, polish
-- **Task content** - Keywords in title/description
-
-### Adding Custom Routes
-
-Edit `./.claude/skills/ralph-router.md`:
-
-```markdown
-## Routing Table
-
-| Signal Pattern | Target Skill |
-|----------------|--------------|
-| agent=developer | agents/developer/ |
-| agent=techartist | agents/techartist/ |
-| task contains "ui" | skills/ui-patterns.md |
-| task contains "shader" | skills/shader-creation.md |
-```
-
-## Custom Handoff Logic
-
-For advanced workflows, you can customize handoff behavior.
-
-### Override Handoff Function
-
-In `watchdog-single.ps1`, you can add custom logic:
+In `OpenCodeProvider.ps1`, add to the AgentMap:
 
 ```powershell
-function Invoke-Handoff {
-    param(
-        [string]$FromAgent,
-        [string]$ToAgent,
-        [string]$Context
-    )
-
-    # Custom pre-handoff logic
-    if ($FromAgent -eq "developer" -and $ToAgent -eq "qa") {
-        Write-Host "Running pre-QA tests..." -ForegroundColor Cyan
-        & npm run test
-    }
-
-    # Standard handoff logic
-    Stop-SingleAgent -Graceful -Reason "handoff_to_$ToAgent"
-    Start-Sleep -Seconds 2
-    Start-SingleAgent -AgentName $ToAgent -HandoffContext $Context
+hidden [hashtable] $AgentMap = @{
+    # ... existing mappings ...
+    "myagent" = "ralph-myagent"
 }
 ```
 
-## Skill Variant Best Practices
-
-1. **Use `--agent` for variants** of the same pattern:
-   - `/ralph-worker-event --agent developer`
-   - `/ralph-worker-event --agent techartist`
-   - `/ralph-worker-event --agent qa`
-   - `/ralph-worker-event --agent gamedesigner`
-
-2. **Use separate slash commands** for fundamentally different behaviors:
-   - `/ralph-coordinator-event` (event-driven orchestration)
-   - `/ralph-coordinator-single` (sequential orchestration)
-   - `/ralph-hitl` (single iteration)
-
-3. **Keep skill content generic** - use the `--agent` value to branch behavior
-
-4. **Document agent-specific paths** clearly in the skill file
+---
 
 ## CI/CD Integration
 
-You can integrate Ralph into your CI/CD pipeline:
+You can integrate Ralph into your CI/CD pipeline with provider selection:
 
 ```yaml
 # .github/workflows/ralph.yml
@@ -333,6 +327,11 @@ on:
         default: 'event'
         type: choice
         options: [event, sequential]
+      provider:
+        description: 'CLI Provider'
+        default: 'claude'
+        type: choice
+        options: [claude, opencode]
 
 jobs:
   ralph:
@@ -340,16 +339,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Claude CLI
-        run: npm install -g @anthropic-ai/claude-cli
+      - name: Setup CLI
+        run: |
+          if ("${{ inputs.provider }}" -eq "claude") {
+            npm install -g @anthropic-ai/claude-cli
+          } else {
+            # Install opencode
+            npm install -g opencode
+          }
 
       - name: Run Ralph
+        env:
+          RALPH_CLI_PROVIDER: ${{ inputs.provider }}
+          RALPH_MAX_ITERATIONS: 50
         run: |
-          $env:RALPH_MAX_ITERATIONS = 50
-          if ("${{ inputs.mode }}") -eq "event" {
-            .\.claude\scripts\ralph-event-session.ps1
+          if ("${{ inputs.mode }}" -eq "event") {
+            .\.claude\scripts\ralph-event-session.ps1 -NoDashboard
           } else {
-            .\.claude\scripts\ralph-single-session.ps1
+            .\.claude\scripts\ralph-single-session.ps1 -NoDashboard
           }
 ```
 

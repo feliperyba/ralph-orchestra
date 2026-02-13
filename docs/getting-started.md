@@ -4,7 +4,11 @@ This guide will help you install and run Ralph Orchestra for the first time.
 
 ## Prerequisites
 
-- **[Claude CLI](https://docs.anthropic.com/en/docs/claude-cli)** installed and authenticated
+Choose your CLI:
+- **[Claude CLI](https://docs.anthropic.com/en/docs/claude-cli)** - Install and authenticate
+- **[OpenCode CLI](https://opencode.ai/docs)** - Install and configure a provider
+
+System requirements:
 - **PowerShell 5.1+** (Windows) or Bash (Linux/macOS)
 - **Node.js 18+** (if using with a Node.js project)
 
@@ -16,28 +20,48 @@ cd ralph-orchestra
 npm install
 ```
 
+## CLI Provider Setup
+
+### Using Claude (Default)
+
+No additional setup needed if Claude CLI is installed and authenticated.
+
+### Using OpenCode
+
+1. Copy the example configuration:
+   ```powershell
+   copy opencode.example.json opencode.json
+   ```
+
+2. Configure your AI provider in `opencode.json` (see [OpenCode providers](https://opencode.ai/docs/providers/))
+
+3. Set the provider:
+   ```powershell
+   $env:RALPH_CLI_PROVIDER = "opencode"
+   ```
+
 ## Understanding the Interfaces
 
-Ralph Orchestra can be invoked through **three different interfaces**, each with different trade-offs:
+Ralph Orchestra can be invoked through **multiple interfaces**:
 
-| Interface | How to Invoke | Session Setup | Token Efficiency | Best For |
-|-----------|---------------|---------------|------------------|----------|
-| **PowerShell Scripts** | `.\.claude\scripts\ralph-event-session.ps1` | Automatic | Medium | Production, autonomous runs |
-| **PowerShell Scripts** | `.\.claude\scripts\ralph-single-session.ps1` | Automatic | High | Token-efficient runs |
-| **Claude CLI** | `/ralph-coordinator-event` in terminal | Manual | Standard | Learning, debugging |
-| **Claude Code IDE** | `/ralph-hitl` in chat | Semi-auto | Standard | Learning, integrated workflow |
+| Interface | How to Invoke | Best For |
+|-----------|---------------|----------|
+| **PowerShell Scripts** | `.\.claude\scripts\ralph-event-session.ps1` | Production, autonomous runs |
+| **PowerShell Scripts** | `.\.claude\scripts\ralph-single-session.ps1` | Token-efficient runs |
+| **Claude CLI** | `/ralph-coordinator-event` | Learning, debugging |
+| **Claude Code IDE** | `/ralph-hitl` | Learning, integrated workflow |
 
-### PowerShell Scripts (Recommended for Production)
-
-Full orchestration with automatic session management, health monitoring, and graceful shutdown:
+### PowerShell Scripts (Recommended)
 
 ```powershell
 # Event-driven (PM-first, message queues) - Recommended
 .\.claude\scripts\ralph-event-session.ps1
 
+# With OpenCode
+.\.claude\scripts\ralph-event-session.ps1 -Provider opencode
+
 # Sequential (token-efficient, one agent at a time)
 .\.claude\scripts\ralph-single-session.ps1
-
 ```
 
 **What happens:**
@@ -51,53 +75,38 @@ Full orchestration with automatic session management, health monitoring, and gra
 Direct slash commands in separate terminals:
 
 ```bash
-# Event-driven mode (PM-first, on-demand workers)
-# Terminal 1: PM Coordinator
-/ralph-coordinator-event
-
-# Terminal 2: Developer Worker
-/ralph-worker-event --agent developer
-
-# Terminal 3: QA Worker
-/ralph-worker-event --agent qa
-
-# Terminal 4: Game Designer Worker
-/ralph-worker-event --agent gamedesigner
-
-# OR Sequential mode (token-efficient)
-/ralph-coordinator-single
-/ralph-worker-single --agent developer
-/ralph-worker-single --agent qa
-/ralph-worker-single --agent gamedesigner
+/ralph-coordinator-event                    # PM Coordinator
+/ralph-worker-event --agent developer       # Developer Worker
+/ralph-worker-event --agent qa              # QA Worker
+/ralph-worker-event --agent gamedesigner    # Game Designer
 ```
 
 ### Claude Code IDE (VSCode Extension)
 
-Slash commands directly in the chat interface:
-
 ```
 /ralph-hitl
 ```
-
-The IDE automatically loads agent settings and skills based on task category.
 
 ## First Run with HITL Mode
 
-Before running autonomous sessions, use HITL (Human-in-the-Loop) mode to understand the flow:
+Before running autonomous sessions, use HITL mode to understand the flow:
 
 ```
 /ralph-hitl
 ```
 
-This runs a **single iteration** with full visibility so you can see exactly how each agent operates.
+This runs a **single iteration** with full visibility.
 
 ## Running in Production Modes
 
 ### Event-Driven Mode (Recommended)
 
-PM starts first. The watchdog launches workers on demand when they have pending messages:
-
 ```powershell
+# Claude (default)
+.\.claude\scripts\ralph-event-session.ps1
+
+# OpenCode
+$env:RALPH_CLI_PROVIDER = "opencode"
 .\.claude\scripts\ralph-event-session.ps1
 ```
 
@@ -105,13 +114,11 @@ PM starts first. The watchdog launches workers on demand when they have pending 
 
 ### Sequential Mode (Token-Efficient)
 
-Only one agent runs at a time. A watchdog process orchestrates handoffs:
-
 ```powershell
 .\.claude\scripts\ralph-single-session.ps1
 ```
 
-**Benefits:** ~70% lower token usage, simpler debugging, clear execution flow
+**Benefits:** ~70% lower token usage, simpler debugging
 
 ## Stopping Agents
 
@@ -125,18 +132,16 @@ Only one agent runs at a time. A watchdog process orchestrates handoffs:
 Always set a safety limit before running autonomous sessions:
 
 ```powershell
-# Set for current session
+# Environment variable
 $env:RALPH_MAX_ITERATIONS = 100
-.\.claude\scripts\ralph-event-session.ps1
 
-# Or use script parameter
+# Or script parameter
 .\.claude\scripts\ralph-event-session.ps1 -MaxIterations 50
 ```
-
-See [Configuration](./configuration.md#max-iterations) for more options.
 
 ## Next Steps
 
 - [Architecture](./architecture.md) - Understand the system architecture
 - [Orchestration Modes](./orchestration-modes.md) - Deep dive into each mode
-- [Configuration](./configuration.md) - PRD format, settings, and tuning
+- [Configuration](./configuration.md) - PRD format, CLI providers, settings
+- [Extending](./extending.md) - Add custom agents and CLI providers

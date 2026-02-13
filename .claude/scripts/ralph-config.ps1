@@ -667,11 +667,7 @@ $Script:ProvidersDir = Join-Path $PSScriptRoot "..\providers"
 function Import-ProviderSystem {
     <#
     .SYNOPSIS
-    Load the CLI provider system (factory and providers).
-    
-    .DESCRIPTION
-    Imports the provider interface, factory, and all available providers.
-    Must be called before using Get-CliProvider.
+    Load the CLI provider system (factory and all providers).
     #>
     param([string]$ProvidersDir = $Script:ProvidersDir)
     

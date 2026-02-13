@@ -354,41 +354,67 @@ function Start-Agent {
     $safeSessionDir = Get-SafeScriptString $paths.SessionDir
     # Note: $slashCommand is from a trusted switch statement, not user input
     
-    # Build script logic for message handling
-    # Use Here-String for JSON to avoid complex escaping issues
-    $messageHandlingScript = ""
-    if ($messageJsonArg) {
-        # Check against pure literal '@ to prevent here-string breakout (unlikely in JSON)
-        $safeJson = $messageJsonArg -replace "'@", "' @ " 
-        
-        $messageHandlingScript = @"
-`$jsonPayload = @'
-$safeJson
-'@
-# Escape double quotes for Windows CMD/Batch compatibility
-# This prevents CMD from consuming the quotes when passing args to claude.cmd
-`$safePayload = `$jsonPayload -replace '"', '\"'
-`$messageArg = " --message '`$safePayload'"
-"@
-    } else {
-        $messageHandlingScript = "`$messageArg = `"`""
-    }
+    # Get provider info for script generation
+    $cliExecutable = $Script:CliProvider.Executable
+    $cliDisplayName = $Script:CliProvider.GetDisplayName()
+    $providerCapabilities = $Script:CliProvider.GetCapabilities()
+    $usesFileMessages = $providerCapabilities.UsesFileBasedMessages
+    
+    # Build CLI arguments using the provider's method
+    $cliArgs = $Script:CliProvider.BuildAgentCommand(
+        $slashCommand,
+        $messageJsonArg,
+        $ProjectRoot,
+        $AgentName,
+        @{}
+    )
     
     # Get provider-specific MCP config args
     $mcpArgs = $Script:CliProvider.GetMcpConfigArgs($AgentName, $ProjectRoot)
     $mcpArg = if ($mcpArgs.Count -gt 0) { " " + ($mcpArgs -join " ") } else { "" }
 
-    # Prepare display string for generated script (cleanly checks variable)
+    # Prepare display string for generated script
     $scriptMcpCheck = ""
     if ($mcpArg -ne "") {
        $safeDisplayArgs = ($mcpArg.Trim() -replace '"', '`"') -replace '\$', '`$'
        $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
     }
+    
+    # Build the full command string for the generated script
+    # Quote each argument properly for the shell
+    $quotedArgs = @()
+    foreach ($arg in $cliArgs) {
+        if ($arg -match '\s') {
+            $quotedArgs += "`"$arg`""
+        } else {
+            $quotedArgs += $arg
+        }
+    }
+    $cliArgsString = $quotedArgs -join " "
+    
+    # Message handling script varies by provider
+    $messageHandlingScript = ""
+    if (-not $usesFileMessages -and $messageJsonArg) {
+        # Claude-style: pass --message via CLI
+        $safeJson = $messageJsonArg -replace "'@", "' @ " 
+        $messageHandlingScript = @"
 
-    # Get provider info for script generation
-    $cliExecutable = $Script:CliProvider.Executable
-    $cliDefaultArgs = $Script:CliProvider.DefaultArgs -join " "
-    $cliDisplayName = $Script:CliProvider.GetDisplayName()
+# Build --message argument for CLI delivery
+`$jsonPayload = @'
+$safeJson
+'@
+`$safePayload = `$jsonPayload -replace '"', '\"'
+`$messageArg = " --message '`$safePayload'"
+"@
+    } else {
+        # OpenCode-style: file-based delivery only
+        $messageHandlingScript = @"
+
+# Messages are delivered via file: $safePendingFile
+# No --message CLI argument needed
+`$messageArg = ""
+"@
+    }
 
     $scriptContent = @"
 `$Host.UI.RawUI.WindowTitle = "$windowTitle"
@@ -404,35 +430,27 @@ Write-Host "CLI Provider: $cliDisplayName" -ForegroundColor DarkGray
 $scriptMcpCheck
 Write-Host ""
 
-# Check for pending messages delivered by watchdog (FALLBACK - primary is --message)
+# Check for pending messages file
 `$pendingFile = "$safePendingFile"
 if (Test-Path `$pendingFile) {
-    Write-Host "PENDING MESSAGES AVAILABLE (fallback file):" -ForegroundColor Yellow
-    Get-Content `$pendingFile | Write-Host -ForegroundColor DarkYellow
+    Write-Host "PENDING MESSAGES FILE: `$pendingFile" -ForegroundColor Yellow
     Write-Host ""
 }
+$messageHandlingScript
 
-# Prepare JSON payload securely
-    $messageHandlingScript
+Write-Host "Starting $cliDisplayName..." -ForegroundColor Yellow
+Write-Host "Command: $cliExecutable $cliArgsString" -ForegroundColor DarkGray
+Write-Host ""
 
-    Write-Host "Starting $cliDisplayName..." -ForegroundColor Yellow
-    Write-Host ""
-    
-    # Run CLI with message argument (primary delivery) + file fallback
-    `$exitCode = 0
-    try {
-        # Build the prompt with slash command and message
-        `$prompt = "$slashCommand" + `$messageArg
-        
-        # Debug output
-        # Write-Host "DEBUG Prompt: `$prompt" -ForegroundColor DarkGray
-        
-        $cliExecutable$mcpArg $cliDefaultArgs "`$prompt"
-        `$exitCode = `$LASTEXITCODE
-    } catch {
-        Write-Host "ERROR: `$_" -ForegroundColor Red
-        `$exitCode = 1
-    }
+# Run CLI
+`$exitCode = 0
+try {
+    $cliExecutable $cliArgsString
+    `$exitCode = `$LASTEXITCODE
+} catch {
+    Write-Host "ERROR: `$_" -ForegroundColor Red
+    `$exitCode = 1
+}
 
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Yellow
@@ -752,7 +770,7 @@ function Get-PendingBatchData {
 
         return $pendingData
     } catch {
-        Write-WatchdogLog "Failed reading pending batch for $AgentName: $_" -Color Red
+        Write-WatchdogLog "Failed reading pending batch for ${AgentName}: $_" -Color Red
         return $null
     }
 }

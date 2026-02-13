@@ -1,6 +1,113 @@
 # Configuration
 
-This guide covers all aspects of configuring Ralph Orchestra, including the PRD format, max iterations, agent settings, and watchdog options.
+This guide covers all aspects of configuring Ralph Orchestra, including the PRD format, max iterations, agent settings, CLI providers, and watchdog options.
+
+## CLI Provider Configuration
+
+Ralph Orchestra supports multiple AI CLIs through a unified provider system using PowerShell modules.
+
+### Provider Architecture
+
+```
+.claude/providers/
+├── CliProvider.psm1            # Module: base class + helper functions
+├── ClaudeProvider.ps1          # Claude CLI implementation
+├── OpenCodeProvider.ps1        # OpenCode CLI implementation
+└── ProviderFactory.ps1         # Factory + registration
+```
+
+**Note**: Providers use `using module .\CliProvider.psm1` for proper class inheritance at parse time.
+
+### Provider Selection
+
+Configure your CLI provider via one of these methods:
+
+**Option 1: Environment Variable**
+```powershell
+$env:RALPH_CLI_PROVIDER = "opencode"  # or "claude"
+```
+
+**Option 2: Configuration File (`cli-provider.json`)**
+```json
+{
+  "$schema": "./.claude/schemas/cli-provider.schema.json",
+  "provider": "claude",
+  "fallbackProvider": "claude",
+  "providers": {
+    "claude": {
+      "executable": "claude",
+      "defaultArgs": ["--dangerously-skip-permissions"],
+      "supportsMessages": true
+    },
+    "opencode": {
+      "executable": "opencode",
+      "defaultArgs": [],
+      "supportsMessages": false,
+      "serverMode": "standalone"
+    }
+  }
+}
+```
+
+**Option 3: Command Line**
+```powershell
+.\.claude\scripts\ralph-event-session.ps1 -Provider opencode
+```
+
+### OpenCode Configuration
+
+When using OpenCode, create `opencode.json` in your project root:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "instructions": ["CLAUDE.md"],
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-server-filesystem", "--root", "."]
+    }
+  },
+  "agent": {
+    "ralph-pm": {
+      "description": "PM Coordinator - orchestrates tasks and manages priorities",
+      "mode": "primary",
+      "prompt": "Load skill 'shared-core' then skill 'pm-workflow'. Read pending messages from ./.claude/session/pending-messages-pm.json"
+    },
+    "ralph-developer": {
+      "description": "Developer - implements features and fixes bugs",
+      "mode": "primary",
+      "prompt": "Load skill 'shared-core' then skill 'developer-workflow'. Read pending messages from ./.claude/session/pending-messages-developer.json"
+    },
+    "ralph-qa": {
+      "description": "QA Validator - validates implementations and runs tests",
+      "mode": "primary",
+      "prompt": "Load skill 'shared-core' then skill 'qa-workflow'. Read pending messages from ./.claude/session/pending-messages-qa.json"
+    },
+    "ralph-techartist": {
+      "description": "Tech Artist - creates visual assets, shaders, and effects",
+      "mode": "primary",
+      "prompt": "Load skill 'shared-core' then skill 'techartist-workflow'. Read pending messages from ./.claude/session/pending-messages-techartist.json"
+    },
+    "ralph-gamedesigner": {
+      "description": "Game Designer - creates GDDs and design documentation",
+      "mode": "primary",
+      "prompt": "Load skill 'shared-core' then skill 'gamedesigner-workflow'. Read pending messages from ./.claude/session/pending-messages-gamedesigner.json"
+    }
+  }
+}
+```
+
+### Provider Behavior Differences
+
+| Feature | Claude | OpenCode |
+|---------|--------|----------|
+| Agent invocation | Slash command with `--agent` | `--agent ralph-{name}` flag |
+| Message delivery | CLI `--message` argument | File-based (`pending-messages-{agent}.json`) |
+| MCP configuration | `--mcp-config` CLI argument | Auto-loaded from `opencode.json` |
+| Skills location | `.claude/skills/` | `.claude/skills/` (native support) |
 
 ## PRD Format
 
@@ -251,6 +358,7 @@ $Script:DefaultConfig = @{
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
+| `RALPH_CLI_PROVIDER` | CLI provider to use (`claude`, `opencode`) | `claude` |
 | `RALPH_MAX_ITERATIONS` | Maximum iterations | 200 |
 | `RALPH_PROJECT_ROOT` | Project directory | Auto-detected |
 

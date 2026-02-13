@@ -11,13 +11,13 @@
 Ralph Orchestra enables **autonomous software development** by coordinating specialized AI agents, subagents, and skills together with a Watchdog process for Agent state, context window, and messaging coordination. The agents communicate through shared state files and can run indefinitely until all tasks are complete.
 
 ## Key Features
-- **Multi-CLI Support** - Works with Claude CLI, OpenCode CLI, and extensible to more
-- **PRD Starter Wizard** - AI guided project initialization and configuration.
+- **Multi-CLI Support** - Works with Claude CLI, OpenCode CLI, and easily extensible to more
+- **PRD Starter Wizard** - AI guided project initialization and configuration
 - **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
 - **Three Orchestration Modes** - Event-driven, Sequential, or HITL
-- **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle. The context window is kept individual for each agent and cleaned per task.
+- **Watchdog Process** - Never-exit orchestrator that manages agent lifecycle
 - **Message-Based Communication** - File-based messages for agent coordination
-- **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count (0-4)
+- **Scale-Adaptive Planning** - PM adjusts approach based on PRD task count
 - **Skill Improvement** - Agents research and propose skill updates during retrospectives
 
 ## Quick Start
@@ -55,33 +55,29 @@ Create `cli-provider.json` in your project root:
 .\.claude\scripts\ralph-event-session.ps1 -Provider opencode
 ```
 
-### PRD Starter Wizard
+### OpenCode Setup
 
-The PRD Starter Wizard automates Ralph Orchestra project initialization by:
-- Collecting project requirements through conversational prompts
-- Researching similar projects and best practices
-- Creating game design documents (for game projects)
-- Generating PM-quality PRDs
-- Scaffolding complete project structure with agents, scripts, and documentation
+When using OpenCode, create the configuration file:
+
+```powershell
+copy opencode.example.json opencode.json
+```
+
+Then configure your [AI provider](https://opencode.ai/docs/providers/) in `opencode.json`.
 
 ### Running Agents
 
 #### Event-Driven Mode (Recommended)
 
-PM starts first. The watchdog launches workers on demand when they have pending messages:
-
 ```powershell
+# With Claude (default)
 .\.claude\scripts\ralph-event-session.ps1
-```
 
-With OpenCode:
-```powershell
+# With OpenCode
 .\.claude\scripts\ralph-event-session.ps1 -Provider opencode
 ```
 
 #### Sequential Mode (Token-Efficient)
-
-One agent at a time with ~70% lower token usage:
 
 ```powershell
 .\.claude\scripts\ralph-single-session.ps1
@@ -89,43 +85,52 @@ One agent at a time with ~70% lower token usage:
 
 #### HITL Mode (Learning)
 
-Single iteration for learning the flow:
-
 ```
 /ralph-hitl
 ```
 
-#### Manual Agent Startup
+## CLI Provider Architecture
 
-For individual agent sessions:
+Ralph uses a class-based provider system with PowerShell modules:
 
-```bash
-/ralph-coordinator-event           # Start PM (coordinator)
-/ralph-worker-event --agent developer   # Start Developer
-/ralph-worker-event --agent techartist  # Start Tech Artist
-/ralph-worker-event --agent qa          # Start QA
 ```
+.claude/providers/
+├── CliProvider.psm1            # Module with base class + helpers
+├── ClaudeProvider.ps1          # Claude implementation
+├── OpenCodeProvider.ps1        # OpenCode implementation
+└── ProviderFactory.ps1         # Factory + registration
+```
+
+### Provider Module System
+
+Providers use PowerShell modules (`.psm1`) for proper class inheritance:
+- `using module .\CliProvider.psm1` loads the base class at parse time
+- This eliminates TypeNotFound warnings from sourced scripts
+
+### Provider Differences
+
+| Feature | Claude | OpenCode |
+|---------|--------|----------|
+| **Agent Selection** | `--agent` in slash command | `--agent ralph-{name}` flag |
+| **Message Delivery** | CLI `--message` argument | File-based |
+| **MCP Config** | `--mcp-config` CLI arg | Auto-loaded |
+
+### Adding New Providers
+
+1. Create `NewProvider.ps1` inheriting from `CliProvider`
+2. Add `using module .\CliProvider.psm1` at the top
+3. Implement required methods (`BuildAgentCommand`, `GetCapabilities`, etc.)
+4. Register in `ProviderFactory.ps1`
+
+See [Extending](./docs/extending.md) for details.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [Getting Started](./docs/getting-started.md) | Installation, prerequisites, first run |
-| [PRD Starter Wizard](./docs/prd-starter.md) | Phases and configuration steps explained |
 | [Orchestration Modes](./docs/orchestration-modes.md) | All modes explained in detail |
 | [Architecture](./docs/architecture.md) | System architecture, agent roles, message flow |
-| [Configuration](./docs/configuration.md) | PRD format, agent settings, watchdog config |
-| [Extending](./docs/extending.md) | Adding custom agents, skills, routing |
+| [Configuration](./docs/configuration.md) | PRD format, agent settings, CLI providers |
+| [Extending](./docs/extending.md) | Adding custom agents, skills, CLI providers |
 | [Monitoring](./docs/monitoring.md) | Dashboard, logs, troubleshooting |
-
-## Extending CLI Providers
-
-Ralph Orchestra uses a provider abstraction that makes it easy to add new CLI support:
-
-1. Create a new provider in `.claude/providers/` implementing the `CliProvider` interface
-2. Register it in `ProviderFactory.ps1`
-3. Add configuration to `cli-provider.json`
-
-See `.claude/providers/` for examples (ClaudeProvider, OpenCodeProvider).
-
-

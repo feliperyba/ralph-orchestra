@@ -1,47 +1,58 @@
 # OpenCode CLI Provider Implementation
-# Implements the CliProvider interface for OpenCode CLI
 # Source: . "$PSScriptRoot\OpenCodeProvider.ps1"
 
-. "$PSScriptRoot\CliProvider-Interface.ps1"
+using module .\CliProvider.psm1
 
 class OpenCodeProvider : CliProvider {
     <#
     .SYNOPSIS
-    Provider implementation for OpenCode CLI.
-    
-    .DESCRIPTION
-    Implements the CliProvider interface for OpenCode CLI (opencode.ai).
-    OpenCode is an open-source AI coding agent that supports similar
-    patterns to Claude CLI but with different command-line syntax.
+    Provider implementation for OpenCode CLI (opencode.ai).
     
     .NOTES
-    OpenCode CLI invocation patterns:
-    - Interactive: opencode
-    - Non-interactive: opencode run "prompt"
-    - With server: opencode run --attach http://localhost:4096 "prompt"
+    OpenCode CLI invocation:
+    opencode run --agent ralph-developer "prompt"
     
-    OpenCode natively reads .claude/skills/ and .opencode/skills/
+    Agent mapping:
+    - pm -> ralph-pm
+    - developer -> ralph-developer
+    - qa -> ralph-qa
+    - techartist -> ralph-techartist
+    - gamedesigner -> ralph-gamedesigner
+    
+    Messages are delivered via file: ./.claude/session/pending-messages-{agent}.json
     #>
     
     [string] $ServerUrl = $null
+    hidden [hashtable] $AgentMap = @{
+        "pm" = "ralph-pm"
+        "developer" = "ralph-developer"
+        "qa" = "ralph-qa"
+        "techartist" = "ralph-techartist"
+        "gamedesigner" = "ralph-gamedesigner"
+    }
     
     OpenCodeProvider() : base() {
         $this.Name = "opencode"
         $this.Executable = "opencode"
-        $this.DefaultArgs = @("run")
-        $this.SupportsMessages = $true
-        $this.ServerMode = "standalone"
+        $this.DefaultArgs = @()
+        $this.SupportsMessages = $false
     }
     
     OpenCodeProvider([hashtable]$Config) : base($Config) {
         $this.Name = "opencode"
         if (-not $this.Executable) { $this.Executable = "opencode" }
-        if ($this.DefaultArgs.Count -eq 0) { $this.DefaultArgs = @("run") }
         if ($Config.ServerUrl) { $this.ServerUrl = $Config.ServerUrl }
     }
     
     [bool] TestAvailable() {
         return Test-ProviderAvailable -Executable $this.Executable
+    }
+    
+    [string] MapAgentName([string]$RalphAgent) {
+        if ($this.AgentMap.ContainsKey($RalphAgent)) {
+            return $this.AgentMap[$RalphAgent]
+        }
+        return "ralph-$RalphAgent"
     }
     
     [string[]] BuildAgentCommand(
@@ -52,79 +63,56 @@ class OpenCodeProvider : CliProvider {
         [hashtable]$Options
     ) {
         $args = @()
-        
-        # Add "run" subcommand
         $args += "run"
         
-        # Add server attachment if configured
         if (-not [string]::IsNullOrWhiteSpace($this.ServerUrl)) {
             $args += "--attach"
             $args += $this.ServerUrl
         }
         
-        # Build the prompt
-        # OpenCode accepts slash commands directly in the prompt
-        $prompt = $SlashCommand
+        $openCodeAgent = $this.MapAgentName($AgentName)
+        $args += "--agent"
+        $args += $openCodeAgent
         
-        if (-not [string]::IsNullOrWhiteSpace($MessagePayload)) {
-            # Escape the JSON payload for command line
-            $safePayload = $MessagePayload -replace '"', '\"'
-            $prompt += " --message `"$safePayload`""
-        }
-        
-        # Add the prompt
-        $args += $prompt
+        # Simple prompt - agent's configured prompt handles skill loading
+        $args += "Start processing your pending messages from ./.claude/session/pending-messages-$AgentName.json"
         
         return $args
     }
     
     [string[]] GetMcpConfigArgs([string]$AgentName, [string]$ProjectRoot) {
-        # OpenCode reads MCP config from opencode.json's "mcp" section
-        # It also reads .claude/settings.*.json for compatibility
-        # No CLI args needed - config is auto-loaded
+        # OpenCode reads MCP from opencode.json - no CLI args needed
         return @()
     }
     
     [string] GetMcpConfigPath([string]$AgentName, [string]$ProjectRoot) {
-        # OpenCode reads from opencode.json primarily
         $opencodeConfig = Join-Path $ProjectRoot "opencode.json"
-        if (Test-Path $opencodeConfig) {
-            return $opencodeConfig
-        }
+        if (Test-Path $opencodeConfig) { return $opencodeConfig }
         
-        # Falls back to .claude settings for compatibility
         $claudeConfig = Join-Path $ProjectRoot ".claude\settings.$AgentName.json"
-        if (Test-Path $claudeConfig) {
-            return $claudeConfig
-        }
+        if (Test-Path $claudeConfig) { return $claudeConfig }
         
         return $null
     }
     
     [void] InitializeSession([string]$ProjectRoot) {
-        # OpenCode reads skills from:
-        # - .opencode/skills/*/SKILL.md
-        # - .claude/skills/*/SKILL.md (auto-detected)
-        # - ~/.config/opencode/skills/*/SKILL.md
-        
-        # Ensure opencode.json exists with basic structure if not present
         $opencodeConfig = Join-Path $ProjectRoot "opencode.json"
         if (-not (Test-Path $opencodeConfig)) {
-            Write-Host "[OpenCode] No opencode.json found - will use .claude/settings for MCP" -ForegroundColor DarkGray
+            Write-Host "[OpenCode] No opencode.json found. Copy opencode.example.json to opencode.json" -ForegroundColor Yellow
         }
     }
     
     [hashtable] GetCapabilities() {
         return @{
-            SupportsMessages = $true
+            SupportsMessages = $false
             ServerMode = $this.ServerMode
-            MaxMessageSize = $null
-            SupportsAsync = $true  # OpenCode supports async via server
             SupportsMcpConfig = $true
-            SupportsSlashCommands = $true
-            RequiresPermissions = $false  # OpenCode handles permissions differently
+            SupportsSlashCommands = $false
+            RequiresPermissions = $false
+            UsesFileBasedMessages = $true
+            UsesNativeAgents = $true
             CanAttachToServer = $true
-            ReadsClaudeSkills = $true  # Native .claude/skills/ support
+            ReadsClaudeSkills = $true
         }
     }
     
@@ -133,15 +121,7 @@ class OpenCodeProvider : CliProvider {
     }
 }
 
-# ============================================================================
-# EXPORT FUNCTION FOR FACTORY
-# ============================================================================
-
 function New-OpenCodeProvider {
-    <#
-    .SYNOPSIS
-    Create a new OpenCodeProvider instance.
-    #>
     param(
         [hashtable]$Config = @{},
         [string]$ServerUrl = $null

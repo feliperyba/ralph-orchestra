@@ -1,7 +1,7 @@
 {
   "$schema": "./.claude/schemas/cli-provider.schema.json",
   "provider": "claude",
-  "fallbackProvider": "claude",
+  "fallbackProvider": "opencode",
   "providers": {
     "claude": {
       "executable": "claude",
