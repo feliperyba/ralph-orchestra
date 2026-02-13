@@ -112,7 +112,7 @@ Providers use PowerShell modules (`.psm1`) for proper class inheritance:
 | Feature | Claude | OpenCode |
 |---------|--------|----------|
 | **Agent Selection** | `--agent` in slash command | `--agent ralph-{name}` flag |
-| **Message Delivery** | CLI `--message` argument | File-based |
+| **Message Delivery** | CLI `--message` argument | CLI `-m`/`--command` (primary), file-based fallback |
 | **MCP Config** | `--mcp-config` CLI arg | Auto-loaded |
 
 ### Adding New Providers

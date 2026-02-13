@@ -105,7 +105,7 @@ When using OpenCode, create `opencode.json` in your project root:
 | Feature | Claude | OpenCode |
 |---------|--------|----------|
 | Agent invocation | Slash command with `--agent` | `--agent ralph-{name}` flag |
-| Message delivery | CLI `--message` argument | File-based (`pending-messages-{agent}.json`) |
+| Message delivery | CLI `--message` argument (primary) | CLI `-m`/`--command` argument (primary), file-based fallback |
 | MCP configuration | `--mcp-config` CLI argument | Auto-loaded from `opencode.json` |
 | Skills location | `.claude/skills/` | `.claude/skills/` (native support) |
 

@@ -47,7 +47,7 @@ class CliProvider {
 |--------|-----------------|-------------------|
 | **Executable** | `claude` | `opencode` |
 | **Agent Selection** | `--agent` in slash command | `--agent ralph-developer` flag |
-| **Message Delivery** | `--message '{json}'` CLI arg | File-based (`pending-messages-{agent}.json`) |
+| **Message Delivery** | `--message '{json}'` CLI arg | `-m`/`--command` CLI arg (primary), file-based fallback |
 | **MCP Config** | `--mcp-config` CLI arg | Auto-loaded from `opencode.json` |
 | **Skills** | `.claude/skills/` | `.claude/skills/` (native support) |
 

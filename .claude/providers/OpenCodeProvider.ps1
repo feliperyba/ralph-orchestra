@@ -7,21 +7,23 @@ class OpenCodeProvider : CliProvider {
     <#
     .SYNOPSIS
     Provider implementation for OpenCode CLI (opencode.ai).
-    
+
     .NOTES
     OpenCode CLI invocation:
-    opencode run --agent ralph-developer "prompt"
-    
+    opencode run --agent ralph-developer -m "prompt or JSON"
+
     Agent mapping:
     - pm -> ralph-pm
     - developer -> ralph-developer
     - qa -> ralph-qa
     - techartist -> ralph-techartist
     - gamedesigner -> ralph-gamedesigner
-    
-    Messages are delivered via file: ./.claude/session/pending-messages-{agent}.json
+
+    Message delivery priority:
+    1. -m/--command argument (primary) - sends prompt/JSON directly to agent
+    2. File-based fallback - reads from ./.claude/session/pending-messages-{agent}.json
     #>
-    
+
     [string] $ServerUrl = $null
     hidden [hashtable] $AgentMap = @{
         "pm" = "ralph-pm"
@@ -30,31 +32,31 @@ class OpenCodeProvider : CliProvider {
         "techartist" = "ralph-techartist"
         "gamedesigner" = "ralph-gamedesigner"
     }
-    
+
     OpenCodeProvider() : base() {
         $this.Name = "opencode"
         $this.Executable = "opencode"
         $this.DefaultArgs = @()
-        $this.SupportsMessages = $false
+        $this.SupportsMessages = $true  # Now supports --message argument
     }
-    
+
     OpenCodeProvider([hashtable]$Config) : base($Config) {
         $this.Name = "opencode"
         if (-not $this.Executable) { $this.Executable = "opencode" }
         if ($Config.ServerUrl) { $this.ServerUrl = $Config.ServerUrl }
     }
-    
+
     [bool] TestAvailable() {
         return Test-ProviderAvailable -Executable $this.Executable
     }
-    
+
     [string] MapAgentName([string]$RalphAgent) {
         if ($this.AgentMap.ContainsKey($RalphAgent)) {
             return $this.AgentMap[$RalphAgent]
         }
         return "ralph-$RalphAgent"
     }
-    
+
     [string[]] BuildAgentCommand(
         [string]$SlashCommand,
         [string]$MessagePayload,
@@ -62,22 +64,29 @@ class OpenCodeProvider : CliProvider {
         [string]$AgentName,
         [hashtable]$Options
     ) {
-        $args = @()
-        $args += "run"
-        
+        $cliArgs = @()
+        $cliArgs += "run"
+
         if (-not [string]::IsNullOrWhiteSpace($this.ServerUrl)) {
-            $args += "--attach"
-            $args += $this.ServerUrl
+            $cliArgs += "--attach"
+            $cliArgs += $this.ServerUrl
         }
-        
+
         $openCodeAgent = $this.MapAgentName($AgentName)
-        $args += "--agent"
-        $args += $openCodeAgent
-        
-        # Simple prompt - agent's configured prompt handles skill loading
-        $args += "Start processing your pending messages from ./.claude/session/pending-messages-$AgentName.json"
-        
-        return $args
+        $cliArgs += "--agent"
+        $cliArgs += $openCodeAgent
+
+        # Primary: Use -m/--command argument if available (like Claude CLI)
+        if (-not [string]::IsNullOrWhiteSpace($MessagePayload)) {
+            $cliArgs += "-m"
+            $cliArgs += $MessagePayload
+        } else {
+            # Fallback: File-based message delivery
+            $cliArgs += "-m"
+            $cliArgs += "Start processing your pending messages from ./.claude/session/pending-messages-$AgentName.json"
+        }
+
+        return $cliArgs
     }
     
     [string[]] GetMcpConfigArgs([string]$AgentName, [string]$ProjectRoot) {
@@ -104,7 +113,7 @@ class OpenCodeProvider : CliProvider {
     
     [hashtable] GetCapabilities() {
         return @{
-            SupportsMessages = $false
+            SupportsMessages = $true
             ServerMode = $this.ServerMode
             SupportsMcpConfig = $true
             SupportsSlashCommands = $false
