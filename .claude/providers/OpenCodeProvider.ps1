@@ -1,16 +1,22 @@
 # OpenCode CLI Provider Implementation
 # Source: . "$PSScriptRoot\OpenCodeProvider.ps1"
 
-using module .\CliProvider.psm1
-
 class OpenCodeProvider : CliProvider {
     <#
     .SYNOPSIS
     Provider implementation for OpenCode CLI (opencode.ai).
 
     .NOTES
-    OpenCode CLI invocation:
-    opencode run --agent ralph-developer -m "prompt or JSON"
+    OpenCode has two modes:
+    
+    1. TUI mode (interactive):
+       opencode --agent ralph-pm
+       
+    2. Run mode (non-interactive):
+       opencode run --agent ralph-pm "message"
+    
+    For Ralph Orchestra, we use TUI mode launched in a new terminal window
+    so users can interact with the agent directly.
 
     Agent mapping:
     - pm -> ralph-pm
@@ -18,10 +24,6 @@ class OpenCodeProvider : CliProvider {
     - qa -> ralph-qa
     - techartist -> ralph-techartist
     - gamedesigner -> ralph-gamedesigner
-
-    Message delivery priority:
-    1. -m/--command argument (primary) - sends prompt/JSON directly to agent
-    2. File-based fallback - reads from ./.claude/session/pending-messages-{agent}.json
     #>
 
     [string] $ServerUrl = $null
@@ -37,7 +39,7 @@ class OpenCodeProvider : CliProvider {
         $this.Name = "opencode"
         $this.Executable = "opencode"
         $this.DefaultArgs = @()
-        $this.SupportsMessages = $true  # Now supports --message argument
+        $this.SupportsMessages = $true
     }
 
     OpenCodeProvider([hashtable]$Config) : base($Config) {
@@ -65,8 +67,9 @@ class OpenCodeProvider : CliProvider {
         [hashtable]$Options
     ) {
         $cliArgs = @()
-        $cliArgs += "run"
-
+        
+        # TUI mode with --prompt flag for interactive sessions with pre-filled prompt
+        # opencode --agent ralph-pm --prompt "message"
         if (-not [string]::IsNullOrWhiteSpace($this.ServerUrl)) {
             $cliArgs += "--attach"
             $cliArgs += $this.ServerUrl
@@ -75,15 +78,15 @@ class OpenCodeProvider : CliProvider {
         $openCodeAgent = $this.MapAgentName($AgentName)
         $cliArgs += "--agent"
         $cliArgs += $openCodeAgent
-
-        # Primary: Use -m/--command argument if available (like Claude CLI)
+        
+        # Pre-fill the prompt in TUI mode
         if (-not [string]::IsNullOrWhiteSpace($MessagePayload)) {
-            $cliArgs += "-m"
+            $cliArgs += "--prompt"
             $cliArgs += $MessagePayload
         } else {
-            # Fallback: File-based message delivery
-            $cliArgs += "-m"
-            $cliArgs += "Start processing your pending messages from ./.claude/session/pending-messages-$AgentName.json"
+            # Default startup prompt for Ralph agents
+            $cliArgs += "--prompt"
+            $cliArgs += "Read pending messages from ./.claude/session/pending-messages-$AgentName.json and process them according to your workflow."
         }
 
         return $cliArgs
@@ -118,10 +121,11 @@ class OpenCodeProvider : CliProvider {
             SupportsMcpConfig = $true
             SupportsSlashCommands = $false
             RequiresPermissions = $false
-            UsesFileBasedMessages = $true
+            UsesFileBasedMessages = $false
             UsesNativeAgents = $true
             CanAttachToServer = $true
             ReadsClaudeSkills = $true
+            RequiresNewWindow = $true  # OpenCode TUI needs its own terminal window
         }
     }
     

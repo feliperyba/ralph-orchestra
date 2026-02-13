@@ -7,9 +7,9 @@ description: Base instructions and guidelines for all agents in the system. This
 
 > "You are an agent utilizing the **Shared Core Skill**, which provides essential instructions and guidelines for all agents in the system."
 
-## IMPORTANT: Use Claude Tools, Not Shell Commands
+## IMPORTANT: Use Built-in Tools, Not Shell Commands
 
-Instead, use Claude's built-in tools:
+Use your CLI's built-in tools:
 - **Read tool** - to read session files, state, messages
 - **Write tool** - to write message files, update state
 - **Grep tool** - to search code
@@ -23,30 +23,48 @@ Instead, use Claude's built-in tools:
 
 There are 2 layers of communication: The **Watchdog** and **Agents Direct Messaging**. 
 
-### FIRST: Check for Pending Messages
+### FIRST: Read Your Pending Messages
 
-The watchdog delivers messages in two ways:
+**The watchdog delivers messages to you in TWO ways (check in this order):**
 
-1. **PRIMARY**: Via `--message` CLI argument as a JSON array (`$arguments.message`)
-2. **FALLBACK**: Via context file `./.claude/session/pending-messages-$arguments.agent.json`
+#### 1. PRIMARY: CLI Message Argument
+- **Claude CLI**: Check `$arguments.message` - contains JSON array of messages
+- **OpenCode CLI**: Check the initial `--prompt` content - contains JSON array of messages
+- If present and non-empty, parse as JSON array and process all messages
 
-**Always check and read `$arguments.message` first on startup:**
-- If `$arguments.message` is present and non-empty, read it as JSON array of messages
-- If `$arguments.message` is empty/missing, read fallback file `./.claude/session/pending-messages-$arguments.agent.json`
-- If fallback file is missing, inspect inbox `./.claude/session/messages/$arguments.agent/*.json` for diagnostics only
-- **NEVER delete inbox or pending files manually**. Watchdog owns lifecycle cleanup.
+#### 2. FALLBACK: Pending Messages File
+- Read: `./.claude/session/pending-messages-{your-agent-name}.json`
+- This file contains the batch of messages the watchdog delivered to you
+- Parse the `messages` array from this JSON file
+
+#### 3. DIAGNOSTICS ONLY: Inbox Folder
+- Path: `./.claude/session/messages/{your-agent-name}/*.json`
+- **DO NOT read this for your pending work** - the watchdog manages this
+- Only check here for debugging if both primary and fallback are empty
+
+**Message Reading Protocol:**
+```
+Step 1: Check CLI message argument ($arguments.message or initial prompt)
+Step 2: If empty, read ./claude/session/pending-messages-{your-agent-name}.json
+Step 3: Parse messages array and process ALL messages in the batch
+Step 4: NEVER delete inbox or pending files - Watchdog owns lifecycle
+```
+
+**Determining Your Agent Name:**
+- Check `$arguments.agent` (for worker commands)
+- Or identify from the workflow skill you loaded (pm-workflow → "pm", developer-workflow → "developer", etc.)
 
 ### SECOND: NEVER FORGET TO UPDATE A TASK STATUS AND WAKE UP THE NEEDED AGENTS
 
-You are the glue that keep the development cycle running. You **must update a task status to the next agent** and send a message to watchdog wake them up.
+You are the glue that keeps the development cycle running. You **must update a task status to the next agent** and send a message to watchdog to wake them up.
 
 ---
 
 ## How Message Delivery Works
 
 1. **Receive Context:**
-   - **Primary**: Check `$arguments.message` (CLI Argument).
-   - **Fallback**: Check `pending-messages-$arguments.agent.json` (File Lock).
+   - **Primary**: Check CLI message argument (`$arguments.message` or initial prompt)
+   - **Fallback**: Check `pending-messages-{agent}.json` file
 
 2. **Process Messages:**
    - Iterate through the messages in the array.
@@ -54,10 +72,10 @@ You are the glue that keep the development cycle running. You **must update a ta
    - **Do not check** `message-state.json`. The Watchdog guarantees unique delivery.
 
 3. **Complete Transaction:**
-  - When batch work is done, send a `status_update` message with explicit processed IDs.
-  - Include `processedMessageIds` (all processed message IDs) and `processedMessageCount`.
-  - Use `ready`, `waiting`, or `idle` only when you are available for next delivery.
-  - Watchdog clears pending lock only after batch acknowledgement is validated.
+   - When batch work is done, send a `status_update` message with explicit processed IDs.
+   - Include `processedMessageIds` (all processed message IDs) and `processedMessageCount`.
+   - Use `ready`, `waiting`, or `idle` only when you are available for next delivery.
+   - Watchdog clears pending lock only after batch acknowledgement is validated.
 
 ---
 
@@ -74,7 +92,7 @@ To send a message, you must use an **Pattern** to prevent partial reads by the w
 ```json
 {
   "id": "msg-20260208-140000-a1b2c3d4",
-  "from": "$arguments.agent",
+  "from": "{your-agent-name}",
   "to": "{recipient}",
   "type": "{message_type}",
   "priority": "normal",
@@ -83,6 +101,11 @@ To send a message, you must use an **Pattern** to prevent partial reads by the w
   "status": "pending"
 }
 ```
+
+**Your Agent Name**: Determine your agent name from:
+- `$arguments.agent` (Claude CLI with slash command)
+- The workflow skill you loaded (developer-workflow → "developer", qa-workflow → "qa", etc.)
+- Or check which pending-messages file exists for you
 
 ### Example: Sending a Status Update
 
@@ -232,7 +255,7 @@ File: ./.claude/session/messages/watchdog/msg-status-{timestamp}.json
 Content:
 {
   "id": "msg-status-{timestamp}",
-  "from": "$arguments.agent",
+  "from": "{your-agent-name}",
   "to": "watchdog",
   "type": "status_update",
   "priority": "low",

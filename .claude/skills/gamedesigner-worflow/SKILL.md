@@ -25,7 +25,7 @@ description: Complete Game Designer workflow - skill invocation protocol, GDD cr
 
 ## Standard Message Pipeline
 
-- Read message input in this order: `--message` -> `pending-messages-gamedesigner.json` -> inbox diagnostics
+- Read message input in this order: CLI message argument → `pending-messages-gamedesigner.json` → inbox diagnostics
 - Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
 - Watchdog owns delivery and cleanup lifecycle
 - Signal lifecycle using `status_update`:
@@ -37,7 +37,9 @@ description: Complete Game Designer workflow - skill invocation protocol, GDD cr
 
 On each Game Designer agent spawn:
 
-1. **Read --message argument** (task assignment from watchdog)
+1. **Read CLI message argument** (task assignment from watchdog)
+   - For Claude CLI: Check `$arguments.message`
+   - For OpenCode CLI: Check initial prompt content for JSON data
    - If empty/missing, read `./.claude/session/pending-messages-gamedesigner.json`
    - If both are missing, inspect `./.claude/session/messages/gamedesigner/*.json` for diagnostics only
 2. **Read task state file** read and understand current task details and status

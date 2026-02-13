@@ -1,10 +1,7 @@
 # CLI Provider Factory
 # Creates and manages CLI provider instances
 # Source: . "$PSScriptRoot\ProviderFactory.ps1"
-
-using module .\CliProvider.psm1
-. "$PSScriptRoot\ClaudeProvider.ps1"
-. "$PSScriptRoot\OpenCodeProvider.ps1"
+# Requires: Import-Module CliProvider.psm1 before sourcing this file
 
 # ============================================================================
 # PROVIDER REGISTRY

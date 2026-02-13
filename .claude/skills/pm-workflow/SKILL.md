@@ -17,7 +17,7 @@ description: Complete PM Coordinator workflow - task assignment, project orchest
 
 ## Standard Message Pipeline
 
-- Read message input in this order: `--message` -> `pending-messages-pm.json` -> inbox diagnostics
+- Read message input in this order: CLI message argument → `pending-messages-pm.json` → inbox diagnostics
 - Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
 - Watchdog owns delivery and cleanup lifecycle
 - Signal lifecycle using `status_update`:
@@ -29,7 +29,9 @@ description: Complete PM Coordinator workflow - task assignment, project orchest
 
 On each PM agent spawn:
 
-1. **Read --message argument** (if provided by watchdog)
+1. **Read CLI message argument** (if provided by watchdog)
+   - For Claude CLI: Check `$arguments.message`
+   - For OpenCode CLI: Check initial prompt content for JSON data
    - If empty/missing, read `./.claude/session/pending-messages-pm.json`
    - If both are missing, inspect `./.claude/session/messages/pm/*.json` for diagnostics only
 2. **Read prd.json** for current task state

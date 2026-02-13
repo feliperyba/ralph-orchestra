@@ -18,7 +18,7 @@ description: Complete QA Validator workflow orchestration. References specialize
 
 ## Standard Message Pipeline
 
-- Read message input in this order: `--message` -> `pending-messages-qa.json` -> inbox diagnostics
+- Read message input in this order: CLI message argument → `pending-messages-qa.json` → inbox diagnostics
 - Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
 - Watchdog owns delivery and cleanup lifecycle
 - Signal lifecycle using `status_update`:

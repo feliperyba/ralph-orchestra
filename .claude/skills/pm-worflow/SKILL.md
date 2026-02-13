@@ -20,7 +20,10 @@ user-invocable: true
 
 On each PM agent spawn:
 
-1. **Read --message argument** (if provided by watchdog)
+1. **Read CLI message argument** (if provided by watchdog)
+   - For Claude CLI: Check `$arguments.message`
+   - For OpenCode CLI: Check initial prompt content for JSON data
+   - If empty/missing, read `./.claude/session/pending-messages-pm.json`
 2. **Read prd.json** for current task state
 3. **Read all agent status** on `prd.json` to understand current progress and pending messages
 4. **Process work and make decisions** Agents(qa, developer, techartist, gamedesigner) can work in parallel if the tasks are not dependent or conflicting, so reason about the current state of the project and decide what to do based on the information from prd.json and the messages received. Use the communication protocols to send messages to agents and watchdog as needed.

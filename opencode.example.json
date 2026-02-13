@@ -1,45 +1,48 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  
-  "model": "anthropic/claude-sonnet-4-20250514",
-  
-  "instructions": [
-    "CLAUDE.md"
-  ],
-  
-  "mcp": {
-    "filesystem": {
-      "type": "local",
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-server-filesystem", "--root", "."]
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": ""
+      }
     }
   },
-  
-  "agent": {
-    "ralph-pm": {
-      "description": "PM Coordinator - orchestrates tasks and manages priorities",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'pm-workflow'. You are the PM Coordinator in Ralph Orchestra. Read pending messages from ./.claude/session/pending-messages-pm.json"
+  "model": "anthropic/claude-sonnet-4-5",
+  "small_model": "anthropic/claude-haiku-4-5",
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "lsp": "allow",
+    "todoread": "allow",
+    "todowrite": "allow",
+    "webfetch": "allow",
+    "websearch": "allow",
+    "task": "allow",
+    "skill": "allow",
+    "bash": {
+      "*": "ask",
+      "npm *": "allow",
+      "npx *": "allow",
+      "git *": "allow",
+      "node *": "allow",
+      "python *": "allow",
+      "vitest *": "allow",
+      "playwright *": "allow",
+      "rm -rf /": "deny",
+      "format *": "deny"
+    }
+  },
+  "mcp": {
+    "web-search": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-web-search"]
     },
-    "ralph-developer": {
-      "description": "Developer - implements features and fixes bugs",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'developer-workflow'. You are the Developer in Ralph Orchestra. Read pending messages from ./.claude/session/pending-messages-developer.json"
-    },
-    "ralph-qa": {
-      "description": "QA Validator - validates implementations and runs tests",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'qa-workflow'. You are the QA Validator in Ralph Orchestra. Read pending messages from ./.claude/session/pending-messages-qa.json"
-    },
-    "ralph-techartist": {
-      "description": "Tech Artist - creates visual assets, shaders, and effects",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'techartist-workflow'. You are the Tech Artist in Ralph Orchestra. Read pending messages from ./.claude/session/pending-messages-techartist.json"
-    },
-    "ralph-gamedesigner": {
-      "description": "Game Designer - creates GDDs and design documentation",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'gamedesigner-workflow'. You are the Game Designer in Ralph Orchestra. Read pending messages from ./.claude/session/pending-messages-gamedesigner.json"
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"]
     }
   }
 }

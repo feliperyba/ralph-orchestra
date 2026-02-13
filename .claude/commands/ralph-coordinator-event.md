@@ -19,10 +19,15 @@ All agents can run in parallel. You communicate via file-based message queue.
 - **CRITICAL:** Run Skill(`pm-workflow`)
   - You must follow the defined guidelines and rules for your role during the development cycle.
 
-### Priority 1: Read $arguments.message payload (if exists)
+### Priority 1: Read Incoming Message Payload
 
 Read, reason, understand, and act over the incoming request from the payload.
-If provided, treat `$arguments.message` as a JSON array and consolidate **all** items before choosing actions.
+
+**CLI Compatibility:**
+- **Claude CLI**: Check `$arguments.message` for JSON array of messages
+- **OpenCode CLI**: Check the initial prompt content for JSON data
+
+If provided, treat the message data as a JSON array and consolidate **all** items before choosing actions.
 
 ### Priority 2: Check for Consolidation Mode
 

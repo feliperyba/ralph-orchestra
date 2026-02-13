@@ -663,6 +663,7 @@ function Clear-WorkInProgress {
 # ============================================================================
 
 $Script:ProvidersDir = Join-Path $PSScriptRoot "..\providers"
+$Script:ProviderSystemLoaded = $false
 
 function Import-ProviderSystem {
     <#
@@ -671,21 +672,36 @@ function Import-ProviderSystem {
     #>
     param([string]$ProvidersDir = $Script:ProvidersDir)
     
-    $providerFactory = Join-Path $ProvidersDir "ProviderFactory.ps1"
+    if ($Script:ProviderSystemLoaded) { return $true }
     
-    if (-not (Test-Path $providerFactory)) {
-        Write-RalphLog "Provider factory not found at: $providerFactory" -Level "ERROR" -Color Red
+    $cliProviderModule = Join-Path $ProvidersDir "CliProvider.psm1"
+    
+    if (-not (Test-Path $cliProviderModule)) {
+        Write-RalphLog "CliProvider module not found at: $cliProviderModule" -Level "ERROR" -Color Red
         return $false
     }
     
     try {
-        . $providerFactory
+        Import-Module $cliProviderModule -Force -ErrorAction Stop
+        $Script:ProviderSystemLoaded = $true
         return $true
     } catch {
         Write-RalphLog "Failed to load provider system: $_" -Level "ERROR" -Color Red
         return $false
     }
 }
+
+$ProviderClaudeProvider = Join-Path $Script:ProvidersDir "ClaudeProvider.ps1"
+$ProviderOpenCodeProvider = Join-Path $Script:ProvidersDir "OpenCodeProvider.ps1"
+$ProviderFactoryPath = Join-Path $Script:ProvidersDir "ProviderFactory.ps1"
+$ProviderModulePath = Join-Path $Script:ProvidersDir "CliProvider.psm1"
+
+if (Test-Path $ProviderModulePath) {
+    Import-Module $ProviderModulePath -Force -ErrorAction SilentlyContinue
+}
+if (Test-Path $ProviderClaudeProvider) { . $ProviderClaudeProvider }
+if (Test-Path $ProviderOpenCodeProvider) { . $ProviderOpenCodeProvider }
+if (Test-Path $ProviderFactoryPath) { . $ProviderFactoryPath }
 
 function Initialize-RalphProvider {
     <#

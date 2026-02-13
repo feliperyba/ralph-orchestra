@@ -19,7 +19,7 @@ description: Tech Artist orchestration - startup sequence, workflow execution, m
 
 ## Standard Message Pipeline
 
-- Read message input in this order: `--message` -> `pending-messages-techartist.json` -> inbox diagnostics
+- Read message input in this order: CLI message argument → `pending-messages-techartist.json` → inbox diagnostics
 - Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
 - Watchdog owns delivery and cleanup lifecycle
 - Signal lifecycle using `status_update`:
@@ -31,7 +31,9 @@ description: Tech Artist orchestration - startup sequence, workflow execution, m
 
 On each Tech Artist agent spawn:
 
-1. **Read --message argument** (task assignment from watchdog)
+1. **Read CLI message argument** (task assignment from watchdog)
+   - For Claude CLI: Check `$arguments.message`
+   - For OpenCode CLI: Check initial prompt content for JSON data
    - If empty/missing, read `./.claude/session/pending-messages-techartist.json`
    - If both are missing, inspect `./.claude/session/messages/techartist/*.json` for diagnostics only
 2. **Read task state file** - Read and understand current task details and status

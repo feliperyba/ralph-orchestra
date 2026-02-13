@@ -19,7 +19,7 @@ description: Complete Developer workflow orchestration - task research sequence,
 
 ## Standard Message Pipeline
 
-- Read message input in this order: `--message` -> `pending-messages-developer.json` -> inbox diagnostics
+- Read message input in this order: CLI message argument → `pending-messages-developer.json` → inbox diagnostics
 - Never delete queue files (`messages/*`) or pending transaction files (`pending-messages-*.json`)
 - Watchdog owns delivery and cleanup lifecycle
 - Signal lifecycle using `status_update`:
@@ -32,9 +32,9 @@ description: Complete Developer workflow orchestration - task research sequence,
 On each Developer agent spawn:
 
 1. **Read Task Assignment** 
-   - Check CLI `--message` argument.
-  - If CLI payload is empty, check `./.claude/session/pending-messages-developer.json`.
-  - If both are missing, inspect `./.claude/session/messages/developer/*.json` for diagnostics only.
+   - Check CLI message argument (`$arguments.message` for Claude CLI, or initial prompt for OpenCode CLI)
+   - If CLI payload is empty, check `./.claude/session/pending-messages-developer.json`
+   - If both are missing, inspect `./.claude/session/messages/developer/*.json` for diagnostics only
 2. **Read task state file** read and understand current task details and status
 3. **Research task requirements** Understand the requirements, read the specifications, use MCP tools (WebSearch, Fetch) to clarify implementation details, best practices, and potential blockers
 4. **Use your skills, tools, and subagents** After understand the task requirements, review the available skills, subagents and tools, and activate the ones to use for the implementation.

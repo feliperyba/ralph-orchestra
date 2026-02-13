@@ -28,17 +28,20 @@ No additional setup needed if Claude CLI is installed and authenticated.
 
 ### Using OpenCode
 
-1. Copy the example configuration:
+1. The `opencode.json` configuration file contains MCP servers and permissions:
    ```powershell
-   copy opencode.example.json opencode.json
+   # View the configuration
+   cat opencode.json
    ```
 
-2. Configure your AI provider in `opencode.json` (see [OpenCode providers](https://opencode.ai/docs/providers/))
+2. Configure your AI provider (see [OpenCode providers](https://opencode.ai/docs/providers/))
 
 3. Set the provider:
    ```powershell
    $env:RALPH_CLI_PROVIDER = "opencode"
    ```
+
+4. Agent definitions are in `.opencode/agents/` (automatically loaded)
 
 ## Understanding the Interfaces
 

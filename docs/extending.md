@@ -47,9 +47,10 @@ class CliProvider {
 |--------|-----------------|-------------------|
 | **Executable** | `claude` | `opencode` |
 | **Agent Selection** | `--agent` in slash command | `--agent ralph-developer` flag |
-| **Message Delivery** | `--message '{json}'` CLI arg | `-m`/`--command` CLI arg (primary), file-based fallback |
+| **Message Delivery** | `--message '{json}'` CLI arg | Positional argument after flags |
 | **MCP Config** | `--mcp-config` CLI arg | Auto-loaded from `opencode.json` |
-| **Skills** | `.claude/skills/` | `.claude/skills/` (native support) |
+| **Agent Definitions** | `.claude/commands/*.md` | `.opencode/agents/*.md` |
+| **Skills** | `.claude/skills/` | `.claude/skills/` (shared) |
 
 ### Adding a New CLI Provider
 
@@ -284,20 +285,32 @@ $slashCommand = switch ($AgentName) {
 }
 ```
 
-### Step 5: For OpenCode - Add Agent Configuration
+### Step 5: For OpenCode - Add Agent Definition
 
-In `opencode.json`:
+Create `.opencode/agents/ralph-myagent.md`:
 
-```json
-{
-  "agent": {
-    "ralph-myagent": {
-      "description": "My custom agent",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'myagent-workflow'. You are My Agent in Ralph Orchestra."
-    }
-  }
-}
+```markdown
+---
+description: My custom agent for Ralph Orchestra
+model: claude-3-5-sonnet
+tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Skill
+---
+
+# My Agent
+
+## Startup
+1. Load Skill `shared-core`
+2. Load Skill `myagent-workflow`
+
+## Message Queue
+- Read: `./.claude/session/pending-messages-myagent.json`
+
+See skills for detailed protocols.
 ```
 
 In `OpenCodeProvider.ps1`, add to the AgentMap:

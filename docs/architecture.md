@@ -139,13 +139,19 @@ This prevents over-planning for small projects while ensuring proper coordinatio
 ```
 ralph-orchestra/
 ├── ./.claude/
-│   ├── commands/           # Slash commands for agents
+│   ├── commands/           # Slash commands for agents (Claude CLI)
 │   │   ├── ralph-coordinator-event.md  # PM event-driven mode
 │   │   ├── ralph-coordinator-single.md # PM sequential mode
 │   │   ├── ralph-worker-event.md       # Dev/QA event-driven mode
 │   │   ├── ralph-worker-single.md      # Dev/QA sequential mode
 │   │   ├── ralph-hitl.md               # Human-in-the-loop mode
 │   │   └── cancel-ralph.md             # Graceful shutdown
+│   │
+│   ├── providers/           # CLI provider implementations
+│   │   ├── CliProvider.psm1            # Base class module
+│   │   ├── ClaudeProvider.ps1          # Claude CLI provider
+│   │   ├── OpenCodeProvider.ps1        # OpenCode CLI provider
+│   │   └── ProviderFactory.ps1         # Factory + registration
 │   │
 │   ├── scripts/            # Orchestration scripts
 │   │   ├── watchdog-event.ps1        # Event-driven orchestrator
@@ -155,11 +161,11 @@ ralph-orchestra/
 │   │   ├── message-queue.ps1         # Message queue functions
 │   │   └── ralph-config.ps1          # Shared configuration
 │   │
-│   ├── skills/             # Orchestration skills (YAML frontmatter)
-│   │   ├── ralph-core.md             # Core orchestration concepts
-│   │   ├── ralph-router.md           # Routes to agent skills
-│   │   ├── ralph-handoff.md          # Handoff protocol
-│   │   ├── ralph-event-protocol.md   # Event-driven messaging
+│   ├── skills/             # Orchestration skills (shared by both CLIs)
+│   │   ├── shared-core/               # Core protocols
+│   │   ├── developer-workflow/        # Developer workflow
+│   │   ├── pm-workflow/               # PM workflow
+│   │   ├── qa-workflow/               # QA workflow
 │   │   └── ...
 │   │
 │   ├── session/            # Runtime state (gitignored)
@@ -171,10 +177,19 @@ ralph-orchestra/
 │   │
 │   └── settings.*.json     # Per-agent Claude settings
 │
+├── ./.opencode/             # OpenCode CLI configuration
+│   ├── agents/              # Agent definitions (MVI principle)
+│   │   ├── ralph-pm.md
+│   │   ├── ralph-developer.md
+│   │   ├── ralph-qa.md
+│   │   ├── ralph-techartist.md
+│   │   └── ralph-gamedesigner.md
+│   └── commands/            # OpenCode command files
 │
-├── prd.json                # Product Requirements Document (tasks)
-├── CLAUDE.md               # Project context for Claude
-└── README.md               # Main documentation
+├── opencode.json            # OpenCode MCP servers + permissions
+├── prd.json                 # Product Requirements Document (tasks)
+├── CLAUDE.md                # Project context for Claude
+└── README.md                # Main documentation
 ```
 
 ## Session Files

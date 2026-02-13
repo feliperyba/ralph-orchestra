@@ -377,20 +377,26 @@ function Start-Agent {
     $scriptMcpCheck = ""
     if ($mcpArg -ne "") {
        $safeDisplayArgs = ($mcpArg.Trim() -replace '"', '`"') -replace '\$', '`$'
-       $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
+        $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
     }
     
-    # Build the full command string for the generated script
-    # Quote each argument properly for the shell
-    $quotedArgs = @()
+    # Build the full command string for display
+    $cliArgsString = ($cliArgs | ForEach-Object { 
+        if ($_ -match '[\s"]') { 
+            $escaped = $_ -replace '"', '`"'
+            "`"$escaped`"" 
+        } else { 
+            $_ 
+        } 
+    }) -join " "
+    
+    # Build args array as properly escaped PowerShell code for the generated script
+    $cliArgsArrayCode = @()
     foreach ($arg in $cliArgs) {
-        if ($arg -match '\s') {
-            $quotedArgs += "`"$arg`""
-        } else {
-            $quotedArgs += $arg
-        }
+        $escaped = $arg -replace "'", "''"
+        $cliArgsArrayCode += "'$escaped'"
     }
-    $cliArgsString = $quotedArgs -join " "
+    $cliArgsArrayString = $cliArgsArrayCode -join ", "
     
     # Message handling script varies by provider
     $messageHandlingScript = ""
@@ -442,10 +448,11 @@ Write-Host "Starting $cliDisplayName..." -ForegroundColor Yellow
 Write-Host "Command: $cliExecutable $cliArgsString" -ForegroundColor DarkGray
 Write-Host ""
 
-# Run CLI
+# Run CLI using call operator with properly constructed argument array
 `$exitCode = 0
 try {
-    $cliExecutable $cliArgsString
+    `$cliArgsArray = @($cliArgsArrayString)
+    & "$cliExecutable" @cliArgsArray
     `$exitCode = `$LASTEXITCODE
 } catch {
     Write-Host "ERROR: `$_" -ForegroundColor Red

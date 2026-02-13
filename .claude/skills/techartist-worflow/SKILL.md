@@ -21,7 +21,11 @@ description: Tech Artist orchestration - startup sequence, workflow execution, m
 
 On each Tech Artist agent spawn:
 
-1. **Read --message argument** (task assignment from watchdog)
+1. **Read CLI message argument** (task assignment from watchdog)
+   - For Claude CLI: Check `$arguments.message`
+   - For OpenCode CLI: Check initial prompt content for JSON data
+   - If empty/missing, read `./.claude/session/pending-messages-techartist.json`
+   - If both are missing, inspect `./.claude/session/messages/techartist/*.json` for diagnostics only
 2. **Read task state file** read and understand current task details and status
 3. **Research task requirements** Understand the requirements, read the specifications, use MCP tools (WebSearch, Fetch) to clarify implementation details, best practices, and potential blockers. Use Vision MCP for visual research and references. Create visual mood boards, reference collections, and implementation plans to clarify the visual direction and technical approach before starting implementation. For UI, use CSS and HTML to generate prototypes and mockups to validate the visual design and interactions before coding.
 

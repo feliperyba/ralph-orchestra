@@ -56,48 +56,76 @@ $env:RALPH_CLI_PROVIDER = "opencode"  # or "claude"
 
 ### OpenCode Configuration
 
-When using OpenCode, create `opencode.json` in your project root:
+OpenCode uses two configuration files:
+
+**1. `opencode.json`** (project root) - MCP servers and permissions:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "model": "anthropic/claude-sonnet-4-20250514",
-  "instructions": ["CLAUDE.md"],
-  "mcp": {
-    "filesystem": {
-      "type": "local",
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-server-filesystem", "--root", "."]
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "bash": {
+      "*": "ask",
+      "npm *": "allow",
+      "npx *": "allow",
+      "git *": "allow"
     }
   },
-  "agent": {
-    "ralph-pm": {
-      "description": "PM Coordinator - orchestrates tasks and manages priorities",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'pm-workflow'. Read pending messages from ./.claude/session/pending-messages-pm.json"
+  "mcp": {
+    "web-search": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-web-search"]
     },
-    "ralph-developer": {
-      "description": "Developer - implements features and fixes bugs",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'developer-workflow'. Read pending messages from ./.claude/session/pending-messages-developer.json"
-    },
-    "ralph-qa": {
-      "description": "QA Validator - validates implementations and runs tests",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'qa-workflow'. Read pending messages from ./.claude/session/pending-messages-qa.json"
-    },
-    "ralph-techartist": {
-      "description": "Tech Artist - creates visual assets, shaders, and effects",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'techartist-workflow'. Read pending messages from ./.claude/session/pending-messages-techartist.json"
-    },
-    "ralph-gamedesigner": {
-      "description": "Game Designer - creates GDDs and design documentation",
-      "mode": "primary",
-      "prompt": "Load skill 'shared-core' then skill 'gamedesigner-workflow'. Read pending messages from ./.claude/session/pending-messages-gamedesigner.json"
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"]
     }
   }
 }
+```
+
+**Note:** OpenCode uses `permission` (singular), with tool names as keys and `"allow"`, `"ask"`, or `"deny"` as values. For granular control (like bash commands), use object syntax with patterns.
+
+**2. `.opencode/agents/*.md`** - Agent definitions (MVI principle, under 100 lines each):
+
+```
+.opencode/agents/
+├── ralph-pm.md           # PM Coordinator
+├── ralph-developer.md    # Developer
+├── ralph-qa.md           # QA Validator
+├── ralph-techartist.md   # Tech Artist
+└── ralph-gamedesigner.md # Game Designer
+```
+
+Each agent file contains:
+- YAML frontmatter with `description`, `model`, and `tools`
+- Brief instructions that reference skills via `Load Skill 'shared-core'`
+
+**Example agent (`ralph-developer.md`):**
+
+```markdown
+---
+description: Developer agent for Ralph Orchestra
+model: claude-3-5-sonnet
+tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Skill
+---
+
+# Developer Agent
+
+## Startup
+1. Load Skill `shared-core`
+2. Load Skill `developer-workflow`
+
+## Message Queue
+- Read: `./.claude/session/pending-messages-developer.json`
 ```
 
 ### Provider Behavior Differences
@@ -105,9 +133,10 @@ When using OpenCode, create `opencode.json` in your project root:
 | Feature | Claude | OpenCode |
 |---------|--------|----------|
 | Agent invocation | Slash command with `--agent` | `--agent ralph-{name}` flag |
-| Message delivery | CLI `--message` argument (primary) | CLI `-m`/`--command` argument (primary), file-based fallback |
+| Message delivery | CLI `--message` argument | Positional argument after flags |
 | MCP configuration | `--mcp-config` CLI argument | Auto-loaded from `opencode.json` |
-| Skills location | `.claude/skills/` | `.claude/skills/` (native support) |
+| Agent definitions | `.claude/commands/*.md` | `.opencode/agents/*.md` |
+| Skills location | `.claude/skills/` | `.claude/skills/` (shared) |
 
 ## PRD Format
 

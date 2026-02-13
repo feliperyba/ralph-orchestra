@@ -33,13 +33,17 @@ All agents run in parallel. You communicate via message queue.
 - **CRITICAL:** Run Skill(`{$arguments.agent}-workflow`)
   - You must follow the defined guidelines and rules for your role during the development cycle.
 
-### Step 1: Read $arguments.message payload
+### Step 1: Read Incoming Message Payload
 
 Read, reason, understand, and act over the incoming request from the payload.
 
+**CLI Compatibility:**
+- **Claude CLI**: Check `$arguments.message` for JSON array of messages
+- **OpenCode CLI**: Check the initial prompt content for JSON data
+
 ### Step 2: Process the message
 
-Read `$arguments.message` as a **JSON array** and process **all messages in the batch**.
+Read the message data as a **JSON array** and process **all messages in the batch**.
 Do not stop after the first message; consolidate the full batch context before deciding next actions.
 
 **Source of Truth:**
