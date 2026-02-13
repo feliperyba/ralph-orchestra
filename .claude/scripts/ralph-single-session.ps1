@@ -1,6 +1,9 @@
 # Ralph Single-Agent Session Launcher
 # Launches the single-agent orchestration mode where only one agent runs at a time
-# Usage: .\.claude\scripts\ralph-single-session.ps1 [-InitialAgent pm|developer|qa] [-MaxIterations N]
+# Usage: .\.claude\scripts\ralph-single-session.ps1 [-InitialAgent pm|developer|qa] [-MaxIterations N] [-Provider claude|opencode]
+#
+# Environment Variables:
+#   RALPH_CLI_PROVIDER - Set CLI provider (claude, opencode)
 
 param(
     [string]$InitialAgent = "pm",
@@ -8,13 +11,25 @@ param(
     [int]$MaxRestarts = 3,
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,
-    [int]$MaxIterations = 0  # 0 = use config default from ralph-config.ps1
+    [int]$MaxIterations = 0,  # 0 = use config default from ralph-config.ps1
+    [string]$Provider = ""    # CLI provider to use (claude, opencode)
 )
 
 $ErrorActionPreference = "Stop"
 
 # Determine project root
 $ProjectRoot = (Get-Item $PSScriptRoot).Parent.Parent.FullName
+
+# Source configuration
+. "$PSScriptRoot\ralph-config.ps1"
+$paths = Get-RalphPaths -ProjectRoot $ProjectRoot
+$config = Get-RalphConfig
+
+# Determine max iterations
+$maxIter = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
+
+# Initialize CLI provider
+$cliProvider = Initialize-RalphProvider -ProviderName $Provider -ProjectRoot $ProjectRoot
 
 Write-Host ""
 Write-Host "=== Ralph Single-Agent Session Launcher ===" -ForegroundColor Cyan
@@ -24,7 +39,15 @@ Write-Host "Initial Agent: $InitialAgent"
 Write-Host "Graceful Shutdown: ${GracefulShutdownSeconds}s"
 Write-Host "Max Restarts: $MaxRestarts"
 Write-Host "Max Iterations: $maxIter"
+Write-Host "CLI Provider: $($cliProvider.Name) ($($cliProvider.Executable))" -ForegroundColor Yellow
 Write-Host "Dashboard: $(if ($NoDashboard) { 'DISABLED' } else { 'ENABLED' })"
+
+if (-not $cliProvider.TestAvailable()) {
+    Write-Host ""
+    Write-Host "WARNING: CLI executable '$($cliProvider.Executable)' not found!" -ForegroundColor Red
+    Write-Host "Please install $($cliProvider.GetDisplayName()) or switch providers." -ForegroundColor Red
+}
+
 Write-Host ""
 
 # Validate initial agent
@@ -32,14 +55,6 @@ if ($InitialAgent -notin @("pm", "developer", "qa")) {
     Write-Host "ERROR: InitialAgent must be 'pm', 'developer', or 'qa'" -ForegroundColor Red
     exit 1
 }
-
-# Source configuration
-. "$PSScriptRoot\ralph-config.ps1"
-$paths = Get-RalphPaths -ProjectRoot $ProjectRoot
-$config = Get-RalphConfig
-
-# Determine max iterations
-$maxIter = if ($MaxIterations -gt 0) { $MaxIterations } else { $config.MaxIterations }
 
 # Ensure session directory exists
 if (-not (Test-Path $paths.SessionDir)) {
@@ -106,6 +121,10 @@ if ($Debug) {
 
 if ($MaxIterations -gt 0) {
     $watchdogArgs += "-MaxIterations", $MaxIterations
+}
+
+if ($Provider) {
+    $watchdogArgs += "-Provider", $Provider
 }
 
 # Start watchdog in current terminal (not a new window)

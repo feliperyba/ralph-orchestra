@@ -17,7 +17,8 @@ param(
     [switch]$Debug = $false,               # Enable verbose debug output
     [string]$ProjectRoot = "",
     [string]$InitialAgent = "pm",          # Which agent starts first
-    [int]$MaxIterations = 0                # 0 = use config default
+    [int]$MaxIterations = 0,               # 0 = use config default
+    [string]$Provider = ""                 # CLI provider to use (claude, opencode)
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +36,13 @@ if (-not $ProjectRoot) {
 
 $config = Get-RalphConfig
 $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
+
+# Initialize CLI provider
+$Script:CliProvider = Initialize-RalphProvider -ProviderName $Provider -ProjectRoot $ProjectRoot
+if ($Debug) {
+    Write-Host "[WATCHDOG] Using CLI provider: $($Script:CliProvider.Name)" -ForegroundColor Cyan
+    Write-Host "[WATCHDOG] Executable: $($Script:CliProvider.Executable)" -ForegroundColor DarkGray
+}
 
 # Directories
 $Script:LogDir = Join-Path $paths.SessionDir "logs"
@@ -297,25 +305,25 @@ function Start-SingleAgent {
     }
     
     # Determine MCP config argument
-    $mcpConfigFile = Join-Path $ProjectRoot ".claude\settings.$AgentName.json"
-    $mainConfigFile = Join-Path $ProjectRoot ".claude\ralph-config.json"
-    $mcpArg = ""
-    if (Test-Path $mcpConfigFile) {
-        $mcpArg = " --mcp-config "".\.claude\settings.$AgentName.json"""
-    } elseif (Test-Path $mainConfigFile) {
-        $mcpArg = " --mcp-config "".\.claude\ralph-config.json"""
-    }
+    # Get provider-specific MCP config args
+    $mcpArgs = $Script:CliProvider.GetMcpConfigArgs($AgentName, $ProjectRoot)
+    $mcpArg = if ($mcpArgs.Count -gt 0) { " " + ($mcpArgs -join " ") } else { "" }
     
     # Prepare display string for generated script (cleanly checks variable)
     $scriptMcpCheck = ""
     if ($mcpArg -ne "") {
-       # Use single quotes for inner string to allow simple embedding and escape dollar signs
        $safeDisplayArgs = ($mcpArg.Trim() -replace '"', '`"') -replace '\$', '`$'
        $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
     }
 
+    # Get provider info for script generation
+    $cliExecutable = $Script:CliProvider.Executable
+    $cliDefaultArgs = $Script:CliProvider.DefaultArgs -join " "
+    $cliDisplayName = $Script:CliProvider.GetDisplayName()
+
     Write-Host "[WATCHDOG] Starting $AgentName agent..." -ForegroundColor Cyan
-    Write-Host "[WATCHDOG]   Command: claude `"$slashCommand`"$mcpArg --dangerously-skip-permissions" -ForegroundColor DarkGray
+    Write-Host "[WATCHDOG]   Provider: $cliDisplayName" -ForegroundColor DarkGray
+    Write-Host "[WATCHDOG]   Command: $cliExecutable `"$slashCommand`"$mcpArg $cliDefaultArgs" -ForegroundColor DarkGray
     
     # Build runner script with handoff context
     $windowTitle = "Ralph Single-Agent: $AgentName"
@@ -370,18 +378,17 @@ if (Test-Path `$handoffFile) {
 
 Write-Host "IMPORTANT: When done, write to ./.claude/session/handoff-signal.json" -ForegroundColor Magenta
 Write-Host ""
-Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
+Write-Host "Starting $cliDisplayName..." -ForegroundColor Yellow
 Write-Host ""
 
-# Run claude
+# Run CLI
 `$exitCode = 0
 try {
     # Escape double quotes in slash command if present (unlikely but safe)
     `$safeSlashCommand = "$slashCommand" -replace '"', '\"'
     
-    # Flags first (including MCP), then prompt (slash command) as single arg
-    # Use single quotes to protect special chars from PowerShell, but escaped double quotes protect from CMD
-    claude$mcpArg --dangerously-skip-permissions "`$safeSlashCommand"
+    # Build command using provider settings
+    $cliExecutable$mcpArg $cliDefaultArgs "`$safeSlashCommand"
     `$exitCode = `$LASTEXITCODE
 } catch {
     Write-Host "ERROR: `$_" -ForegroundColor Red

@@ -17,7 +17,8 @@ param(
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,
     [string]$ProjectRoot = "",
-    [int]$MaxIterations = 0  # 0 = use config default
+    [int]$MaxIterations = 0,  # 0 = use config default
+    [string]$Provider = ""    # CLI provider to use (claude, opencode)
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +38,13 @@ if (-not $ProjectRoot) {
 
 $config = Get-RalphConfig
 $paths = Get-RalphPaths -ProjectRoot $ProjectRoot
+
+# Initialize CLI provider
+$Script:CliProvider = Initialize-RalphProvider -ProviderName $Provider -ProjectRoot $ProjectRoot
+if ($Debug) {
+    Write-Host "[WATCHDOG] Using CLI provider: $($Script:CliProvider.Name)" -ForegroundColor Cyan
+    Write-Host "[WATCHDOG] Executable: $($Script:CliProvider.Executable)" -ForegroundColor DarkGray
+}
 
 # Directories
 $Script:LogDir = Join-Path $paths.SessionDir "logs"
@@ -366,23 +374,21 @@ $safeJson
         $messageHandlingScript = "`$messageArg = `"`""
     }
     
-    # Determine MCP config argument
-    $mcpConfigFile = Join-Path $ProjectRoot ".claude\settings.$AgentName.json"
-    $mainConfigFile = Join-Path $ProjectRoot ".claude\ralph-config.json"
-    $mcpArg = ""
-    if (Test-Path $mcpConfigFile) {
-        $mcpArg = " --mcp-config "".\.claude\settings.$AgentName.json"""
-    } elseif (Test-Path $mainConfigFile) {
-        $mcpArg = " --mcp-config "".\.claude\ralph-config.json"""
-    }
+    # Get provider-specific MCP config args
+    $mcpArgs = $Script:CliProvider.GetMcpConfigArgs($AgentName, $ProjectRoot)
+    $mcpArg = if ($mcpArgs.Count -gt 0) { " " + ($mcpArgs -join " ") } else { "" }
 
     # Prepare display string for generated script (cleanly checks variable)
     $scriptMcpCheck = ""
     if ($mcpArg -ne "") {
-       # Use single quotes for inner string to allow simple embedding and escape dollar signs
        $safeDisplayArgs = ($mcpArg.Trim() -replace '"', '`"') -replace '\$', '`$'
        $scriptMcpCheck = "Write-Host ""MCP Config: $safeDisplayArgs"" -ForegroundColor DarkGray`n"
     }
+
+    # Get provider info for script generation
+    $cliExecutable = $Script:CliProvider.Executable
+    $cliDefaultArgs = $Script:CliProvider.DefaultArgs -join " "
+    $cliDisplayName = $Script:CliProvider.GetDisplayName()
 
     $scriptContent = @"
 `$Host.UI.RawUI.WindowTitle = "$windowTitle"
@@ -394,6 +400,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Mode: EVENT-DRIVEN MULTI-AGENT"
 Write-Host "Working Dir: $safeProjectRoot"
+Write-Host "CLI Provider: $cliDisplayName" -ForegroundColor DarkGray
 $scriptMcpCheck
 Write-Host ""
 
@@ -408,20 +415,19 @@ if (Test-Path `$pendingFile) {
 # Prepare JSON payload securely
     $messageHandlingScript
 
-    Write-Host "Starting Claude CLI..." -ForegroundColor Yellow
+    Write-Host "Starting $cliDisplayName..." -ForegroundColor Yellow
     Write-Host ""
     
-    # Run claude with --message argument (primary delivery) + file fallback
+    # Run CLI with message argument (primary delivery) + file fallback
     `$exitCode = 0
     try {
-        # Flags first (including MCP), then prompt (slash command + message) as single arg
-        # Use Invoke-Expression or direct variable expansion carefully
+        # Build the prompt with slash command and message
         `$prompt = "$slashCommand" + `$messageArg
         
         # Debug output
         # Write-Host "DEBUG Prompt: `$prompt" -ForegroundColor DarkGray
         
-        claude$mcpArg --dangerously-skip-permissions "`$prompt"
+        $cliExecutable$mcpArg $cliDefaultArgs "`$prompt"
         `$exitCode = `$LASTEXITCODE
     } catch {
         Write-Host "ERROR: `$_" -ForegroundColor Red
@@ -431,7 +437,7 @@ if (Test-Path `$pendingFile) {
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Yellow
     Write-Host "  Agent session ended (exit code: `$exitCode)" -ForegroundColor Yellow
-    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "========================================"  -ForegroundColor Yellow
     
     # PROCESS EXIT HANDLER (Telemetry only)
     # IMPORTANT: Process exit does NOT mean message batch completion.

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-server-filesystem", "--root", "."]
+    }
+  },
+  "instructions": [
+    "CLAUDE.md",
+    ".claude/agents/*/AGENT.md"
+  ],
+  "agent": {
+    "build": {
+      "description": "Developer agent for implementing features",
+      "mode": "primary",
+      "prompt": "You are the Developer agent in Ralph Orchestra. Follow the workflow in .claude/skills/developer-workflow/SKILL.md"
+    },
+    "plan": {
+      "description": "PM Coordinator agent for task orchestration",
+      "mode": "primary",
+      "prompt": "You are the PM Coordinator in Ralph Orchestra. Follow the workflow in .claude/skills/pm-workflow/SKILL.md"
+    }
+  },
+  "command": {
+    "ralph-pm": {
+      "template": "Run as PM Coordinator: /ralph-coordinator-event",
+      "description": "Start PM coordinator in event-driven mode",
+      "agent": "plan"
+    },
+    "ralph-dev": {
+      "template": "Run as Developer: /ralph-worker-event --agent developer",
+      "description": "Start Developer worker in event-driven mode",
+      "agent": "build"
+    },
+    "ralph-qa": {
+      "template": "Run as QA: /ralph-worker-event --agent qa",
+      "description": "Start QA worker in event-driven mode",
+      "agent": "build"
+    }
+  }
+}

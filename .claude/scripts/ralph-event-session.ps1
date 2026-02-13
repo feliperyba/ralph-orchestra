@@ -6,12 +6,17 @@
 #   .\.claude\scripts\ralph-event-session.ps1 -NoDashboard
 #   .\.claude\scripts\ralph-event-session.ps1 -Debug
 #   .\.claude\scripts\ralph-event-session.ps1 -MaxIterations 100
+#   .\.claude\scripts\ralph-event-session.ps1 -Provider opencode
+#
+# Environment Variables:
+#   RALPH_CLI_PROVIDER - Set CLI provider (claude, opencode)
 
 param(
     [switch]$NoDashboard = $false,
     [switch]$Debug = $false,
     [string]$ProjectRoot = "",
-    [int]$MaxIterations = 0  # 0 = use config default from ralph-config.ps1
+    [int]$MaxIterations = 0,  # 0 = use config default from ralph-config.ps1
+    [string]$Provider = ""    # CLI provider to use (claude, opencode)
 )
 
 $ErrorActionPreference = "Stop"
@@ -160,6 +165,16 @@ if ($MaxIterations -gt 0) {
     $config = Get-RalphConfig
     Write-Host "Max Iterations: $($config.MaxIterations) (default)" -ForegroundColor Yellow
 }
+
+# Show CLI provider
+. "$PSScriptRoot\ralph-config.ps1"
+$cliProvider = Initialize-RalphProvider -ProviderName $Provider -ProjectRoot $ProjectRoot
+Write-Host "CLI Provider: $($cliProvider.Name) ($($cliProvider.Executable))" -ForegroundColor Yellow
+if (-not $cliProvider.TestAvailable()) {
+    Write-Host "WARNING: CLI executable '$($cliProvider.Executable)' not found!" -ForegroundColor Red
+    Write-Host "Please install $($cliProvider.GetDisplayName()) or switch providers." -ForegroundColor Red
+}
+
 Write-Host ""
 Write-Host "Press Ctrl+C in watchdog window to stop all agents." -ForegroundColor DarkGray
 Write-Host ""
@@ -169,6 +184,7 @@ $watchdogArgs = @()
 if ($NoDashboard) { $watchdogArgs += "-NoDashboard" }
 if ($Debug) { $watchdogArgs += "-Debug" }
 if ($MaxIterations -gt 0) { $watchdogArgs += "-MaxIterations", $MaxIterations }
+if ($Provider) { $watchdogArgs += "-Provider", $Provider }
 $watchdogArgs += "-ProjectRoot", $ProjectRoot
 
 $watchdogScript = Join-Path $scriptsDir "watchdog-event.ps1"

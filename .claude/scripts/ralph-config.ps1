@@ -657,3 +657,96 @@ function Clear-WorkInProgress {
         Remove-Item $paths.WorkInProgress -Force
     }
 }
+
+# ============================================================================
+# CLI PROVIDER SYSTEM
+# ============================================================================
+
+$Script:ProvidersDir = Join-Path $PSScriptRoot "..\providers"
+
+function Import-ProviderSystem {
+    <#
+    .SYNOPSIS
+    Load the CLI provider system (factory and providers).
+    
+    .DESCRIPTION
+    Imports the provider interface, factory, and all available providers.
+    Must be called before using Get-CliProvider.
+    #>
+    param([string]$ProvidersDir = $Script:ProvidersDir)
+    
+    $providerFactory = Join-Path $ProvidersDir "ProviderFactory.ps1"
+    
+    if (-not (Test-Path $providerFactory)) {
+        Write-RalphLog "Provider factory not found at: $providerFactory" -Level "ERROR" -Color Red
+        return $false
+    }
+    
+    try {
+        . $providerFactory
+        return $true
+    } catch {
+        Write-RalphLog "Failed to load provider system: $_" -Level "ERROR" -Color Red
+        return $false
+    }
+}
+
+function Initialize-RalphProvider {
+    <#
+    .SYNOPSIS
+    Initialize and return the configured CLI provider.
+    
+    .DESCRIPTION
+    Loads the provider system and returns the appropriate provider instance
+    based on configuration (env var, config file, or default).
+    
+    .PARAMETER ProviderName
+    Optional explicit provider name to use
+    
+    .PARAMETER ProjectRoot
+    Project root path for config lookup
+    
+    .RETURNS
+    CliProvider instance
+    #>
+    param(
+        [string]$ProviderName = "",
+        [string]$ProjectRoot = (Get-Location).Path
+    )
+    
+    # Ensure provider system is loaded
+    $null = Import-ProviderSystem
+    
+    # Get the provider
+    return Get-CliProvider -ProviderName $ProviderName -ProjectRoot $ProjectRoot
+}
+
+function Get-RalphCliExecutable {
+    <#
+    .SYNOPSIS
+    Get the CLI executable name for the current provider.
+    
+    .RETURNS
+    String executable name (e.g., "claude" or "opencode")
+    #>
+    param(
+        [string]$ProviderName = "",
+        [string]$ProjectRoot = (Get-Location).Path
+    )
+    
+    $provider = Initialize-RalphProvider -ProviderName $ProviderName -ProjectRoot $ProjectRoot
+    return $provider.Executable
+}
+
+function Write-ProviderStatus {
+    <#
+    .SYNOPSIS
+    Display the current CLI provider status.
+    #>
+    param([string]$ProjectRoot = (Get-Location).Path)
+    
+    # Ensure provider system is loaded
+    $null = Import-ProviderSystem
+    
+    Show-ProviderStatus -ProjectRoot $ProjectRoot
+}

@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ralph-orchestra.ai/schemas/cli-provider.schema.json",
+  "title": "Ralph Orchestra CLI Provider Configuration",
+  "description": "Configuration for selecting and configuring CLI providers (Claude, OpenCode, etc.)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference"
+    },
+    "provider": {
+      "type": "string",
+      "description": "The CLI provider to use (claude, opencode)",
+      "enum": ["claude", "opencode"],
+      "default": "claude"
+    },
+    "fallbackProvider": {
+      "type": "string",
+      "description": "Fallback provider if primary is unavailable",
+      "enum": ["claude", "opencode"],
+      "default": "claude"
+    },
+    "providers": {
+      "type": "object",
+      "description": "Provider-specific configurations",
+      "properties": {
+        "claude": {
+          "$ref": "#/definitions/claudeConfig"
+        },
+        "opencode": {
+          "$ref": "#/definitions/opencodeConfig"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["provider"],
+  "definitions": {
+    "claudeConfig": {
+      "type": "object",
+      "description": "Claude CLI provider configuration",
+      "properties": {
+        "executable": {
+          "type": "string",
+          "description": "Claude CLI executable name or path",
+          "default": "claude"
+        },
+        "defaultArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default arguments for Claude CLI",
+          "default": ["--dangerously-skip-permissions"]
+        },
+        "supportsMessages": {
+          "type": "boolean",
+          "description": "Whether the CLI supports --message argument",
+          "default": true
+        }
+      }
+    },
+    "opencodeConfig": {
+      "type": "object",
+      "description": "OpenCode CLI provider configuration",
+      "properties": {
+        "executable": {
+          "type": "string",
+          "description": "OpenCode CLI executable name or path",
+          "default": "opencode"
+        },
+        "defaultArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default arguments for OpenCode CLI",
+          "default": ["run"]
+        },
+        "supportsMessages": {
+          "type": "boolean",
+          "description": "Whether the CLI supports --message argument",
+          "default": true
+        },
+        "serverMode": {
+          "type": "string",
+          "description": "Server mode: standalone or server",
+          "enum": ["standalone", "server"],
+          "default": "standalone"
+        },
+        "serverUrl": {
+          "type": "string",
+          "description": "URL for OpenCode server (if using server mode)",
+          "format": "uri"
+        }
+      }
+    }
+  }
+}

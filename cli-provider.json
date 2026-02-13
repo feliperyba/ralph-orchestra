@@ -1,0 +1,18 @@
+{
+  "$schema": "./.claude/schemas/cli-provider.schema.json",
+  "provider": "claude",
+  "fallbackProvider": "claude",
+  "providers": {
+    "claude": {
+      "executable": "claude",
+      "defaultArgs": ["--dangerously-skip-permissions"],
+      "supportsMessages": true
+    },
+    "opencode": {
+      "executable": "opencode",
+      "defaultArgs": ["run"],
+      "supportsMessages": true,
+      "serverMode": "standalone"
+    }
+  }
+}

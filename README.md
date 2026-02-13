@@ -1,15 +1,17 @@
 # Ralph Orchestra
 
-> A multi-agent autonomous development framework that coordinates multiple Claude CLI agents to work together on software development tasks.
+> A multi-agent autonomous development framework that coordinates multiple AI CLI agents to work together on software development tasks.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude CLI](https://img.shields.io/badge/Claude-CLI-blue.svg)](https://docs.anthropic.com/en/docs/claude-cli)
+[![OpenCode CLI](https://img.shields.io/badge/OpenCode-CLI-green.svg)](https://opencode.ai)
 
 ## What is Ralph Orchestra?
 
-Ralph Orchestra enables **autonomous software development** by coordinating specialized AI agents, subagents, and skills  together with a Watchdog process for Agent state, context window, and messaging coordination. The agents communicate through shared state files and can run indefinitely until all tasks are complete.
+Ralph Orchestra enables **autonomous software development** by coordinating specialized AI agents, subagents, and skills together with a Watchdog process for Agent state, context window, and messaging coordination. The agents communicate through shared state files and can run indefinitely until all tasks are complete.
 
 ## Key Features
+- **Multi-CLI Support** - Works with Claude CLI, OpenCode CLI, and extensible to more
 - **PRD Starter Wizard** - AI guided project initialization and configuration.
 - **Multi-Agent Coordination** - PM, Developer, Tech Artist, QA, and Game Designer agents with modular skills
 - **Three Orchestration Modes** - Event-driven, Sequential, or HITL
@@ -22,9 +24,36 @@ Ralph Orchestra enables **autonomous software development** by coordinating spec
 
 ### Prerequisites
 
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) installed and authenticated
+Choose your CLI:
+- **Claude CLI**: [Install Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) and authenticate
+- **OpenCode CLI**: [Install OpenCode](https://opencode.ai/docs) and configure a provider
+
+System requirements:
 - PowerShell 5.1+ (Windows) or Bash (Linux/macOS)
 - Python 3.8+
+
+### CLI Provider Selection
+
+Ralph Orchestra supports multiple AI CLIs. Select your provider via:
+
+**Option 1: Environment Variable**
+```powershell
+$env:RALPH_CLI_PROVIDER = "opencode"  # or "claude"
+```
+
+**Option 2: Configuration File**
+
+Create `cli-provider.json` in your project root:
+```json
+{
+  "provider": "opencode"
+}
+```
+
+**Option 3: Command Line**
+```powershell
+.\.claude\scripts\ralph-event-session.ps1 -Provider opencode
+```
 
 ### PRD Starter Wizard
 
@@ -45,6 +74,11 @@ PM starts first. The watchdog launches workers on demand when they have pending 
 .\.claude\scripts\ralph-event-session.ps1
 ```
 
+With OpenCode:
+```powershell
+.\.claude\scripts\ralph-event-session.ps1 -Provider opencode
+```
+
 #### Sequential Mode (Token-Efficient)
 
 One agent at a time with ~70% lower token usage:
@@ -63,7 +97,7 @@ Single iteration for learning the flow:
 
 #### Manual Agent Startup
 
-For individual agent sessions using Claude CLI:
+For individual agent sessions:
 
 ```bash
 /ralph-coordinator-event           # Start PM (coordinator)
@@ -83,5 +117,15 @@ For individual agent sessions using Claude CLI:
 | [Configuration](./docs/configuration.md) | PRD format, agent settings, watchdog config |
 | [Extending](./docs/extending.md) | Adding custom agents, skills, routing |
 | [Monitoring](./docs/monitoring.md) | Dashboard, logs, troubleshooting |
+
+## Extending CLI Providers
+
+Ralph Orchestra uses a provider abstraction that makes it easy to add new CLI support:
+
+1. Create a new provider in `.claude/providers/` implementing the `CliProvider` interface
+2. Register it in `ProviderFactory.ps1`
+3. Add configuration to `cli-provider.json`
+
+See `.claude/providers/` for examples (ClaudeProvider, OpenCodeProvider).
 
 
